@@ -25,6 +25,29 @@ async function resolveVisitorIdInt(): Promise<number | null> {
   return null;
 }
 
+function partitionConversationsByFollowState<
+  T extends { user?: { id?: string } },
+>(conversations: T[], followingIds: string[]): { primary: T[]; requests: T[] } {
+  if (followingIds.length === 0) {
+    return { primary: conversations, requests: [] };
+  }
+
+  const followedIds = new Set(followingIds.map(String));
+  const primary: T[] = [];
+  const requests: T[] = [];
+
+  for (const conversation of conversations) {
+    const otherUserId = conversation.user?.id;
+    if (otherUserId && followedIds.has(String(otherUserId))) {
+      primary.push(conversation);
+    } else {
+      requests.push(conversation);
+    }
+  }
+
+  return { primary, requests };
+}
+
 interface SendMessageResponse {
   ok: boolean;
   data?: { message: any };
@@ -612,45 +635,18 @@ export const messagesApi = {
    */
   async getUnreadCount() {
     try {
-      // Resolve auth IDs in parallel
-      const [authId, visitorIntId] = await Promise.all([
+      const [authId, conversations, followingIds] = await Promise.all([
         getCurrentUserAuthId(),
-        resolveVisitorIdInt(),
+        this.getConversations(),
+        this.getFollowingIds(),
       ]);
       if (!authId) return 0;
 
-      // followingIds + conversations query in parallel
-      const [followingIds, { data: convs }] = await Promise.all([
-        this.getFollowingIds(),
-        supabase
-          .from(DB.conversationsRels.table)
-          .select(DB.conversationsRels.parentId)
-          .eq(DB.conversationsRels.usersId, authId),
-      ]);
-
-      if (!convs || convs.length === 0) return 0;
-
-      // Get unread messages (need senderId to filter by followed)
-      const convIds = convs.map((c) => c[DB.conversationsRels.parentId]);
-      let query = supabase
-        .from(DB.messages.table)
-        .select(`${DB.messages.conversationId}, ${DB.messages.senderId}`)
-        .in(DB.messages.conversationId, convIds)
-        .is(DB.messages.readAt, null);
-      if (visitorIntId) query = query.neq(DB.messages.senderId, visitorIntId);
-      const { data: unreadMsgs, error } = await query;
-
-      if (error) throw error;
-
-      // Count distinct conversations with unread messages from FOLLOWED users only
-      const inboxConvIds = new Set(
-        (unreadMsgs || [])
-          .filter((msg: any) =>
-            followingIds.includes(String(msg[DB.messages.senderId])),
-          )
-          .map((msg: any) => msg[DB.messages.conversationId]),
+      const { primary } = partitionConversationsByFollowState(
+        conversations,
+        followingIds,
       );
-      return inboxConvIds.size;
+      return primary.filter((conversation: any) => conversation.unread).length;
     } catch (error) {
       console.error("[Messages] getUnreadCount error:", error);
       return 0;
@@ -662,49 +658,18 @@ export const messagesApi = {
    */
   async getSpamUnreadCount() {
     try {
-      // Resolve auth IDs in parallel
-      const [authId, visitorIntId] = await Promise.all([
+      const [authId, conversations, followingIds] = await Promise.all([
         getCurrentUserAuthId(),
-        resolveVisitorIdInt(),
+        this.getConversations(),
+        this.getFollowingIds(),
       ]);
       if (!authId) return 0;
 
-      // followingIds + conversations query in parallel
-      const [followingIds, { data: convs }] = await Promise.all([
-        this.getFollowingIds(),
-        supabase
-          .from(DB.conversationsRels.table)
-          .select(DB.conversationsRels.parentId)
-          .eq(DB.conversationsRels.usersId, authId),
-      ]);
-
-      if (!convs || convs.length === 0) return 0;
-
-      const convIds = convs.map((c) => c[DB.conversationsRels.parentId]);
-
-      // Get unread messages from these conversations (need conversationId + senderId)
-      let unreadQuery = supabase
-        .from(DB.messages.table)
-        .select(`${DB.messages.conversationId}, ${DB.messages.senderId}`)
-        .in(DB.messages.conversationId, convIds)
-        .is(DB.messages.readAt, null);
-      if (visitorIntId)
-        unreadQuery = unreadQuery.neq(DB.messages.senderId, visitorIntId);
-      const { data: unreadMessages, error } = await unreadQuery;
-
-      if (error) throw error;
-
-      // Count distinct conversations with messages from users NOT in followingIds
-      const spamConvIds = new Set(
-        (unreadMessages || [])
-          .filter(
-            (msg: any) =>
-              !followingIds.includes(String(msg[DB.messages.senderId])),
-          )
-          .map((msg: any) => msg[DB.messages.conversationId]),
+      const { requests } = partitionConversationsByFollowState(
+        conversations,
+        followingIds,
       );
-
-      return spamConvIds.size;
+      return requests.filter((conversation: any) => conversation.unread).length;
     } catch (error) {
       console.error("[Messages] getSpamUnreadCount error:", error);
       return 0;
@@ -903,33 +868,11 @@ export const messagesApi = {
         this.getConversations(),
         this.getFollowingIds(),
       ]);
-
-      // CRITICAL GUARD: If getFollowingIds() failed or returned empty,
-      // show ALL conversations in the Inbox rather than hiding everything.
-      // This prevents a silent session-expiry / edge-fn failure from
-      // making the user think all their messages disappeared.
-      if (followingIds.length === 0) {
-        console.warn(
-          "[Messages] getFollowingIds returned empty — showing all conversations in inbox",
-        );
-        return filter === "primary" ? conversations : [];
-      }
-
-      if (filter === "primary") {
-        // Inbox: conversations from users you follow
-        return conversations.filter((c: any) => {
-          const otherUserId = c.user?.id;
-          if (!otherUserId) return false; // unknown users go to requests, not inbox
-          return followingIds.includes(String(otherUserId));
-        });
-      } else {
-        // Requests: conversations from users you DON'T follow (+ unknown users)
-        return conversations.filter((c: any) => {
-          const otherUserId = c.user?.id;
-          if (!otherUserId) return true; // unknown users go to requests
-          return !followingIds.includes(String(otherUserId));
-        });
-      }
+      const buckets = partitionConversationsByFollowState(
+        conversations,
+        followingIds,
+      );
+      return filter === "primary" ? buckets.primary : buckets.requests;
     } catch (error) {
       console.error("[Messages] getFilteredConversations error:", error);
       return [];

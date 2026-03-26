@@ -126,6 +126,7 @@ const VideoTile = memo(function VideoTile({
   const showVideo = isCameraOn && hasStream;
   const isAnon = user.isAnonymous;
   const label = user.anonLabel || user.username || user.displayName || "Guest";
+  const showHostIdentityPill = role === "host";
 
   // Animated glow for speaking
   const glowAnim = useRef(new RNAnimated.Value(0)).current;
@@ -222,31 +223,43 @@ const VideoTile = memo(function VideoTile({
                 <Text style={styles.stateBadgeText}>Audio</Text>
               </View>
             )}
-            {isLocal && (
-              <View style={styles.selfBadge}>
-                <Text style={styles.selfBadgeText}>You</Text>
-              </View>
-            )}
+            <View style={styles.topBadgeRight}>
+              {showHostIdentityPill ? (
+                <View style={styles.hostIdentityPill}>
+                  <View style={styles.hostBadge}>
+                    <Crown size={8} color="#fff" />
+                  </View>
+                  <Text style={styles.nameText} numberOfLines={1}>
+                    {label}
+                  </Text>
+                  {user.isVerified && (
+                    <BadgeCheck size={10} color="#7DD3FC" fill="#7DD3FC" />
+                  )}
+                </View>
+              ) : null}
+              {isLocal && !showHostIdentityPill && (
+                <View style={styles.selfBadge}>
+                  <Text style={styles.selfBadgeText}>You</Text>
+                </View>
+              )}
+            </View>
           </View>
 
-          <View style={styles.namePill}>
-            {role === "host" && (
-              <View style={styles.hostBadge}>
-                <Crown size={8} color="#fff" />
-              </View>
-            )}
-            {role === "co-host" && (
-              <View style={styles.coHostBadge}>
-                <Text style={styles.roleBadgeText}>CO</Text>
-              </View>
-            )}
-            <Text style={styles.nameText} numberOfLines={1}>
-              {label}
-            </Text>
-            {user.isVerified && (
-              <BadgeCheck size={10} color="#7DD3FC" fill="#7DD3FC" />
-            )}
-          </View>
+          {!showHostIdentityPill && (
+            <View style={styles.namePill}>
+              {role === "co-host" && (
+                <View style={styles.coHostBadge}>
+                  <Text style={styles.roleBadgeText}>CO</Text>
+                </View>
+              )}
+              <Text style={styles.nameText} numberOfLines={1}>
+                {label}
+              </Text>
+              {user.isVerified && (
+                <BadgeCheck size={10} color="#7DD3FC" fill="#7DD3FC" />
+              )}
+            </View>
+          )}
 
           <View style={styles.micBadge}>
             {isSpeaking ? (
@@ -459,6 +472,12 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  topBadgeRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginLeft: "auto",
+  },
   stateBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -487,6 +506,18 @@ const styles = StyleSheet.create({
     color: "#E0F2FE",
     fontSize: 10,
     fontWeight: "700",
+  },
+  hostIdentityPill: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    borderRadius: 12,
+    paddingHorizontal: 9,
+    paddingVertical: 7,
+    maxWidth: 150,
+    backgroundColor: "rgba(4,8,16,0.7)",
+    borderWidth: 1,
+    borderColor: "rgba(252,37,58,0.24)",
   },
   namePill: {
     position: "absolute",

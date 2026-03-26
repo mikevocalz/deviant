@@ -40,6 +40,7 @@ import {
 import { AppState, type AppStateStatus } from "react-native";
 import { videoApi } from "../api";
 import { useVideoRoomStore } from "../stores/video-room-store";
+import { audioSession } from "@/src/services/calls/audioSession";
 import type {
   ConnectionState,
   Participant,
@@ -172,6 +173,38 @@ export function useVideoRoom({
     onRoomEndedRef.current?.();
   }, [clearTokenTimer, getStore]);
 
+  const setMicEnabled = useCallback(
+    async (enabled: boolean) => {
+      const mic = microphoneRef.current;
+      const stream = mic.microphoneStream;
+      const audioTracks = stream?.getAudioTracks?.() || [];
+
+      if (enabled) {
+        if (audioTracks.length > 0) {
+          for (const track of audioTracks) {
+            track.enabled = true;
+          }
+        } else if (!mic.isMicrophoneOn) {
+          await mic.startMicrophone();
+        }
+
+        getStore().setMicOn(true);
+        audioSession.setMicMuted(false);
+        return;
+      }
+
+      if (audioTracks.length > 0) {
+        for (const track of audioTracks) {
+          track.enabled = false;
+        }
+      }
+
+      getStore().setMicOn(false);
+      audioSession.setMicMuted(true);
+    },
+    [getStore],
+  );
+
   const handleRoomEvent = useCallback(
     (event: RoomEvent) => {
       console.log("[useVideoRoom] Event received:", event.type, event.payload);
@@ -190,11 +223,7 @@ export function useVideoRoom({
           // Host requested we mute — turn off mic if it's on
           if (event.targetId === getStore().localUser?.id) {
             console.log("[useVideoRoom] Muted by host");
-            const mic = microphoneRef.current;
-            if (mic.isMicrophoneOn) {
-              mic.toggleMicrophone();
-            }
-            getStore().setMicOn(false);
+            void setMicEnabled(false);
           }
           break;
         case "mute_all": {
@@ -202,11 +231,7 @@ export function useVideoRoom({
           const localRole = getStore().localUser?.role;
           if (localRole !== "host") {
             console.log("[useVideoRoom] Muted by host (mute all)");
-            const mic2 = microphoneRef.current;
-            if (mic2.isMicrophoneOn) {
-              mic2.toggleMicrophone();
-            }
-            getStore().setMicOn(false);
+            void setMicEnabled(false);
           }
           break;
         }
@@ -215,11 +240,7 @@ export function useVideoRoom({
           const localRole2 = getStore().localUser?.role;
           if (localRole2 !== "host") {
             console.log("[useVideoRoom] Unmuted by host (unmute all)");
-            const mic4 = microphoneRef.current;
-            if (!mic4.isMicrophoneOn) {
-              mic4.toggleMicrophone();
-            }
-            getStore().setMicOn(true);
+            void setMicEnabled(true);
           }
           break;
         }
@@ -227,11 +248,7 @@ export function useVideoRoom({
           // Host is allowing us to unmute — turn mic back on
           if (event.targetId === getStore().localUser?.id) {
             console.log("[useVideoRoom] Unmuted by host");
-            const mic3 = microphoneRef.current;
-            if (!mic3.isMicrophoneOn) {
-              mic3.toggleMicrophone();
-            }
-            getStore().setMicOn(true);
+            void setMicEnabled(true);
           }
           break;
         case "role_changed":
@@ -247,7 +264,7 @@ export function useVideoRoom({
           break;
       }
     },
-    [handleEject, handleRoomEnded, getStore],
+    [handleEject, handleRoomEnded, getStore, setMicEnabled],
   );
 
   const scheduleTokenRefresh = useCallback(
@@ -434,18 +451,22 @@ export function useVideoRoom({
   }, [getStore]);
 
   const toggleMic = useCallback(async () => {
-    if (getStore().isMicOn) {
-      microphoneRef.current.stopMicrophone();
-    } else {
-      await microphoneRef.current.startMicrophone();
-    }
-    getStore().toggleMic();
-  }, [getStore]);
+    const wantEnabled = !getStore().isMicOn;
+    await setMicEnabled(wantEnabled);
+  }, [getStore, setMicEnabled]);
 
   const switchCamera = useCallback(async () => {
-    cameraRef.current.stopCamera();
-    await cameraRef.current.startCamera();
-    getStore().toggleFrontCamera();
+    const stream = cameraRef.current.cameraStream;
+    const videoTrack = stream?.getVideoTracks?.()[0];
+
+    if (videoTrack && typeof (videoTrack as any)._switchCamera === "function") {
+      (videoTrack as any)._switchCamera();
+      getStore().toggleFrontCamera();
+      return;
+    }
+
+    console.warn("[useVideoRoom] _switchCamera unavailable on active track");
+    onErrorRef.current?.("Couldn't reverse camera");
   }, [getStore]);
 
   // ── Admin actions ──────────────────────────────────────────────────

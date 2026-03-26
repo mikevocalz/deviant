@@ -255,6 +255,7 @@ export const usersApi = {
       console.log("[Users] getProfileById:", userId);
 
       if (!userId) return null;
+      const currentUserId = await getViewerIdForRelationshipChecks();
 
       // Determine if userId is a numeric integer ID or a string auth_id
       // Better Auth IDs are non-numeric strings (no dashes); integer IDs are all digits
@@ -306,9 +307,24 @@ export const usersApi = {
       const displayNameParts = buildDisplayNameParts(betterAuthUser?.name);
       const resolvedUsername =
         data[DB.users.username] || betterAuthUser?.username || "";
+      let isFollowing = false;
+      if (
+        currentUserId &&
+        data[DB.users.id] &&
+        currentUserId !== data[DB.users.id]
+      ) {
+        const { data: followData } = await supabase
+          .from(DB.follows.table)
+          .select("id")
+          .eq(DB.follows.followerId, currentUserId)
+          .eq(DB.follows.followingId, data[DB.users.id])
+          .maybeSingle();
+        isFollowing = !!followData;
+      }
 
       return {
         id: String(data[DB.users.id]),
+        authId,
         username: resolvedUsername,
         email: data[DB.users.email] || betterAuthUser?.email || "",
         firstName: data[DB.users.firstName] || displayNameParts.firstName,
@@ -336,6 +352,7 @@ export const usersApi = {
         postsCount:
           (liveCounts?.postsCount ?? Number(data[DB.users.postsCount])) || 0,
         isPrivate: data[DB.users.isPrivate] || false,
+        isFollowing,
         createdAt: data[DB.users.createdAt],
       };
     } catch (error) {

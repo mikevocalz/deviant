@@ -528,9 +528,10 @@ function LocalRoom({
 
   // Local video on/off state (CameraView doesn't have isCameraOn)
   const [localVideoOn, setLocalVideoOn] = React.useState(roomHasVideo);
+  const [localMicEnabled, setLocalMicEnabled] = React.useState(false);
 
   const localUser = buildLocalUser(authUser);
-  const effectiveMuted = !fishjamMic.isMicrophoneOn;
+  const effectiveMuted = !localMicEnabled;
   const effectiveVideoOn = localVideoOn && hasCamPermission;
 
   // Reset store on mount, request permissions
@@ -550,7 +551,10 @@ function LocalRoom({
         audioSession.startForLynk(true);
         console.log("[SneakyLynk:Local] Starting mic");
         await micRef.current.startMicrophone();
-        if (!cancelled) console.log("[SneakyLynk:Local] Mic started");
+        if (!cancelled) {
+          setLocalMicEnabled(true);
+          console.log("[SneakyLynk:Local] Mic started");
+        }
       } catch (e) {
         console.warn("[SneakyLynk:Local] Failed to start mic:", e);
       }
@@ -608,9 +612,31 @@ function LocalRoom({
     });
   }, [id, roomTitle]);
   const handleToggleMic = useCallback(async () => {
-    if (micRef.current.isMicrophoneOn) micRef.current.stopMicrophone();
-    else await micRef.current.startMicrophone();
-  }, []);
+    const wantEnabled = !localMicEnabled;
+    const stream = micRef.current.microphoneStream;
+    const audioTracks = stream?.getAudioTracks?.() || [];
+
+    if (wantEnabled) {
+      if (audioTracks.length > 0) {
+        for (const track of audioTracks) {
+          track.enabled = true;
+        }
+      } else if (!micRef.current.isMicrophoneOn) {
+        await micRef.current.startMicrophone();
+      }
+      audioSession.setMicMuted(false);
+      setLocalMicEnabled(true);
+      return;
+    }
+
+    if (audioTracks.length > 0) {
+      for (const track of audioTracks) {
+        track.enabled = false;
+      }
+    }
+    audioSession.setMicMuted(true);
+    setLocalMicEnabled(false);
+  }, [localMicEnabled]);
   const handleToggleVideo = useCallback(() => {
     setLocalVideoOn((prev) => !prev);
   }, []);

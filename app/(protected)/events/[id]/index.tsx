@@ -642,8 +642,12 @@ function EventDetailScreenContent() {
   ]);
 
   const handleViewTicket = useCallback(() => {
+    queryClient.prefetchQuery({
+      queryKey: ticketKeys.myTicketForEvent(eventId),
+      queryFn: () => ticketsApi.getMyTicketForEvent(eventId),
+    });
     router.push(`/ticket/${eventId}` as any);
-  }, [router, eventId]);
+  }, [eventId, queryClient, router]);
 
   const isHost = useMemo(() => {
     if (!user?.id || !eventData?.host?.id) return false;
