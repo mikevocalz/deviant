@@ -213,13 +213,17 @@ Deno.serve(async (req) => {
 
     if (normalizedOverlays.length > 0) {
       const stickerRows = normalizedOverlays.map((overlay) => ({
-        story_id: story.id,
-        asset_url: overlay.url,
-        position_x: overlay.x,
-        position_y: overlay.y,
-        size_ratio: overlay.sizeRatio,
-        scale: overlay.scale ?? 1,
-        rotation: overlay.rotation ?? 0,
+        _parent_id: story.id,
+        id: crypto.randomUUID(),
+        type: "animated_gif",
+        data: {
+          url: overlay.url,
+          x: overlay.x,
+          y: overlay.y,
+          sizeRatio: overlay.sizeRatio,
+          scale: overlay.scale ?? 1,
+          rotation: overlay.rotation ?? 0,
+        },
       }));
 
       const { error: stickerError } = await supabaseAdmin
