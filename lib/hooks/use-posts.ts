@@ -536,17 +536,22 @@ export function useCreatePost() {
         // Update infinite feed - replace temp post with real one
         queryClient.setQueryData(postKeys.feedInfinite(), (old: any) => {
           if (!old?.pages) return old;
+          const filteredPages = old.pages.map((page: any) => {
+            if (!page?.data) return page;
+            return {
+              ...page,
+              data: page.data.filter(
+                (p: Post) => !p.id.startsWith("temp-") && p.id !== newPost.id,
+              ),
+            };
+          });
           return {
             ...old,
-            pages: old.pages.map((page: any, pageIndex: number) => {
+            pages: filteredPages.map((page: any, pageIndex: number) => {
               if (pageIndex === 0 && page.data) {
-                // Remove temp posts and add real post at the beginning
-                const filteredData = page.data.filter(
-                  (p: Post) => !p.id.startsWith("temp-"),
-                );
                 return {
                   ...page,
-                  data: [newPost, ...filteredData],
+                  data: [newPost, ...page.data],
                 };
               }
               return page;
@@ -557,7 +562,9 @@ export function useCreatePost() {
         // Update legacy feed
         queryClient.setQueryData<Post[]>(postKeys.feed(), (old) => {
           if (!old) return old;
-          const filteredData = old.filter((p) => !p.id.startsWith("temp-"));
+          const filteredData = old.filter(
+            (p) => !p.id.startsWith("temp-") && p.id !== newPost.id,
+          );
           return [newPost, ...filteredData];
         });
 
@@ -568,7 +575,9 @@ export function useCreatePost() {
             postKeys.profilePosts(userId),
             (old) => {
               if (!old) return old;
-              const filtered = old.filter((p) => !p.id.startsWith("temp-"));
+              const filtered = old.filter(
+                (p) => !p.id.startsWith("temp-") && p.id !== newPost.id,
+              );
               return [newPost, ...filtered];
             },
           );

@@ -915,10 +915,15 @@ function UserProfileScreenComponent() {
           </View>
 
           <View className="mt-4">
-            <Text className="font-semibold text-foreground">
-              {user.name || user.username}
-            </Text>
-            <ProfilePronounsPill pronouns={(user as any).pronouns} />
+            <View className="flex-row flex-wrap items-center gap-2">
+              <Text className="font-semibold text-foreground">
+                {user.name || user.username}
+              </Text>
+              <ProfilePronounsPill
+                pronouns={(user as any).pronouns}
+                inline
+              />
+            </View>
             {user.bio && (
               <Text className="mt-1 text-sm text-foreground/90">
                 {user.bio}

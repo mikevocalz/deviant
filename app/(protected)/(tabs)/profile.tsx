@@ -743,10 +743,15 @@ function ProfileScreenContent() {
           </View>
 
           <View className="mt-4">
-            <Text className="text-base font-semibold text-foreground">
-              {displayName}
-            </Text>
-            <ProfilePronounsPill pronouns={displayPronouns} />
+            <View className="flex-row flex-wrap items-center gap-2">
+              <Text className="text-base font-semibold text-foreground">
+                {displayName}
+              </Text>
+              <ProfilePronounsPill
+                pronouns={displayPronouns}
+                inline
+              />
+            </View>
             {displayBio && (
               <Text className="mt-1.5 text-sm leading-5 text-foreground/90">
                 {displayBio}
