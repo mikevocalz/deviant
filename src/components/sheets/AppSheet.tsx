@@ -74,13 +74,14 @@ export default function AppSheet({
 // We intentionally avoid setting custom background props here so the
 // native True Sheet liquid glass styling stays enabled where supported.
 
-const COMMENT_MAX_FRACTION = 0.7;
+const COMMENT_DETENTS = [0.4, 0.56, 0.7] as const;
+const COMMENT_MAX_FRACTION = COMMENT_DETENTS[COMMENT_DETENTS.length - 1];
 const COMMENT_MAX_HEIGHT = Math.round(SCREEN_HEIGHT * COMMENT_MAX_FRACTION);
 
 interface CommentSheetProps {
   /**
    * Detents for the comment sheet. All numeric values are clamped to <= 0.7.
-   * Default: [0.7]
+   * Default: [0.4, 0.56, 0.7]
    */
   detents?: number[];
   /** Corner radius (default 16) */
@@ -90,12 +91,14 @@ interface CommentSheetProps {
 }
 
 export function CommentSheet({
-  detents = [COMMENT_MAX_FRACTION],
+  detents = [...COMMENT_DETENTS],
   cornerRadius = DEFAULT_CORNER_RADIUS,
   header,
 }: CommentSheetProps) {
   // Clamp all numeric detents to <= 0.7
-  const clampedDetents = detents.map((d) => Math.min(d, COMMENT_MAX_FRACTION));
+  const clampedDetents = [...new Set(detents.map((d) => Math.min(d, COMMENT_MAX_FRACTION)))].sort(
+    (left, right) => left - right,
+  );
 
   // initialDetentIndex points at the largest detent (last in sorted array)
   const initialIdx = clampedDetents.length - 1;
@@ -109,9 +112,15 @@ export function CommentSheet({
           maxContentHeight: COMMENT_MAX_HEIGHT,
           cornerRadius,
           dismissible: true,
+          draggable: true,
           grabber: true,
           grabberOptions: GRABBER_OPTIONS,
           scrollable: true,
+          insetAdjustment: "automatic",
+          scrollableOptions: {
+            keyboardDismissMode: "interactive",
+            keyboardShouldPersistTaps: "handled",
+          },
           dimmed: true,
           ...(header ? { header } : {}),
         } as any
