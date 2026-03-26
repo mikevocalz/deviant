@@ -87,10 +87,9 @@ export const storiesApi = {
       if (visibleStoryIds.length > 0) {
         const { data: stickerRows, error: stickerError } = await supabase
           .from("stories_stickers")
-          .select(
-            "id, story_id, asset_url, position_x, position_y, size_ratio, scale, rotation",
-          )
-          .in("story_id", visibleStoryIds);
+          .select("id, _parent_id, type, data")
+          .eq("type", "animated_gif")
+          .in("_parent_id", visibleStoryIds);
 
         if (stickerError) {
           console.warn(
@@ -99,16 +98,18 @@ export const storiesApi = {
           );
         } else {
           for (const row of stickerRows || []) {
-            const storyId = String((row as any).story_id);
+            const storyId = String((row as any)._parent_id);
+            const data = ((row as any).data || {}) as Record<string, unknown>;
             const overlay: StoryAnimatedGifOverlay = {
               id: String((row as any).id),
-              url: (row as any).asset_url,
-              x: Number((row as any).position_x ?? 0.5),
-              y: Number((row as any).position_y ?? 0.5),
-              sizeRatio: Number((row as any).size_ratio ?? 0.2),
-              scale: Number((row as any).scale ?? 1),
-              rotation: Number((row as any).rotation ?? 0),
+              url: String(data.url || ""),
+              x: Number(data.x ?? 0.5),
+              y: Number(data.y ?? 0.5),
+              sizeRatio: Number(data.sizeRatio ?? 0.2),
+              scale: Number(data.scale ?? 1),
+              rotation: Number(data.rotation ?? 0),
             };
+            if (!overlay.url) continue;
             const existing = stickerOverlaysByStoryId.get(storyId) || [];
             existing.push(overlay);
             stickerOverlaysByStoryId.set(storyId, existing);
