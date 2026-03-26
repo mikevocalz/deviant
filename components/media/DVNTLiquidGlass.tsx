@@ -24,6 +24,8 @@ interface DVNTLiquidGlassProps {
   paddingH?: number;
   /** Inner padding vertical, default 8 */
   paddingV?: number;
+  /** Whether the native glass surface should participate in touch handling */
+  interactive?: boolean;
 }
 
 function DVNTLiquidGlassComponent({
@@ -32,6 +34,7 @@ function DVNTLiquidGlassComponent({
   radius = 24,
   paddingH = 12,
   paddingV = 8,
+  interactive = true,
 }: DVNTLiquidGlassProps) {
   const inner = (
     <View
@@ -51,7 +54,7 @@ function DVNTLiquidGlassComponent({
     return (
       <LiquidGlassView
         effect="regular"
-        interactive
+        interactive={interactive}
         style={[createGlassOuterStyle(radius), style]}
       >
         <View style={createGlassScrimStyle("pill")}>{inner}</View>
@@ -78,12 +81,14 @@ interface DVNTLiquidGlassIconButtonProps {
   children: React.ReactNode;
   style?: StyleProp<ViewStyle>;
   size?: number;
+  interactive?: boolean;
 }
 
 function DVNTLiquidGlassIconButtonComponent({
   children,
   style,
   size = 36,
+  interactive = true,
 }: DVNTLiquidGlassIconButtonProps) {
   const radius = size / 4;
 
@@ -91,7 +96,7 @@ function DVNTLiquidGlassIconButtonComponent({
     return (
       <LiquidGlassView
         effect="regular"
-        interactive
+        interactive={interactive}
         style={[
           createGlassOuterStyle(radius),
           {
