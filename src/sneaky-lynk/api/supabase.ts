@@ -186,15 +186,12 @@ export const sneakyLynkApi = {
 
   /**
    * Raise/lower hand
-   * TODO: Add to video Edge Functions if needed
    */
   async toggleHand(
     roomId: string,
     raised: boolean,
   ): Promise<ApiResponse<void>> {
-    // For now, just log - hand raise can be handled client-side or added to video functions
-    console.log(`[SneakyLynk] Toggle hand: ${raised} in room ${roomId}`);
-    return { ok: true };
+    return callEdgeFunction("video_toggle_hand", { roomId, raised });
   },
 
   /**

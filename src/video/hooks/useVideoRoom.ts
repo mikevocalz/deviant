@@ -87,6 +87,8 @@ export function useVideoRoom({
   const unsubscribeEventsRef = useRef<(() => void) | null>(null);
   const unsubscribeMembersRef = useRef<(() => void) | null>(null);
   const cameraToggleInFlightRef = useRef(false);
+  const cameraSwitchInFlightRef = useRef(false);
+  const micToggleInFlightRef = useRef(false);
 
   // ── Ref-wrapped external callbacks & SDK refs ───────────────────────
   // Prevents dependency cycles — callbacks read from refs, not deps.
@@ -127,6 +129,32 @@ export function useVideoRoom({
     const camera = cameraRef.current;
     getStore().setCameraOn(!!(camera.isCameraOn || camera.cameraStream));
   }, [cameraHook.isCameraOn, cameraHook.cameraStream, getStore]);
+
+  useEffect(() => {
+    const microphone = microphoneRef.current;
+    getStore().setMicOn(
+      !!(microphone.isMicrophoneOn || microphone.microphoneStream),
+    );
+  }, [
+    microphoneHook.isMicrophoneOn,
+    microphoneHook.microphoneStream,
+    getStore,
+  ]);
+
+  useEffect(() => {
+    const currentCamera = cameraHook.currentCamera;
+    if (!currentCamera) return;
+
+    const deviceLabel = `${currentCamera.label || ""}`.toLowerCase();
+    if (deviceLabel.includes("back") || deviceLabel.includes("rear")) {
+      getStore().setFrontCamera(false);
+      return;
+    }
+
+    if (deviceLabel.includes("front")) {
+      getStore().setFrontCamera(true);
+    }
+  }, [cameraHook.currentCamera, getStore]);
 
   // ── Connection state sync ───────────────────────────────────────────
   // Deps: only primitive Fishjam status values. Store bails out if unchanged.
@@ -485,11 +513,21 @@ export function useVideoRoom({
   }, [getStore]);
 
   const toggleMic = useCallback(async () => {
+    if (micToggleInFlightRef.current) return;
+    micToggleInFlightRef.current = true;
     const wantEnabled = !getStore().isMicOn;
-    await setMicEnabled(wantEnabled);
+    try {
+      await setMicEnabled(wantEnabled);
+    } finally {
+      micToggleInFlightRef.current = false;
+    }
   }, [getStore, setMicEnabled]);
 
   const switchCamera = useCallback(async () => {
+    if (cameraSwitchInFlightRef.current || cameraToggleInFlightRef.current) {
+      return;
+    }
+    cameraSwitchInFlightRef.current = true;
     try {
       const currentCameraId = cameraRef.current.currentCamera?.deviceId;
       const nextFacing = getStore().isFrontCamera ? "back" : "front";
@@ -499,7 +537,7 @@ export function useVideoRoom({
         const selectError =
           await cameraRef.current.selectCamera(targetCameraId);
         if (!selectError) {
-          getStore().toggleFrontCamera();
+          getStore().setFrontCamera(nextFacing === "front");
           return;
         }
         console.warn(
@@ -516,7 +554,7 @@ export function useVideoRoom({
         typeof (videoTrack as any)._switchCamera === "function"
       ) {
         (videoTrack as any)._switchCamera();
-        getStore().toggleFrontCamera();
+        getStore().setFrontCamera(nextFacing === "front");
         return;
       }
 
@@ -525,6 +563,8 @@ export function useVideoRoom({
     } catch (error) {
       console.error("[useVideoRoom] switchCamera failed:", error);
       onErrorRef.current?.("Couldn't reverse camera");
+    } finally {
+      cameraSwitchInFlightRef.current = false;
     }
   }, [getPreferredCameraId, getStore]);
 

@@ -17,6 +17,7 @@ import {
   Video,
   VideoOff,
   X,
+  Hand,
 } from "lucide-react-native";
 import { Avatar } from "@/components/ui/avatar";
 import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
@@ -101,6 +102,9 @@ export function RoomParticipantsSheet({
         const aOrder = ROLE_ORDER[a.role] ?? 99;
         const bOrder = ROLE_ORDER[b.role] ?? 99;
         if (aOrder !== bOrder) return aOrder - bOrder;
+        if (!!a.isHandRaised !== !!b.isHandRaised) {
+          return a.isHandRaised ? -1 : 1;
+        }
         if (a.id === localUserId) return -1;
         if (b.id === localUserId) return 1;
         return (a.user.displayName || a.user.username || "").localeCompare(
@@ -257,6 +261,31 @@ export function RoomParticipantsSheet({
                     {item.isCameraOn ? "Video on" : "Audio only"}
                   </Text>
                 </View>
+
+                {item.isHandRaised ? (
+                  <View
+                    className="flex-row items-center"
+                    style={{
+                      backgroundColor: "rgba(120, 53, 15, 0.24)",
+                      borderRadius: 999,
+                      paddingHorizontal: 9,
+                      paddingVertical: 5,
+                      marginLeft: 8,
+                    }}
+                  >
+                    <Hand size={11} color="#FCD34D" />
+                    <Text
+                      style={{
+                        color: "#FDE68A",
+                        fontSize: 11,
+                        fontWeight: "700",
+                        marginLeft: 5,
+                      }}
+                    >
+                      Hand raised
+                    </Text>
+                  </View>
+                ) : null}
               </View>
             </View>
           </View>

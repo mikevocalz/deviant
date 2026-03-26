@@ -139,6 +139,7 @@ interface VideoRoomStoreActions {
   setMicOn: (on: boolean) => void;
   toggleCamera: () => void;
   toggleMic: () => void;
+  setFrontCamera: (front: boolean) => void;
   toggleFrontCamera: () => void;
   setSpeakerOn: (on: boolean) => void;
   setLocalStream: (stream: MediaStream | null) => void;
@@ -302,6 +303,7 @@ export const useVideoRoomStore = create<VideoRoomStore>((set, get) => ({
     set({ isCameraOn: !isCameraOn });
   },
   toggleMic: () => set((s) => ({ isMicOn: !s.isMicOn })),
+  setFrontCamera: (isFrontCamera) => set({ isFrontCamera }),
   toggleFrontCamera: () => set((s) => ({ isFrontCamera: !s.isFrontCamera })),
   setSpeakerOn: (isSpeakerOn) => set({ isSpeakerOn }),
   setLocalStream: (localStream) => set({ localStream }),

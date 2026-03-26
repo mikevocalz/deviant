@@ -202,6 +202,7 @@ Deno.serve(async (req) => {
       .update({
         status: "banned",
         left_at: new Date().toISOString(),
+        hand_raised: false,
       })
       .eq("room_id", internalRoomId)
       .eq("user_id", targetUserId);

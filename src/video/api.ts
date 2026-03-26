@@ -20,6 +20,23 @@ interface ApiResponse<T> {
   error?: { code: string; message: string };
 }
 
+const ROOM_UUID_REGEX =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+async function resolveRealtimeRoomId(roomId: string): Promise<string | null> {
+  if (!ROOM_UUID_REGEX.test(roomId)) {
+    return roomId;
+  }
+
+  const { data: room } = await supabase
+    .from("video_rooms")
+    .select("id")
+    .eq("uuid", roomId)
+    .single();
+
+  return room?.id ? String(room.id) : null;
+}
+
 async function callEdgeFunction<T>(
   functionName: string,
   body: Record<string, unknown>,
@@ -248,6 +265,9 @@ export const videoApi = {
    * Get room members
    */
   async getRoomMembers(roomId: string): Promise<RoomMember[]> {
+    const internalRoomId = await resolveRealtimeRoomId(roomId);
+    if (!internalRoomId) return [];
+
     const { data, error } = await supabase
       .from("video_room_members")
       .select(
@@ -256,12 +276,13 @@ export const videoApi = {
         user_id,
         role,
         status,
+        hand_raised,
         joined_at,
         left_at,
         users!inner(username, avatar)
       `,
       )
-      .eq("room_id", roomId)
+      .eq("room_id", internalRoomId)
       .eq("status", "active");
 
     if (error || !data) return [];
@@ -271,6 +292,7 @@ export const videoApi = {
       userId: m.user_id,
       role: m.role,
       status: m.status,
+      handRaised: !!m.hand_raised,
       joinedAt: m.joined_at,
       leftAt: m.left_at,
       username: m.users?.username,
@@ -350,40 +372,51 @@ export const videoApi = {
     userId: string,
     onEvent: (event: RoomEvent) => void,
   ) {
-    const channel = supabase
-      .channel(`video_room_events:${roomId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "video_room_events",
-          filter: `room_id=eq.${roomId}`,
-        },
-        (payload) => {
-          const event = payload.new as any;
-          // Only process events targeting this user or room-wide events
-          if (
-            !event.target_id ||
-            event.target_id === userId ||
-            event.type === "room_ended"
-          ) {
-            onEvent({
-              id: event.id,
-              roomId: event.room_id,
-              type: event.type,
-              actorId: event.actor_id,
-              targetId: event.target_id,
-              payload: event.payload,
-              createdAt: event.created_at,
-            });
-          }
-        },
-      )
-      .subscribe();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
+
+    void (async () => {
+      const realtimeRoomId = await resolveRealtimeRoomId(roomId);
+      if (!realtimeRoomId || cancelled) return;
+
+      channel = supabase
+        .channel(`video_room_events:${realtimeRoomId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "video_room_events",
+            filter: `room_id=eq.${realtimeRoomId}`,
+          },
+          (payload) => {
+            const event = payload.new as any;
+            // Only process events targeting this user or room-wide events
+            if (
+              !event.target_id ||
+              event.target_id === userId ||
+              event.type === "room_ended"
+            ) {
+              onEvent({
+                id: event.id,
+                roomId: event.room_id,
+                type: event.type,
+                actorId: event.actor_id,
+                targetId: event.target_id,
+                payload: event.payload,
+                createdAt: event.created_at,
+              });
+            }
+          },
+        )
+        .subscribe();
+    })();
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   },
 
@@ -397,66 +430,78 @@ export const videoApi = {
       eventType: "INSERT" | "UPDATE" | "DELETE",
     ) => void,
   ) {
-    const channel = supabase
-      .channel(`video_room_members:${roomId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "video_room_members",
-          filter: `room_id=eq.${roomId}`,
-        },
-        async (payload) => {
-          const member = (payload.new || payload.old) as any;
-          const isAnonymous = member.is_anonymous ?? false;
-          const anonLabel = member.anon_label ?? null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
 
-          let userData: {
-            username?: string;
-            first_name?: string;
-            avatar?: { url?: string }[] | { url?: string } | null;
-          } | null = null;
+    void (async () => {
+      const realtimeRoomId = await resolveRealtimeRoomId(roomId);
+      if (!realtimeRoomId || cancelled) return;
 
-          if (!isAnonymous) {
-            const { data } = await supabase
-              .from("users")
-              .select("username, first_name, avatar:avatar_id(url)")
-              .eq("auth_id", member.user_id)
-              .single();
-            userData = data;
-          }
+      channel = supabase
+        .channel(`video_room_members:${realtimeRoomId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "video_room_members",
+            filter: `room_id=eq.${realtimeRoomId}`,
+          },
+          async (payload) => {
+            const member = (payload.new || payload.old) as any;
+            const isAnonymous = member.is_anonymous ?? false;
+            const anonLabel = member.anon_label ?? null;
 
-          onMemberChange(
-            {
-              roomId: member.room_id,
-              userId: member.user_id,
-              role: member.role,
-              status: member.status,
-              joinedAt: member.joined_at,
-              leftAt: member.left_at,
-              username: isAnonymous
-                ? anonLabel || "Anon"
-                : userData?.username || undefined,
-              displayName: isAnonymous
-                ? anonLabel || "Anon"
-                : userData?.first_name || userData?.username || undefined,
-              avatar: isAnonymous
-                ? undefined
-                : Array.isArray(userData?.avatar)
-                  ? userData?.avatar[0]?.url
-                  : userData?.avatar?.url,
-              isAnonymous,
-              anonLabel,
-            },
-            payload.eventType as "INSERT" | "UPDATE" | "DELETE",
-          );
-        },
-      )
-      .subscribe();
+            let userData: {
+              username?: string;
+              first_name?: string;
+              avatar?: { url?: string }[] | { url?: string } | null;
+            } | null = null;
+
+            if (!isAnonymous) {
+              const { data } = await supabase
+                .from("users")
+                .select("username, first_name, avatar:avatar_id(url)")
+                .eq("auth_id", member.user_id)
+                .single();
+              userData = data;
+            }
+
+            onMemberChange(
+              {
+                roomId: member.room_id,
+                userId: member.user_id,
+                role: member.role,
+                status: member.status,
+                handRaised: !!member.hand_raised,
+                joinedAt: member.joined_at,
+                leftAt: member.left_at,
+                username: isAnonymous
+                  ? anonLabel || "Anon"
+                  : userData?.username || undefined,
+                displayName: isAnonymous
+                  ? anonLabel || "Anon"
+                  : userData?.first_name || userData?.username || undefined,
+                avatar: isAnonymous
+                  ? undefined
+                  : Array.isArray(userData?.avatar)
+                    ? userData?.avatar[0]?.url
+                    : userData?.avatar?.url,
+                isAnonymous,
+                anonLabel,
+              },
+              payload.eventType as "INSERT" | "UPDATE" | "DELETE",
+            );
+          },
+        )
+        .subscribe();
+    })();
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   },
 };

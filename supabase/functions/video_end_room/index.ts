@@ -182,6 +182,7 @@ Deno.serve(async (req) => {
       .update({
         status: "left",
         left_at: new Date().toISOString(),
+        hand_raised: false,
       })
       .eq("room_id", internalRoomId)
       .eq("status", "active");

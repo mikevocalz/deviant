@@ -20,6 +20,7 @@ interface RoomState {
   isMuted: boolean;
   isVideoOn: boolean;
   isHandRaised: boolean;
+  raisedHands: Record<string, boolean>;
 
   // Active speaker
   activeSpeakerId: string | null;
@@ -46,6 +47,9 @@ interface RoomState {
   setIsVideoOn: (on: boolean) => void;
   toggleVideo: () => void;
   setIsHandRaised: (raised: boolean) => void;
+  setRaisedHand: (userId: string, raised: boolean) => void;
+  setRaisedHands: (hands: Record<string, boolean>) => void;
+  clearRaisedHands: () => void;
   toggleHand: () => void;
   setActiveSpeakerId: (id: string | null) => void;
   openChat: () => void;
@@ -71,6 +75,7 @@ const initialState = {
   isMuted: true,
   isVideoOn: false,
   isHandRaised: false,
+  raisedHands: {},
   activeSpeakerId: null,
   coHost: null as RoomMember | null,
   listeners: [] as RoomMember[],
@@ -91,6 +96,21 @@ export const useRoomStore = create<RoomState>((set) => ({
   toggleVideo: () => set((state) => ({ isVideoOn: !state.isVideoOn })),
 
   setIsHandRaised: (isHandRaised) => set({ isHandRaised }),
+  setRaisedHand: (userId, raised) =>
+    set((state) => {
+      if (!userId) return state;
+      if (!raised) {
+        if (!state.raisedHands[userId]) return state;
+        const nextHands = { ...state.raisedHands };
+        delete nextHands[userId];
+        return { raisedHands: nextHands };
+      }
+
+      if (state.raisedHands[userId]) return state;
+      return { raisedHands: { ...state.raisedHands, [userId]: true } };
+    }),
+  setRaisedHands: (raisedHands) => set({ raisedHands }),
+  clearRaisedHands: () => set({ raisedHands: {} }),
   toggleHand: () => set((state) => ({ isHandRaised: !state.isHandRaised })),
 
   setActiveSpeakerId: (activeSpeakerId) => set({ activeSpeakerId }),

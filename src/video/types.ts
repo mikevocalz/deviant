@@ -19,7 +19,9 @@ export type EventType =
   | "mute_peer"
   | "mute_all"
   | "unmute_all"
-  | "unmute_peer";
+  | "unmute_peer"
+  | "hand_raised"
+  | "hand_lowered";
 
 export interface VideoRoom {
   id: string;
@@ -47,6 +49,7 @@ export interface RoomMember {
   avatar?: string;
   isAnonymous?: boolean;
   anonLabel?: string | null;
+  handRaised?: boolean;
 }
 
 export interface RoomEvent {
@@ -117,6 +120,8 @@ export interface Participant {
   audioTrack?: any;
   isAnonymous?: boolean;
   anonLabel?: string | null;
+  isHandRaised?: boolean;
+  isFrontCamera?: boolean;
 }
 
 export interface ConnectionState {

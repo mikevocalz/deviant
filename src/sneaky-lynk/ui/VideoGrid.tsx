@@ -25,6 +25,7 @@ import {
   Crown,
   EyeOff,
   Users,
+  Hand,
 } from "lucide-react-native";
 import { Avatar } from "@/components/ui/avatar";
 import type { SneakyUser } from "../types";
@@ -43,6 +44,8 @@ export interface VideoParticipant {
   isMicOn: boolean;
   videoTrack?: any;
   audioTrack?: any;
+  isHandRaised?: boolean;
+  isFrontCamera?: boolean;
 }
 
 interface VideoGridProps {
@@ -121,7 +124,16 @@ const VideoTile = memo(function VideoTile({
   tileHeight: number;
   onPress?: () => void;
 }) {
-  const { user, isCameraOn, isMicOn, videoTrack, isLocal, role } = participant;
+  const {
+    user,
+    isCameraOn,
+    isMicOn,
+    videoTrack,
+    isLocal,
+    role,
+    isHandRaised,
+    isFrontCamera,
+  } = participant;
   const hasStream = videoTrack?.stream;
   const showVideo = isCameraOn && hasStream;
   const isAnon = user.isAnonymous;
@@ -179,7 +191,7 @@ const VideoTile = memo(function VideoTile({
               mediaStream={videoTrack.stream}
               style={StyleSheet.absoluteFill}
               objectFit="cover"
-              mirror={isLocal}
+              mirror={isLocal && isFrontCamera !== false}
             />
           ) : (
             <LinearGradient
@@ -217,12 +229,20 @@ const VideoTile = memo(function VideoTile({
           />
 
           <View style={styles.topBadgeRow}>
-            {!isCameraOn && (
-              <View style={styles.stateBadge}>
-                <VideoOff size={11} color="#D1D5DB" />
-                <Text style={styles.stateBadgeText}>Audio</Text>
-              </View>
-            )}
+            <View style={styles.topBadgeLeft}>
+              {!isCameraOn && (
+                <View style={styles.stateBadge}>
+                  <VideoOff size={11} color="#D1D5DB" />
+                  <Text style={styles.stateBadgeText}>Audio</Text>
+                </View>
+              )}
+              {isHandRaised && (
+                <View style={styles.handBadge}>
+                  <Hand size={11} color="#FCD34D" />
+                  <Text style={styles.handBadgeText}>Hand</Text>
+                </View>
+              )}
+            </View>
             <View style={styles.topBadgeRight}>
               {showHostIdentityPill ? (
                 <View style={styles.hostIdentityPill}>
@@ -472,6 +492,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
+  topBadgeLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
   topBadgeRight: {
     flexDirection: "row",
     alignItems: "center",
@@ -491,6 +516,22 @@ const styles = StyleSheet.create({
   },
   stateBadgeText: {
     color: "#E5E7EB",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  handBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 10,
+    backgroundColor: "rgba(120, 53, 15, 0.62)",
+    borderWidth: 1,
+    borderColor: "rgba(251, 191, 36, 0.24)",
+  },
+  handBadgeText: {
+    color: "#FDE68A",
     fontSize: 10,
     fontWeight: "700",
   },
