@@ -14,6 +14,11 @@ import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 import { profileKeys } from "@/lib/hooks/use-profile";
 import { activityKeys } from "@/lib/hooks/use-activities-query";
 import { isValidPostId } from "@/lib/validation/post-params";
+import {
+  decrementPostCountEverywhere,
+  removePostEverywhere,
+  type PostOwnerIdentity,
+} from "@/lib/query/patch";
 
 // Track in-flight like mutations per post to prevent race conditions
 const pendingLikeMutations = new Set<string>();
@@ -44,6 +49,19 @@ function findCachedPostSnapshot(
   }
 
   return undefined;
+}
+
+function restoreCachedQuery(
+  queryClient: QueryClient,
+  queryKey: readonly unknown[],
+  data: unknown,
+) {
+  if (data === undefined) {
+    queryClient.removeQueries({ queryKey, exact: true });
+    return;
+  }
+
+  queryClient.setQueryData(queryKey, data);
 }
 
 /**
@@ -596,73 +614,74 @@ export function useDeletePost() {
   return useMutation({
     mutationFn: postsApi.deletePost,
     onMutate: async (deletedPostId) => {
-      // Normalize to string for safe comparison (post.id may be number, deletedPostId is string)
       const idStr = String(deletedPostId);
+      const deletedPost = findCachedPostSnapshot(queryClient, idStr);
+      const authUser = useAuthStore.getState().user;
+      const isOwner =
+        !!authUser?.username &&
+        authUser.username.toLowerCase() ===
+          deletedPost?.author?.username?.toLowerCase();
+      const ownerIdentity: PostOwnerIdentity = {
+        id: deletedPost?.author?.id,
+        username: deletedPost?.author?.username,
+        authId: isOwner ? authUser?.id : undefined,
+      };
 
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: postKeys.all });
+      await Promise.all([
+        queryClient.cancelQueries({ queryKey: postKeys.all }),
+        queryClient.cancelQueries({ queryKey: ["profilePosts"] }),
+        queryClient.cancelQueries({ queryKey: profileKeys.all }),
+        queryClient.cancelQueries({ queryKey: ["users", "username"] }),
+        queryClient.cancelQueries({ queryKey: ["auth-user"] }),
+      ]);
 
-      // Snapshot previous data for rollback
       const previousInfinite = queryClient.getQueryData(
         postKeys.feedInfinite(),
       );
       const previousFeed = queryClient.getQueryData(postKeys.feed());
-
-      // Optimistically remove from infinite feed
-      queryClient.setQueryData(postKeys.feedInfinite(), (old: any) => {
-        if (!old?.pages) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page: any) => ({
-            ...page,
-            data: page.data?.filter((post: Post) => String(post.id) !== idStr),
-          })),
-        };
+      const previousDetail = queryClient.getQueryData(postKeys.detail(idStr));
+      const previousProfilePosts = queryClient.getQueriesData<Post[]>({
+        queryKey: ["profilePosts"],
       });
-
-      // Optimistically remove from legacy feed
-      queryClient.setQueryData<Post[]>(postKeys.feed(), (old) => {
-        if (!old) return old;
-        return old.filter((post) => String(post.id) !== idStr);
+      const previousProfiles = queryClient.getQueriesData({
+        queryKey: profileKeys.all,
       });
-
-      // Optimistically remove from profile posts (all users)
-      queryClient.setQueriesData<Post[]>(
-        { queryKey: ["profilePosts"] },
-        (old) => {
-          if (!old) return old;
-          return old.filter((post) => String(post.id) !== idStr);
-        },
-      );
-
-      // Remove from detail cache
-      queryClient.removeQueries({ queryKey: postKeys.detail(deletedPostId) });
-
-      // Optimistically decrement posts_count on all profile caches
-      queryClient.setQueriesData({ queryKey: ["profile"] }, (old: any) => {
-        if (!old || typeof old !== "object") return old;
-        if (typeof old.postsCount === "number") {
-          return { ...old, postsCount: Math.max(0, old.postsCount - 1) };
-        }
-        if (typeof old.posts_count === "number") {
-          return { ...old, posts_count: Math.max(0, old.posts_count - 1) };
-        }
-        return old;
+      const previousUsersByUsername = queryClient.getQueriesData({
+        queryKey: ["users", "username"],
       });
+      const previousAuthFallbacks = queryClient.getQueriesData({
+        queryKey: ["auth-user"],
+      });
+      const previousAuthUser = authUser;
 
-      // Also update auth store user's postsCount
+      removePostEverywhere(queryClient, idStr);
+      decrementPostCountEverywhere(queryClient, ownerIdentity);
+
       const { user, setUser } = useAuthStore.getState();
-      if (user && typeof (user as any).postsCount === "number") {
+      if (
+        user &&
+        isOwner &&
+        typeof (user as any).postsCount === "number"
+      ) {
         setUser({
           ...user,
           postsCount: Math.max(0, (user as any).postsCount - 1),
         } as any);
       }
 
-      return { previousInfinite, previousFeed };
+      return {
+        previousInfinite,
+        previousFeed,
+        previousDetail,
+        previousProfilePosts,
+        previousProfiles,
+        previousUsersByUsername,
+        previousAuthFallbacks,
+        previousAuthUser,
+        deletedPost,
+      };
     },
-    onError: (_err, _deletedPostId, context) => {
-      // Rollback on error
+    onError: (_err, deletedPostId, context) => {
       if (context?.previousInfinite) {
         queryClient.setQueryData(
           postKeys.feedInfinite(),
@@ -672,24 +691,69 @@ export function useDeletePost() {
       if (context?.previousFeed) {
         queryClient.setQueryData(postKeys.feed(), context.previousFeed);
       }
+      if (context) {
+        const idStr = String(deletedPostId);
+
+        if (context.previousDetail !== undefined) {
+          queryClient.setQueryData(postKeys.detail(idStr), context.previousDetail);
+        }
+
+        context.previousProfilePosts?.forEach(([queryKey, data]) => {
+          restoreCachedQuery(queryClient, queryKey, data);
+        });
+        context.previousProfiles?.forEach(([queryKey, data]) => {
+          restoreCachedQuery(queryClient, queryKey, data);
+        });
+        context.previousUsersByUsername?.forEach(([queryKey, data]) => {
+          restoreCachedQuery(queryClient, queryKey, data);
+        });
+        context.previousAuthFallbacks?.forEach(([queryKey, data]) => {
+          restoreCachedQuery(queryClient, queryKey, data);
+        });
+
+        if (context.previousAuthUser) {
+          useAuthStore.getState().setUser(context.previousAuthUser);
+        }
+      }
     },
-    onSuccess: (_result, deletedPostId) => {
+    onSuccess: (_result, deletedPostId, context) => {
       if (__DEV__)
         console.log(
           "[useDeletePost] Post deleted successfully:",
           deletedPostId,
         );
-      // Invalidate feeds + profile to sync server state
-      queryClient.invalidateQueries({ queryKey: postKeys.feedInfinite() });
-      queryClient.invalidateQueries({ queryKey: postKeys.feed() });
-      // Use proper key factories for profile posts
-      const userId = useAuthStore.getState().user?.id;
-      if (userId) {
+      const idStr = String(deletedPostId);
+      removePostEverywhere(queryClient, idStr);
+
+      queryClient.invalidateQueries({
+        queryKey: postKeys.feedInfinite(),
+        refetchType: "active",
+      });
+      queryClient.invalidateQueries({
+        queryKey: postKeys.feed(),
+        refetchType: "active",
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["profilePosts"],
+        refetchType: "active",
+      });
+
+      const ownerUsername = context?.deletedPost?.author?.username;
+      if (ownerUsername) {
         queryClient.invalidateQueries({
-          queryKey: postKeys.profilePosts(userId),
+          queryKey: ["users", "username", ownerUsername],
+          refetchType: "active",
         });
-        queryClient.invalidateQueries({ queryKey: profileKeys.byId(userId) });
+        queryClient.invalidateQueries({
+          queryKey: profileKeys.byUsername(ownerUsername),
+          refetchType: "active",
+        });
       }
+
+      queryClient.invalidateQueries({
+        queryKey: profileKeys.all,
+        refetchType: "active",
+      });
     },
   });
 }
