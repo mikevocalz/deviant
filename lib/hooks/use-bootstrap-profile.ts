@@ -109,11 +109,32 @@ export function useBootstrapProfile() {
     hasRun.current = true;
 
     // Check if we already have fresh profile data from MMKV cache
-    const existingProfile = queryClient.getQueryData(profileKeys.byId(userId));
-    if (existingProfile) {
+    const existingProfile = queryClient.getQueryData<any>(
+      profileKeys.byId(userId),
+    );
+    const existingPosts = queryClient.getQueryData<any[]>(
+      postKeys.profilePosts(userId),
+    );
+    const expectedPostsCount = Number(existingProfile?.postsCount ?? 0);
+    const hasUsablePostsCache = Array.isArray(existingPosts)
+      ? existingPosts.length > 0 || expectedPostsCount === 0
+      : expectedPostsCount === 0;
+
+    if (existingProfile && hasUsablePostsCache) {
       trace.markCacheHit();
       trace.markUsable();
       return;
+    }
+
+    if (
+      expectedPostsCount > 0 &&
+      Array.isArray(existingPosts) &&
+      existingPosts.length === 0
+    ) {
+      queryClient.removeQueries({
+        queryKey: postKeys.profilePosts(userId),
+        exact: true,
+      });
     }
 
     bootstrapApi.profile({ userId }).then((data) => {

@@ -140,7 +140,7 @@ export const queryPersister = createSyncStoragePersister({
 export const persistOptions = {
   persister: queryPersister,
   maxAge: 30 * 60 * 1000, // 30 min — matches gcTime
-  buster: "v4", // CRITICAL: Must increment on every OTA that changes query structures
+  buster: "v5", // CRITICAL: Must increment on every OTA that changes query structures
 };
 
 /**

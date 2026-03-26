@@ -59,13 +59,10 @@ export function TextPostSlidesComposer({
       <View style={{ padding: 16, paddingBottom: 8 }}>
         <View
           style={{
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "space-between",
             marginBottom: 12,
           }}
         >
-          <View>
+          <View style={{ minWidth: 0 }}>
             <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>
               Slide {activeIndex + 1} of {slides.length}
             </Text>
@@ -76,10 +73,20 @@ export function TextPostSlidesComposer({
                 marginTop: 4,
               }}
             >
-              Up to {TEXT_POST_MAX_SLIDES} cards, {TEXT_POST_MAX_LENGTH} characters each.
+              Up to {TEXT_POST_MAX_SLIDES} cards, {TEXT_POST_MAX_LENGTH}{" "}
+              characters each.
             </Text>
           </View>
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 10,
+              marginTop: 12,
+            }}
+          >
             <Pressable
               onPress={handleRemoveSlide}
               disabled={!canRemoveSlide}
@@ -109,6 +116,7 @@ export function TextPostSlidesComposer({
                 paddingHorizontal: 14,
                 height: 40,
                 borderRadius: 14,
+                flexShrink: 1,
                 backgroundColor: canAddSlide
                   ? "rgba(62,164,229,0.16)"
                   : "rgba(255,255,255,0.04)",
@@ -126,6 +134,7 @@ export function TextPostSlidesComposer({
                   fontSize: 13,
                   fontWeight: "700",
                 }}
+                numberOfLines={1}
               >
                 New Slide
               </Text>
