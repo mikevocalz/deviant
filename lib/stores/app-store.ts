@@ -9,6 +9,15 @@ let splashHasFinishedEver = false;
 
 export type FeedMode = "classic" | "masonry";
 
+function readPersistedNsfwEnabled(): boolean {
+  try {
+    const stored = mmkv.getString(NSFW_STORAGE_KEY) ?? null;
+    return stored !== null ? JSON.parse(stored) : false;
+  } catch {
+    return false;
+  }
+}
+
 interface AppState {
   appReady: boolean;
   splashAnimationFinished: boolean;
@@ -23,7 +32,7 @@ interface AppState {
   setNsfwEnabled: (enabled: boolean) => void;
   toggleNsfwEnabled: () => boolean;
   setFeedMode: (mode: FeedMode) => void;
-  loadNsfwSetting: () => Promise<void>;
+  loadNsfwSetting: () => void;
   setPendingNotificationRoute: (route: string | null) => void;
   consumePendingNotificationRoute: () => string | null;
 }
@@ -32,14 +41,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   appReady: false,
   // Initialize from module-level flag to handle any store resets
   splashAnimationFinished: splashHasFinishedEver,
-  nsfwEnabled: ((): boolean => {
-    try {
-      const stored = mmkv.getString(NSFW_STORAGE_KEY) ?? null;
-      return stored !== null ? JSON.parse(stored) : false;
-    } catch {
-      return false;
-    }
-  })(),
+  nsfwEnabled: readPersistedNsfwEnabled(),
   nsfwLoaded: true,
   feedMode: ((): FeedMode => {
     try {
@@ -112,14 +114,16 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.log("Error saving feed mode:", error);
     }
   },
-  loadNsfwSetting: async () => {
+  loadNsfwSetting: () => {
     try {
-      const stored = mmkv.getString(NSFW_STORAGE_KEY) ?? null;
-      if (stored !== null) {
-        set({ nsfwEnabled: JSON.parse(stored), nsfwLoaded: true });
-      } else {
-        set({ nsfwLoaded: true });
+      const nextEnabled = readPersistedNsfwEnabled();
+      const { nsfwEnabled, nsfwLoaded } = get();
+
+      if (nsfwLoaded && nsfwEnabled === nextEnabled) {
+        return;
       }
+
+      set({ nsfwEnabled: nextEnabled, nsfwLoaded: true });
     } catch (error) {
       console.log("Error loading NSFW setting:", error);
       set({ nsfwLoaded: true });

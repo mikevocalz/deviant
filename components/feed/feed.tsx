@@ -47,6 +47,7 @@ import { useDeletePost } from "@/lib/hooks/use-posts";
 import { sharePost } from "@/lib/utils/sharing";
 import { useCreateStory, useStories } from "@/lib/hooks/use-stories";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useFocusEffect } from "expo-router";
 
 type FeedPostItem = { _type: "post"; data: Post };
 type FeedEventItem = { _type: "event"; data: Event };
@@ -263,7 +264,9 @@ export function Feed() {
   useSyncLikedPosts();
   useBookmarks();
 
-  const { nsfwEnabled, loadNsfwSetting, nsfwLoaded } = useAppStore();
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
+  const nsfwLoaded = useAppStore((s) => s.nsfwLoaded);
+  const loadNsfwSetting = useAppStore((s) => s.loadNsfwSetting);
   const { setActivePostId } = useFeedPostUIStore();
   const prevNsfwEnabled = useRef(nsfwEnabled);
   const listRef = useRef<LegendListRef>(null);
@@ -278,6 +281,12 @@ export function Feed() {
   useEffect(() => {
     loadNsfwSetting();
   }, [loadNsfwSetting]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadNsfwSetting();
+    }, [loadNsfwSetting]),
+  );
 
   useEffect(() => {
     prevNsfwEnabled.current = nsfwEnabled;

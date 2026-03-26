@@ -9,6 +9,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useAppStore } from "@/lib/stores/app-store";
+import { postKeys } from "@/lib/hooks/use-posts";
 
 const TRACK_WIDTH = 84;
 const TRACK_HEIGHT = 42;
@@ -44,7 +45,19 @@ export function SpicyToggleFAB() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const nextEnabled = toggleNsfwEnabled();
     console.log("[SpicyToggle] Toggling NSFW:", nextEnabled);
-    queryClient.invalidateQueries({ queryKey: ["search"] });
+
+    void queryClient.invalidateQueries({
+      queryKey: postKeys.feedInfinite(),
+      refetchType: "active",
+    });
+    void queryClient.invalidateQueries({
+      queryKey: postKeys.feed(),
+      refetchType: "active",
+    });
+    void queryClient.invalidateQueries({
+      queryKey: ["search"],
+      refetchType: "active",
+    });
   }, [queryClient, toggleNsfwEnabled]);
 
   return (
