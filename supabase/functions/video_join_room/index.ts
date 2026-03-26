@@ -217,6 +217,7 @@ Deno.serve(async (req) => {
             status: "active",
             joined_at: new Date().toISOString(),
             left_at: null,
+            hand_raised: false,
             is_anonymous: anonymous,
             anon_label: anonLabel,
           })
@@ -238,6 +239,7 @@ Deno.serve(async (req) => {
           user_id: userId,
           role: "participant",
           status: "active",
+          hand_raised: false,
           is_anonymous: anonymous,
           anon_label: anonLabel,
         });

@@ -254,7 +254,7 @@ export function ControlsBar({
   const quickActions = useMemo(
     () =>
       [
-        hasVideo && onSwitchCamera
+        hasVideo && isVideoEnabled && onSwitchCamera
           ? {
               key: "flip",
               label: "Flip",

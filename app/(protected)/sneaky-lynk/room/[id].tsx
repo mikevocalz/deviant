@@ -35,7 +35,11 @@ import {
   useCameraPermission,
   useMicrophonePermission,
 } from "react-native-vision-camera";
-import { useCamera, useMicrophone } from "@fishjam-cloud/react-native-client";
+import {
+  useCamera,
+  useMicrophone,
+  useInitializeDevices,
+} from "@fishjam-cloud/react-native-client";
 import { useVideoRoom } from "@/src/video/hooks/useVideoRoom";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { supabase } from "@/lib/supabase/client";
@@ -51,6 +55,7 @@ import {
   ChatSheet,
   RoomTimer,
   RoomParticipantsSheet,
+  RemoteAudioLayer,
 } from "@/src/sneaky-lynk/ui";
 import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
 import type { SneakyRoom, SneakyUser } from "@/src/sneaky-lynk/types";
@@ -487,6 +492,7 @@ function LocalRoom({
   const showToast = useUIStore((s) => s.showToast);
   const fishjamCamera = useCamera();
   const fishjamMic = useMicrophone();
+  const { initializeDevices } = useInitializeDevices();
   const endRoom = useLynkHistoryStore((s) => s.endRoom);
 
   // VisionCamera permissions for native camera preview
@@ -518,7 +524,7 @@ function LocalRoom({
     connectionState: storeConnectionState,
     coHost: storeCoHost,
     listeners: storeListeners,
-    toggleHand,
+    setIsHandRaised,
     setActiveSpeakerId,
     openChat,
     closeChat,
@@ -530,6 +536,7 @@ function LocalRoom({
   const [localVideoOn, setLocalVideoOn] = React.useState(roomHasVideo);
   const [localMicEnabled, setLocalMicEnabled] = React.useState(false);
   const [isFrontCamera, setIsFrontCamera] = React.useState(true);
+  const handToggleInFlightRef = useRef(false);
 
   const localUser = buildLocalUser(authUser);
   const effectiveMuted = !localMicEnabled;
@@ -537,10 +544,39 @@ function LocalRoom({
 
   // Reset store on mount, request permissions
   useEffect(() => {
+    let cancelled = false;
+
     reset();
-    requestCamPermission();
-    requestMicPermission();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    (async () => {
+      const [cameraGranted, microphoneGranted] = await Promise.all([
+        roomHasVideo ? requestCamPermission() : Promise.resolve(true),
+        requestMicPermission(),
+      ]);
+
+      if (cancelled) return;
+
+      try {
+        await initializeDevices({
+          enableVideo: roomHasVideo && cameraGranted,
+          enableAudio: microphoneGranted,
+        });
+      } catch (error) {
+        console.warn("[SneakyLynk:Local] Failed to initialize devices:", error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      reset();
+    };
+  }, [
+    initializeDevices,
+    requestCamPermission,
+    requestMicPermission,
+    reset,
+    roomHasVideo,
+  ]);
 
   // Start audio session + mic on mount
   useEffect(() => {
@@ -606,15 +642,22 @@ function LocalRoom({
       );
     }
 
+    reset();
     endRoom(id, storeListeners.length);
     router.back();
-  }, [router, id, endRoom, storeListeners.length, showToast]);
+  }, [router, id, endRoom, reset, storeListeners.length, showToast]);
   const handleShare = useCallback(async () => {
-    await shareUrl(buildLynkShareUrl(id), {
+    const shared = await shareUrl(buildLynkShareUrl(id), {
       title: roomTitle,
       message: `Join "${roomTitle}" on DVNT\n${buildLynkShareUrl(id)}`,
     });
-  }, [id, roomTitle]);
+    if (shared) {
+      showToast("success", "Invite Shared", "Your Lynk invite is ready.");
+      return;
+    }
+
+    showToast("info", "Share Cancelled", "Invite sharing was dismissed.");
+  }, [id, roomTitle, showToast]);
   const handleToggleMic = useCallback(async () => {
     const wantEnabled = !localMicEnabled;
     try {
@@ -686,7 +729,44 @@ function LocalRoom({
       "We couldn't reverse the camera in this Lynk.",
     );
   }, [isFrontCamera, showToast]);
-  const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
+  const handleToggleHand = useCallback(async () => {
+    if (handToggleInFlightRef.current) return;
+
+    const nextRaised = !isHandRaised;
+    setIsHandRaised(nextRaised);
+
+    const isServerBackedRoom =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      );
+    if (!isServerBackedRoom) {
+      return;
+    }
+
+    handToggleInFlightRef.current = true;
+
+    try {
+      const result = await sneakyLynkApi.toggleHand(id, nextRaised);
+      if (!result.ok) {
+        setIsHandRaised(!nextRaised);
+        showToast(
+          "error",
+          "Hand Update Failed",
+          result.error?.message || "We couldn't update your hand right now.",
+        );
+      }
+    } catch (error) {
+      console.warn("[SneakyLynk:Local] Failed to toggle hand:", error);
+      setIsHandRaised(!nextRaised);
+      showToast(
+        "error",
+        "Hand Update Failed",
+        "We couldn't update your hand right now.",
+      );
+    } finally {
+      handToggleInFlightRef.current = false;
+    }
+  }, [id, isHandRaised, setIsHandRaised, showToast]);
   const handleChat = useCallback(() => openChat(), [openChat]);
   const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
   const handleEjectDismiss = useCallback(() => {
@@ -706,6 +786,8 @@ function LocalRoom({
     isCameraOn: effectiveVideoOn,
     isMicOn: !effectiveMuted,
     videoTrack: undefined, // local room uses native camera preview
+    isHandRaised,
+    isFrontCamera,
   });
 
   // Co-host
@@ -787,6 +869,7 @@ function ServerRoom({
   const showToast = useUIStore((s) => s.showToast);
   const authUser = useAuthStore((s) => s.user);
   const endRoomHistory = useLynkHistoryStore((s) => s.endRoom);
+  const { initializeDevices } = useInitializeDevices();
 
   // VisionCamera permissions for native camera fallback
   const { requestPermission: requestCamPermission } = useCameraPermission();
@@ -794,11 +877,14 @@ function ServerRoom({
 
   const {
     isHandRaised,
+    raisedHands,
     isChatOpen,
     showEjectModal,
     ejectPayload,
     listeners: storeListeners,
-    toggleHand,
+    setIsHandRaised,
+    setRaisedHand,
+    setRaisedHands,
     setActiveSpeakerId,
     openChat,
     closeChat,
@@ -822,6 +908,9 @@ function ServerRoom({
     null,
   );
   const presenceTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const desiredMicEnabledRef = useRef(true);
+  const desiredVideoEnabledRef = useRef(roomHasVideo);
+  const handToggleInFlightRef = useRef(false);
   const markRoomClosed = useCallback(
     (room?: SneakyRoom | null, reason?: string) => {
       if (room) setRoomSnapshot(room);
@@ -924,10 +1013,42 @@ function ServerRoom({
 
   // Reset store on mount, request permissions
   useEffect(() => {
+    let cancelled = false;
+
     reset();
-    if (roomHasVideo) requestCamPermission();
-    requestMicPermission();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    (async () => {
+      const [cameraGranted, microphoneGranted] = await Promise.all([
+        roomHasVideo ? requestCamPermission() : Promise.resolve(true),
+        requestMicPermission(),
+      ]);
+
+      if (cancelled) return;
+
+      try {
+        await initializeDevices({
+          enableVideo: roomHasVideo && cameraGranted,
+          enableAudio: microphoneGranted,
+        });
+      } catch (error) {
+        console.warn(
+          "[SneakyLynk:Server] Failed to initialize devices:",
+          error,
+        );
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+      reset();
+    };
+  }, [
+    initializeDevices,
+    requestCamPermission,
+    requestMicPermission,
+    reset,
+    roomHasVideo,
+  ]);
 
   // Join Fishjam room on mount (media starts in separate effect below)
   useEffect(() => {
@@ -1022,9 +1143,51 @@ function ServerRoom({
   }, [id, isUpdatingRoomMode, paramTitle, roomHasVideo]);
 
   useEffect(() => {
+    if (!id || !videoRoom.localUser?.id || connectionState !== "connected") {
+      return;
+    }
+
+    let cancelled = false;
+
+    void (async () => {
+      const members = await videoApi.getRoomMembers(id);
+      if (cancelled) return;
+
+      const nextRaisedHands = members.reduce<Record<string, boolean>>(
+        (acc, member) => {
+          if (member.status === "active" && member.handRaised) {
+            acc[member.userId] = true;
+          }
+          return acc;
+        },
+        {},
+      );
+
+      setRaisedHands(nextRaisedHands);
+      setIsHandRaised(!!nextRaisedHands[videoRoom.localUser?.id || ""]);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    connectionState,
+    id,
+    setIsHandRaised,
+    setRaisedHands,
+    videoRoom.localUser?.id,
+  ]);
+
+  useEffect(() => {
     if (!id || !videoRoom.localUser?.id) return;
 
     const unsubscribe = videoApi.subscribeToMembers(id, (member, eventType) => {
+      const nextRaised = member.status === "active" && !!member.handRaised;
+      setRaisedHand(member.userId, nextRaised);
+      if (member.userId === videoRoom.localUser?.id) {
+        setIsHandRaised(nextRaised);
+      }
+
       if (member.userId === videoRoom.localUser?.id) return;
 
       const label =
@@ -1051,45 +1214,82 @@ function ServerRoom({
         presenceTimeoutRef.current = null;
       }
     };
-  }, [id, showPresenceEvent, videoRoom.localUser?.id]);
+  }, [
+    id,
+    setIsHandRaised,
+    setRaisedHand,
+    showPresenceEvent,
+    videoRoom.localUser?.id,
+  ]);
 
-  // Start camera + mic ONLY after Fishjam peer is fully connected.
-  // toggleCamera/toggleMic must be called when peerStatus === "connected",
-  // otherwise the Fishjam SDK creates local tracks but never publishes them.
-  const mediaStartedRef = React.useRef(false);
   useEffect(() => {
-    if (connectionState !== "connected" || mediaStartedRef.current) return;
-    mediaStartedRef.current = true;
+    if (connectionState !== "connected") return;
 
-    (async () => {
+    let cancelled = false;
+
+    void (async () => {
       try {
         console.log(
-          "[SneakyLynk:Server] Peer connected — starting media, isHost:",
+          "[SneakyLynk:Server] Peer connected — reconciling media, isHost:",
           isHost,
         );
+        audioSession.startForLynk(true);
         audioSession.setSpeakerOn(true);
-        if (roomHasVideo) {
-          console.log("[SneakyLynk:Server] Starting camera...");
+
+        const wantsVideo = roomHasVideo && desiredVideoEnabledRef.current;
+        const hasVideoTrack = !!(
+          videoRoom.isCameraOn ||
+          videoRoom.camera.isCameraOn ||
+          videoRoom.camera.cameraStream
+        );
+        if (!cancelled && wantsVideo !== hasVideoTrack) {
+          console.log(
+            "[SneakyLynk:Server] Reconciling camera state:",
+            wantsVideo,
+          );
           await videoRoom.toggleCamera();
         }
-        if (!videoRoom.isMicOn) {
-          console.log("[SneakyLynk:Server] Starting mic...");
+
+        const wantsMic = desiredMicEnabledRef.current;
+        const hasMicTrack = !!(
+          videoRoom.isMicOn ||
+          videoRoom.microphone.isMicrophoneOn ||
+          videoRoom.microphone.microphoneStream
+        );
+        if (!cancelled && wantsMic !== hasMicTrack) {
+          console.log(
+            "[SneakyLynk:Server] Reconciling microphone state:",
+            wantsMic,
+          );
           await videoRoom.toggleMic();
         }
-        console.log(
-          "[SneakyLynk:Server] Media started for",
-          isHost ? "host" : "participant",
-        );
       } catch (e) {
-        console.warn("[SneakyLynk:Server] Failed to start media:", e);
+        console.warn("[SneakyLynk:Server] Failed to reconcile media:", e);
       }
     })();
-  }, [connectionState]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    connectionState,
+    isHost,
+    roomHasVideo,
+    videoRoom.camera.cameraStream,
+    videoRoom.camera.isCameraOn,
+    videoRoom.isCameraOn,
+    videoRoom.isMicOn,
+    videoRoom.microphone.isMicrophoneOn,
+    videoRoom.microphone.microphoneStream,
+    videoRoom.toggleCamera,
+    videoRoom.toggleMic,
+  ]);
 
   // Safety net: if remote peers joined but our mic never published, force it on.
   useEffect(() => {
     if (connectionState !== "connected") return;
     if (videoRoom.participants.length === 0) return;
+    if (!desiredMicEnabledRef.current) return;
     if (videoRoom.isMicOn || videoRoom.microphone.isMicrophoneOn) return;
 
     const timer = setTimeout(async () => {
@@ -1176,27 +1376,107 @@ function ServerRoom({
         );
       }
     }
+    reset();
     endRoomHistory(id, storeListeners.length);
     router.back();
-  }, [router, id, endRoomHistory, storeListeners.length, isHost, showToast]);
+  }, [
+    router,
+    id,
+    endRoomHistory,
+    reset,
+    storeListeners.length,
+    isHost,
+    showToast,
+  ]);
   const handleToggleMic = useCallback(async () => {
+    desiredMicEnabledRef.current = !desiredMicEnabledRef.current;
     await videoRoom.toggleMic();
   }, [videoRoom]);
   const handleToggleVideo = useCallback(async () => {
+    desiredVideoEnabledRef.current = !desiredVideoEnabledRef.current;
     await videoRoom.toggleCamera();
   }, [videoRoom]);
   const handleSwitchCamera = useCallback(async () => {
+    if (!desiredVideoEnabledRef.current) {
+      showToast(
+        "info",
+        "Camera Off",
+        "Turn on video before switching cameras.",
+      );
+      return;
+    }
+
     await videoRoom.switchCamera();
-  }, [videoRoom]);
-  const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
+  }, [showToast, videoRoom]);
+  const handleToggleHand = useCallback(async () => {
+    if (handToggleInFlightRef.current) return;
+
+    const localUserId = videoRoom.localUser?.id || localUser.id;
+    const nextRaised = !isHandRaised;
+
+    handToggleInFlightRef.current = true;
+    setIsHandRaised(nextRaised);
+    setRaisedHand(localUserId, nextRaised);
+
+    try {
+      const result = await sneakyLynkApi.toggleHand(id, nextRaised);
+      if (!result.ok) {
+        setIsHandRaised(!nextRaised);
+        setRaisedHand(localUserId, !nextRaised);
+        showToast(
+          "error",
+          "Hand Update Failed",
+          result.error?.message || "We couldn't update your hand right now.",
+        );
+      }
+    } catch (error) {
+      console.warn("[SneakyLynk:Server] Failed to toggle hand:", error);
+      setIsHandRaised(!nextRaised);
+      setRaisedHand(localUserId, !nextRaised);
+      showToast(
+        "error",
+        "Hand Update Failed",
+        "We couldn't update your hand right now.",
+      );
+    } finally {
+      handToggleInFlightRef.current = false;
+    }
+  }, [
+    id,
+    isHandRaised,
+    localUser.id,
+    setIsHandRaised,
+    setRaisedHand,
+    showToast,
+    videoRoom.localUser?.id,
+  ]);
   const handleChat = useCallback(() => openChat(), [openChat]);
   const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
   const handleShare = useCallback(async () => {
-    await shareUrl(buildLynkShareUrl(id), {
+    const isLiveRoom =
+      !closedReason &&
+      (roomSnapshot?.status ?? videoRoom.room?.status ?? "open") === "open";
+
+    if (!isLiveRoom) {
+      showToast(
+        "info",
+        "Lynk Unavailable",
+        "This Lynk is no longer live to share.",
+      );
+      return;
+    }
+
+    const shared = await shareUrl(buildLynkShareUrl(id), {
       title: roomTitle,
       message: `Jump into "${roomTitle}" on DVNT\n${buildLynkShareUrl(id)}`,
     });
-  }, [id, roomTitle]);
+    if (shared) {
+      showToast("success", "Invite Shared", "Your Lynk invite is ready.");
+      return;
+    }
+
+    showToast("info", "Share Cancelled", "Invite sharing was dismissed.");
+  }, [closedReason, id, roomSnapshot?.status, roomTitle, showToast, videoRoom.room?.status]);
   const handleEjectDismiss = useCallback(() => {
     hideEject();
     router.back();
@@ -1404,6 +1684,8 @@ function ServerRoom({
     isCameraOn: effectiveVideoOn,
     isMicOn: !effectiveMuted,
     videoTrack: localCameraStream ? { stream: localCameraStream } : undefined,
+    isHandRaised,
+    isFrontCamera: videoRoom.isFrontCamera,
   });
 
   // Remote peers - exclude local user to prevent duplicates
@@ -1421,6 +1703,7 @@ function ServerRoom({
       isMicOn: p.isMicOn || false,
       videoTrack: p.videoTrack,
       audioTrack: p.audioTrack,
+      isHandRaised: !!raisedHands[peerId],
     });
   });
 
@@ -1818,6 +2101,8 @@ function RoomLayout({
             onParticipantPress={onParticipantPress}
           />
         </View>
+
+        <RemoteAudioLayer participants={allParticipants} />
 
         <RoomTimer onTimeUp={onLeave} />
 
