@@ -12,6 +12,7 @@ import {
   CanvasElement,
   TextElement,
   StickerElement,
+  StickerInsertOptions,
   DrawingPath,
   DrawingTool,
   LUTFilter,
@@ -46,7 +47,10 @@ interface EditorStore extends EditorState {
   setMedia: (uri: string, mediaType: "image" | "video") => void;
   // Elements
   addTextElement: (options?: Partial<TextElement>) => string;
-  addStickerElement: (source: string | number, size?: number) => string;
+  addStickerElement: (
+    source: string | number,
+    options?: StickerInsertOptions,
+  ) => string;
   updateElement: (id: string, updates: Partial<CanvasElement>) => void;
   removeElement: (id: string) => void;
   selectElement: (id: string | null) => void;
@@ -244,13 +248,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     return id;
   },
 
-  addStickerElement: (source, size = DEFAULT_STICKER_SIZE) => {
+  addStickerElement: (source, options) => {
     const id = generateId();
+    const size = options?.size ?? DEFAULT_STICKER_SIZE;
     const element: StickerElement = {
       id,
       type: "sticker",
       source,
-      category: "emoji",
+      category: options?.category ?? "emoji",
       size,
       opacity: 1,
       zIndex: getNextZIndex(get().elements),

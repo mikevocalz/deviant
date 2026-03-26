@@ -29,9 +29,10 @@ import {
   type KlipyItem,
 } from "@/src/stickers/api/klipy";
 import { GLASS_SURFACE, GLASS_TEXT_COLORS } from "@/lib/ui/glass";
+import type { StickerInsertOptions } from "../../types";
 
 interface StickerPickerProps {
-  onSelectSticker: (source: string) => void;
+  onSelectSticker: (source: string, options?: StickerInsertOptions) => void;
   onSelectImageSticker?: (source: number, id: string) => void;
   onClose: () => void;
 }
@@ -129,7 +130,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   }, [gifQuery.data?.fallbackReason]);
 
   return (
-    <View className="flex-1">
+    <View className="flex-1" style={{ minHeight: 0 }}>
       {/* Header */}
       <View
         className="flex-row justify-between items-center px-5 py-3"
@@ -287,11 +288,14 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       </View>
 
       {/* Content */}
-      <View className="flex-1 px-3">
+      <View className="flex-1 px-3" style={{ minHeight: 0 }}>
         {activeImagePack && (
           <ScrollView
             key={activeImagePack.id}
+            style={{ flex: 1 }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
             contentContainerStyle={{
               paddingBottom: 40,
               flexDirection: "row",
@@ -335,6 +339,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
         {isTwemojiTab && (
           <FlatList
             data={twemojiStickers}
+            style={{ flex: 1 }}
             numColumns={5}
             keyExtractor={(item: string, index: number) => `${item}-${index}`}
             renderItem={({ item }: { item: string }) => (
@@ -359,11 +364,14 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             )}
             contentContainerStyle={{ paddingBottom: 40 }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
           />
         )}
 
         {activeTab === "gif" && (
           <FlatList
+            style={{ flex: 1 }}
             data={
               gifQuery.isLoading && gifItems.length === 0
                 ? GIF_SKELETONS
@@ -384,7 +392,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     const uri = getItemImageUri(item, "gifs");
                     if (uri) {
-                      onSelectSticker(uri);
+                      onSelectSticker(uri, { category: "gif" });
                     }
                   }}
                 />
@@ -440,6 +448,8 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             contentContainerStyle={{ paddingBottom: 20 }}
             columnWrapperStyle={{ gap: 10, paddingHorizontal: 4 }}
             showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
           />
         )}
       </View>

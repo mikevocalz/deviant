@@ -7,6 +7,7 @@ import { useEditorStore } from "@/src/stories-editor/stores/editor-store";
 import type { EditorMode } from "@/src/stories-editor";
 import { useStoryFlowStore } from "@/lib/stores/story-flow-store";
 import { useStoryEditorResultStore } from "@/lib/stores/story-editor-result-store";
+import type { StoryAnimatedGifOverlay } from "@/lib/types";
 
 function StoryEditorRouteContent() {
   const { uri, type, initialMode, index } = useLocalSearchParams<{
@@ -81,10 +82,14 @@ function StoryEditorRouteContent() {
     }, 350);
   };
 
-  const handleSave = (editedUri: string) => {
+  const handleSave = (result: {
+    editedUri: string;
+    animatedGifOverlays: StoryAnimatedGifOverlay[];
+  }) => {
     useStoryEditorResultStore.getState().setResult({
-      uri: editedUri,
+      uri: result.editedUri,
       index: Number.parseInt(index ?? "0", 10) || 0,
+      animatedGifOverlays: result.animatedGifOverlays,
     });
     useStoryFlowStore.getState().transitionTo("HUB");
     router.back();

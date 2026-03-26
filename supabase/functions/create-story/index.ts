@@ -37,6 +37,15 @@ interface CreateStoryBody {
   visibility?: "public" | "followers" | "close_friends";
   duration?: number;
   thumbnailUrl?: string;
+  animatedGifOverlays?: Array<{
+    id?: string;
+    url: string;
+    x: number;
+    y: number;
+    sizeRatio: number;
+    scale?: number;
+    rotation?: number;
+  }>;
 }
 
 Deno.serve(async (req) => {
@@ -93,7 +102,14 @@ Deno.serve(async (req) => {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { mediaUrl, mediaType, visibility, duration, thumbnailUrl } = body;
+    const {
+      mediaUrl,
+      mediaType,
+      visibility,
+      duration,
+      thumbnailUrl,
+      animatedGifOverlays,
+    } = body;
 
     if (!mediaUrl || typeof mediaUrl !== "string") {
       return errorResponse("validation_error", "mediaUrl is required");
@@ -185,6 +201,43 @@ Deno.serve(async (req) => {
     }
 
     console.log("[Edge:create-story] Story created:", story.id);
+
+    const normalizedOverlays = Array.isArray(animatedGifOverlays)
+      ? animatedGifOverlays.filter(
+          (overlay) =>
+            overlay &&
+            typeof overlay.url === "string" &&
+            overlay.url.length > 0,
+        )
+      : [];
+
+    if (normalizedOverlays.length > 0) {
+      const stickerRows = normalizedOverlays.map((overlay) => ({
+        story_id: story.id,
+        asset_url: overlay.url,
+        position_x: overlay.x,
+        position_y: overlay.y,
+        size_ratio: overlay.sizeRatio,
+        scale: overlay.scale ?? 1,
+        rotation: overlay.rotation ?? 0,
+      }));
+
+      const { error: stickerError } = await supabaseAdmin
+        .from("stories_stickers")
+        .insert(stickerRows);
+
+      if (stickerError) {
+        console.error(
+          "[Edge:create-story] Animated sticker insert error:",
+          stickerError,
+        );
+        await supabaseAdmin.from("stories").delete().eq("id", story.id);
+        return errorResponse(
+          "internal_error",
+          "Failed to save animated story overlays",
+        );
+      }
+    }
 
     return jsonResponse({
       ok: true,

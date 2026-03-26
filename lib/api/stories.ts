@@ -9,6 +9,7 @@ import {
   requireBetterAuthToken,
   getCurrentUserId as getIdentityUserId,
 } from "../auth/identity";
+import type { StoryAnimatedGifOverlay } from "../types";
 
 interface CreateStoryResponse {
   ok: boolean;
@@ -75,6 +76,46 @@ export const storiesApi = {
         return closeFriendOfSet.has(storyAuthorId);
       });
 
+      const visibleStoryIds = visibleStories.map((story: any) =>
+        String(story[DB.stories.id]),
+      );
+      const stickerOverlaysByStoryId = new Map<
+        string,
+        StoryAnimatedGifOverlay[]
+      >();
+
+      if (visibleStoryIds.length > 0) {
+        const { data: stickerRows, error: stickerError } = await supabase
+          .from("stories_stickers")
+          .select(
+            "id, story_id, asset_url, position_x, position_y, size_ratio, scale, rotation",
+          )
+          .in("story_id", visibleStoryIds);
+
+        if (stickerError) {
+          console.warn(
+            "[Stories] Failed to load animated story stickers:",
+            stickerError,
+          );
+        } else {
+          for (const row of stickerRows || []) {
+            const storyId = String((row as any).story_id);
+            const overlay: StoryAnimatedGifOverlay = {
+              id: String((row as any).id),
+              url: (row as any).asset_url,
+              x: Number((row as any).position_x ?? 0.5),
+              y: Number((row as any).position_y ?? 0.5),
+              sizeRatio: Number((row as any).size_ratio ?? 0.2),
+              scale: Number((row as any).scale ?? 1),
+              rotation: Number((row as any).rotation ?? 0),
+            };
+            const existing = stickerOverlaysByStoryId.get(storyId) || [];
+            existing.push(overlay);
+            stickerOverlaysByStoryId.set(storyId, existing);
+          }
+        }
+      }
+
       // Fetch author data separately since author_id is UUID
       const authorIds = [
         ...new Set(visibleStories.map((s: any) => s[DB.stories.authorId])),
@@ -127,14 +168,19 @@ export const storiesApi = {
             mediaUrl.endsWith(".mp4") ||
             mediaUrl.endsWith(".mov") ||
             mediaUrl.includes("/video/");
+          const isGif =
+            mimeType === "image/gif" || mediaUrl.toLowerCase().endsWith(".gif");
           const thumbnailUrl = story.thumbnail?.url || undefined;
+          const animatedGifOverlays =
+            stickerOverlaysByStoryId.get(String(story[DB.stories.id])) || [];
           storiesByAuthor.get(authorId).items.push({
             id: String(story[DB.stories.id]),
             url: mediaUrl,
             thumbnail: thumbnailUrl,
-            type: isVideo ? "video" : "image",
+            type: isVideo ? "video" : isGif ? "gif" : "image",
             duration: isVideo ? 30000 : 5000,
             visibility,
+            animatedGifOverlays,
             header: {
               heading: author?.[DB.users.username] || "unknown",
               subheading: formatTimeAgo(story[DB.stories.createdAt]),
@@ -168,6 +214,7 @@ export const storiesApi = {
       text?: string;
       textColor?: string;
       backgroundColor?: string;
+      animatedGifOverlays?: StoryAnimatedGifOverlay[];
     }>;
     visibility?: "public" | "close_friends";
   }) {
@@ -197,7 +244,13 @@ export const storiesApi = {
         const thumbnailUrl = item.thumbnail || undefined;
         const { data: response, error } =
           await supabase.functions.invoke<CreateStoryResponse>("create-story", {
-            body: { mediaUrl, mediaType, visibility, thumbnailUrl },
+            body: {
+              mediaUrl,
+              mediaType,
+              visibility,
+              thumbnailUrl,
+              animatedGifOverlays: item.animatedGifOverlays || [],
+            },
             headers: { Authorization: `Bearer ${token}` },
           });
 
