@@ -89,7 +89,8 @@ export const storiesApi = {
           .from("stories_stickers")
           .select("id, _parent_id, type, data")
           .eq("type", "animated_gif")
-          .in("_parent_id", visibleStoryIds);
+          .in("_parent_id", visibleStoryIds)
+          .order("_order", { ascending: true });
 
         if (stickerError) {
           console.warn(
