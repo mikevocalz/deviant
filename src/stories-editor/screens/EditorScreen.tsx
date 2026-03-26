@@ -33,6 +33,7 @@ import {
   CANVAS_HEIGHT,
 } from "../constants";
 import { ElementGestureOverlay } from "../components/gestures/ElementGestureOverlay";
+import { AnimatedGifStickerLayer } from "../components/canvas/AnimatedGifStickerLayer";
 import {
   EditorCanvas,
   RightIslandMenu,
@@ -134,6 +135,13 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   const canUndo = useCanUndo();
   const canRedo = useCanRedo();
   const hasElements = useHasElements();
+  const stickerElements = useMemo(
+    () =>
+      elements.filter(
+        (element): element is StickerElement => element.type === "sticker",
+      ),
+    [elements],
+  );
 
   // All UI state from Zustand store (no useState)
   const selectedEffectId = useEditorStore((s) => s.selectedEffectId);
@@ -656,6 +664,12 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         </View>
       </GestureDetector>
 
+      <AnimatedGifStickerLayer
+        elements={stickerElements}
+        surface={surface}
+        selectedElementId={selectedElementId}
+      />
+
       {/* ---- Per-element gesture overlays (wcandillon pattern) ---- */}
       {/* Active in all modes except drawing (so you can move stickers while panels are open) */}
       {mode !== "drawing" &&
@@ -744,7 +758,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       <AnimatedToolPanel
         visible={mode === "sticker"}
         onDismiss={() => setMode("idle")}
-        heightRatio={0.58}
+        heightRatio={0.62}
         visualStyle="glass"
       >
         <StickerPicker

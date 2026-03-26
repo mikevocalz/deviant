@@ -9,7 +9,6 @@ import {
   Text,
   TextInput,
   FlatList,
-  ScrollView,
   useWindowDimensions,
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
@@ -62,6 +61,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
 }) => {
   const { width: screenWidth } = useWindowDimensions();
   const imageStickerSize = (screenWidth - 64) / 3;
+  const twemojiStickerSize = (screenWidth - 64) / 5;
 
   const activeTab = useEditorStore((s) => s.stickerActiveTab) as StickerTab;
   const setActiveTab = useEditorStore((s) => s.setStickerActiveTab);
@@ -129,9 +129,25 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
     }
   }, [gifQuery.data?.fallbackReason]);
 
-  return (
-    <View className="flex-1" style={{ minHeight: 0 }}>
-      {/* Header */}
+  const renderEmptyState = (title: string, body: string) => (
+    <View className="items-center gap-2 px-8 pt-5">
+      <Text
+        className="text-base font-semibold text-center"
+        style={{ color: GLASS_TEXT_COLORS.primary }}
+      >
+        {title}
+      </Text>
+      <Text
+        className="text-xs text-center"
+        style={{ color: GLASS_TEXT_COLORS.muted }}
+      >
+        {body}
+      </Text>
+    </View>
+  );
+
+  const pickerHeader = (
+    <>
       <View
         className="flex-row justify-between items-center px-5 py-3"
         style={{
@@ -182,11 +198,11 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
         </Pressable>
       </View>
 
-      {/* Search Bar */}
-      <View className="px-5 mb-3">
+      <View className="px-5 pt-3 pb-3">
         <View
-          className="flex-row items-center rounded-[18px] px-4 py-3 gap-2"
+          className="flex-row items-center px-4 py-3 gap-2"
           style={{
+            borderRadius: 16,
             backgroundColor: "rgba(255,255,255,0.08)",
             borderWidth: 1,
             borderColor: GLASS_SURFACE.border,
@@ -200,11 +216,12 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             placeholder={isGifTab ? "Search GIFs..." : "Search stickers..."}
             placeholderTextColor={GLASS_TEXT_COLORS.muted}
             style={{ color: GLASS_TEXT_COLORS.primary }}
+            returnKeyType="search"
           />
         </View>
       </View>
 
-      {isGifTab && isGifFallback && (
+      {isGifTab && isGifFallback ? (
         <View
           style={{
             marginHorizontal: 20,
@@ -237,13 +254,12 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             {gifFallbackCopy}
           </Text>
         </View>
-      )}
+      ) : null}
 
-      {/* Tab Selector — wrapped pills, no horizontal scrolling */}
       <View
         style={{
           paddingHorizontal: 16,
-          marginBottom: 12,
+          paddingBottom: 12,
         }}
       >
         <View
@@ -258,9 +274,11 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             return (
               <Pressable
                 key={tab.id}
-                className="flex-row items-center px-3 rounded-full gap-1"
+                className="flex-row items-center rounded-full gap-1"
                 style={{
-                  minHeight: 34,
+                  minHeight: 38,
+                  paddingHorizontal: 14,
+                  paddingVertical: 8,
                   backgroundColor: isActive
                     ? "rgba(255,255,255,0.18)"
                     : "rgba(255,255,255,0.08)",
@@ -271,9 +289,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
                 }}
                 onPress={() => setActiveTab(tab.id)}
               >
-                {tab.icon ? (
-                  <Text className="text-[13px]">{tab.icon}</Text>
-                ) : null}
+                {tab.icon ? <Text className="text-[13px]">{tab.icon}</Text> : null}
                 <Text
                   className="text-xs font-semibold"
                   style={{
@@ -290,173 +306,168 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
           })}
         </View>
       </View>
+    </>
+  );
 
-      {/* Content */}
-      <View className="flex-1 px-3" style={{ minHeight: 0 }}>
-        {activeImagePack && (
-          <ScrollView
-            key={activeImagePack.id}
-            style={{ flex: 1 }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-            contentContainerStyle={{
-              paddingBottom: 40,
-              flexDirection: "row",
-              flexWrap: "wrap",
-            }}
-          >
-            {activeImageStickers.map((item) => (
-              <Pressable
-                key={item.id}
-                className="items-center justify-center p-2"
-                style={{ width: imageStickerSize }}
+  return (
+    <View className="flex-1" style={{ minHeight: 0 }}>
+      {activeImagePack ? (
+        <FlatList
+          key={`image-${activeImagePack.id}`}
+          data={activeImageStickers}
+          style={{ flex: 1 }}
+          numColumns={3}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <Pressable
+              className="items-center justify-center p-2"
+              style={{ width: imageStickerSize }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                if (onSelectImageSticker) {
+                  onSelectImageSticker(item.source, item.id);
+                } else {
+                  onSelectSticker(String(item.source));
+                }
+              }}
+            >
+              <Image
+                source={item.source}
+                style={{
+                  width: imageStickerSize - 24,
+                  height: imageStickerSize - 24,
+                  borderRadius: 12,
+                }}
+                contentFit="contain"
+              />
+              <Text
+                className="text-neutral-400 text-[11px] font-semibold mt-1 text-center"
+                numberOfLines={1}
+              >
+                {item.label}
+              </Text>
+            </Pressable>
+          )}
+          ListHeaderComponent={pickerHeader}
+          ListEmptyComponent={renderEmptyState(
+            "No stickers found",
+            "Try another search term.",
+          )}
+          ListFooterComponent={<View style={{ height: 28 }} />}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          columnWrapperStyle={{ paddingHorizontal: 12 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          contentInsetAdjustmentBehavior="automatic"
+          automaticallyAdjustKeyboardInsets
+        />
+      ) : isTwemojiTab ? (
+        <FlatList
+          key={`emoji-${activeTab}`}
+          data={twemojiStickers}
+          style={{ flex: 1 }}
+          numColumns={5}
+          keyExtractor={(item: string, index: number) => `${item}-${index}`}
+          renderItem={({ item }: { item: string }) => (
+            <Pressable
+              className="justify-center items-center p-2"
+              style={{
+                width: twemojiStickerSize,
+                height: twemojiStickerSize,
+              }}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                onSelectSticker(item);
+              }}
+            >
+              <Image
+                source={{ uri: item }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+              />
+            </Pressable>
+          )}
+          ListHeaderComponent={pickerHeader}
+          ListEmptyComponent={renderEmptyState(
+            "No stickers found",
+            "Try another tab or clear your search.",
+          )}
+          ListFooterComponent={<View style={{ height: 28 }} />}
+          contentContainerStyle={{ paddingBottom: 20 }}
+          columnWrapperStyle={{ paddingHorizontal: 12 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          contentInsetAdjustmentBehavior="automatic"
+          automaticallyAdjustKeyboardInsets
+        />
+      ) : (
+        <FlatList
+          key="gif"
+          style={{ flex: 1 }}
+          data={
+            gifQuery.isLoading && gifItems.length === 0
+              ? GIF_SKELETONS
+              : gifItems
+          }
+          numColumns={3}
+          keyExtractor={(item: string | KlipyItem, index: number) =>
+            typeof item === "string" ? item : `${item.id}-${index}`
+          }
+          renderItem={({ item }: { item: string | KlipyItem }) =>
+            typeof item === "string" ? (
+              <GifSkeletonItem width={imageStickerSize} />
+            ) : (
+              <GifGridItem
+                item={item}
+                width={imageStickerSize}
                 onPress={() => {
                   Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  if (onSelectImageSticker) {
-                    onSelectImageSticker(item.source, item.id);
-                  } else {
-                    onSelectSticker(String(item.source));
+                  const uri = getItemImageUri(item, "gifs");
+                  if (uri) {
+                    onSelectSticker(uri, { category: "gif" });
                   }
                 }}
+              />
+            )
+          }
+          ListHeaderComponent={pickerHeader}
+          ListEmptyComponent={
+            gifQuery.isError
+              ? renderEmptyState(
+                  "GIF search is unavailable right now",
+                  "Klipy didn't return results. Try again in a moment.",
+                )
+              : renderEmptyState(
+                  isGifFallback ? "No fallback GIFs found" : "No GIFs found",
+                  isGifFallback
+                    ? "Try happy, party, fire, love, wow, or dance."
+                    : "Try another search term.",
+                )
+          }
+          ListFooterComponent={
+            <View className="items-center pt-4 pb-10">
+              <Text
+                className="text-[11px] font-medium"
+                style={{ color: GLASS_TEXT_COLORS.muted }}
               >
-                <Image
-                  source={item.source}
-                  style={{
-                    width: imageStickerSize - 24,
-                    height: imageStickerSize - 24,
-                    borderRadius: 12,
-                  }}
-                  contentFit="contain"
-                />
-                <Text
-                  className="text-neutral-400 text-[11px] font-semibold mt-1 text-center"
-                  numberOfLines={1}
-                >
-                  {item.label}
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-
-        {isTwemojiTab && (
-          <FlatList
-            data={twemojiStickers}
-            style={{ flex: 1 }}
-            numColumns={5}
-            keyExtractor={(item: string, index: number) => `${item}-${index}`}
-            renderItem={({ item }: { item: string }) => (
-              <Pressable
-                className="justify-center items-center p-2"
-                style={{
-                  width: (screenWidth - 64) / 5,
-                  height: (screenWidth - 64) / 5,
-                }}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  onSelectSticker(item);
-                }}
-              >
-                <Image
-                  source={{ uri: item }}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="contain"
-                  cachePolicy="memory-disk"
-                />
-              </Pressable>
-            )}
-            contentContainerStyle={{ paddingBottom: 40 }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-          />
-        )}
-
-        {activeTab === "gif" && (
-          <FlatList
-            style={{ flex: 1 }}
-            data={
-              gifQuery.isLoading && gifItems.length === 0
-                ? GIF_SKELETONS
-                : gifItems
-            }
-            numColumns={3}
-            keyExtractor={(item: string | KlipyItem, index: number) =>
-              typeof item === "string" ? item : `${item.id}-${index}`
-            }
-            renderItem={({ item }: { item: string | KlipyItem }) =>
-              typeof item === "string" ? (
-                <GifSkeletonItem width={imageStickerSize} />
-              ) : (
-                <GifGridItem
-                  item={item}
-                  width={imageStickerSize}
-                  onPress={() => {
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                    const uri = getItemImageUri(item, "gifs");
-                    if (uri) {
-                      onSelectSticker(uri, { category: "gif" });
-                    }
-                  }}
-                />
-              )
-            }
-            ListEmptyComponent={
-              gifQuery.isError ? (
-                <View className="flex-1 justify-center items-center gap-2 pt-12">
-                  <Text
-                    className="text-base font-semibold"
-                    style={{ color: GLASS_TEXT_COLORS.primary }}
-                  >
-                    GIF search is unavailable right now
-                  </Text>
-                  <Text
-                    className="text-xs text-center px-8"
-                    style={{ color: GLASS_TEXT_COLORS.muted }}
-                  >
-                    {"Klipy didn't return results. Try again in a moment."}
-                  </Text>
-                </View>
-              ) : (
-                <View className="flex-1 justify-center items-center gap-2 pt-12">
-                  <Text
-                    className="text-base font-semibold"
-                    style={{ color: GLASS_TEXT_COLORS.primary }}
-                  >
-                    {isGifFallback ? "No fallback GIFs found" : "No GIFs found"}
-                  </Text>
-                  <Text
-                    className="text-xs text-center px-8"
-                    style={{ color: GLASS_TEXT_COLORS.muted }}
-                  >
-                    {isGifFallback
-                      ? "Try happy, party, fire, love, wow, or dance."
-                      : "Try another search term."}
-                  </Text>
-                </View>
-              )
-            }
-            ListFooterComponent={
-              <View className="pb-10 pt-4 items-center">
-                <Text
-                  className="text-[11px] font-medium"
-                  style={{ color: GLASS_TEXT_COLORS.muted }}
-                >
-                  {isGifFallback
-                    ? "Bundled animated reactions"
-                    : "Powered by Klipy"}
-                </Text>
-              </View>
-            }
-            contentContainerStyle={{ paddingBottom: 20 }}
-            columnWrapperStyle={{ gap: 10, paddingHorizontal: 4 }}
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-          />
-        )}
-      </View>
+                {isGifFallback
+                  ? "Bundled animated reactions"
+                  : "Powered by Klipy"}
+              </Text>
+            </View>
+          }
+          contentContainerStyle={{ paddingBottom: 20 }}
+          columnWrapperStyle={{ gap: 10, paddingHorizontal: 4 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          contentInsetAdjustmentBehavior="automatic"
+          automaticallyAdjustKeyboardInsets
+        />
+      )}
     </View>
   );
 };
@@ -508,6 +519,7 @@ const GifGridItem = ({
           source={{ uri: previewUri }}
           style={{ width: "100%", height: "100%" }}
           contentFit="cover"
+          autoplay
           transition={120}
           cachePolicy="memory-disk"
         />

@@ -67,5 +67,12 @@ export function useElementTransform(elementId: string, transform: Transform) {
     { scale: transform.scale } as const,
   ];
 
-  return { skiaTransform, staticTransform, scale };
+  return {
+    skiaTransform,
+    staticTransform,
+    translateX,
+    translateY,
+    scale,
+    rotation,
+  };
 }

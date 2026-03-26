@@ -212,9 +212,13 @@ Deno.serve(async (req) => {
       : [];
 
     if (normalizedOverlays.length > 0) {
-      const stickerRows = normalizedOverlays.map((overlay) => ({
+      const stickerRows = normalizedOverlays.map((overlay, index) => ({
+        _order: index,
         _parent_id: story.id,
-        id: crypto.randomUUID(),
+        id:
+          typeof overlay.id === "string" && overlay.id.length > 0
+            ? overlay.id
+            : crypto.randomUUID(),
         type: "animated_gif",
         data: {
           url: overlay.url,

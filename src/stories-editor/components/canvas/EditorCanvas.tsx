@@ -774,6 +774,17 @@ const ImageStickerContent: React.FC<{
   element: StickerElement;
   isSelected: boolean;
 }> = React.memo(({ element, isSelected }) => {
+  if (element.category === "gif" && typeof element.source === "string") {
+    return <StaticImageStickerContent element={element} />;
+  }
+
+  return <LiveImageStickerContent element={element} isSelected={isSelected} />;
+});
+
+const LiveImageStickerContent: React.FC<{
+  element: StickerElement;
+  isSelected: boolean;
+}> = React.memo(({ element, isSelected }) => {
   const { source, size } = element;
 
   // Shared-value transform — driven by gesture overlays at 60fps
@@ -813,6 +824,36 @@ const ImageStickerContent: React.FC<{
           height={size}
         />
       )}
+    </Group>
+  );
+});
+
+const StaticImageStickerContent: React.FC<{
+  element: StickerElement;
+}> = React.memo(({ element }) => {
+  const { source, size, opacity, transform } = element;
+
+  const stickerImage = useImage(source);
+  if (!stickerImage) return null;
+
+  const halfSize = size / 2;
+  const staticTransform = [
+    { translateX: transform.translateX } as const,
+    { translateY: transform.translateY } as const,
+    { rotate: (transform.rotation * Math.PI) / 180 } as const,
+    { scale: transform.scale } as const,
+  ];
+
+  return (
+    <Group transform={staticTransform} opacity={opacity}>
+      <SkiaImage
+        image={stickerImage}
+        x={-halfSize}
+        y={-halfSize}
+        width={size}
+        height={size}
+        fit="contain"
+      />
     </Group>
   );
 });
