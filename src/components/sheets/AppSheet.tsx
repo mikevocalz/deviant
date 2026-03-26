@@ -3,7 +3,7 @@
  *
  * Uses the official TrueSheet API:
  * - `detents` for height control
- * - `maxHeight` for hard pixel ceiling (applies to base route too)
+ * - `maxContentHeight` for a hard height ceiling
  * - `grabber` + `grabberOptions` for white drag handle
  * - `cornerRadius` for rounded corners
  * - `scrollable` for proper scroll behavior
@@ -12,9 +12,8 @@
  * - AppSheet (default): general-purpose, detents=[0.75]
  * - CommentSheet: comment-specific, max 70% height, never full-screen
  *
- * CRITICAL: TrueSheet navigator treats the first route as a "base screen"
- * rendered full-screen. `detents` only apply to subsequent sheet routes.
- * `maxHeight` is the ONLY reliable way to cap the base route height.
+ * Keep background props unset so iOS can use True Sheet's native liquid
+ * glass treatment when available.
  */
 
 import type { ReactElement } from "react";
@@ -71,14 +70,9 @@ export default function AppSheet({
 
 // ── CommentSheet (comment-specific, max 70%) ─────────────────────────
 //
-// CRITICAL: TrueSheet navigator treats the first route as a "base screen"
-// rendered full-screen. `detents` only apply to subsequent sheet routes.
-// Since comments typically have a single route ([postId]), the base route
-// would be full-screen without `maxHeight`.
-//
-// `maxHeight` is a native TrueSheet prop that caps the sheet height in
-// pixels for ALL routes, including the base route. This is the ONLY
-// reliable way to enforce the 70% ceiling.
+// Keep the comment sheet below full-screen and explicitly dismissible.
+// We intentionally avoid setting custom background props here so the
+// native True Sheet liquid glass styling stays enabled where supported.
 
 const COMMENT_MAX_FRACTION = 0.7;
 const COMMENT_MAX_HEIGHT = Math.round(SCREEN_HEIGHT * COMMENT_MAX_FRACTION);
@@ -112,8 +106,9 @@ export function CommentSheet({
         {
           detents: clampedDetents,
           detentIndex: initialIdx,
-          maxHeight: COMMENT_MAX_HEIGHT,
+          maxContentHeight: COMMENT_MAX_HEIGHT,
           cornerRadius,
+          dismissible: true,
           grabber: true,
           grabberOptions: GRABBER_OPTIONS,
           scrollable: true,
