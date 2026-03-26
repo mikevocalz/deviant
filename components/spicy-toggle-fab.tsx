@@ -1,6 +1,7 @@
 import { View, Text, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -20,8 +21,9 @@ const SPRING_CONFIG = { damping: 20, stiffness: 300 };
 
 export function SpicyToggleFAB() {
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
-  const setNsfwEnabled = useAppStore((s) => s.setNsfwEnabled);
+  const toggleNsfwEnabled = useAppStore((s) => s.toggleNsfwEnabled);
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
 
   // Reanimated shared value — survives OTA reloads correctly
   const thumbX = useSharedValue(nsfwEnabled ? THUMB_ON : THUMB_OFF);
@@ -39,11 +41,11 @@ export function SpicyToggleFAB() {
   }));
 
   const doToggle = useCallback(() => {
-    const current = useAppStore.getState().nsfwEnabled;
-    console.log("[SpicyToggle] Toggling NSFW:", !current);
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setNsfwEnabled(!current);
-  }, [setNsfwEnabled]);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const nextEnabled = toggleNsfwEnabled();
+    console.log("[SpicyToggle] Toggling NSFW:", nextEnabled);
+    queryClient.invalidateQueries({ queryKey: ["search"] });
+  }, [queryClient, toggleNsfwEnabled]);
 
   return (
     <Pressable

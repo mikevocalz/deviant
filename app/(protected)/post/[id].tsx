@@ -36,7 +36,6 @@ import { PostDetailSkeleton } from "@/components/skeletons";
 import { usePost, useDeletePost } from "@/lib/hooks/use-posts";
 import { useComments } from "@/lib/hooks/use-comments";
 import { CommentLikeButton } from "@/components/comments/threaded-comment";
-import { CommentsSheet } from "@/components/comments-sheet";
 import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
 import { useVideoPlayerStore } from "@/lib/stores/video-player-store";
 // STABILIZED: Bookmark state comes from server via useBookmarks hook only
@@ -670,7 +669,6 @@ function PostDetailScreenContent() {
   // FIX: Replace useState with Zustand to comply with project mandate
   const { showActionSheet, setShowActionSheet, resetPostDetailScreen } =
     usePostDetailScreenStore();
-  const [showCommentsSheet, setShowCommentsSheet] = useState(false);
 
   const deletePostMutation = useDeletePost();
   const bookmarkStore = useBookmarkStore();
@@ -864,12 +862,8 @@ function PostDetailScreenContent() {
   const postIdString = safePost.id ? String(safePost.id) : postId;
   const handlePrimaryCommentsPress = useCallback(() => {
     if (!postIdString) return;
-    if (isTextPost) {
-      router.push(`/(protected)/comments/${postIdString}`);
-      return;
-    }
-    setShowCommentsSheet(true);
-  }, [isTextPost, postIdString, router]);
+    router.push(`/(protected)/comments/${postIdString}`);
+  }, [postIdString, router]);
 
   // Collect valid image URLs for Galeria full-screen viewer
   const imageUrls = useMemo(() => {
@@ -1605,11 +1599,6 @@ function PostDetailScreenContent() {
         onEdit={handleActionEdit}
         onDelete={handleActionDelete}
         onShare={handleShare}
-      />
-      <CommentsSheet
-        visible={showCommentsSheet}
-        onClose={() => setShowCommentsSheet(false)}
-        postId={showCommentsSheet ? postIdString : null}
       />
     </SafeAreaView>
   );

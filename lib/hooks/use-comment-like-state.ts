@@ -4,7 +4,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { commentsApi as commentsApiClient } from "@/lib/api/comments";
 import { useUIStore } from "@/lib/stores/ui-store";
 import type { Comment } from "@/lib/types";
-import { commentKeys } from "./use-comments";
+import { commentKeys, type CommentThread } from "./use-comments";
 
 export const commentLikeStateKeys = {
   forComment: (viewerId: string, commentId: string) =>
@@ -19,6 +19,7 @@ interface LikeState {
 interface MutationContext {
   previousState?: LikeState;
   previousQueries?: Array<[readonly unknown[], Comment[] | undefined]>;
+  previousThreadQueries?: Array<[readonly unknown[], CommentThread | undefined]>;
 }
 
 function logCacheMutation(action: string, key: readonly unknown[]) {
@@ -51,6 +52,36 @@ function updateCommentLikesTree(
     }
     return updatedComment;
   });
+}
+
+function updateCommentLikesInThread(
+  thread: CommentThread | undefined,
+  targetId: string,
+  likes: number,
+  hasLiked: boolean,
+): CommentThread | undefined {
+  if (!thread?.parentComment) return thread;
+
+  const updatedReplies = updateCommentLikesTree(
+    thread.replies || [],
+    targetId,
+    likes,
+    hasLiked,
+  );
+  const updatedParent = updateCommentLikesTree(
+    [thread.parentComment],
+    targetId,
+    likes,
+    hasLiked,
+  )[0];
+
+  return {
+    parentComment: {
+      ...updatedParent,
+      replies: updatedReplies,
+    },
+    replies: updatedReplies,
+  };
 }
 
 export function useCommentLikeState(
@@ -109,6 +140,9 @@ export function useCommentLikeState(
       const previousQueries = queryClient.getQueriesData<Comment[]>({
         queryKey: commentKeys.byPost(postId),
       });
+      const previousThreadQueries = queryClient.getQueriesData<CommentThread>({
+        queryKey: ["comments", "thread"],
+      });
 
       queryClient.setQueriesData(
         { queryKey: commentKeys.byPost(postId) },
@@ -124,7 +158,22 @@ export function useCommentLikeState(
         },
       );
 
-      return { previousState, previousQueries } as MutationContext;
+      queryClient.setQueriesData(
+        { queryKey: ["comments", "thread"] },
+        (old: CommentThread | undefined) =>
+          updateCommentLikesInThread(
+            old,
+            commentId,
+            newState.likesCount,
+            newState.hasLiked,
+          ),
+      );
+
+      return {
+        previousState,
+        previousQueries,
+        previousThreadQueries,
+      } as MutationContext;
     },
     onError: (err, _variables, context) => {
       if (!viewerId) return;
@@ -139,6 +188,14 @@ export function useCommentLikeState(
       }
       if (context?.previousQueries?.length) {
         for (const [qk, data] of context.previousQueries) {
+          if (data !== undefined) {
+            logCacheMutation("rollback setQueryData", qk);
+            queryClient.setQueryData(qk, data);
+          }
+        }
+      }
+      if (context?.previousThreadQueries?.length) {
+        for (const [qk, data] of context.previousThreadQueries) {
           if (data !== undefined) {
             logCacheMutation("rollback setQueryData", qk);
             queryClient.setQueryData(qk, data);
@@ -166,6 +223,16 @@ export function useCommentLikeState(
             data.liked,
           );
         },
+      );
+      queryClient.setQueriesData(
+        { queryKey: ["comments", "thread"] },
+        (old: CommentThread | undefined) =>
+          updateCommentLikesInThread(
+            old,
+            commentId,
+            data.likes,
+            data.liked,
+          ),
       );
     },
   });

@@ -33,7 +33,7 @@ import {
 } from "../api/comments";
 
 // Reaction emoji set (same as DM chat)
-const REACTION_EMOJIS = ["❤️", "🔥", "😂", "😍", "👏", "😮"];
+const REACTION_EMOJIS = ["😂", "😢", "😊", "😈", "🥵", "💝"];
 const SHEET_BG = "#141416";
 const PANEL_BG = "#1D1D21";
 const BUBBLE_BG = "#232327";

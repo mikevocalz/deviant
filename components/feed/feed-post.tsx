@@ -202,7 +202,6 @@ function FeedPostComponent({
     toggleMute,
     setActionSheetPostId,
     setShareSheetPostId,
-    setCommentsSheetPostId,
   } = useFeedPostUIStore();
 
   const isActivePost = activePostId === id;
@@ -327,12 +326,8 @@ function FeedPostComponent({
 
   const handleCommentsPress = useCallback(() => {
     if (!id) return;
-    if (isTextPost) {
-      router.push(`/(protected)/comments/${id}` as any);
-      return;
-    }
-    setCommentsSheetPostId(id);
-  }, [id, isTextPost, router, setCommentsSheetPostId]);
+    router.push(`/(protected)/comments/${id}` as any);
+  }, [id, router]);
 
   const textSlideWidth = mediaSize - 32;
 

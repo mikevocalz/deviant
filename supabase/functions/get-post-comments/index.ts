@@ -1,6 +1,6 @@
 /**
  * Edge Function: get-post-comments
- * Fetch comments for a post with nested replies up to depth 2.
+ * Fetch deterministic 2-level comment threads for a post.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -43,6 +43,7 @@ interface CommentNode {
   avatar: string;
   text: string;
   timeAgo: string;
+  createdAt: string;
   likes: number;
   hasLiked: boolean;
   parentId: string | null;
@@ -51,14 +52,39 @@ interface CommentNode {
   replies: CommentNode[];
 }
 
+function normalizeThreadRootId(row: any): string | null {
+  if (row?.parent_id == null && row?.root_id == null) return null;
+  if (row?.root_id != null) return String(row.root_id);
+  if (row?.parent_id != null) return String(row.parent_id);
+  return null;
+}
+
+function dedupeRows(rows: any[] = []): any[] {
+  const seen = new Set<string>();
+  const deduped: any[] = [];
+  for (const row of rows) {
+    if (!row?.id) continue;
+    const id = String(row.id);
+    if (seen.has(id)) continue;
+    seen.add(id);
+    deduped.push(row);
+  }
+  return deduped;
+}
+
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS")
+  if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
-  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+  }
+  if (req.method !== "POST") {
+    return json({ error: "Method not allowed" }, 405);
+  }
 
   try {
     const body = await req.json().catch(() => ({}));
     const postId = body?.postId != null ? Number(body.postId) : NaN;
+    const rootCommentId =
+      body?.rootCommentId != null ? Number(body.rootCommentId) : null;
     const limit = Math.min(Math.max(Number(body?.limit) || 50, 1), 100);
 
     if (!Number.isFinite(postId) || postId <= 0) {
@@ -96,39 +122,99 @@ Deno.serve(async (req) => {
       }
     }
 
-    const { data: rootComments, error: rootError } = await supabaseAdmin
-      .from("comments")
-      .select(
-        "id, post_id, content, likes_count, created_at, parent_id, root_id, depth, author:author_id(id, username, first_name, avatar:avatar_id(url))",
-      )
-      .eq("post_id", postId)
-      .is("parent_id", null)
-      .order("created_at", { ascending: false })
-      .limit(limit);
+    const selectColumns =
+      "id, post_id, content, likes_count, created_at, parent_id, root_id, depth, author:author_id(id, username, first_name, avatar:avatar_id(url))";
 
-    if (rootError) {
-      console.error("[Edge:get-post-comments] root query error:", rootError);
-      return json({ error: rootError.message }, 500);
+    let rootRows: any[] = [];
+    let replyRows: any[] = [];
+
+    if (rootCommentId != null) {
+      const { data: requestedComment, error: requestedError } = await supabaseAdmin
+        .from("comments")
+        .select("id, post_id, parent_id, root_id")
+        .eq("id", rootCommentId)
+        .eq("post_id", postId)
+        .single();
+
+      if (requestedError || !requestedComment) {
+        return json({ parentComment: null, replies: [] });
+      }
+
+      const normalizedRootId =
+        requestedComment.parent_id == null
+          ? Number(requestedComment.id)
+          : Number(requestedComment.root_id || requestedComment.parent_id);
+
+      const [{ data: rootComment }, { data: replyRowsByRoot }, { data: replyRowsByParent }] =
+        await Promise.all([
+          supabaseAdmin
+            .from("comments")
+            .select(selectColumns)
+            .eq("id", normalizedRootId)
+            .eq("post_id", postId)
+            .maybeSingle(),
+          supabaseAdmin
+            .from("comments")
+            .select(selectColumns)
+            .eq("post_id", postId)
+            .eq("root_id", normalizedRootId)
+            .order("created_at", { ascending: true }),
+          supabaseAdmin
+            .from("comments")
+            .select(selectColumns)
+            .eq("post_id", postId)
+            .eq("parent_id", normalizedRootId)
+            .order("created_at", { ascending: true }),
+        ]);
+
+      rootRows = rootComment ? [rootComment] : [];
+      replyRows = dedupeRows([
+        ...(replyRowsByRoot || []),
+        ...(replyRowsByParent || []),
+      ]);
+    } else {
+      const { data: fetchedRootRows, error: rootError } = await supabaseAdmin
+        .from("comments")
+        .select(selectColumns)
+        .eq("post_id", postId)
+        .is("parent_id", null)
+        .is("root_id", null)
+        .order("created_at", { ascending: false })
+        .limit(limit);
+
+      if (rootError) {
+        console.error("[Edge:get-post-comments] root query error:", rootError);
+        return json({ error: rootError.message }, 500);
+      }
+
+      rootRows = fetchedRootRows || [];
+      const rootIds = rootRows.map((row: any) => Number(row.id));
+
+      if (rootIds.length > 0) {
+        const [{ data: replyRowsByRoot }, { data: replyRowsByParent }] =
+          await Promise.all([
+            supabaseAdmin
+              .from("comments")
+              .select(selectColumns)
+              .eq("post_id", postId)
+              .in("root_id", rootIds)
+              .order("created_at", { ascending: true }),
+            supabaseAdmin
+              .from("comments")
+              .select(selectColumns)
+              .eq("post_id", postId)
+              .in("parent_id", rootIds)
+              .order("created_at", { ascending: true }),
+          ]);
+
+        replyRows = dedupeRows([
+          ...(replyRowsByRoot || []),
+          ...(replyRowsByParent || []),
+        ]);
+      }
     }
 
-    const rootIds = (rootComments || []).map((comment: any) => comment.id);
-    const { data: replyComments, error: replyError } = rootIds.length
-      ? await supabaseAdmin
-          .from("comments")
-          .select(
-            "id, post_id, content, likes_count, created_at, parent_id, root_id, depth, author:author_id(id, username, first_name, avatar:avatar_id(url))",
-          )
-          .eq("post_id", postId)
-          .in("root_id", rootIds)
-          .order("created_at", { ascending: true })
-      : { data: [], error: null };
-
-    if (replyError) {
-      console.error("[Edge:get-post-comments] reply query error:", replyError);
-      return json({ error: replyError.message }, 500);
-    }
-
-    const allRows = [...(rootComments || []), ...(replyComments || [])];
+    const allRows = [...rootRows, ...replyRows];
     const allIds = allRows.map((row: any) => row.id);
 
     let likedCommentIds = new Set<number>();
@@ -150,37 +236,48 @@ Deno.serve(async (req) => {
       avatar: row.author?.avatar?.url || "",
       text: row.content || "",
       timeAgo: formatTimeAgo(row.created_at),
+      createdAt: row.created_at,
       likes: Number(row.likes_count) || 0,
       hasLiked: viewerId ? likedCommentIds.has(row.id) : false,
       parentId: row.parent_id != null ? String(row.parent_id) : null,
       rootId: row.root_id != null ? String(row.root_id) : null,
-      depth: Number(row.depth) || 0,
+      depth: row.parent_id == null && row.root_id == null ? 0 : 1,
       replies: [],
     });
 
-    const nodeMap = new Map<string, CommentNode>();
-    for (const row of allRows) {
+    const rootMap = new Map<string, CommentNode>();
+    const orderedRoots: CommentNode[] = [];
+
+    for (const row of rootRows) {
       const node = toNode(row);
-      nodeMap.set(node.id, node);
+      rootMap.set(node.id, node);
+      orderedRoots.push(node);
     }
 
-    const roots: CommentNode[] = [];
-    for (const row of rootComments || []) {
-      const root = nodeMap.get(String(row.id));
-      if (root) roots.push(root);
+    for (const row of replyRows) {
+      const node = toNode(row);
+      const rootId = normalizeThreadRootId(row);
+      if (!rootId) continue;
+      const root = rootMap.get(rootId);
+      if (!root) continue;
+      root.replies.push(node);
     }
 
-    for (const row of replyComments || []) {
-      const node = nodeMap.get(String(row.id));
-      if (!node) continue;
-      const parentId = row.parent_id != null ? String(row.parent_id) : null;
-      if (!parentId) continue;
-      const parent = nodeMap.get(parentId);
-      if (!parent) continue;
-      parent.replies.push(node);
+    for (const root of orderedRoots) {
+      root.replies.sort((left, right) =>
+        left.createdAt.localeCompare(right.createdAt),
+      );
     }
 
-    return json({ comments: roots });
+    if (rootCommentId != null) {
+      const parentComment = orderedRoots[0] || null;
+      return json({
+        parentComment,
+        replies: parentComment?.replies || [],
+      });
+    }
+
+    return json({ comments: orderedRoots });
   } catch (err) {
     console.error("[Edge:get-post-comments] Unexpected error:", err);
     return json({ error: "An unexpected error occurred" }, 500);

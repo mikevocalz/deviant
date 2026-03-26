@@ -17,6 +17,12 @@ import { postsApi } from "@/lib/api/posts";
 import { searchApi } from "@/lib/api/search";
 import type { Post } from "@/lib/types";
 
+const SEARCH_QUERY_VERSION = "v2";
+
+function filterSafePosts(posts: Post[]) {
+  return posts.filter((post) => !post.isNSFW);
+}
+
 // ── Discover mode (empty query) — single batch ─────────────────────
 export interface DiscoverDTO {
   users: {
@@ -33,13 +39,13 @@ export interface DiscoverDTO {
 
 export function useDiscoverData() {
   return useQuery<DiscoverDTO>({
-    queryKey: ["search", "discover"],
+    queryKey: ["search", SEARCH_QUERY_VERSION, "discover"],
     queryFn: async () => {
       const [users, posts] = await Promise.all([
         usersApi.getNewestUsers(15),
         postsApi.getExplorePosts(40),
       ]);
-      return { users, posts };
+      return { users, posts: filterSafePosts(posts) };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -54,7 +60,7 @@ export interface SearchResultsDTO {
 
 export function useSearchResults(debouncedQuery: string) {
   return useQuery<SearchResultsDTO>({
-    queryKey: ["search", "results", debouncedQuery],
+    queryKey: ["search", SEARCH_QUERY_VERSION, "results", debouncedQuery],
     queryFn: async () => {
       const isHashtag = debouncedQuery.startsWith("#");
       const [posts, users] = await Promise.all([
@@ -63,7 +69,16 @@ export function useSearchResults(debouncedQuery: string) {
           ? Promise.resolve({ docs: [], totalDocs: 0 })
           : searchApi.searchUsers(debouncedQuery, 20),
       ]);
-      return { posts, users, isHashtag };
+      const safePosts = filterSafePosts(posts.docs);
+      return {
+        posts: {
+          ...posts,
+          docs: safePosts,
+          totalDocs: safePosts.length,
+        },
+        users,
+        isHashtag,
+      };
     },
     enabled: !!debouncedQuery && debouncedQuery.length >= 2,
     placeholderData: keepPreviousData,

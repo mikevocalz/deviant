@@ -1,6 +1,10 @@
 import { supabase } from "../supabase/client";
 import type { Comment } from "@/lib/types";
 import { getBetterAuthToken, requireBetterAuthToken } from "../auth/identity";
+import {
+  buildTwoLevelCommentThreads,
+  findCommentThread,
+} from "@/lib/comments/threading";
 
 interface AddCommentResponse {
   ok: boolean;
@@ -12,18 +16,6 @@ interface DeleteCommentResponse {
   ok: boolean;
   data?: { success: boolean };
   error?: { code: string; message: string };
-}
-
-function findCommentById(
-  comments: Comment[],
-  commentId: string,
-): Comment | undefined {
-  for (const comment of comments) {
-    if (comment.id === commentId) return comment;
-    const nested = findCommentById(comment.replies || [], commentId);
-    if (nested) return nested;
-  }
-  return undefined;
 }
 
 export const commentsApi = {
@@ -57,7 +49,7 @@ export const commentsApi = {
           console.error("[Comments] get-post-comments:", data.error);
         return [];
       }
-      return data.comments;
+      return buildTwoLevelCommentThreads(data.comments);
     } catch (error) {
       console.error("[Comments] getComments error:", error);
       return [];
@@ -67,7 +59,12 @@ export const commentsApi = {
   /**
    * Add comment to post via Edge Function
    */
-  async addComment(postId: string, content: string, parentId?: string) {
+  async addComment(
+    postId: string,
+    content: string,
+    parentId?: string,
+    replyToCommentId?: string,
+  ) {
     try {
       console.log("[Comments] addComment via Edge Function, postId:", postId);
 
@@ -80,6 +77,9 @@ export const commentsApi = {
             postId: postIdInt,
             content,
             ...(parentId ? { parentId: parseInt(parentId, 10) } : {}),
+            ...(replyToCommentId
+              ? { replyToCommentId: parseInt(replyToCommentId, 10) }
+              : {}),
           },
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -109,11 +109,17 @@ export const commentsApi = {
     post: string;
     text: string;
     parent?: string;
+    replyToCommentId?: string;
     authorUsername?: string;
     authorId?: string;
     clientMutationId?: string;
   }) {
-    return commentsApi.addComment(data.post, data.text, data.parent);
+    return commentsApi.addComment(
+      data.post,
+      data.text,
+      data.parent,
+      data.replyToCommentId,
+    );
   },
 
   /**
@@ -202,12 +208,59 @@ export const commentsApi = {
     limit: number = 50,
   ): Promise<Comment[]> {
     try {
-      console.log("[Comments] getReplies, parentId:", parentId);
-      const comments = await commentsApi.getComments(postId, limit);
-      return findCommentById(comments, parentId)?.replies || [];
+      const thread = await commentsApi.getCommentThread(postId, parentId, limit);
+      return thread?.replies || [];
     } catch (error) {
       console.error("[Comments] getReplies error:", error);
       return [];
+    }
+  },
+
+  async getCommentThread(
+    postId: string,
+    rootCommentId: string,
+    limit: number = 100,
+  ): Promise<{ parentComment: Comment; replies: Comment[] } | null> {
+    try {
+      const postIdInt = parseInt(postId, 10);
+      const rootCommentIdInt = parseInt(rootCommentId, 10);
+      if (isNaN(postIdInt) || isNaN(rootCommentIdInt)) return null;
+
+      const token = await getBetterAuthToken();
+      const headers: Record<string, string> = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      const { data, error } = await supabase.functions.invoke<{
+        parentComment?: Comment | null;
+        replies?: Comment[];
+        error?: string;
+      }>("get-post-comments", {
+        body: { postId: postIdInt, rootCommentId: rootCommentIdInt, limit },
+        headers,
+      });
+
+      if (error) {
+        console.error("[Comments] getCommentThread Edge Function error:", error);
+        return null;
+      }
+
+      if (data?.parentComment) {
+        const replies = data.replies || [];
+        return {
+          parentComment: {
+            ...data.parentComment,
+            replies,
+          },
+          replies,
+        };
+      }
+
+      const comments = await commentsApi.getComments(postId, limit);
+      return findCommentThread(comments, rootCommentId);
+    } catch (error) {
+      console.error("[Comments] getCommentThread error:", error);
+      return null;
     }
   },
 };
