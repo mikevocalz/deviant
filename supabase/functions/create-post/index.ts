@@ -35,6 +35,8 @@ interface MediaItem {
   type: "image" | "video" | "gif" | "livePhoto";
   url: string;
   thumbnail?: string;
+  mimeType?: string;
+  livePhotoVideoUrl?: string;
 }
 
 interface CreatePostBody {
@@ -50,6 +52,12 @@ interface CreatePostBody {
 
 const TEXT_POST_MAX_SLIDES = 6;
 const TEXT_POST_MAX_LENGTH = 2000;
+const RECENT_DUPLICATE_WINDOW_MS = 90_000;
+
+function normalizeLocation(value?: string | null): string | null {
+  const normalized = typeof value === "string" ? value.trim() : "";
+  return normalized.length > 0 ? normalized : null;
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -116,6 +124,9 @@ Deno.serve(async (req) => {
       media,
     } = body;
     const postKind = kind === "text" ? "text" : "media";
+    const normalizedLocationValue = normalizeLocation(location);
+    const normalizedVisibility = visibility || "public";
+    const normalizedIsNsfw = Boolean(isNSFW);
     const normalizedTheme =
       textTheme && ["graphite", "cobalt", "ember", "sage"].includes(textTheme)
         ? textTheme
@@ -196,99 +207,107 @@ Deno.serve(async (req) => {
 
     const userId = userData.id;
     console.log("[Edge:create-post] User:", userId);
+    const normalizedContent =
+      postKind === "text" ? normalizedSlides[0] || "" : content?.trim() || "";
+    let post: any = null;
 
-    // Insert post
-    const { data: post, error: postError } = await supabaseAdmin
-      .from("posts")
-      .insert({
-        author_id: userId,
-        content:
-          postKind === "text"
-            ? normalizedSlides[0] || ""
-            : content?.trim() || "",
-        post_kind: postKind,
-        text_theme: normalizedTheme,
-        location: location || null,
-        is_nsfw: isNSFW || false,
-        visibility: visibility || "public",
-        likes_count: 0,
-        comments_count: 0,
-      })
-      .select()
-      .single();
-
-    if (postError) {
-      console.error("[Edge:create-post] Insert error:", postError);
-      return errorResponse("internal_error", "Failed to create post");
-    }
-
-    console.log("[Edge:create-post] Post created:", post.id);
-
-    if (postKind === "text" && normalizedSlides.length > 0) {
-      const slideRows = normalizedSlides.map((slideContent, index) => ({
-        post_id: post.id,
-        slide_index: index,
-        content: slideContent,
-      }));
-
-      const { error: slidesError } = await supabaseAdmin
-        .from("post_text_slides")
-        .insert(slideRows);
-
-      if (slidesError) {
-        console.error("[Edge:create-post] Slides insert error:", slidesError);
-        return errorResponse(
-          "internal_error",
-          "Failed to store text post slides",
-        );
-      }
-    }
-
-    // Insert media if provided
-    if (media && media.length > 0) {
-      const mediaInserts: Array<Record<string, unknown>> = [];
-      media.forEach((m: any, index: number) => {
-        mediaInserts.push({
-          _parent_id: post.id,
-          type: m.type,
-          url: m.url,
-          _order: index,
-          id: `${post.id}_${index}`,
+    if (postKind === "text") {
+      const { data: createPostRows, error: createPostError } =
+        await supabaseAdmin.rpc("create_post_with_dedupe", {
+          p_author_id: userId,
+          p_content: normalizedContent,
+          p_post_kind: postKind,
+          p_text_theme: normalizedTheme,
+          p_location: normalizedLocationValue,
+          p_is_nsfw: normalizedIsNsfw,
+          p_visibility: normalizedVisibility,
+          p_slides: normalizedSlides,
+          p_media: [],
+          p_recent_window_seconds: Math.floor(
+            RECENT_DUPLICATE_WINDOW_MS / 1000,
+          ),
         });
-        // For video posts: store the uploaded thumbnail as a separate row
-        // so the feed/grid can show a real image instead of a video URL
-        if (m.type === "video" && m.thumbnail) {
+
+      if (createPostError) {
+        console.error(
+          "[Edge:create-post] Atomic text create error:",
+          createPostError,
+        );
+        return errorResponse("internal_error", "Failed to create post");
+      }
+
+      post = Array.isArray(createPostRows)
+        ? createPostRows[0]
+        : createPostRows;
+
+      if (!post?.id) {
+        console.error("[Edge:create-post] Atomic text create returned no post");
+        return errorResponse("internal_error", "Failed to create post");
+      }
+
+      console.log(
+        `[Edge:create-post] ${post.was_created ? "Post created" : "Deduped to existing post"}:`,
+        post.id,
+      );
+    } else {
+      const { data: insertedPost, error: postError } = await supabaseAdmin
+        .from("posts")
+        .insert({
+          author_id: userId,
+          content: normalizedContent,
+          post_kind: postKind,
+          text_theme: normalizedTheme,
+          location: normalizedLocationValue,
+          is_nsfw: normalizedIsNsfw,
+          visibility: normalizedVisibility,
+          likes_count: 0,
+          comments_count: 0,
+        })
+        .select()
+        .single();
+
+      if (postError) {
+        console.error("[Edge:create-post] Insert error:", postError);
+        return errorResponse("internal_error", "Failed to create post");
+      }
+
+      post = insertedPost;
+
+      if (media && media.length > 0) {
+        const mediaInserts: Array<Record<string, unknown>> = [];
+        media.forEach((m: MediaItem, index: number) => {
           mediaInserts.push({
             _parent_id: post.id,
-            type: "thumbnail",
-            url: m.thumbnail,
+            type: m.type,
+            url: m.url,
             _order: index,
-            id: `${post.id}_thumb_${index}`,
+            id: `${post.id}_${index}`,
+            mime_type: m.mimeType ?? null,
+            live_photo_video_url: m.livePhotoVideoUrl ?? null,
           });
-          console.log(
-            "[Edge:create-post] Video thumbnail stored:",
-            m.thumbnail,
-          );
+
+          if (m.type === "video" && m.thumbnail) {
+            mediaInserts.push({
+              _parent_id: post.id,
+              type: "thumbnail",
+              url: m.thumbnail,
+              _order: index,
+              id: `${post.id}_thumb_${index}`,
+            });
+          }
+        });
+
+        const { error: mediaError } = await supabaseAdmin
+          .from("posts_media")
+          .insert(mediaInserts);
+
+        if (mediaError) {
+          console.error("[Edge:create-post] Media insert error:", mediaError);
         }
-      });
-
-      const { error: mediaError } = await supabaseAdmin
-        .from("posts_media")
-        .insert(mediaInserts);
-
-      if (mediaError) {
-        console.error("[Edge:create-post] Media insert error:", mediaError);
-        // Don't fail the whole request, post was created
-      } else {
-        console.log(
-          "[Edge:create-post] Media inserted:",
-          mediaInserts.length,
-          "items",
-        );
       }
-    }
 
-    // posts_count synced by trigger on posts table
+      console.log("[Edge:create-post] Media post created:", post.id);
+    }
 
     return jsonResponse({
       ok: true,

@@ -173,6 +173,7 @@ function CreateScreenContent() {
   const { pickFromLibrary } = useMediaPicker();
   const { mutate: createPost, isPending: isCreating } = useCreatePost();
   const isSubmittingRef = useRef(false);
+  const [isSubmitLocked, setIsSubmitLocked] = useState(false);
   const { user } = useAuthStore();
   const showToast = useUIStore((s) => s.showToast);
   const { colors } = useColorScheme();
@@ -314,6 +315,8 @@ function CreateScreenContent() {
   // Consume camera result when returning from camera screen
   useFocusEffect(
     useCallback(() => {
+      isSubmittingRef.current = false;
+      setIsSubmitLocked(false);
       const result = consumeCameraResult();
       if (result) {
         const media: MediaAsset = {
@@ -424,11 +427,12 @@ function CreateScreenContent() {
     console.log("[Create] caption length:", trimmedCaption.length);
 
     // Prevent double submission — ref check is synchronous (survives rapid taps)
-    if (isSubmittingRef.current || isCreating || isUploading) {
+    if (isSubmittingRef.current || isSubmitLocked || isCreating || isUploading) {
       console.log("[Create] Already submitting, ignoring");
       return;
     }
     isSubmittingRef.current = true;
+    setIsSubmitLocked(true);
 
     if (!isTextSubmission && currentSelectedMedia.length === 0) {
       showToast(
@@ -437,6 +441,7 @@ function CreateScreenContent() {
         "Please select at least one photo or video",
       );
       isSubmittingRef.current = false;
+      setIsSubmitLocked(false);
       return;
     }
 
@@ -450,6 +455,7 @@ function CreateScreenContent() {
         "Each slide needs text before you can post.",
       );
       isSubmittingRef.current = false;
+      setIsSubmitLocked(false);
       return;
     }
 
@@ -463,6 +469,7 @@ function CreateScreenContent() {
         `Text posts are limited to ${TEXT_POST_MAX_LENGTH} characters.`,
       );
       isSubmittingRef.current = false;
+      setIsSubmitLocked(false);
       return;
     }
 
@@ -473,6 +480,7 @@ function CreateScreenContent() {
         `Please write at least ${MIN_CAPTION_LENGTH} characters. Currently: ${trimmedCaption.length}`,
       );
       isSubmittingRef.current = false;
+      setIsSubmitLocked(false);
       return;
     }
 
@@ -531,6 +539,7 @@ function CreateScreenContent() {
             "Could not upload media. Please try again.",
           );
           isSubmittingRef.current = false;
+          setIsSubmitLocked(false);
           return;
         }
 
@@ -543,6 +552,7 @@ function CreateScreenContent() {
             `${failedUploads.length} file(s) failed to upload. Please try again.`,
           );
           isSubmittingRef.current = false;
+          setIsSubmitLocked(false);
           return;
         }
 
@@ -618,7 +628,6 @@ function CreateScreenContent() {
             }
 
             showToast("success", "Posted!", "Your post is now live");
-            isSubmittingRef.current = false;
             reset();
             setSelectedTagUsers([]);
             router.back();
@@ -635,15 +644,18 @@ function CreateScreenContent() {
               error?.error?.message ||
               "Failed to create post. Please try again.";
             showToast("error", "Error", errorMessage);
+            setIsSubmitLocked(false);
           },
         },
       );
     } catch (error) {
       console.error("[Create] Unexpected error:", error);
       isSubmittingRef.current = false;
+      setIsSubmitLocked(false);
       showToast("error", "Error", "Something went wrong. Please try again.");
     }
   }, [
+    isSubmitLocked,
     isUploading,
     isCreating,
     showToast,
@@ -711,14 +723,14 @@ function CreateScreenContent() {
         </Text>
         <Pressable
           onPress={handlePost}
-          disabled={!isValid || isCreating || isUploading}
+          disabled={!isValid || isCreating || isUploading || isSubmitLocked}
           hitSlop={12}
           style={{
             paddingHorizontal: 18,
             paddingVertical: 8,
             borderRadius: 20,
             backgroundColor:
-              isValid && !isCreating && !isUploading
+              isValid && !isCreating && !isUploading && !isSubmitLocked
                 ? "#3EA4E5"
                 : "rgba(255,255,255,0.08)",
           }}
@@ -726,14 +738,14 @@ function CreateScreenContent() {
           <Text
             style={{
               color:
-                isValid && !isCreating && !isUploading
+                isValid && !isCreating && !isUploading && !isSubmitLocked
                   ? "#fff"
                   : "rgba(255,255,255,0.3)",
               fontSize: 15,
               fontWeight: "700",
             }}
           >
-            {isCreating ? "Posting..." : "Post"}
+            {isCreating || isSubmitLocked ? "Posting..." : "Post"}
           </Text>
         </Pressable>
       </View>

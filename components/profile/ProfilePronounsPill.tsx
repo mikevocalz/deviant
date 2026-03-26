@@ -2,17 +2,21 @@ import { View, Text } from "react-native";
 
 interface ProfilePronounsPillProps {
   pronouns?: string | null;
+  inline?: boolean;
 }
 
-export function ProfilePronounsPill({ pronouns }: ProfilePronounsPillProps) {
+export function ProfilePronounsPill({
+  pronouns,
+  inline = false,
+}: ProfilePronounsPillProps) {
   const value = typeof pronouns === "string" ? pronouns.trim() : "";
   if (!value) return null;
 
   return (
     <View
       style={{
-        alignSelf: "flex-start",
-        marginTop: 8,
+        alignSelf: inline ? undefined : "flex-start",
+        marginTop: inline ? 0 : 8,
         paddingHorizontal: 10,
         paddingVertical: 5,
         borderRadius: 10,
