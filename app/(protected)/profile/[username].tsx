@@ -264,17 +264,68 @@ const mockPosts = [
   },
 ];
 
+function normalizeRouteParam(value: string | string[] | undefined) {
+  if (!value) return undefined;
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function parseBooleanParam(value: string | string[] | undefined) {
+  const normalized = normalizeRouteParam(value);
+  if (normalized === "true") return true;
+  if (normalized === "false") return false;
+  return undefined;
+}
+
+function parseCountParam(value: string | string[] | undefined) {
+  const normalized = normalizeRouteParam(value);
+  if (!normalized) return undefined;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function mergeDefinedUser<
+  T extends Record<string, string | number | boolean | undefined | null>,
+>(base: T, incoming?: Record<string, unknown> | null): T {
+  if (!incoming) return base;
+
+  const next = { ...base };
+  for (const [key, value] of Object.entries(incoming)) {
+    if (value === undefined || value === null) continue;
+    if (
+      typeof value === "string" &&
+      value.length === 0 &&
+      typeof next[key] === "string" &&
+      String(next[key]).length > 0
+    ) {
+      continue;
+    }
+    next[key as keyof T] = value as T[keyof T];
+  }
+
+  return next;
+}
+
 function UserProfileScreenComponent() {
   const {
     username,
+    userId: userIdParam,
     authId,
     avatar: avatarParam,
     name: nameParam,
+    isFollowing: isFollowingParam,
+    postsCount: postsCountParam,
+    followersCount: followersCountParam,
+    followingCount: followingCountParam,
   } = useLocalSearchParams<{
     username: string;
+    userId?: string;
     authId?: string;
     avatar?: string;
     name?: string;
+    isFollowing?: string;
+    postsCount?: string;
+    followersCount?: string;
+    followingCount?: string;
   }>();
   const router = useRouter();
   const { colors } = useColorScheme();
@@ -289,6 +340,14 @@ function UserProfileScreenComponent() {
   // DEFENSIVE: Ensure username is a valid string
   const safeUsername =
     typeof username === "string" && username.length > 0 ? username : null;
+  const previewUserId = normalizeRouteParam(userIdParam);
+  const previewAuthId = normalizeRouteParam(authId);
+  const previewAvatar = normalizeRouteParam(avatarParam);
+  const previewName = normalizeRouteParam(nameParam);
+  const previewIsFollowing = parseBooleanParam(isFollowingParam);
+  const previewPostsCount = parseCountParam(postsCountParam);
+  const previewFollowersCount = parseCountParam(followersCountParam);
+  const previewFollowingCount = parseCountParam(followingCountParam);
 
   const isOwnProfile = currentUser?.username === safeUsername;
 
@@ -302,15 +361,15 @@ function UserProfileScreenComponent() {
 
   // Fallback: fetch from Better Auth `user` table if no app profile found
   const { data: authUserData, isLoading: isLoadingAuthUser } = useQuery({
-    queryKey: ["auth-user", authId],
-    queryFn: () => usersApi.getProfileByAuthUserId(authId!),
-    enabled: !!authId && !userData && !isLoadingUser,
+    queryKey: ["auth-user", previewAuthId],
+    queryFn: () => usersApi.getProfileByAuthUserId(previewAuthId!),
+    enabled: !!previewAuthId && !userData && !isLoadingUser,
   });
 
   // Merge: prefer app profile, fall back to auth user
   const resolvedUserData = userData || authUserData;
   const isLoading =
-    isLoadingUser || (!userData && !!authId && isLoadingAuthUser);
+    isLoadingUser || (!userData && !!previewAuthId && isLoadingAuthUser);
 
   // Fetch user posts — fires in parallel with user query (no waterfall)
   const { data: userPostsRaw = [], isLoading: isLoadingPosts } =
@@ -322,8 +381,12 @@ function UserProfileScreenComponent() {
     [userPostsRaw],
   );
 
-  // Follow state — read directly from query cache (optimistically updated by useFollow)
-  const isFollowing = !!(resolvedUserData as any)?.isFollowing;
+  // Follow state — never default to false during transition.
+  const resolvedFollowState =
+    typeof (resolvedUserData as any)?.isFollowing === "boolean"
+      ? Boolean((resolvedUserData as any)?.isFollowing)
+      : previewIsFollowing;
+  const isFollowing = resolvedFollowState === true;
   const {
     mutate: followMutate,
     isPending: isFollowPending,
@@ -370,8 +433,9 @@ function UserProfileScreenComponent() {
 
   // Use API data or fallback to route params — renders INSTANTLY without waiting for query.
   // Route params (username, avatarParam, nameParam) are available synchronously on mount.
-  const rawUser: {
+  const basePreviewUser: {
     id?: string;
+    authId?: string;
     username: string;
     fullName?: string;
     name?: string;
@@ -380,18 +444,29 @@ function UserProfileScreenComponent() {
     postsCount?: number;
     followersCount?: number;
     followingCount?: number;
-  } = (resolvedUserData as any) ||
-    mockUsers[username || ""] || {
-      id: undefined,
-      username: username || "",
-      fullName: nameParam || "",
-      name: nameParam || "",
-      avatar: avatarParam || undefined,
-      bio: "",
-      postsCount: undefined,
-      followersCount: undefined,
-      followingCount: undefined,
-    };
+    isFollowing?: boolean;
+  } = {
+    id: previewUserId,
+    authId: previewAuthId,
+    username: safeUsername || "",
+    fullName: previewName || "",
+    name: previewName || "",
+    avatar: previewAvatar || undefined,
+    bio: "",
+    postsCount: previewPostsCount,
+    followersCount: previewFollowersCount,
+    followingCount: previewFollowingCount,
+    isFollowing: previewIsFollowing,
+  };
+  const rawUser = mergeDefinedUser(
+    mergeDefinedUser(
+      basePreviewUser,
+      mockUsers[username || ""] as unknown as
+        | Record<string, unknown>
+        | undefined,
+    ),
+    resolvedUserData as Record<string, unknown> | undefined,
+  );
 
   // CRITICAL: For own profile, prefer auth store avatar (optimistically updated)
   // over the useUser cache which may be stale after an avatar change.
@@ -401,12 +476,24 @@ function UserProfileScreenComponent() {
     ? currentUser?.avatar ||
       (rawUser.avatar && rawUser.avatar.length > 0 ? rawUser.avatar : null)
     : (rawUser.avatar && rawUser.avatar.length > 0 ? rawUser.avatar : null) ||
-      (avatarParam && avatarParam.length > 0 ? avatarParam : null);
+      (previewAvatar && previewAvatar.length > 0 ? previewAvatar : null);
   const user = { ...rawUser, avatar: resolvedAvatar || undefined };
   const profileAvatarUrl = resolveAvatarUrl(
     user.avatar,
     __DEV__ ? `Profile:${user.username}` : undefined,
   );
+  const displayPostsCount =
+    typeof user.postsCount === "number"
+      ? user.postsCount
+      : !isLoadingPosts
+        ? userPosts.length
+        : undefined;
+  const displayFollowersCount =
+    typeof user.followersCount === "number" ? user.followersCount : undefined;
+  const displayFollowingCount =
+    typeof user.followingCount === "number" ? user.followingCount : undefined;
+  const isFollowStateLoading =
+    !isOwnProfile && typeof resolvedFollowState !== "boolean" && isLoading;
 
   // Create a followMutation-like object for compatibility
   const followMutation = {
@@ -414,10 +501,10 @@ function UserProfileScreenComponent() {
     mutate: followMutate,
   };
   const followTargetId = String(
-    (user as any).authId || user.id || authId || "",
+    (user as any).authId || user.id || previewAuthId || "",
   );
   const messageTargetId = String(
-    (user as any).authId || user.id || authId || "",
+    (user as any).authId || user.id || previewAuthId || "",
   );
 
   const handleFollowPress = useCallback(() => {
@@ -459,7 +546,8 @@ function UserProfileScreenComponent() {
       const match = data.find(
         (c: any) =>
           c?.user?.id === String(user.id) ||
-          c?.user?.authId === String((user as any).authId || authId || "") ||
+          c?.user?.authId ===
+            String((user as any).authId || previewAuthId || "") ||
           c?.user?.authId === messageTargetId ||
           c?.user?.username === username,
       );
@@ -557,7 +645,7 @@ function UserProfileScreenComponent() {
       setIsCreatingConversation(false);
     }
   }, [
-    authId,
+    previewAuthId,
     messageTargetId,
     user.id,
     user.username,
@@ -627,7 +715,7 @@ function UserProfileScreenComponent() {
           <ArrowLeft size={24} color={colors.foreground} />
         </Pressable>
         <Text className="text-lg font-semibold text-foreground">
-          {isLoading ? "Loading..." : user.username || "Profile"}
+          {user.username || safeUsername || "Profile"}
         </Text>
         <Pressable
           onPress={() => setMenuVisible(true)}
@@ -693,9 +781,17 @@ function UserProfileScreenComponent() {
               )}
               <View className="flex-row gap-8">
                 <View className="items-center">
-                  <Text className="text-lg font-bold text-foreground">
-                    {user.postsCount || 0}
-                  </Text>
+                  {typeof displayPostsCount === "number" ? (
+                    <Text className="text-lg font-bold text-foreground">
+                      {displayPostsCount}
+                    </Text>
+                  ) : isLoading ? (
+                    <Skeleton
+                      style={{ width: 28, height: 22, borderRadius: 6 }}
+                    />
+                  ) : (
+                    <Text className="text-lg font-bold text-foreground">0</Text>
+                  )}
                   <Text className="text-xs text-muted-foreground">Posts</Text>
                 </View>
                 <Pressable
@@ -720,12 +816,19 @@ function UserProfileScreenComponent() {
                     }
                   }}
                 >
-                  <Text className="text-lg font-bold text-foreground">
-                    {typeof user.followersCount === "number" &&
-                    user.followersCount >= 1000
-                      ? `${(user.followersCount / 1000).toFixed(1)}K`
-                      : (user.followersCount ?? 0)}
-                  </Text>
+                  {typeof displayFollowersCount === "number" ? (
+                    <Text className="text-lg font-bold text-foreground">
+                      {displayFollowersCount >= 1000
+                        ? `${(displayFollowersCount / 1000).toFixed(1)}K`
+                        : displayFollowersCount}
+                    </Text>
+                  ) : isLoading ? (
+                    <Skeleton
+                      style={{ width: 40, height: 22, borderRadius: 6 }}
+                    />
+                  ) : (
+                    <Text className="text-lg font-bold text-foreground">-</Text>
+                  )}
                   <Text className="text-xs text-muted-foreground">
                     Followers
                   </Text>
@@ -752,9 +855,17 @@ function UserProfileScreenComponent() {
                     }
                   }}
                 >
-                  <Text className="text-lg font-bold text-foreground">
-                    {user.followingCount || 0}
-                  </Text>
+                  {typeof displayFollowingCount === "number" ? (
+                    <Text className="text-lg font-bold text-foreground">
+                      {displayFollowingCount}
+                    </Text>
+                  ) : isLoading ? (
+                    <Skeleton
+                      style={{ width: 40, height: 22, borderRadius: 6 }}
+                    />
+                  ) : (
+                    <Text className="text-lg font-bold text-foreground">-</Text>
+                  )}
                   <Text className="text-xs text-muted-foreground">
                     Following
                   </Text>
@@ -811,35 +922,47 @@ function UserProfileScreenComponent() {
               </>
             ) : (
               <>
-                <Pressable
-                  onPress={handleFollowPress}
-                  disabled={followMutation.isPending || !followTargetId}
-                  style={{ flex: 1 }}
-                >
-                  <Motion.View
-                    whileTap={{ scale: 0.95 }}
-                    transition={{ type: "spring", damping: 15, stiffness: 400 }}
-                    style={[
-                      styles.primaryButton,
-                      isFollowing && styles.secondaryButton,
-                      (followMutation.isPending || !followTargetId) && {
-                        opacity: 0.5,
-                      },
-                    ]}
+                {isFollowStateLoading ? (
+                  <View style={{ flex: 1 }}>
+                    <Skeleton
+                      style={{ width: "100%", height: 44, borderRadius: 8 }}
+                    />
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={handleFollowPress}
+                    disabled={followMutation.isPending || !followTargetId}
+                    style={{ flex: 1 }}
                   >
-                    <Text
-                      className={`font-semibold ${isFollowing ? "text-secondary-foreground" : "text-primary-foreground"}`}
+                    <Motion.View
+                      whileTap={{ scale: 0.95 }}
+                      transition={{
+                        type: "spring",
+                        damping: 15,
+                        stiffness: 400,
+                      }}
+                      style={[
+                        styles.primaryButton,
+                        isFollowing && styles.secondaryButton,
+                        (followMutation.isPending || !followTargetId) && {
+                          opacity: 0.5,
+                        },
+                      ]}
                     >
-                      {followMutation.isPending
-                        ? followVars?.action === "follow"
-                          ? "Now Following"
-                          : "Unfollowing..."
-                        : isFollowing
-                          ? "Following"
-                          : "Follow"}
-                    </Text>
-                  </Motion.View>
-                </Pressable>
+                      <Text
+                        className={`font-semibold ${isFollowing ? "text-secondary-foreground" : "text-primary-foreground"}`}
+                      >
+                        {followMutation.isPending
+                          ? followVars?.action === "follow"
+                            ? "Now Following"
+                            : "Unfollowing..."
+                          : isFollowing
+                            ? "Following"
+                            : "Follow"}
+                      </Text>
+                    </Motion.View>
+                  </Pressable>
+                )}
                 <Pressable
                   onPress={handleMessagePress}
                   disabled={isCreatingConversation || !messageTargetId}

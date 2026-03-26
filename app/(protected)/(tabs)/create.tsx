@@ -23,7 +23,7 @@ import {
   Scissors,
   Type,
 } from "lucide-react-native";
-import { useRouter, useLocalSearchParams, useFocusEffect } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Motion } from "@legendapp/motion";
@@ -355,6 +355,16 @@ function CreateScreenContent() {
     setSelectedMedia(selectedMedia.filter((m) => m.id !== id));
   };
 
+  const handleSetPostKind = useCallback(
+    (nextKind: "media" | "text") => {
+      setPostKind(nextKind);
+      if (nextKind === "text" && isNSFW) {
+        setIsNSFW(false);
+      }
+    },
+    [isNSFW, setIsNSFW, setPostKind],
+  );
+
   const handlePost = useCallback(async () => {
     const {
       selectedMedia: currentSelectedMedia,
@@ -510,7 +520,7 @@ function CreateScreenContent() {
           content: fullContent,
           location: currentLocation,
           media: postMedia,
-          isNSFW: currentIsNSFW,
+          isNSFW: isTextSubmission ? false : currentIsNSFW,
         },
         {
           onSuccess: async (newPost) => {
@@ -696,7 +706,9 @@ function CreateScreenContent() {
               return (
                 <Pressable
                   key={option.key}
-                  onPress={() => setPostKind(option.key as typeof postKind)}
+                  onPress={() =>
+                    handleSetPostKind(option.key as "media" | "text")
+                  }
                   style={{
                     flex: 1,
                     borderRadius: 14,
@@ -1034,8 +1046,7 @@ function CreateScreenContent() {
         </View>
 
         {/* Content Rating Toggle */}
-        {(selectedMedia.length > 0 ||
-          (isTextPost && caption.trim().length > 0)) && (
+        {selectedMedia.length > 0 && (
           <View
             style={{
               flexDirection: "row",
@@ -1280,7 +1291,7 @@ function CreateScreenContent() {
           </View>
         )}
 
-        {selectedMedia.length === 0 && (
+        {!isTextPost && selectedMedia.length === 0 && (
           <View
             style={{
               alignItems: "center",

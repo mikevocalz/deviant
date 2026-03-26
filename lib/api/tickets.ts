@@ -306,6 +306,12 @@ export const ticketsApi = {
    */
   async getMyTicketForEvent(eventId: string): Promise<TicketRecord | null> {
     try {
+      const eventIdInt = parseInt(eventId, 10);
+      if (!Number.isFinite(eventIdInt)) {
+        console.warn("[Tickets] getMyTicketForEvent: invalid eventId", eventId);
+        return null;
+      }
+
       const authId = await getCurrentUserAuthId();
       if (!authId) return null;
 
@@ -329,7 +335,7 @@ export const ticketsApi = {
           "*, ticket_types(name), events(title, cover_image_url, start_date, end_date, location)",
         )
         .or(userIdFilter)
-        .eq("event_id", parseInt(eventId))
+        .eq("event_id", eventIdInt)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -345,7 +351,7 @@ export const ticketsApi = {
           .from("tickets")
           .select("*")
           .or(userIdFilter)
-          .eq("event_id", parseInt(eventId))
+          .eq("event_id", eventIdInt)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();

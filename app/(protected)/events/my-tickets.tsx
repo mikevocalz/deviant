@@ -21,11 +21,13 @@ import {
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LegendList } from "@/components/list";
-import { useMyTickets } from "@/lib/hooks/use-tickets";
+import { ticketKeys, useMyTickets } from "@/lib/hooks/use-tickets";
 import type { TicketRecord } from "@/lib/api/tickets";
 import { ticketsApi } from "@/lib/api/tickets";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useState, useEffect, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const STATUS_COLORS: Record<
   string,
@@ -46,6 +48,38 @@ const STATUS_COLORS: Record<
   },
 };
 
+function TicketCardSkeleton({ index }: { index: number }) {
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(index * 45)
+        .duration(240)
+        .springify()
+        .damping(18)}
+      className="mx-4 mb-3"
+    >
+      <View className="bg-card rounded-2xl border border-border overflow-hidden">
+        <View className="flex-row">
+          <Skeleton style={{ width: 80, height: 100, borderRadius: 0 }} />
+          <View className="flex-1 p-3 justify-between">
+            <View style={{ gap: 8 }}>
+              <Skeleton style={{ width: "62%", height: 16, borderRadius: 6 }} />
+              <Skeleton style={{ width: "32%", height: 12, borderRadius: 6 }} />
+            </View>
+            <View className="flex-row items-center gap-3 mt-2">
+              <Skeleton style={{ width: 54, height: 12, borderRadius: 6 }} />
+              <Skeleton style={{ width: 72, height: 12, borderRadius: 6 }} />
+            </View>
+          </View>
+          <View className="items-center justify-center px-3 gap-2">
+            <Skeleton style={{ width: 48, height: 20, borderRadius: 999 }} />
+            <Skeleton style={{ width: 18, height: 18, borderRadius: 4 }} />
+          </View>
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
 function TicketCard({
   ticket,
   index,
@@ -54,7 +88,16 @@ function TicketCard({
   index: number;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const status = STATUS_COLORS[ticket.status] || STATUS_COLORS.void;
+  const eventId = String(ticket.event_id || "");
+
+  const handlePress = useCallback(() => {
+    if (!eventId) return;
+
+    queryClient.setQueryData(ticketKeys.myTicketForEvent(eventId), ticket);
+    router.push(`/(protected)/ticket/${eventId}` as any);
+  }, [eventId, queryClient, router, ticket]);
 
   return (
     <Animated.View
@@ -64,9 +107,7 @@ function TicketCard({
         .damping(18)}
     >
       <Pressable
-        onPress={() =>
-          router.push(`/(protected)/ticket/${ticket.event_id}` as any)
-        }
+        onPress={handlePress}
         className="mx-4 mb-3 bg-card rounded-2xl border border-border overflow-hidden"
       >
         <View className="flex-row">
@@ -286,8 +327,10 @@ function MyTicketsContent() {
       </View>
 
       {isLoading && (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator color="#8A40CF" size="large" />
+        <View className="flex-1 pt-2">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <TicketCardSkeleton key={index} index={index} />
+          ))}
         </View>
       )}
 

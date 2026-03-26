@@ -1,9 +1,9 @@
 /**
  * ProfileScreenGuard
- * 
+ *
  * PHASE 2: Root guard wrapper that handles all edge cases before rendering profile content.
  * This component ensures Profile NEVER crashes from missing/partial data.
- * 
+ *
  * Handles:
  * - Loading state (auth user not ready)
  * - Error state (query failed)
@@ -14,7 +14,7 @@
 import React, { ReactNode } from "react";
 import { View, Text, Pressable } from "react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import { RefreshCw, WifiOff, User } from "lucide-react-native";
+import { RefreshCw, WifiOff } from "lucide-react-native";
 import { ProfileSkeleton } from "@/components/skeletons";
 
 interface ProfileScreenGuardProps {
@@ -40,14 +40,8 @@ export function ProfileScreenGuard({
   // GUARD 1: No authenticated user - show loading
   if (!user || !user.id) {
     return (
-      <View className="flex-1 bg-background items-center justify-center px-6">
-        <User size={48} color="#737373" />
-        <Text className="text-lg font-semibold text-foreground mt-4">
-          Loading Profile
-        </Text>
-        <Text className="text-sm text-muted-foreground mt-2 text-center">
-          Please wait while we load your profile...
-        </Text>
+      <View className="flex-1 bg-background">
+        <ProfileSkeleton />
       </View>
     );
   }

@@ -7,6 +7,7 @@ import { ticketsApi } from "@/lib/api/tickets";
 import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
+import type { TicketRecord } from "@/lib/api/tickets";
 
 export const ticketKeys = {
   all: ["tickets"] as const,
@@ -21,6 +22,50 @@ export const ticketKeys = {
     [...ticketKeys.all, "financials", eventId] as const,
 };
 
+function storeTicketToRecord(
+  ticket: ReturnType<typeof useTicketStore.getState>["tickets"][string],
+): TicketRecord {
+  return {
+    id: ticket.id,
+    event_id: parseInt(ticket.eventId, 10) || 0,
+    ticket_type_id: "",
+    user_id: ticket.userId,
+    status: (ticket.status === "valid" ? "active" : ticket.status) as
+      | "active"
+      | "scanned"
+      | "refunded"
+      | "void"
+      | "transfer_pending",
+    qr_token: ticket.qrToken,
+    checked_in_at: ticket.checkedInAt || null,
+    checked_in_by: null,
+    purchase_amount_cents: ticket.paid ? null : 0,
+    created_at: new Date().toISOString(),
+    ticket_type_name: ticket.tierName || "Free Entry",
+    event_title: ticket.eventTitle || "",
+    event_image: ticket.eventImage || "",
+    event_date: ticket.eventDate || "",
+    event_location: ticket.eventLocation || "",
+  };
+}
+
+function findCachedMyTicket(
+  queryClient: ReturnType<typeof useQueryClient>,
+  eventId: string,
+): TicketRecord | undefined {
+  if (!eventId) return undefined;
+
+  const direct = queryClient.getQueryData<TicketRecord>(
+    ticketKeys.myTicketForEvent(eventId),
+  );
+  if (direct) return direct;
+
+  const tickets = queryClient.getQueryData<TicketRecord[]>(
+    ticketKeys.myTickets(),
+  );
+  return tickets?.find((ticket) => String(ticket.event_id) === String(eventId));
+}
+
 /** Current user's tickets across all events — always enabled */
 export function useMyTickets() {
   const zustandTickets = useTicketStore((s) => s.tickets);
@@ -34,27 +79,7 @@ export function useMyTickets() {
       const dbEventIds = new Set(dbTickets.map((t) => String(t.event_id)));
       const storeOnlyTickets = Object.values(zustandTickets)
         .filter((t) => !dbEventIds.has(String(t.eventId)))
-        .map((t) => ({
-          id: t.id,
-          event_id: parseInt(t.eventId) || 0,
-          ticket_type_id: "",
-          user_id: t.userId,
-          status: (t.status === "valid" ? "active" : t.status) as
-            | "active"
-            | "scanned"
-            | "refunded"
-            | "void",
-          qr_token: t.qrToken,
-          checked_in_at: t.checkedInAt || null,
-          checked_in_by: null,
-          purchase_amount_cents: t.paid ? null : 0,
-          created_at: new Date().toISOString(),
-          ticket_type_name: t.tierName || "Free Entry",
-          event_title: t.eventTitle || "",
-          event_image: t.eventImage || "",
-          event_date: t.eventDate || "",
-          event_location: t.eventLocation || "",
-        }));
+        .map((t) => storeTicketToRecord(t));
 
       return [...dbTickets, ...storeOnlyTickets];
     },
@@ -65,7 +90,9 @@ export function useMyTickets() {
 
 /** Current user's ticket for a specific event */
 export function useMyTicketForEvent(eventId: string) {
+  const queryClient = useQueryClient();
   const storeTicket = useTicketStore((s) => s.getTicketByEventId(eventId));
+  const cachedTicket = findCachedMyTicket(queryClient, eventId);
 
   return useQuery({
     queryKey: ticketKeys.myTicketForEvent(eventId),
@@ -75,26 +102,8 @@ export function useMyTicketForEvent(eventId: string) {
     gcTime: GC_TIMES.standard,
     // If Zustand store has a ticket (from recent RSVP), use it as placeholder
     placeholderData: storeTicket
-      ? ({
-          id: storeTicket.id,
-          event_id: parseInt(storeTicket.eventId) || 0,
-          ticket_type_id: "",
-          user_id: storeTicket.userId,
-          status: (storeTicket.status === "valid"
-            ? "active"
-            : storeTicket.status) as any,
-          qr_token: storeTicket.qrToken,
-          checked_in_at: storeTicket.checkedInAt || null,
-          checked_in_by: null,
-          purchase_amount_cents: storeTicket.paid ? null : 0,
-          created_at: new Date().toISOString(),
-          ticket_type_name: storeTicket.tierName || "Free Entry",
-          event_title: storeTicket.eventTitle || "",
-          event_image: storeTicket.eventImage || "",
-          event_date: storeTicket.eventDate || "",
-          event_location: storeTicket.eventLocation || "",
-        } as any)
-      : undefined,
+      ? storeTicketToRecord(storeTicket)
+      : cachedTicket,
   });
 }
 

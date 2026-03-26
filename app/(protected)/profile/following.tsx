@@ -1,11 +1,4 @@
-import {
-  View,
-  Text,
-  Pressable,
-  ActivityIndicator,
-  TextInput,
-  RefreshControl,
-} from "react-native";
+import { View, Text, Pressable, TextInput } from "react-native";
 import { LegendList } from "@/components/list";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -20,13 +13,18 @@ import { useFollow } from "@/lib/hooks/use-follow";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { Motion } from "@legendapp/motion";
 import { memo, useCallback, useState, useMemo } from "react";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface FollowingUser {
   id: string;
+  authId?: string;
   username: string;
   name?: string;
   avatar?: string;
   isFollowing?: boolean;
+  postsCount?: number;
+  followersCount?: number;
+  followingCount?: number;
 }
 
 function seedProfilePreviewCache(
@@ -38,14 +36,48 @@ function seedProfilePreviewCache(
     (old: any) => ({
       ...(old || {}),
       id: user.id || old?.id,
+      authId: user.authId || old?.authId,
       username: user.username,
       name: user.name || old?.name || user.username,
       avatar: user.avatar || old?.avatar || "",
+      postsCount:
+        typeof user.postsCount === "number" ? user.postsCount : old?.postsCount,
+      followersCount:
+        typeof user.followersCount === "number"
+          ? user.followersCount
+          : old?.followersCount,
+      followingCount:
+        typeof user.followingCount === "number"
+          ? user.followingCount
+          : old?.followingCount,
       isFollowing:
         typeof user.isFollowing === "boolean"
           ? user.isFollowing
           : old?.isFollowing,
     }),
+  );
+}
+
+function UserListLoadingRows({ rows = 8 }: { rows?: number }) {
+  return (
+    <View className="px-4 pt-2">
+      {Array.from({ length: rows }).map((_, index) => (
+        <View
+          key={index}
+          className="flex-row items-center py-3"
+          style={{ gap: 12 }}
+        >
+          <Skeleton
+            style={{ width: 48, height: 48, borderRadius: 14, flexShrink: 0 }}
+          />
+          <View style={{ flex: 1, gap: 8 }}>
+            <Skeleton style={{ width: 130, height: 16, borderRadius: 6 }} />
+            <Skeleton style={{ width: 96, height: 12, borderRadius: 6 }} />
+          </View>
+          <Skeleton style={{ width: 110, height: 36, borderRadius: 8 }} />
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -195,8 +227,13 @@ function FollowingScreenContent() {
         pathname: "/(protected)/profile/[username]",
         params: {
           username: user.username,
+          userId: user.id || "",
+          authId: user.authId || "",
           avatar: user.avatar || "",
           name: user.name || "",
+          ...(typeof user.isFollowing === "boolean"
+            ? { isFollowing: String(user.isFollowing) }
+            : {}),
         },
       });
     },
@@ -250,11 +287,7 @@ function FollowingScreenContent() {
 
   const renderEmpty = useCallback(() => {
     if (isFetching) {
-      return (
-        <View className="flex-1 items-center justify-center py-20">
-          <ActivityIndicator size="small" color={colors.primary} />
-        </View>
-      );
+      return <UserListLoadingRows rows={6} />;
     }
     return (
       <View className="flex-1 items-center justify-center py-20">
@@ -267,12 +300,8 @@ function FollowingScreenContent() {
 
   const renderFooter = useCallback(() => {
     if (!isFetchingNextPage) return null;
-    return (
-      <View className="py-4 items-center">
-        <ActivityIndicator size="small" color={colors.primary} />
-      </View>
-    );
-  }, [isFetchingNextPage, colors.primary]);
+    return <UserListLoadingRows rows={3} />;
+  }, [isFetchingNextPage]);
 
   return (
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
@@ -310,9 +339,7 @@ function FollowingScreenContent() {
       </View>
 
       {isLoading ? (
-        <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color={colors.primary} />
-        </View>
+        <UserListLoadingRows />
       ) : isError ? (
         <View className="flex-1 items-center justify-center p-4">
           <Text className="text-muted-foreground text-center mb-4">

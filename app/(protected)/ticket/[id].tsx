@@ -38,6 +38,7 @@ import {
 import * as Haptics from "expo-haptics";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { addToAppleWallet } from "@/src/ticket/helpers/add-to-wallet";
+import { ScreenSkeleton } from "@/components/ui/screen-skeleton";
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
   free: "#3FDCFF",
@@ -88,7 +89,7 @@ function ViewTicketScreenContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
-  const eventId = id || "";
+  const eventId = Array.isArray(id) ? (id[0] ?? "") : (id ?? "");
   const { data: dbTicket, isLoading, isError } = useMyTicketForEvent(eventId);
 
   // Also check Zustand store as fallback (for recently RSVPed tickets not yet in DB)
@@ -99,20 +100,7 @@ function ViewTicketScreenContent() {
 
   // ── Loading state ──
   if (isLoading && !ticket) {
-    return (
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={16}
-          style={styles.backButton}
-        >
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-        <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color="#8A40CF" />
-        </View>
-      </View>
-    );
+    return <ScreenSkeleton variant="detail" rows={6} />;
   }
 
   // ── Not found / error state ──

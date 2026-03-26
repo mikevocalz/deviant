@@ -4,18 +4,50 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 
 export interface AppUser {
   id: string;
+  authId?: string;
   email: string;
   username: string;
   name: string;
   avatar?: string;
   bio?: string;
   website?: string;
+  links?: string[];
   location?: string;
   hashtags?: string[];
   isVerified: boolean;
   postsCount: number;
   followersCount: number;
   followingCount: number;
+  gender?: string;
+  pronouns?: string;
+}
+
+function normalizeUserLinks(value: unknown): string[] {
+  const sanitize = (items: unknown[]) =>
+    items
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.trim())
+      .filter(Boolean);
+
+  if (Array.isArray(value)) {
+    return sanitize(value);
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return [];
+
+    try {
+      const parsed = JSON.parse(trimmed);
+      if (Array.isArray(parsed)) {
+        return sanitize(parsed);
+      }
+    } catch {
+      return [trimmed];
+    }
+  }
+
+  return [];
 }
 
 export const auth = {
@@ -155,6 +187,10 @@ export const auth = {
           ${DB.users.lastName},
           ${DB.users.bio},
           ${DB.users.location},
+          ${DB.users.website},
+          ${DB.users.links},
+          ${DB.users.pronouns},
+          ${DB.users.gender},
           ${DB.users.verified},
           ${DB.users.followersCount},
           ${DB.users.followingCount},
@@ -218,16 +254,21 @@ export const auth = {
 
       return {
         id: String(data[DB.users.id]),
+        authId: data[DB.users.authId] || userId,
         email: data[DB.users.email],
         username: data[DB.users.username],
         name: data[DB.users.firstName] || data[DB.users.username],
         avatar: data.avatar?.url,
         bio: data[DB.users.bio],
+        website: data[DB.users.website] || "",
+        links: normalizeUserLinks(data[DB.users.links]),
         location: data[DB.users.location],
         isVerified: data[DB.users.verified] || false,
         postsCount: Number(data[DB.users.postsCount]) || 0,
         followersCount: Number(data[DB.users.followersCount]) || 0,
         followingCount: Number(data[DB.users.followingCount]) || 0,
+        gender: data[DB.users.gender] || "",
+        pronouns: data[DB.users.pronouns] || "",
         hashtags: [],
       };
     } catch (error) {
