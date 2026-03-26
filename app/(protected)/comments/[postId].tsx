@@ -301,6 +301,8 @@ function CommentsScreenContent() {
           data={comments}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16, gap: 12 }}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => (
             <ThreadedComment
               postId={postId || ""}

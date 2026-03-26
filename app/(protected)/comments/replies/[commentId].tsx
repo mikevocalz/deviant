@@ -287,6 +287,8 @@ function RepliesScreenContent() {
           data={replies}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16, gap: 12 }}
+          keyboardDismissMode="interactive"
+          keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
             <View style={{ marginBottom: 12, gap: 12 }}>
               <Text
