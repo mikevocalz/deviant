@@ -61,7 +61,15 @@ function checkFunction(fnDir: string): CheckResult {
   }
 
   // ── CRITICAL: Check for session verification pattern ──
-  if (code.includes('from("session")')) {
+  const usesVerifySession =
+    code.includes("verifySession(") || code.includes("verifyBetterAuthSession");
+  const queriesSessionSelect = /\.from\("session"\)\s*\n?\s*\.select\(/.test(
+    code,
+  );
+  const queriesSessionDeleteOnly =
+    code.includes('from("session")') && !queriesSessionSelect;
+
+  if (queriesSessionSelect) {
     // Good — uses direct DB lookup. Accept both `sessionData.userId` and `session.userId`
     if (
       !code.includes("sessionData.userId") &&
@@ -72,10 +80,11 @@ function checkFunction(fnDir: string): CheckResult {
         "Queries session table but never reads userId from result",
       );
     }
-  } else if (
-    !code.includes("verifyBetterAuthSession") &&
-    code.includes("Authorization")
-  ) {
+  } else if (usesVerifySession) {
+    // Good — delegates to shared verifySession helper
+  } else if (queriesSessionDeleteOnly) {
+    // Deleting sessions (e.g. account deletion) — not a verification query
+  } else if (code.includes("Authorization")) {
     result.warnings.push(
       "No session verification found (no session table query or verifyBetterAuthSession)",
     );
