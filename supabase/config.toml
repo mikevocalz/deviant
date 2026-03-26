@@ -87,3 +87,12 @@ verify_jwt = false
 
 [functions.video_mute_peer]
 verify_jwt = false
+
+[functions.ticket_wallet_apple]
+verify_jwt = false
+
+[functions.ticket_wallet_google]
+verify_jwt = false
+
+[functions.wallet_web_service]
+verify_jwt = false
