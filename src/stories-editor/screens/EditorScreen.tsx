@@ -744,7 +744,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       <AnimatedToolPanel
         visible={mode === "sticker"}
         onDismiss={() => setMode("idle")}
-        heightRatio={0.45}
+        heightRatio={0.58}
         visualStyle="glass"
       >
         <StickerPicker
