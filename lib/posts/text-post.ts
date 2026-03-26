@@ -1,4 +1,7 @@
-import type { TextPostThemeKey } from "@/lib/types";
+import type { TextPostSlide, TextPostThemeKey } from "@/lib/types";
+
+export const TEXT_POST_MAX_SLIDES = 6;
+export const TEXT_POST_MAX_LENGTH = 2000;
 
 export interface TextPostTheme {
   key: TextPostThemeKey;
@@ -79,4 +82,66 @@ export function truncateTextPost(
   if (!value) return "";
   if (value.length <= maxLength) return value;
   return `${value.slice(0, maxLength - 1).trimEnd()}...`;
+}
+
+function createLocalSlideId() {
+  return `slide-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+export function createTextPostSlide(
+  content: string = "",
+  order = 0,
+): TextPostSlide {
+  return {
+    id: createLocalSlideId(),
+    order,
+    content,
+  };
+}
+
+export function normalizeTextPostSlides(
+  input: Array<Partial<TextPostSlide>> | null | undefined,
+  fallbackContent?: string | null,
+): TextPostSlide[] {
+  const normalized = Array.isArray(input)
+    ? input
+        .map((slide, index) => ({
+          id:
+            typeof slide.id === "string" && slide.id.length > 0
+              ? slide.id
+              : createLocalSlideId(),
+          order:
+            typeof slide.order === "number" && Number.isFinite(slide.order)
+              ? slide.order
+              : index,
+          content: typeof slide.content === "string" ? slide.content : "",
+        }))
+        .sort((a, b) => a.order - b.order)
+    : [];
+
+  if (normalized.length > 0) {
+    return normalized.map((slide, index) => ({
+      ...slide,
+      order: index,
+    }));
+  }
+
+  return [createTextPostSlide(fallbackContent || "", 0)];
+}
+
+export function getPrimaryTextPostContent(
+  slides: Array<Pick<TextPostSlide, "content">> | null | undefined,
+  fallbackContent?: string | null,
+): string {
+  const firstSlide = Array.isArray(slides)
+    ? slides.find((slide) => typeof slide.content === "string")
+    : null;
+  const content = firstSlide?.content ?? fallbackContent ?? "";
+  return typeof content === "string" ? content : "";
+}
+
+export function serializeTextSlidesForMutation(
+  slides: Array<Pick<TextPostSlide, "content">>,
+): string[] {
+  return slides.map((slide) => slide.content);
 }

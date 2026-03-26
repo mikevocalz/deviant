@@ -12,6 +12,7 @@ import {
   ScrollView,
   useWindowDimensions,
 } from "react-native";
+import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Search } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
@@ -21,6 +22,12 @@ import {
   stickerPacks,
   type StickerPackKey,
 } from "@/lib/constants/sticker-packs";
+import {
+  getItemImageUri,
+  getItemPreviewUri,
+  klipySearch,
+  type KlipyItem,
+} from "@/src/stickers/api/klipy";
 
 interface StickerPickerProps {
   onSelectSticker: (source: string) => void;
@@ -44,6 +51,7 @@ const TWEMOJI_TABS: { id: StickerTab; label: string; icon: string }[] = [
 ];
 
 const ALL_TWEMOJI = Object.values(stickerPacks).flat();
+const GIF_SKELETONS = Array.from({ length: 12 }, (_, index) => `gif-${index}`);
 
 export const StickerPicker: React.FC<StickerPickerProps> = ({
   onSelectSticker,
@@ -65,10 +73,11 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
       icon: pack.icon,
     })),
     ...TWEMOJI_TABS,
-    { id: "gif", label: "GIF", icon: "🎞️" },
+    { id: "gif", label: "GIFs", icon: "🎞️" },
   ];
 
   const activeImagePack = IMAGE_STICKER_PACKS.find((p) => p.id === activeTab);
+  const isGifTab = activeTab === "gif";
   const activeImageStickers = useMemo(() => {
     if (!activeImagePack) return [];
     if (!searchQuery.trim()) return activeImagePack.stickers;
@@ -89,6 +98,21 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   }, [activeTab, searchQuery, activeImagePack]);
 
   const isTwemojiTab = !activeImagePack && activeTab !== "gif";
+  const gifQuery = useQuery({
+    queryKey: [
+      "story-editor",
+      "stickers",
+      "klipy",
+      "gifs",
+      searchQuery.trim().toLowerCase(),
+    ],
+    queryFn: ({ signal }) => klipySearch("gifs", searchQuery, { signal }),
+    enabled: isGifTab,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 10,
+    placeholderData: (previous) => previous,
+  });
+  const gifItems = gifQuery.data?.results ?? [];
 
   return (
     <View className="flex-1">
@@ -108,7 +132,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             className="flex-1 text-white text-[15px]"
             value={searchQuery}
             onChangeText={setSearchQuery}
-            placeholder="Search stickers..."
+            placeholder={isGifTab ? "Search GIFs..." : "Search stickers..."}
             placeholderTextColor="#8E8E93"
           />
         </View>
@@ -229,16 +253,126 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
         )}
 
         {activeTab === "gif" && (
-          <View className="flex-1 justify-center items-center gap-2">
-            <Text className="text-neutral-400 text-base font-semibold">
-              GIF search coming soon
-            </Text>
-            <Text className="text-neutral-400 text-xs opacity-60">
-              Powered by GIPHY
-            </Text>
-          </View>
+          <FlatList
+            data={
+              gifQuery.isLoading && gifItems.length === 0
+                ? GIF_SKELETONS
+                : gifItems
+            }
+            numColumns={3}
+            keyExtractor={(item: string | KlipyItem, index: number) =>
+              typeof item === "string" ? item : `${item.id}-${index}`
+            }
+            renderItem={({ item }: { item: string | KlipyItem }) =>
+              typeof item === "string" ? (
+                <GifSkeletonItem width={imageStickerSize} />
+              ) : (
+                <GifGridItem
+                  item={item}
+                  width={imageStickerSize}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    const uri = getItemImageUri(item, "gifs");
+                    if (uri) {
+                      onSelectSticker(uri);
+                    }
+                  }}
+                />
+              )
+            }
+            ListEmptyComponent={
+              gifQuery.isError ? (
+                <View className="flex-1 justify-center items-center gap-2 pt-12">
+                  <Text className="text-neutral-300 text-base font-semibold">
+                    GIF search is unavailable right now
+                  </Text>
+                  <Text className="text-neutral-500 text-xs text-center px-8">
+                    {"Klipy didn't return results. Try again in a moment."}
+                  </Text>
+                </View>
+              ) : (
+                <View className="flex-1 justify-center items-center gap-2 pt-12">
+                  <Text className="text-neutral-300 text-base font-semibold">
+                    No GIFs found
+                  </Text>
+                  <Text className="text-neutral-500 text-xs text-center px-8">
+                    Try another search term.
+                  </Text>
+                </View>
+              )
+            }
+            ListFooterComponent={
+              <View className="pb-10 pt-4 items-center">
+                <Text className="text-neutral-500 text-[11px] font-medium">
+                  Powered by Klipy
+                </Text>
+              </View>
+            }
+            contentContainerStyle={{ paddingBottom: 20 }}
+            columnWrapperStyle={{ gap: 10, paddingHorizontal: 4 }}
+            showsVerticalScrollIndicator={false}
+          />
         )}
       </View>
     </View>
+  );
+};
+
+const GifSkeletonItem = ({ width }: { width: number }) => (
+  <View
+    style={{
+      width,
+      height: width * 1.2,
+      borderRadius: 18,
+      backgroundColor: "rgba(255,255,255,0.06)",
+      marginBottom: 10,
+    }}
+  />
+);
+
+const GifGridItem = ({
+  item,
+  width,
+  onPress,
+}: {
+  item: KlipyItem;
+  width: number;
+  onPress: () => void;
+}) => {
+  const previewUri = getItemPreviewUri(item, "gifs");
+
+  return (
+    <Pressable
+      onPress={onPress}
+      style={{
+        width,
+        marginBottom: 10,
+      }}
+    >
+      <View
+        style={{
+          height: width * 1.2,
+          borderRadius: 18,
+          overflow: "hidden",
+          backgroundColor: "rgba(255,255,255,0.05)",
+          borderWidth: 1,
+          borderColor: "rgba(255,255,255,0.08)",
+        }}
+      >
+        <Image
+          source={{ uri: previewUri }}
+          style={{ width: "100%", height: "100%" }}
+          contentFit="cover"
+          transition={120}
+          cachePolicy="memory-disk"
+        />
+      </View>
+      <Text
+        className="text-neutral-400 text-[11px] font-semibold mt-1"
+        numberOfLines={1}
+      >
+        {item.title || item.content_description || "GIF"}
+      </Text>
+    </Pressable>
   );
 };

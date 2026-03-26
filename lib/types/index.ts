@@ -17,6 +17,12 @@ export type MediaKind = "image" | "gif" | "video" | "livePhoto";
 export type PostKind = "media" | "text";
 export type TextPostThemeKey = "graphite" | "cobalt" | "ember" | "sage";
 
+export type TextPostSlide = {
+  id: string;
+  order: number;
+  content: string;
+};
+
 export type PostMediaItem = {
   type: MediaKind;
   url: string;
@@ -38,6 +44,8 @@ export type Post = {
   kind?: PostKind;
   textTheme?: TextPostThemeKey;
   caption?: string;
+  textSlides?: TextPostSlide[];
+  textSlideCount?: number;
   likes: number;
   viewerHasLiked?: boolean; // CRITICAL: Viewer's like state from API
   comments: Comment[] | number;

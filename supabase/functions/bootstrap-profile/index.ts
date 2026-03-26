@@ -39,10 +39,10 @@ Deno.serve(async (req: Request) => {
     const { user_id, viewer_id } = await req.json();
 
     if (!user_id) {
-      return new Response(
-        JSON.stringify({ error: "Missing user_id" }),
-        { status: 400, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "Missing user_id" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
@@ -74,8 +74,9 @@ Deno.serve(async (req: Request) => {
         .from("posts")
         .select(
           `
-          id, created_at, is_nsfw, likes_count,
-          media:posts_media(type, url, "order")
+          id, created_at, content, post_kind, text_theme, is_nsfw, likes_count,
+          media:posts_media(type, url, "order"),
+          post_text_slides(id, slide_index, content)
         `,
         )
         .eq("author_id", user_id)
@@ -112,28 +113,47 @@ Deno.serve(async (req: Request) => {
     const followsViewerResult = !isOwnProfile ? results[3] : null;
 
     if (profileResult.error || !profileResult.data) {
-      return new Response(
-        JSON.stringify({ error: "Profile not found" }),
-        { status: 404, headers: { "Content-Type": "application/json" } },
-      );
+      return new Response(JSON.stringify({ error: "Profile not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
     }
 
     // ── Build response ─────────────────────────────────────────────
 
     const p = profileResult.data;
-    const avatarUrl =
-      typeof p.avatar === "object" ? p.avatar?.url : null;
+    const avatarUrl = typeof p.avatar === "object" ? p.avatar?.url : null;
 
     const posts = (postsResult.data || []).map((post: any) => {
       const media = (post.media || []).sort(
         (a: any, b: any) => (a.order || 0) - (b.order || 0),
       );
       const firstMedia = media[0];
+      const slides = Array.isArray(post.post_text_slides)
+        ? post.post_text_slides
+        : [];
+      const firstSlide = slides.find(
+        (slide: any) =>
+          typeof slide?.content === "string" && slide.content.trim().length > 0,
+      );
+      const isTextPost = post.post_kind === "text";
+
       return {
         id: String(post.id),
+        kind: isTextPost ? "text" : "media",
+        textTheme: post.text_theme || null,
+        caption: firstSlide?.content || post.content || "",
+        textSlideCount: slides.length,
+        media: isTextPost
+          ? []
+          : media.map((item: any) => ({
+              type: item.type || "image",
+              url: item.url || "",
+            })),
         thumbnailUrl: firstMedia?.url || "",
         type: firstMedia?.type || "image",
         likesCount: post.likes_count || 0,
+        isNSFW: post.is_nsfw || false,
       };
     });
 
