@@ -41,7 +41,78 @@ export function normalizePost(
       hasMultipleImages: false,
     };
   }
-  return post;
+
+  const safeAuthor = {
+    id: post.author?.id || "",
+    username: post.author?.username || "unknown",
+    avatar: post.author?.avatar || "",
+    verified: post.author?.verified || false,
+    name: post.author?.name || post.author?.username || "Unknown User",
+  };
+
+  const safeMedia = Array.isArray(post.media)
+    ? post.media.filter(Boolean).map((media) => ({
+        type: media?.type || "image",
+        url: media?.url || "",
+        thumbnail: media?.thumbnail,
+        mimeType: media?.mimeType,
+        livePhotoVideoUrl: media?.livePhotoVideoUrl,
+      }))
+    : [];
+
+  const safeCaption =
+    typeof post.caption === "string" ? post.caption : (post.caption ?? "") + "";
+  const safeKind = post.kind === "text" ? "text" : "media";
+  const safeSlides = Array.isArray(post.textSlides)
+    ? post.textSlides.filter(Boolean).map((slide, index) => ({
+        id: slide?.id || `${post.id || fallbackId || "post"}-slide-${index}`,
+        order:
+          typeof slide?.order === "number" && Number.isFinite(slide.order)
+            ? slide.order
+            : index,
+        content: typeof slide?.content === "string" ? slide.content : "",
+      }))
+    : safeKind === "text" && safeCaption
+      ? [
+          {
+            id: `${post.id || fallbackId || "post"}-slide-0`,
+            order: 0,
+            content: safeCaption,
+          },
+        ]
+      : undefined;
+
+  return {
+    ...post,
+    id: post.id || fallbackId || "",
+    author: safeAuthor,
+    media: safeMedia,
+    kind: safeKind,
+    textTheme: post.textTheme || "graphite",
+    caption: safeCaption,
+    textSlides: safeSlides,
+    textSlideCount:
+      safeKind === "text"
+        ? Math.max(
+            post.textSlideCount || safeSlides?.length || 0,
+            safeCaption ? 1 : 0,
+          )
+        : undefined,
+    likes: Number(post.likes) || 0,
+    viewerHasLiked: post.viewerHasLiked || false,
+    comments: Array.isArray(post.comments)
+      ? post.comments.filter(Boolean)
+      : Number(post.comments) || 0,
+    timeAgo: post.timeAgo || "Just now",
+    location: post.location || undefined,
+    isNSFW: post.isNSFW || false,
+    thumbnail: post.thumbnail || undefined,
+    type: post.type || safeMedia[0]?.type || "image",
+    hasMultipleImages:
+      typeof post.hasMultipleImages === "boolean"
+        ? post.hasMultipleImages
+        : safeMedia.length > 1,
+  };
 }
 
 // ── Profile Normalization ────────────────────────────────────
