@@ -529,6 +529,7 @@ function LocalRoom({
   // Local video on/off state (CameraView doesn't have isCameraOn)
   const [localVideoOn, setLocalVideoOn] = React.useState(roomHasVideo);
   const [localMicEnabled, setLocalMicEnabled] = React.useState(false);
+  const [isFrontCamera, setIsFrontCamera] = React.useState(true);
 
   const localUser = buildLocalUser(authUser);
   const effectiveMuted = !localMicEnabled;
@@ -550,7 +551,10 @@ function LocalRoom({
         // Lynks are social rooms, not private calls. Always route audio to speaker.
         audioSession.startForLynk(true);
         console.log("[SneakyLynk:Local] Starting mic");
-        await micRef.current.startMicrophone();
+        const toggleError = await micRef.current.toggleMicrophone();
+        if (toggleError) {
+          throw toggleError;
+        }
         if (!cancelled) {
           setLocalMicEnabled(true);
           console.log("[SneakyLynk:Local] Mic started");
@@ -613,33 +617,75 @@ function LocalRoom({
   }, [id, roomTitle]);
   const handleToggleMic = useCallback(async () => {
     const wantEnabled = !localMicEnabled;
-    const stream = micRef.current.microphoneStream;
-    const audioTracks = stream?.getAudioTracks?.() || [];
-
-    if (wantEnabled) {
-      if (audioTracks.length > 0) {
-        for (const track of audioTracks) {
-          track.enabled = true;
+    try {
+      if (wantEnabled && !micRef.current.isMicrophoneOn) {
+        const toggleError = await micRef.current.toggleMicrophone();
+        if (toggleError) {
+          throw toggleError;
         }
-      } else if (!micRef.current.isMicrophoneOn) {
-        await micRef.current.startMicrophone();
+      } else if (!wantEnabled && micRef.current.isMicrophoneOn) {
+        const toggleError = await micRef.current.toggleMicrophone();
+        if (toggleError) {
+          throw toggleError;
+        }
       }
-      audioSession.setMicMuted(false);
-      setLocalMicEnabled(true);
-      return;
-    }
 
-    if (audioTracks.length > 0) {
-      for (const track of audioTracks) {
-        track.enabled = false;
-      }
+      audioSession.setMicMuted(!wantEnabled);
+      setLocalMicEnabled(wantEnabled);
+    } catch (error) {
+      console.warn("[SneakyLynk:Local] Failed to toggle mic:", error);
+      showToast(
+        "error",
+        "Microphone unavailable",
+        "We couldn't change the microphone state. Please try again.",
+      );
     }
-    audioSession.setMicMuted(true);
-    setLocalMicEnabled(false);
-  }, [localMicEnabled]);
+  }, [localMicEnabled, showToast]);
   const handleToggleVideo = useCallback(() => {
     setLocalVideoOn((prev) => !prev);
   }, []);
+  const handleSwitchCamera = useCallback(async () => {
+    const devices = cameraRef.current.cameraDevices || [];
+    const nextFacing = isFrontCamera ? "back" : "front";
+    const nextCamera = devices.find((device: any) => {
+      const label = String(device?.label || "").toLowerCase();
+      const deviceId = String(device?.deviceId || "").toLowerCase();
+      const position = String(device?.position || "").toLowerCase();
+      const facingMode = String(device?.facingMode || "").toLowerCase();
+      return (
+        label.includes(nextFacing) ||
+        deviceId.includes(nextFacing) ||
+        position.includes(nextFacing) ||
+        facingMode.includes(nextFacing)
+      );
+    });
+
+    if (nextCamera?.deviceId) {
+      const error = await cameraRef.current.selectCamera(nextCamera.deviceId);
+      if (!error) {
+        setIsFrontCamera((prev) => !prev);
+        return;
+      }
+      console.warn(
+        "[SneakyLynk:Local] selectCamera failed, falling back to track switch:",
+        error,
+      );
+    }
+
+    const stream = cameraRef.current.cameraStream;
+    const videoTrack = stream?.getVideoTracks?.()[0];
+    if (videoTrack && typeof (videoTrack as any)._switchCamera === "function") {
+      (videoTrack as any)._switchCamera();
+      setIsFrontCamera((prev) => !prev);
+      return;
+    }
+
+    showToast(
+      "error",
+      "Camera unavailable",
+      "We couldn't reverse the camera in this Lynk.",
+    );
+  }, [isFrontCamera, showToast]);
   const handleToggleHand = useCallback(() => toggleHand(), [toggleHand]);
   const handleChat = useCallback(() => openChat(), [openChat]);
   const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
@@ -710,6 +756,7 @@ function LocalRoom({
       onLeave={handleLeave}
       onToggleMic={handleToggleMic}
       onToggleVideo={handleToggleVideo}
+      onSwitchCamera={handleSwitchCamera}
       onToggleHand={handleToggleHand}
       onChat={handleChat}
       onCloseChat={handleCloseChat}
@@ -1580,6 +1627,7 @@ function RoomLayout({
             <Pressable onPress={onLeave} hitSlop={12}>
               <DVNTLiquidGlassIconButton
                 size={42}
+                interactive={false}
                 style={{
                   borderWidth: 1,
                   borderColor: "rgba(255,255,255,0.16)",
@@ -1593,6 +1641,7 @@ function RoomLayout({
               radius={20}
               paddingH={12}
               paddingV={10}
+              interactive={false}
               style={{
                 flex: 1,
                 borderWidth: 1,
@@ -1736,6 +1785,7 @@ function RoomLayout({
               <Pressable onPress={onMuteAll} hitSlop={10}>
                 <DVNTLiquidGlassIconButton
                   size={42}
+                  interactive={false}
                   style={{
                     backgroundColor: "rgba(5, 10, 22, 0.22)",
                     borderWidth: 1,

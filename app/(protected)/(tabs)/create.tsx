@@ -163,8 +163,7 @@ function CreateScreenContent() {
   const [tagInput, setTagInput] = useState("");
   const [showTagSheet, setShowTagSheet] = useState(false);
   const [selectedTagUsers, setSelectedTagUsers] = useState<TagCandidate[]>([]);
-  const { pickFromLibrary, takePhoto, recordVideo, requestPermissions } =
-    useMediaPicker();
+  const { pickFromLibrary } = useMediaPicker();
   const { mutate: createPost, isPending: isCreating } = useCreatePost();
   const { user } = useAuthStore();
   const showToast = useUIStore((s) => s.showToast);
@@ -179,10 +178,6 @@ function CreateScreenContent() {
     statusMessage,
     cancelUpload,
   } = useMediaUpload({ folder: "posts" });
-
-  useEffect(() => {
-    requestPermissions();
-  }, [requestPermissions]);
 
   const hasVideo = selectedMedia.some((m) => m.type === "video");
   const hasPhotos = selectedMedia.some((m) => m.type === "image");
@@ -357,12 +352,31 @@ function CreateScreenContent() {
 
   const handleSetPostKind = useCallback(
     (nextKind: "media" | "text") => {
+      if (nextKind === postKind) return;
       setPostKind(nextKind);
-      if (nextKind === "text" && isNSFW) {
-        setIsNSFW(false);
+      if (nextKind === "text") {
+        if (selectedMedia.length > 0) {
+          setSelectedMedia([]);
+        }
+        if (placedTags.length > 0) {
+          setPlacedTags([]);
+        }
+        setSelectedTagUsers([]);
+        if (isNSFW) {
+          setIsNSFW(false);
+        }
       }
     },
-    [isNSFW, setIsNSFW, setPostKind],
+    [
+      isNSFW,
+      placedTags.length,
+      postKind,
+      selectedMedia.length,
+      setIsNSFW,
+      setPlacedTags,
+      setPostKind,
+      setSelectedMedia,
+    ],
   );
 
   const handlePost = useCallback(async () => {
@@ -668,7 +682,7 @@ function CreateScreenContent() {
 
       <KeyboardAwareScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }}
         showsVerticalScrollIndicator={false}
         keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
@@ -1046,7 +1060,7 @@ function CreateScreenContent() {
         </View>
 
         {/* Content Rating Toggle */}
-        {selectedMedia.length > 0 && (
+        {!isTextPost && selectedMedia.length > 0 && (
           <View
             style={{
               flexDirection: "row",

@@ -189,6 +189,7 @@ function ControlButton({
         >
           <DVNTLiquidGlassIconButton
             size={size}
+            interactive={false}
             style={{
               borderWidth: 1,
               borderColor: danger
@@ -315,6 +316,7 @@ export function ControlsBar({
             radius={18}
             paddingH={8}
             paddingV={8}
+            interactive={false}
             style={{
               borderWidth: 1,
               borderColor: "rgba(255,255,255,0.18)",
@@ -372,6 +374,7 @@ export function ControlsBar({
         radius={22}
         paddingH={10}
         paddingV={10}
+        interactive={false}
         style={{
           alignSelf: "center",
           borderWidth: 1,

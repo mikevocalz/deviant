@@ -55,11 +55,10 @@ export function useRoomReactions({
     [removeReaction],
   );
 
-  useEffect(() => {
-    if (!roomId || !currentUser.id) return;
-
+  const ensureChannel = useCallback(() => {
+    if (!roomId || !currentUser.id) return null;
+    if (channelRef.current) return channelRef.current;
     const channel = supabase.channel(`sneaky-room-reactions:${roomId}`);
-
     channel
       .on("broadcast", { event: "reaction" }, (payload) => {
         const reaction = payload.payload as ReactionBroadcastPayload;
@@ -69,6 +68,12 @@ export function useRoomReactions({
       .subscribe();
 
     channelRef.current = channel;
+    return channel;
+  }, [roomId, currentUser.id, enqueueReaction]);
+
+  useEffect(() => {
+    const channel = ensureChannel();
+    if (!channel) return;
 
     return () => {
       Object.values(timersRef.current).forEach((timer) => clearTimeout(timer));
@@ -79,11 +84,11 @@ export function useRoomReactions({
         channelRef.current = null;
       }
     };
-  }, [roomId, currentUser.id, enqueueReaction]);
+  }, [ensureChannel]);
 
   const sendReaction = useCallback(
     async (emoji: string) => {
-      if (!emoji || !roomId || !currentUser.id || !channelRef.current) return;
+      if (!emoji || !roomId || !currentUser.id) return;
 
       const payload: ReactionBroadcastPayload = {
         id: `${currentUser.id}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -100,13 +105,16 @@ export function useRoomReactions({
 
       enqueueReaction({ ...payload, isOwn: true });
 
-      await channelRef.current.send({
+      const channel = ensureChannel();
+      if (!channel) return;
+
+      await channel.send({
         type: "broadcast",
         event: "reaction",
         payload,
       });
     },
-    [currentUser, roomId, enqueueReaction],
+    [currentUser, roomId, enqueueReaction, ensureChannel],
   );
 
   return {

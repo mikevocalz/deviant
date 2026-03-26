@@ -156,6 +156,25 @@ export function useVideoRoom({
     }
   }, []);
 
+  const getPreferredCameraId = useCallback((facing: "front" | "back") => {
+    const devices = cameraRef.current.cameraDevices || [];
+    const facingNeedle = facing.toLowerCase();
+    const match = devices.find((device: any) => {
+      const label = String(device?.label || "").toLowerCase();
+      const deviceId = String(device?.deviceId || "").toLowerCase();
+      const position = String(device?.position || "").toLowerCase();
+      const facingMode = String(device?.facingMode || "").toLowerCase();
+      return (
+        label.includes(facingNeedle) ||
+        deviceId.includes(facingNeedle) ||
+        position.includes(facingNeedle) ||
+        facingMode.includes(facingNeedle)
+      );
+    });
+
+    return match?.deviceId;
+  }, []);
+
   const handleEject = useCallback(
     (payload: EjectPayload) => {
       getStore().setEjected(payload);
@@ -175,32 +194,47 @@ export function useVideoRoom({
 
   const setMicEnabled = useCallback(
     async (enabled: boolean) => {
-      const mic = microphoneRef.current;
-      const stream = mic.microphoneStream;
-      const audioTracks = stream?.getAudioTracks?.() || [];
+      try {
+        const mic = microphoneRef.current;
 
-      if (enabled) {
-        if (audioTracks.length > 0) {
-          for (const track of audioTracks) {
-            track.enabled = true;
+        if (enabled) {
+          if (!mic.isMicrophoneOn) {
+            const toggleError = await mic.toggleMicrophone();
+            if (toggleError) {
+              console.error(
+                "[useVideoRoom] Failed to start microphone:",
+                toggleError,
+              );
+              onErrorRef.current?.("Failed to start microphone");
+              getStore().setMicOn(false);
+              audioSession.setMicMuted(true);
+              return;
+            }
           }
-        } else if (!mic.isMicrophoneOn) {
-          await mic.startMicrophone();
+
+          getStore().setMicOn(true);
+          audioSession.setMicMuted(false);
+          return;
         }
 
-        getStore().setMicOn(true);
-        audioSession.setMicMuted(false);
-        return;
-      }
-
-      if (audioTracks.length > 0) {
-        for (const track of audioTracks) {
-          track.enabled = false;
+        if (mic.isMicrophoneOn) {
+          const toggleError = await mic.toggleMicrophone();
+          if (toggleError) {
+            console.error(
+              "[useVideoRoom] Failed to stop microphone:",
+              toggleError,
+            );
+            onErrorRef.current?.("Failed to toggle microphone");
+            return;
+          }
         }
-      }
 
-      getStore().setMicOn(false);
-      audioSession.setMicMuted(true);
+        getStore().setMicOn(false);
+        audioSession.setMicMuted(true);
+      } catch (error) {
+        console.error("[useVideoRoom] Failed to set microphone state:", error);
+        onErrorRef.current?.("Failed to toggle microphone");
+      }
     },
     [getStore],
   );
@@ -456,18 +490,43 @@ export function useVideoRoom({
   }, [getStore, setMicEnabled]);
 
   const switchCamera = useCallback(async () => {
-    const stream = cameraRef.current.cameraStream;
-    const videoTrack = stream?.getVideoTracks?.()[0];
+    try {
+      const currentCameraId = cameraRef.current.currentCamera?.deviceId;
+      const nextFacing = getStore().isFrontCamera ? "back" : "front";
+      const targetCameraId = getPreferredCameraId(nextFacing);
 
-    if (videoTrack && typeof (videoTrack as any)._switchCamera === "function") {
-      (videoTrack as any)._switchCamera();
-      getStore().toggleFrontCamera();
-      return;
+      if (targetCameraId && targetCameraId !== currentCameraId) {
+        const selectError =
+          await cameraRef.current.selectCamera(targetCameraId);
+        if (!selectError) {
+          getStore().toggleFrontCamera();
+          return;
+        }
+        console.warn(
+          "[useVideoRoom] selectCamera failed, falling back to track switch:",
+          selectError,
+        );
+      }
+
+      const stream = cameraRef.current.cameraStream;
+      const videoTrack = stream?.getVideoTracks?.()[0];
+
+      if (
+        videoTrack &&
+        typeof (videoTrack as any)._switchCamera === "function"
+      ) {
+        (videoTrack as any)._switchCamera();
+        getStore().toggleFrontCamera();
+        return;
+      }
+
+      console.warn("[useVideoRoom] No camera-switch path available");
+      onErrorRef.current?.("Couldn't reverse camera");
+    } catch (error) {
+      console.error("[useVideoRoom] switchCamera failed:", error);
+      onErrorRef.current?.("Couldn't reverse camera");
     }
-
-    console.warn("[useVideoRoom] _switchCamera unavailable on active track");
-    onErrorRef.current?.("Couldn't reverse camera");
-  }, [getStore]);
+  }, [getPreferredCameraId, getStore]);
 
   // ── Admin actions ──────────────────────────────────────────────────
   // Only depend on roomId (static for hook lifetime).
