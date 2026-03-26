@@ -239,15 +239,18 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
         </View>
       )}
 
-      {/* Tab Selector — compact 36dp height, horizontally scrollable */}
-      <View style={{ height: 36, marginBottom: 10 }}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: 16,
-            gap: 6,
-            alignItems: "center",
+      {/* Tab Selector — wrapped pills, no horizontal scrolling */}
+      <View
+        style={{
+          paddingHorizontal: 16,
+          marginBottom: 12,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            flexWrap: "wrap",
+            gap: 8,
           }}
         >
           {tabs.map((tab) => {
@@ -255,8 +258,9 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             return (
               <Pressable
                 key={tab.id}
-                className="flex-row items-center h-[30px] px-3 rounded-full gap-1"
+                className="flex-row items-center px-3 rounded-full gap-1"
                 style={{
+                  minHeight: 34,
                   backgroundColor: isActive
                     ? "rgba(255,255,255,0.18)"
                     : "rgba(255,255,255,0.08)",
@@ -284,7 +288,7 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
               </Pressable>
             );
           })}
-        </ScrollView>
+        </View>
       </View>
 
       {/* Content */}
