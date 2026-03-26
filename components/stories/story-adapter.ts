@@ -56,7 +56,7 @@ export interface StoryItemCustomData {
   appUserId?: string;
   username: string;
   avatar: string;
-  itemType: "image" | "video" | "text";
+  itemType: "image" | "gif" | "video" | "text";
   text?: string;
   textColor?: string;
   backgroundColor?: string;

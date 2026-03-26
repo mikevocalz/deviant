@@ -180,7 +180,7 @@ export const AnimatedToolPanel: React.FC<AnimatedToolPanelProps> = React.memo(
         </GestureDetector>
 
         {/* Panel content */}
-        <View style={{ flex: 1 }}>{children}</View>
+        <View style={{ flex: 1, minHeight: 0 }}>{children}</View>
       </Animated.View>
     );
   },
@@ -194,7 +194,8 @@ const styles = StyleSheet.create({
     bottom: 0,
     left: 0,
     right: 0,
-    zIndex: 80,
+    zIndex: 120,
+    elevation: 24,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     borderCurve: "continuous",

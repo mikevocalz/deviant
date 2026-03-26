@@ -19,6 +19,7 @@ import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
 import { X, Send, Eye, Heart, Trash2 } from "lucide-react-native";
 import { DVNTLiquidGlass } from "@/components/media/DVNTLiquidGlass";
+import { DVNTGifView } from "@/components/media/DVNTGifView";
 import * as Haptics from "expo-haptics";
 import { useEffect, useCallback, useRef, useState, useMemo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -65,6 +66,7 @@ import {
 } from "@/lib/diagnostics/loop-detection";
 import { usersApi } from "@/lib/api/users";
 import { storyTagsApi, type StoryTag } from "@/lib/api/stories";
+import type { StoryAnimatedGifOverlay } from "@/lib/types";
 
 const { width, height } = Dimensions.get("window");
 const LONG_PRESS_DELAY = 300;
@@ -137,6 +139,54 @@ function FloatingReactionEmoji({
     >
       {emoji}
     </RNAnimated.Text>
+  );
+}
+
+function StoryAnimatedGifOverlays({
+  overlays,
+}: {
+  overlays: StoryAnimatedGifOverlay[];
+}) {
+  if (overlays.length === 0) return null;
+
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+      }}
+    >
+      {overlays.map((overlay) => {
+        const size = width * overlay.sizeRatio * overlay.scale;
+        const left = width * overlay.x - size / 2;
+        const top = height * overlay.y - size / 2;
+
+        return (
+          <View
+            key={overlay.id}
+            style={{
+              position: "absolute",
+              left,
+              top,
+              width: size,
+              height: size,
+              transform: [{ rotate: `${overlay.rotation}deg` }],
+            }}
+          >
+            <DVNTGifView
+              uri={overlay.url}
+              width="100%"
+              height="100%"
+              contentFit="contain"
+            />
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -328,7 +378,10 @@ function StoryViewerScreenContent() {
   const hasPrevUser = currentStoryIndex > 0;
 
   const isVideo = currentItem?.type === "video";
-  const isImage = currentItem?.type === "image";
+  const isImage = currentItem?.type === "image" || currentItem?.type === "gif";
+  const animatedGifOverlays = currentItem?.animatedGifOverlays || [];
+  const hasAnimatedContent =
+    currentItem?.type === "gif" || animatedGifOverlays.length > 0;
 
   // Validate video URL - must be valid HTTP/HTTPS URL
   const videoUrl = useMemo(() => {
@@ -1109,6 +1162,16 @@ function StoryViewerScreenContent() {
                   barWidth={width - 32}
                 />
               </>
+            ) : currentItem?.type === "gif" &&
+              currentItem?.url &&
+              (currentItem.url.startsWith("http://") ||
+                currentItem.url.startsWith("https://")) ? (
+              <DVNTGifView
+                uri={currentItem.url}
+                width="100%"
+                height="100%"
+                contentFit="cover"
+              />
             ) : isImage &&
               currentItem?.url &&
               (currentItem.url.startsWith("http://") ||
@@ -1153,6 +1216,8 @@ function StoryViewerScreenContent() {
                 </Text>
               </View>
             )}
+
+            <StoryAnimatedGifOverlays overlays={animatedGifOverlays} />
 
             {/* Subtle top vignette for readability */}
             <View
@@ -1316,6 +1381,33 @@ function StoryViewerScreenContent() {
                 <X size={18} color="#fff" strokeWidth={2.5} />
               </Pressable>
             </View>
+
+            {hasAnimatedContent ? (
+              <View
+                pointerEvents="none"
+                style={{
+                  alignSelf: "flex-start",
+                  marginLeft: 14,
+                  marginTop: 2,
+                  paddingHorizontal: 10,
+                  paddingVertical: 5,
+                  borderRadius: 999,
+                  backgroundColor: "rgba(255,91,252,0.88)",
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontSize: 11,
+                    fontWeight: "800",
+                    letterSpacing: 0.35,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Animated
+                </Text>
+              </View>
+            ) : null}
           </View>
 
           {/* ── TOUCH ZONES (prev / next) ─────────────────────────────────── */}

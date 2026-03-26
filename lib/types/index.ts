@@ -66,6 +66,16 @@ export type Post = {
 
 export type StoryItemType = "image" | "gif" | "video" | "livePhoto" | "text";
 
+export type StoryAnimatedGifOverlay = {
+  id: string;
+  url: string;
+  x: number;
+  y: number;
+  sizeRatio: number;
+  scale: number;
+  rotation: number;
+};
+
 export type StoryItem = {
   url?: string;
   thumbnail?: string;
@@ -77,6 +87,7 @@ export type StoryItem = {
   text?: string;
   textColor?: string;
   backgroundColor?: string;
+  animatedGifOverlays?: StoryAnimatedGifOverlay[];
   header: {
     heading: string;
     subheading: string;
@@ -104,6 +115,7 @@ export type Story = {
     text?: string;
     textColor?: string;
     backgroundColor?: string;
+    animatedGifOverlays?: StoryAnimatedGifOverlay[];
     duration?: number;
     visibility?: "public" | "close_friends";
   }>;

@@ -29,6 +29,8 @@ import {
   EffectFilter,
   DRAWING_TOOL_CONFIG,
   STORY_BACKGROUNDS,
+  CANVAS_WIDTH,
+  CANVAS_HEIGHT,
 } from "../constants";
 import { ElementGestureOverlay } from "../components/gestures/ElementGestureOverlay";
 import {
@@ -49,11 +51,13 @@ import {
   DrawingPath,
   Position,
   TextElement,
+  StickerElement,
   FilterAdjustment,
   EditorMode,
 } from "../types";
 import { generateId } from "../utils/helpers";
 import { useRenderSurface, screenToCanvas } from "../utils/geometry";
+import type { StoryAnimatedGifOverlay } from "@/lib/types";
 
 // ---- Props ----
 
@@ -61,8 +65,30 @@ interface EditorScreenProps {
   mediaUri: string;
   mediaType: "image" | "video";
   onClose: () => void;
-  onSave?: (editedUri: string) => void;
+  onSave?: (result: {
+    editedUri: string;
+    animatedGifOverlays: StoryAnimatedGifOverlay[];
+  }) => void;
   initialMode?: EditorMode;
+}
+
+function extractAnimatedGifOverlays(
+  elements: StickerElement[],
+): StoryAnimatedGifOverlay[] {
+  return elements
+    .filter(
+      (element) =>
+        element.category === "gif" && typeof element.source === "string",
+    )
+    .map((element) => ({
+      id: element.id,
+      url: element.source as string,
+      x: Number((element.transform.translateX / CANVAS_WIDTH).toFixed(6)),
+      y: Number((element.transform.translateY / CANVAS_HEIGHT).toFixed(6)),
+      sizeRatio: Number((element.size / CANVAS_WIDTH).toFixed(6)),
+      scale: Number(element.transform.scale.toFixed(6)),
+      rotation: Number(element.transform.rotation.toFixed(3)),
+    }));
 }
 
 // ---- Component ----
@@ -250,12 +276,17 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   // ---- Sticker Handlers ----
 
   const handleSelectSticker = useCallback(
-    (source: string | number) => {
+    (
+      source: string | number,
+      options?: {
+        category?: StickerElement["category"];
+      },
+    ) => {
       console.log(
         "[Editor] Adding sticker:",
         typeof source === "string" ? source.substring(0, 60) : source,
       );
-      addStickerElement(source);
+      addStickerElement(source, { category: options?.category });
       setMode("idle");
     },
     [addStickerElement, setMode],
@@ -473,7 +504,17 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       );
       return; // Stay in editor — don't navigate away and lose work
     }
-    onSave?.(rendered.uri);
+    const animatedGifOverlays = extractAnimatedGifOverlays(
+      useEditorStore
+        .getState()
+        .elements.filter(
+          (element): element is StickerElement => element.type === "sticker",
+        ),
+    );
+    onSave?.({
+      editedUri: rendered.uri,
+      animatedGifOverlays,
+    });
   }, [onSave, renderFinalArtifact, showToast]);
 
   // ---- Close ----

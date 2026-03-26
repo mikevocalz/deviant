@@ -49,6 +49,7 @@ import { storyTagsApi } from "@/lib/api/stories";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { useStoryFlowStore } from "@/lib/stores/story-flow-store";
 import { useStoryEditorResultStore } from "@/lib/stores/story-editor-result-store";
+import type { StoryAnimatedGifOverlay } from "@/lib/types";
 
 function StoryVideoPreview({ uri }: { uri: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -178,7 +179,11 @@ function CreateStoryScreenContent() {
   }>();
 
   const applyEditedResult = useCallback(
-    (uri: string, rawIndex?: string | number) => {
+    (
+      uri: string,
+      rawIndex?: string | number,
+      animatedGifOverlays: StoryAnimatedGifOverlay[] = [],
+    ) => {
       const idx =
         typeof rawIndex === "number"
           ? rawIndex
@@ -191,6 +196,7 @@ function CreateStoryScreenContent() {
           uri,
           type: "image",
           kind: "image",
+          storyAnimatedGifOverlays: animatedGifOverlays,
         };
         setMediaAssets(updated);
         setCurrentIndex(idx);
@@ -204,6 +210,7 @@ function CreateStoryScreenContent() {
           uri,
           type: "image",
           kind: "image",
+          storyAnimatedGifOverlays: animatedGifOverlays,
         };
         setMediaAssets([asset]);
         setCurrentIndex(0);
@@ -229,7 +236,11 @@ function CreateStoryScreenContent() {
 
       const editorResult = consumeEditorResult();
       if (editorResult) {
-        applyEditedResult(editorResult.uri, editorResult.index);
+        applyEditedResult(
+          editorResult.uri,
+          editorResult.index,
+          editorResult.animatedGifOverlays,
+        );
       }
     }, [applyEditedResult, consumeEditorResult, ensureHubState]),
   );
@@ -461,12 +472,14 @@ function CreateStoryScreenContent() {
         return;
       }
 
-      const storyItems = uploadResults.map((r) => ({
+      const storyItems = uploadResults.map((r, index) => ({
         type: r.kind ?? r.type,
         url: r.url,
         thumbnail: r.thumbnail,
         ...(r.mimeType && { mimeType: r.mimeType }),
         ...(r.livePhotoVideoUrl && { livePhotoVideoUrl: r.livePhotoVideoUrl }),
+        animatedGifOverlays:
+          mediaAssets[index]?.storyAnimatedGifOverlays || [],
       }));
       console.log("[Story] Creating story with", storyItems.length, "items");
 

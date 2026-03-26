@@ -38,6 +38,7 @@ function buildStoryGroup(
     text?: string;
     textColor?: string;
     backgroundColor?: string;
+    animatedGifOverlays?: import("@/lib/types").StoryAnimatedGifOverlay[];
   }>,
   visibility?: "public" | "close_friends",
 ): Story {
@@ -56,12 +57,13 @@ function buildStoryGroup(
     hasCloseFriendsStory: visibility === "close_friends",
     items: items.map((item, index) => ({
       id: `${storyData.id}-item-${index}`,
-      type: item.type as "image" | "video" | "text",
+      type: item.type as "image" | "gif" | "video" | "text",
       url: item.url,
       thumbnail: item.thumbnail,
       text: item.text,
       textColor: item.textColor,
       backgroundColor: item.backgroundColor,
+      animatedGifOverlays: item.animatedGifOverlays || [],
       duration: item.type === "video" ? 30000 : 5000,
       visibility,
     })),

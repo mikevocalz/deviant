@@ -39,6 +39,11 @@ export interface StickerElement extends BaseElement {
   size: number;
 }
 
+export interface StickerInsertOptions {
+  category?: StickerCategory;
+  size?: number;
+}
+
 export type StickerCategory =
   | "emoji"
   | "gif"
