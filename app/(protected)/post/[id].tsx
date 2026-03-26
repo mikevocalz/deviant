@@ -1230,13 +1230,13 @@ function PostDetailScreenContent() {
                         ))}
                       </View>
                     </>
-                  ) : post.media?.[0]?.url &&
-                    (post.media[0].url.startsWith("http://") ||
-                      post.media[0].url.startsWith("https://")) ? (
+                  ) : safePost.media?.[0]?.url &&
+                    (safePost.media[0].url.startsWith("http://") ||
+                      safePost.media[0].url.startsWith("https://")) ? (
                     // Single image — tap to view full-screen via Galeria
                     <Galeria.Image index={0}>
                       <Image
-                        source={{ uri: post.media[0].url }}
+                        source={{ uri: safePost.media[0].url }}
                         style={{
                           width: SCREEN_WIDTH,
                           height: PORTRAIT_HEIGHT,
