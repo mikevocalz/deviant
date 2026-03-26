@@ -50,8 +50,31 @@ Deno.serve(async (req: Request) => {
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
 
-    // Determine if this is own profile or another user's
-    const isOwnProfile = !viewer_id || viewer_id === user_id;
+    const resolveUserId = async (value: string | number | null | undefined) => {
+      if (value === null || value === undefined) return null;
+      const asString = String(value).trim();
+      if (!asString) return null;
+      const asInt = parseInt(asString, 10);
+      if (!isNaN(asInt) && String(asInt) === asString) return asInt;
+
+      const { data } = await supabase
+        .from("users")
+        .select("id")
+        .eq("auth_id", asString)
+        .single();
+      return data?.id ?? null;
+    };
+
+    const profileUserId = await resolveUserId(user_id);
+    if (!profileUserId) {
+      return new Response(JSON.stringify({ error: "Profile not found" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    const viewerUserId = await resolveUserId(viewer_id);
+    const isOwnProfile = !viewerUserId || viewerUserId === profileUserId;
 
     // ── Fire ALL queries in parallel ──────────────────────────────
 
@@ -66,7 +89,7 @@ Deno.serve(async (req: Request) => {
           avatar:avatar_id(url)
         `,
         )
-        .eq("auth_id", user_id)
+        .eq("id", profileUserId)
         .single(),
 
       // 2. First page of posts (grid thumbnails)
@@ -79,7 +102,7 @@ Deno.serve(async (req: Request) => {
           post_text_slides(id, slide_index, content)
         `,
         )
-        .eq("author_id", user_id)
+        .eq("author_id", profileUserId)
         .eq("visibility", "public")
         .order("created_at", { ascending: false })
         .range(0, GRID_PAGE_SIZE - 1),
@@ -91,16 +114,16 @@ Deno.serve(async (req: Request) => {
         supabase
           .from("follows")
           .select("id")
-          .eq("follower_id", viewer_id)
-          .eq("following_id", user_id)
+          .eq("follower_id", viewerUserId)
+          .eq("following_id", profileUserId)
           .maybeSingle(),
       );
       queries.push(
         supabase
           .from("follows")
           .select("id")
-          .eq("follower_id", user_id)
-          .eq("following_id", viewer_id)
+          .eq("follower_id", profileUserId)
+          .eq("following_id", viewerUserId)
           .maybeSingle(),
       );
     }

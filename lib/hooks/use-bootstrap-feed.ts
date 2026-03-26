@@ -136,12 +136,31 @@ export function useBootstrapFeed() {
     const existingFeed = queryClient.getQueryData(
       postKeys.feedInfinite(),
     ) as any;
-    if (existingFeed && existingFeed.pages && existingFeed.pages.length > 0) {
+    const cachedItems = Array.isArray(existingFeed?.pages)
+      ? existingFeed.pages.flatMap((page: any) => page?.data || [])
+      : [];
+
+    if (
+      existingFeed &&
+      Array.isArray(existingFeed.pages) &&
+      cachedItems.length > 0
+    ) {
       trace.markCacheHit();
       trace.markUsable();
       console.log("[BootstrapFeed] Cache hit — skipping bootstrap call");
       hasRun.current = true;
       return;
+    }
+
+    if (
+      existingFeed &&
+      Array.isArray(existingFeed.pages) &&
+      cachedItems.length === 0
+    ) {
+      queryClient.removeQueries({
+        queryKey: postKeys.feedInfinite(),
+        exact: true,
+      });
     }
 
     // Mark as bootstrapping to prevent duplicate calls
