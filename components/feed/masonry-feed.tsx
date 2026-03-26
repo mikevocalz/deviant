@@ -21,7 +21,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { useMemo, useCallback, memo, useEffect, useRef } from "react";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Heart, Bookmark, Play, Grid3x3 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -414,11 +414,19 @@ export function MasonryFeed() {
   useSyncLikedPosts();
   useBookmarks();
 
-  const { nsfwEnabled, loadNsfwSetting, nsfwLoaded } = useAppStore();
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
+  const nsfwLoaded = useAppStore((s) => s.nsfwLoaded);
+  const loadNsfwSetting = useAppStore((s) => s.loadNsfwSetting);
 
   useEffect(() => {
     loadNsfwSetting();
   }, [loadNsfwSetting]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadNsfwSetting();
+    }, [loadNsfwSetting]),
+  );
 
   const allPosts = useMemo(() => {
     if (!data?.pages) return [];

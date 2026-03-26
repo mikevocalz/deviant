@@ -23,6 +23,7 @@ import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import { notificationsApi } from "@/lib/api/notifications";
 import { usersApi } from "@/lib/api/users";
 import { storiesApi as storiesApiClient } from "@/lib/api/stories";
+import { useAppStore } from "@/lib/stores/app-store";
 
 const THROTTLE_MS = 30_000; // At most once per 30 seconds
 
@@ -53,6 +54,7 @@ export function useAppResume() {
       lastRefreshRef.current = now;
 
       console.log("[AppResume] App resumed — refreshing critical data");
+      useAppStore.getState().loadNsfwSetting();
 
       // Silent background refresh — no loading states, no UI flicker
       // TanStack Query handles the cache update → components re-render once
