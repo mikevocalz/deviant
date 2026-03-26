@@ -98,8 +98,7 @@ Deno.serve(async (req: Request) => {
         .select(
           `
           id, created_at, content, post_kind, text_theme, is_nsfw, likes_count,
-          media:posts_media(type, url, "order"),
-          post_text_slides(id, slide_index, content)
+          media:posts_media(type, url, "order")
         `,
         )
         .eq("author_id", profileUserId)
@@ -152,21 +151,16 @@ Deno.serve(async (req: Request) => {
         (a: any, b: any) => (a.order || 0) - (b.order || 0),
       );
       const firstMedia = media[0];
-      const slides = Array.isArray(post.post_text_slides)
-        ? post.post_text_slides
-        : [];
-      const firstSlide = slides.find(
-        (slide: any) =>
-          typeof slide?.content === "string" && slide.content.trim().length > 0,
-      );
       const isTextPost = post.post_kind === "text";
+      const previewText =
+        typeof post.content === "string" ? post.content.trim() : "";
 
       return {
         id: String(post.id),
         kind: isTextPost ? "text" : "media",
         textTheme: post.text_theme || null,
-        caption: firstSlide?.content || post.content || "",
-        textSlideCount: slides.length,
+        caption: previewText,
+        textSlideCount: isTextPost && previewText ? 1 : 0,
         media: isTextPost
           ? []
           : media.map((item: any) => ({
