@@ -8,6 +8,10 @@ const FEED_MODE_KEY = "app_feed_mode";
 let splashHasFinishedEver = false;
 
 export type FeedMode = "classic" | "masonry";
+export interface PendingAppRoute {
+  pathname: string;
+  params?: Record<string, string>;
+}
 
 function readPersistedNsfwEnabled(): boolean {
   try {
@@ -26,6 +30,8 @@ interface AppState {
   feedMode: FeedMode;
   /** Route to navigate to after splash + auth settle (from notification cold start) */
   pendingNotificationRoute: string | null;
+  /** Route to navigate to after splash + auth settle (from share intent cold start) */
+  pendingShareIntentRoute: PendingAppRoute | null;
   setAppReady: (ready: boolean) => void;
   setSplashAnimationFinished: (finished: boolean) => void;
   onAnimationFinish: (isCancelled: boolean) => void;
@@ -35,6 +41,8 @@ interface AppState {
   loadNsfwSetting: () => void;
   setPendingNotificationRoute: (route: string | null) => void;
   consumePendingNotificationRoute: () => string | null;
+  setPendingShareIntentRoute: (route: PendingAppRoute | null) => void;
+  consumePendingShareIntentRoute: () => PendingAppRoute | null;
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -57,6 +65,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   })(),
   pendingNotificationRoute: null,
+  pendingShareIntentRoute: null,
   setAppReady: (ready) => set({ appReady: ready }),
   setSplashAnimationFinished: (finished) => {
     if (finished) {
@@ -91,6 +100,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   consumePendingNotificationRoute: () => {
     const route = get().pendingNotificationRoute;
     if (route) set({ pendingNotificationRoute: null });
+    return route;
+  },
+  setPendingShareIntentRoute: (route) => set({ pendingShareIntentRoute: route }),
+  consumePendingShareIntentRoute: () => {
+    const route = get().pendingShareIntentRoute;
+    if (route) set({ pendingShareIntentRoute: null });
     return route;
   },
   setNsfwEnabled: (enabled) => {

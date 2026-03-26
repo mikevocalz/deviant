@@ -110,6 +110,9 @@ export default function RootLayout() {
   const openedFromShareIntent = useDeepLinkStore(
     (s) => s.openedFromShareIntent,
   );
+  const pendingShareIntentRoute = useAppStore(
+    (s) => s.pendingShareIntentRoute,
+  );
 
   useEffect(() => {
     const delay = openedFromShareIntent ? 0 : 1500;
@@ -298,6 +301,33 @@ export default function RootLayout() {
       }, 100);
     }
   }, [splashAnimationFinished, authSettled, isAuthenticated]);
+
+  // ── Execute queued share-intent route ────────────────────────────────
+  // Share intents arrive during boot via ShareIntentHandler. Queue the
+  // destination until the protected stack is mounted, then push once.
+  useEffect(() => {
+    if (
+      !splashAnimationFinished ||
+      !authSettled ||
+      !isAuthenticated ||
+      !pendingShareIntentRoute
+    ) {
+      return;
+    }
+
+    const route = useAppStore.getState().consumePendingShareIntentRoute();
+    if (route) {
+      setTimeout(() => {
+        console.log("[RootLayout] Executing queued share route:", route);
+        router.push(route as any);
+      }, 100);
+    }
+  }, [
+    authSettled,
+    isAuthenticated,
+    pendingShareIntentRoute,
+    splashAnimationFinished,
+  ]);
 
   // Show animated splash until BOTH app is ready AND animation is finished
   // IMPORTANT: Always wait for splashAnimationFinished, even if appReady is true
