@@ -104,6 +104,7 @@ interface FeedPostProps {
   kind?: import("@/lib/types").PostKind;
   textTheme?: import("@/lib/types").TextPostThemeKey;
   caption?: string;
+  textSlides?: import("@/lib/types").TextPostSlide[];
   likes: number;
   viewerHasLiked?: boolean;
   comments: Comment[] | number;
@@ -149,6 +150,7 @@ function FeedPostComponent({
   kind,
   textTheme,
   caption,
+  textSlides,
   likes,
   viewerHasLiked = false,
   comments,
@@ -213,6 +215,8 @@ function FeedPostComponent({
   const videoViewRef = useRef<ElementRef<typeof VideoView>>(null);
 
   const isTextPost = kind === "text";
+  const hasMultipleTextSlides =
+    isTextPost && Array.isArray(textSlides) && textSlides.length > 1;
   const hasMedia = media && media.length > 0;
   const isVideo = !isTextPost && hasMedia && media[0]?.type === "video";
   const hasMultipleMedia =
@@ -330,13 +334,17 @@ function FeedPostComponent({
     setCommentsSheetPostId(id);
   }, [id, isTextPost, router, setCommentsSheetPostId]);
 
+  const textSlideWidth = mediaSize - 32;
+
   const handleScroll = useCallback(
     (event: any) => {
-      const w = cardInnerWidthRef.current || mediaSize;
+      const w = isTextPost
+        ? textSlideWidth
+        : cardInnerWidthRef.current || mediaSize;
       const slideIndex = Math.round(event.nativeEvent.contentOffset.x / w);
       setCurrentSlide(id, slideIndex);
     },
-    [id, setCurrentSlide, mediaSize],
+    [id, setCurrentSlide, mediaSize, isTextPost, textSlideWidth],
   );
 
   const handlePressIn = useCallback(
@@ -462,31 +470,96 @@ function FeedPostComponent({
                 </View>
               </Pressable>
 
-              <Pressable
-                onPress={() => setActionSheetPostId(id)}
-                hitSlop={12}
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "rgba(255,255,255,0.04)",
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.08)",
-                }}
+              <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 8 }}
               >
-                <MoreHorizontal size={20} color="#fff" />
-              </Pressable>
+                <View
+                  style={{
+                    paddingHorizontal: 8,
+                    paddingVertical: 4,
+                    borderRadius: 999,
+                    backgroundColor: "rgba(255,255,255,0.06)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "rgba(226,232,240,0.68)",
+                      fontSize: 10,
+                      fontWeight: "700",
+                      letterSpacing: 0.6,
+                      textTransform: "uppercase",
+                    }}
+                  >
+                    Text Post
+                  </Text>
+                </View>
+                <Pressable
+                  onPress={() => setActionSheetPostId(id)}
+                  hitSlop={12}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "rgba(255,255,255,0.04)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <MoreHorizontal size={20} color="#fff" />
+                </Pressable>
+              </View>
             </View>
 
-            <Pressable onPress={handlePostPress}>
-              <TextPostSurface
-                text={caption}
-                theme={textTheme}
-                variant="feed"
-              />
-            </Pressable>
+            {hasMultipleTextSlides ? (
+              <View>
+                <ScrollView
+                  horizontal
+                  pagingEnabled
+                  showsHorizontalScrollIndicator={false}
+                  onScroll={handleScroll}
+                  scrollEventThrottle={16}
+                  contentContainerStyle={{ gap: 0 }}
+                >
+                  {textSlides!.map((slide, index) => (
+                    <Pressable
+                      key={slide.id || index}
+                      onPress={handlePostPress}
+                      style={{ width: textSlideWidth }}
+                    >
+                      <TextPostSurface
+                        text={slide.content}
+                        theme={textTheme}
+                        variant="feed"
+                      />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+                <View
+                  style={{
+                    alignItems: "center",
+                    marginTop: 10,
+                  }}
+                  pointerEvents="none"
+                >
+                  <CarouselDots
+                    count={textSlides!.length}
+                    current={currentSlide}
+                  />
+                </View>
+              </View>
+            ) : (
+              <Pressable onPress={handlePostPress}>
+                <TextPostSurface
+                  text={caption}
+                  theme={textTheme}
+                  variant="feed"
+                />
+              </Pressable>
+            )}
 
             <View
               style={{

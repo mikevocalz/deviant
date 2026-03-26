@@ -15,7 +15,12 @@ export type Comment = {
 
 export type MediaKind = "image" | "gif" | "video" | "livePhoto";
 export type PostKind = "media" | "text";
-export type TextPostThemeKey = "graphite" | "cobalt" | "ember" | "sage";
+export type TextPostThemeKey =
+  | "graphite"
+  | "deviant"
+  | "cobalt"
+  | "ember"
+  | "sage";
 
 export type TextPostSlide = {
   id: string;

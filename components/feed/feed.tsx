@@ -81,6 +81,7 @@ const AnimatedFeedPost = memo(function AnimatedFeedPost({
         kind={item.kind}
         textTheme={item.textTheme}
         caption={item.caption || ""}
+        textSlides={item.textSlides}
         likes={item.likes || 0}
         viewerHasLiked={item.viewerHasLiked || false}
         comments={item.comments || 0}
