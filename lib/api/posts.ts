@@ -4,7 +4,11 @@ import type { Post } from "@/lib/types";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 import { likesApi } from "./likes";
-import { normalizeTextPostTheme } from "@/lib/posts/text-post";
+import {
+  getPrimaryTextPostContent,
+  normalizeTextPostSlides,
+  normalizeTextPostTheme,
+} from "@/lib/posts/text-post";
 
 interface CreatePostResponse {
   ok: boolean;
@@ -35,6 +39,15 @@ function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
   const author = dbPost.author || {};
   const postKind =
     dbPost?.[DB.posts.postKind] === "text" ? "text" : ("media" as const);
+  const textSlides = normalizeTextPostSlides(
+    dbPost.post_text_slides || dbPost.textSlides || dbPost.slides,
+    dbPost[DB.posts.content],
+  );
+  const textSlideCount = textSlides.length;
+  const previewText = getPrimaryTextPostContent(
+    textSlides,
+    dbPost[DB.posts.content],
+  );
   const allMedia = (dbPost.media || []).map((m: any) => {
     const rawType: string = m[DB.postsMedia.type] || "image";
     const mimeType: string | undefined = m[DB.postsMedia.mimeType] ?? undefined;
@@ -83,7 +96,9 @@ function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
     media,
     kind: postKind,
     textTheme: normalizeTextPostTheme(dbPost?.[DB.posts.textTheme]),
-    caption: dbPost[DB.posts.content] || "",
+    caption: previewText,
+    textSlides: postKind === "text" ? textSlides : undefined,
+    textSlideCount: postKind === "text" ? textSlideCount : undefined,
     likes: Number(dbPost[DB.posts.likesCount]) || 0,
     viewerHasLiked,
     comments: Number(dbPost[DB.posts.commentsCount]) || 0,
@@ -151,6 +166,11 @@ export const postsApi = {
             ${DB.postsMedia.order},
             ${DB.postsMedia.mimeType},
             ${DB.postsMedia.livePhotoVideoUrl}
+          ),
+          post_text_slides(
+            ${DB.postTextSlides.id},
+            ${DB.postTextSlides.slideIndex},
+            ${DB.postTextSlides.content}
           )
         `,
           { count: "exact" },
@@ -215,6 +235,11 @@ export const postsApi = {
             ${DB.postsMedia.order},
             ${DB.postsMedia.mimeType},
             ${DB.postsMedia.livePhotoVideoUrl}
+          ),
+          post_text_slides(
+            ${DB.postTextSlides.id},
+            ${DB.postTextSlides.slideIndex},
+            ${DB.postTextSlides.content}
           )
         `,
         )
@@ -269,6 +294,11 @@ export const postsApi = {
               ${DB.postsMedia.order},
               ${DB.postsMedia.mimeType},
               ${DB.postsMedia.livePhotoVideoUrl}
+            ),
+            post_text_slides(
+              ${DB.postTextSlides.id},
+              ${DB.postTextSlides.slideIndex},
+              ${DB.postTextSlides.content}
             )
           `,
           )
@@ -302,6 +332,11 @@ export const postsApi = {
               ${DB.postsMedia.order},
               ${DB.postsMedia.mimeType},
               ${DB.postsMedia.livePhotoVideoUrl}
+            ),
+            post_text_slides(
+              ${DB.postTextSlides.id},
+              ${DB.postTextSlides.slideIndex},
+              ${DB.postTextSlides.content}
             )
           `,
           )
@@ -329,6 +364,11 @@ export const postsApi = {
               ${DB.postsMedia.order},
               ${DB.postsMedia.mimeType},
               ${DB.postsMedia.livePhotoVideoUrl}
+            ),
+            post_text_slides(
+              ${DB.postTextSlides.id},
+              ${DB.postTextSlides.slideIndex},
+              ${DB.postTextSlides.content}
             )
           `,
           )
@@ -372,6 +412,8 @@ export const postsApi = {
           ${DB.posts.id},
           ${DB.posts.authorId},
           ${DB.posts.content},
+          ${DB.posts.postKind},
+          ${DB.posts.textTheme},
           ${DB.posts.likesCount},
           ${DB.posts.isNsfw},
           ${DB.posts.createdAt},
@@ -388,6 +430,11 @@ export const postsApi = {
             ${DB.postsMedia.order},
             ${DB.postsMedia.mimeType},
             ${DB.postsMedia.livePhotoVideoUrl}
+          ),
+          post_text_slides(
+            ${DB.postTextSlides.id},
+            ${DB.postTextSlides.slideIndex},
+            ${DB.postTextSlides.content}
           )
         `,
         )
@@ -400,17 +447,32 @@ export const postsApi = {
         return [];
       }
 
-      // Only keep posts that have at least one media item
-      const withMedia = (posts || []).filter(
-        (p: any) => p.media && p.media.length > 0 && p.media[0]?.url,
-      );
+      // Keep media posts with valid media and text posts with at least one
+      // non-empty slide/content so grid surfaces can show both kinds.
+      const renderablePosts = (posts || []).filter((p: any) => {
+        if (p[DB.posts.postKind] === "text") {
+          const hasSlideContent = Array.isArray(p.post_text_slides)
+            ? p.post_text_slides.some(
+                (slide: any) =>
+                  typeof slide?.content === "string" &&
+                  slide.content.trim().length > 0,
+              )
+            : false;
+          const hasCaption =
+            typeof p[DB.posts.content] === "string" &&
+            p[DB.posts.content].trim().length > 0;
+          return hasSlideContent || hasCaption;
+        }
+
+        return Boolean(p.media && p.media.length > 0 && p.media[0]?.url);
+      });
 
       // Pick max 1 post per author for variety, shuffle the pool first
-      const shuffled = withMedia.sort(() => Math.random() - 0.5);
+      const shuffled = renderablePosts.sort(() => Math.random() - 0.5);
       const seenAuthors = new Set<number>();
       const unique: any[] = [];
       for (const p of shuffled) {
-        const authorId = p[DB.posts.authorId];
+        const authorId = Number(p[DB.posts.authorId]);
         if (seenAuthors.has(authorId)) continue;
         seenAuthors.add(authorId);
         unique.push(p);
@@ -445,6 +507,7 @@ export const postsApi = {
     content?: string;
     kind?: "media" | "text";
     textTheme?: import("@/lib/types").TextPostThemeKey;
+    slides?: string[];
     media?: Array<{
       type: string;
       url: string;
@@ -459,11 +522,17 @@ export const postsApi = {
       console.log("[Posts] createPost via Edge Function");
 
       const postKind: Post["kind"] = data.kind === "text" ? "text" : "media";
+      const normalizedSlides =
+        postKind === "text"
+          ? (data.slides || [data.content || ""]).map((content) =>
+              typeof content === "string" ? content.trim() : "",
+            )
+          : [];
 
       if (postKind === "media" && (!data.media || data.media.length === 0)) {
         throw new Error("Post must include at least one photo or video");
       }
-      if (postKind === "text" && !data.content?.trim()) {
+      if (postKind === "text" && normalizedSlides.some((slide) => !slide)) {
         throw new Error("Text posts need something to say");
       }
 
@@ -475,6 +544,7 @@ export const postsApi = {
             content: data.content,
             kind: postKind,
             textTheme: data.textTheme,
+            slides: normalizedSlides,
             media: data.media,
             location: data.location,
             isNSFW: data.isNSFW,
@@ -510,7 +580,19 @@ export const postsApi = {
         })) as import("@/lib/types").PostMediaItem[],
         kind: postKind,
         textTheme: normalizeTextPostTheme(data.textTheme),
-        caption: data.content || "",
+        caption: normalizedSlides[0] || data.content || "",
+        textSlides:
+          postKind === "text"
+            ? normalizeTextPostSlides(
+                normalizedSlides.map((content, order) => ({
+                  id: `${post.id}-${order}`,
+                  order,
+                  content,
+                })),
+              )
+            : undefined,
+        textSlideCount:
+          postKind === "text" ? normalizedSlides.length : undefined,
         likes: 0,
         comments: [],
         timeAgo: "Just now",
@@ -553,6 +635,8 @@ export const postsApi = {
     postId: string,
     updates: {
       content?: string;
+      textTheme?: import("@/lib/types").TextPostThemeKey;
+      slides?: string[];
       location?: string;
       isNSFW?: boolean;
       media?: Array<{ order: number; url: string }>;

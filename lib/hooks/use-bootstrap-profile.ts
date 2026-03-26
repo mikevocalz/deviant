@@ -12,10 +12,14 @@ import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { isFeatureEnabled } from "@/lib/feature-flags";
-import { bootstrapApi, type BootstrapProfileResponse } from "@/lib/api/bootstrap";
+import {
+  bootstrapApi,
+  type BootstrapProfileResponse,
+} from "@/lib/api/bootstrap";
 import { profileKeys } from "@/lib/hooks/use-profile";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
+import { normalizeTextPostTheme } from "@/lib/posts/text-post";
 
 function hydrateFromProfileBootstrap(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -43,7 +47,49 @@ function hydrateFromProfileBootstrap(
   });
 
   // 2. Seed the profile posts query cache with grid thumbnail data
-  queryClient.setQueryData(postKeys.profilePosts(userId), data.posts);
+  queryClient.setQueryData(
+    postKeys.profilePosts(userId),
+    data.posts.map((post) => {
+      const isTextPost = post.kind === "text";
+      const media =
+        Array.isArray(post.media) && post.media.length > 0
+          ? post.media
+          : post.thumbnailUrl
+            ? [{ type: post.type || "image", url: post.thumbnailUrl }]
+            : [];
+
+      return {
+        id: post.id,
+        author: {
+          id: p.id,
+          username: p.username,
+          avatar: p.avatarUrl || "",
+          verified: p.verified,
+          name: p.firstName || p.username,
+        },
+        media: isTextPost ? [] : media,
+        kind: isTextPost ? "text" : "media",
+        textTheme: isTextPost
+          ? normalizeTextPostTheme(post.textTheme)
+          : undefined,
+        caption: post.caption || "",
+        textSlides:
+          isTextPost && post.caption
+            ? [{ id: `${post.id}-0`, order: 0, content: post.caption }]
+            : undefined,
+        textSlideCount: isTextPost ? Math.max(post.textSlideCount || 0, 1) : 0,
+        likes: post.likesCount || 0,
+        viewerHasLiked: false,
+        comments: 0,
+        timeAgo: "",
+        location: undefined,
+        isNSFW: post.isNSFW || false,
+        thumbnail: !isTextPost ? post.thumbnailUrl || undefined : undefined,
+        type: !isTextPost ? (post.type as any) || "image" : undefined,
+        hasMultipleImages: !isTextPost && media.length > 1,
+      };
+    }),
+  );
 
   console.log(
     `[BootstrapProfile] Hydrated cache: profile + ${data.posts.length} posts`,

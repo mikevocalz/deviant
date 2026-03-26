@@ -55,6 +55,15 @@ export const DB = {
     mimeType: "mime_type",
     livePhotoVideoUrl: "live_photo_video_url",
   },
+  postTextSlides: {
+    table: "post_text_slides",
+    id: "id",
+    postId: "post_id",
+    slideIndex: "slide_index",
+    content: "content",
+    createdAt: "created_at",
+    updatedAt: "updated_at",
+  },
   stories: {
     table: "stories",
     id: "id",

@@ -50,8 +50,11 @@ import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomple
 import { Switch } from "react-native";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { setPendingCrop } from "@/src/crop/crop-utils";
-import { TextPostSurface } from "@/components/post/TextPostSurface";
-import { TEXT_POST_THEMES } from "@/lib/posts/text-post";
+import { TextPostSlidesComposer } from "@/components/post/TextPostSlidesComposer";
+import {
+  TEXT_POST_MAX_LENGTH,
+  serializeTextSlidesForMutation,
+} from "@/lib/posts/text-post";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
@@ -60,8 +63,6 @@ const ASPECT_RATIO = 4 / 5;
 const MAX_PHOTOS = 4;
 const MAX_VIDEO_DURATION = 60;
 const MIN_CAPTION_LENGTH = 10;
-const TEXT_POST_MAX_LENGTH = 500;
-
 function VideoPreview({ uri, duration }: { uri: string; duration?: number }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const player = useVideoPlayer(uri, (p) => {
@@ -144,12 +145,18 @@ function CreateScreenContent() {
   const insets = useSafeAreaInsets();
   const {
     caption,
+    textSlides,
+    activeTextSlideIndex,
     location,
     isNSFW,
     tags,
     postKind,
     textTheme,
     setCaption,
+    setActiveTextSlideIndex,
+    updateTextSlide,
+    addTextSlide,
+    removeTextSlide,
     setLocationData,
     setIsNSFW,
     setPostKind,
@@ -183,9 +190,20 @@ function CreateScreenContent() {
   const hasPhotos = selectedMedia.some((m) => m.type === "image");
   const canAddMore = !hasVideo && selectedMedia.length < MAX_PHOTOS;
   const isTextPost = postKind === "text";
+  const activeTextSlide = textSlides[activeTextSlideIndex] ?? textSlides[0];
+  const hasTextDraft = textSlides.some(
+    (slide) => slide.content.trim().length > 0,
+  );
+  const areTextSlidesValid =
+    textSlides.length > 0 &&
+    textSlides.every(
+      (slide) =>
+        slide.content.trim().length > 0 &&
+        slide.content.trim().length <= TEXT_POST_MAX_LENGTH,
+    );
 
   const isValid = isTextPost
-    ? caption.trim().length > 0 && caption.trim().length <= TEXT_POST_MAX_LENGTH
+    ? areTextSlidesValid
     : selectedMedia.length > 0 && caption.trim().length >= MIN_CAPTION_LENGTH;
 
   const validateMedia = useCallback(
@@ -383,6 +401,7 @@ function CreateScreenContent() {
     const {
       selectedMedia: currentSelectedMedia,
       caption: currentCaption,
+      textSlides: currentTextSlides,
       location: currentLocation,
       isNSFW: currentIsNSFW,
       tags: currentTags,
@@ -392,6 +411,9 @@ function CreateScreenContent() {
     } = useCreatePostStore.getState();
     const isTextSubmission = currentPostKind === "text";
     const trimmedCaption = currentCaption.trim();
+    const normalizedTextSlides = currentTextSlides.map((slide) =>
+      slide.content.trim(),
+    );
 
     console.log("[Create] handlePost called!");
     console.log("[Create] isUploading:", isUploading);
@@ -415,12 +437,22 @@ function CreateScreenContent() {
       return;
     }
 
-    if (isTextSubmission && trimmedCaption.length === 0) {
-      showToast("error", "Empty Post", "Write something before posting.");
+    if (
+      isTextSubmission &&
+      normalizedTextSlides.some((slide) => slide.length === 0)
+    ) {
+      showToast(
+        "error",
+        "Empty Slide",
+        "Each slide needs text before you can post.",
+      );
       return;
     }
 
-    if (isTextSubmission && trimmedCaption.length > TEXT_POST_MAX_LENGTH) {
+    if (
+      isTextSubmission &&
+      normalizedTextSlides.some((slide) => slide.length > TEXT_POST_MAX_LENGTH)
+    ) {
       showToast(
         "error",
         "Too Long",
@@ -520,18 +552,33 @@ function CreateScreenContent() {
       console.log("[Create] Creating post with CDN URLs:", postMedia);
       console.log("[Create] Author ID:", user?.id, "Username:", user?.username);
 
-      // Append tags as hashtags to the caption content
       const tagsString =
         currentTags.length > 0
           ? "\n" + currentTags.map((t) => `#${t}`).join(" ")
           : "";
       const fullContent = currentCaption + tagsString;
+      const textSlidesWithTags = isTextSubmission
+        ? normalizedTextSlides.map((slide, index) =>
+            index === normalizedTextSlides.length - 1
+              ? `${slide}${tagsString}`.trim()
+              : slide,
+          )
+        : [];
 
       createPost(
         {
           kind: isTextSubmission ? "text" : "media",
           textTheme: currentTextTheme,
-          content: fullContent,
+          content: isTextSubmission ? textSlidesWithTags[0] : fullContent,
+          slides: isTextSubmission
+            ? serializeTextSlidesForMutation(
+                textSlidesWithTags.map((content, order) => ({
+                  id: `draft-${order}`,
+                  order,
+                  content,
+                })),
+              )
+            : undefined,
           location: currentLocation,
           media: postMedia,
           isNSFW: isTextSubmission ? false : currentIsNSFW,
@@ -599,7 +646,7 @@ function CreateScreenContent() {
   ]);
 
   const handleClose = () => {
-    if (selectedMedia.length > 0 || caption.length > 0) {
+    if (selectedMedia.length > 0 || caption.length > 0 || hasTextDraft) {
       Alert.alert(
         "Discard Post?",
         "You have unsaved changes. Are you sure you want to discard this post?",
@@ -712,7 +759,7 @@ function CreateScreenContent() {
                 key: "text",
                 label: "Text post",
                 icon: Type,
-                description: "Threads-style conversation starter",
+                description: "Words-only conversation starter",
               },
             ].map((option) => {
               const Icon = option.icon;
@@ -774,94 +821,16 @@ function CreateScreenContent() {
         </View>
 
         {isTextPost ? (
-          <>
-            <View style={{ padding: 16, paddingBottom: 8 }}>
-              <TextPostSurface
-                text={caption}
-                theme={textTheme}
-                variant="composer"
-              />
-            </View>
-
-            <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-              <UserMentionAutocomplete
-                value={caption}
-                onChangeText={setCaption}
-                placeholder="Say something sharp, funny, or undeniable..."
-                multiline
-                maxLength={TEXT_POST_MAX_LENGTH}
-                style={{
-                  fontSize: 18,
-                  minHeight: 120,
-                  lineHeight: 26,
-                }}
-              />
-              <View
-                style={{
-                  marginTop: 14,
-                  flexDirection: "row",
-                  flexWrap: "wrap",
-                  gap: 10,
-                }}
-              >
-                {Object.values(TEXT_POST_THEMES).map((themeOption) => {
-                  const active = textTheme === themeOption.key;
-                  return (
-                    <Pressable
-                      key={themeOption.key}
-                      onPress={() => setTextTheme(themeOption.key)}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        gap: 8,
-                        paddingHorizontal: 12,
-                        paddingVertical: 10,
-                        borderRadius: 999,
-                        backgroundColor: active
-                          ? "rgba(255,255,255,0.1)"
-                          : "rgba(255,255,255,0.04)",
-                        borderWidth: 1,
-                        borderColor: active
-                          ? themeOption.accent
-                          : "rgba(255,255,255,0.08)",
-                      }}
-                    >
-                      <View
-                        style={{
-                          width: 12,
-                          height: 12,
-                          borderRadius: 999,
-                          backgroundColor: themeOption.accent,
-                        }}
-                      />
-                      <Text
-                        style={{
-                          color: active ? "#fff" : "#CBD5E1",
-                          fontSize: 13,
-                          fontWeight: "700",
-                        }}
-                      >
-                        {themeOption.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
-              <Text
-                style={{
-                  fontSize: 12,
-                  color:
-                    caption.length > TEXT_POST_MAX_LENGTH
-                      ? "#FB7185"
-                      : "#64748B",
-                  marginTop: 10,
-                  textAlign: "right",
-                }}
-              >
-                {caption.length}/{TEXT_POST_MAX_LENGTH}
-              </Text>
-            </View>
-          </>
+          <TextPostSlidesComposer
+            slides={textSlides}
+            activeIndex={activeTextSlideIndex}
+            theme={textTheme}
+            onSelectSlide={setActiveTextSlideIndex}
+            onSlideChange={updateTextSlide}
+            onAddSlide={addTextSlide}
+            onRemoveSlide={removeTextSlide}
+            onThemeChange={setTextTheme}
+          />
         ) : (
           <View style={{ padding: 16 }}>
             <UserMentionAutocomplete

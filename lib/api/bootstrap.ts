@@ -77,9 +77,15 @@ export interface BootstrapProfileResponse {
   };
   posts: {
     id: string;
+    kind?: "media" | "text";
+    textTheme?: TextPostThemeKey | null;
+    caption?: string;
+    textSlideCount?: number;
+    media?: { type: string; url: string }[];
     thumbnailUrl: string;
     type: string;
     likesCount: number;
+    isNSFW?: boolean;
   }[];
   nextCursor: number | null;
   hasMore: boolean;

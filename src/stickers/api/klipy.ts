@@ -75,6 +75,11 @@ async function klipyFetch<T>(
   params: Record<string, string>,
   signal?: AbortSignal,
 ): Promise<T> {
+  if (!KLIPY_API_KEY) {
+    console.warn("[Klipy] Missing EXPO_PUBLIC_KLIPY_API_KEY");
+    return { results: [] } as T;
+  }
+
   const url = buildUrl(path, params);
   const res = await fetch(url, {
     headers: {
@@ -101,7 +106,6 @@ async function klipyFetch<T>(
   if (!text) return { results: [], data: [] } as T;
 
   const json = JSON.parse(text);
-  console.log("[Klipy] RAW response keys:", Object.keys(json));
 
   // Klipy may return { data: [...] } or { results: [...] }
   if (json.data && !json.results) {
