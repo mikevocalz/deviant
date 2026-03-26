@@ -233,7 +233,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
     set((s) => ({
       elements: [...s.elements, element],
-      selectedElementId: id,
+      selectedElementId: null,
       undoStack: [
         ...s.undoStack,
         { elements: s.elements, drawingPaths: s.drawingPaths },

@@ -121,6 +121,7 @@ export const ElementGestureOverlay: React.FC<ElementGestureOverlayProps> =
         .onStart(() => {
           "worklet";
           pinchAnchorScale.value = sc.value;
+          runOnJS(selectIfNeeded)();
         })
         .onChange((e) => {
           "worklet";
@@ -139,6 +140,7 @@ export const ElementGestureOverlay: React.FC<ElementGestureOverlayProps> =
         .onStart(() => {
           "worklet";
           rotationAnchorDeg.value = rot.value;
+          runOnJS(selectIfNeeded)();
         })
         .onChange((e) => {
           "worklet";
