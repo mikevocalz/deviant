@@ -166,11 +166,6 @@ export const postsApi = {
             ${DB.postsMedia.order},
             ${DB.postsMedia.mimeType},
             ${DB.postsMedia.livePhotoVideoUrl}
-          ),
-          post_text_slides(
-            ${DB.postTextSlides.id},
-            ${DB.postTextSlides.slideIndex},
-            ${DB.postTextSlides.content}
           )
         `,
           { count: "exact" },
@@ -294,11 +289,6 @@ export const postsApi = {
               ${DB.postsMedia.order},
               ${DB.postsMedia.mimeType},
               ${DB.postsMedia.livePhotoVideoUrl}
-            ),
-            post_text_slides(
-              ${DB.postTextSlides.id},
-              ${DB.postTextSlides.slideIndex},
-              ${DB.postTextSlides.content}
             )
           `,
           )
@@ -332,11 +322,6 @@ export const postsApi = {
               ${DB.postsMedia.order},
               ${DB.postsMedia.mimeType},
               ${DB.postsMedia.livePhotoVideoUrl}
-            ),
-            post_text_slides(
-              ${DB.postTextSlides.id},
-              ${DB.postTextSlides.slideIndex},
-              ${DB.postTextSlides.content}
             )
           `,
           )
@@ -364,11 +349,6 @@ export const postsApi = {
               ${DB.postsMedia.order},
               ${DB.postsMedia.mimeType},
               ${DB.postsMedia.livePhotoVideoUrl}
-            ),
-            post_text_slides(
-              ${DB.postTextSlides.id},
-              ${DB.postTextSlides.slideIndex},
-              ${DB.postTextSlides.content}
             )
           `,
           )
@@ -430,11 +410,6 @@ export const postsApi = {
             ${DB.postsMedia.order},
             ${DB.postsMedia.mimeType},
             ${DB.postsMedia.livePhotoVideoUrl}
-          ),
-          post_text_slides(
-            ${DB.postTextSlides.id},
-            ${DB.postTextSlides.slideIndex},
-            ${DB.postTextSlides.content}
           )
         `,
         )
@@ -448,20 +423,14 @@ export const postsApi = {
       }
 
       // Keep media posts with valid media and text posts with at least one
-      // non-empty slide/content so grid surfaces can show both kinds.
+      // non-empty content so grid surfaces can show both kinds without relying
+      // on slide embeds in list queries.
       const renderablePosts = (posts || []).filter((p: any) => {
         if (p[DB.posts.postKind] === "text") {
-          const hasSlideContent = Array.isArray(p.post_text_slides)
-            ? p.post_text_slides.some(
-                (slide: any) =>
-                  typeof slide?.content === "string" &&
-                  slide.content.trim().length > 0,
-              )
-            : false;
           const hasCaption =
             typeof p[DB.posts.content] === "string" &&
             p[DB.posts.content].trim().length > 0;
-          return hasSlideContent || hasCaption;
+          return hasCaption;
         }
 
         return Boolean(p.media && p.media.length > 0 && p.media[0]?.url);
