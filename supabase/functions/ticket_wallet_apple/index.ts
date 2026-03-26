@@ -23,6 +23,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifySession, CORS_HEADERS } from "../_shared/verify-session.ts";
+import forge from "https://esm.sh/node-forge@1.3.1";
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
@@ -361,73 +362,44 @@ function buildPassJson(opts: {
   return JSON.stringify(passData);
 }
 
-// ── PKCS#7 / CMS Signing ────────────────────────────────────────────
-// Deno doesn't have native PKCS#7 support.
-// We use a detached PKCS#7 signature via openssl subprocess.
+// ── PKCS#7 / CMS Signing (Deno Deploy compatible — no subprocess) ───
+// Uses node-forge for pure-JS PKCS#7 detached signature generation.
 
-async function signManifest(
+function signManifest(
   manifestData: Uint8Array,
   certPem: string,
   keyPem: string,
   wwdrPem: string,
-): Promise<Uint8Array> {
-  // Write temp files for openssl
-  const tmpDir = await Deno.makeTempDir({ prefix: "pkpass_" });
-  const manifestPath = `${tmpDir}/manifest.json`;
-  const certPath = `${tmpDir}/cert.pem`;
-  const keyPath = `${tmpDir}/key.pem`;
-  const wwdrPath = `${tmpDir}/wwdr.pem`;
-  const sigPath = `${tmpDir}/signature`;
+): Uint8Array {
+  const signerCert = forge.pki.certificateFromPem(certPem);
+  const privateKey = forge.pki.privateKeyFromPem(keyPem);
+  const wwdrCert = forge.pki.certificateFromPem(wwdrPem);
 
-  try {
-    await Promise.all([
-      Deno.writeFile(manifestPath, manifestData),
-      Deno.writeTextFile(certPath, certPem),
-      Deno.writeTextFile(keyPath, keyPem),
-      Deno.writeTextFile(wwdrPath, wwdrPem),
-    ]);
+  const p7 = forge.pkcs7.createSignedData();
+  p7.content = forge.util.createBuffer(new TextDecoder().decode(manifestData));
 
-    // openssl smime -sign -binary -in manifest.json -out signature
-    //   -signer cert.pem -inkey key.pem -certfile wwdr.pem
-    //   -outform DER -nodetach
-    const cmd = new Deno.Command("openssl", {
-      args: [
-        "smime",
-        "-sign",
-        "-binary",
-        "-in",
-        manifestPath,
-        "-out",
-        sigPath,
-        "-signer",
-        certPath,
-        "-inkey",
-        keyPath,
-        "-certfile",
-        wwdrPath,
-        "-outform",
-        "DER",
-      ],
-      stdout: "piped",
-      stderr: "piped",
-    });
+  p7.addCertificate(signerCert);
+  p7.addCertificate(wwdrCert);
 
-    const result = await cmd.output();
+  p7.addSigner({
+    key: privateKey,
+    certificate: signerCert,
+    digestAlgorithm: forge.pki.oids.sha256,
+    authenticatedAttributes: [
+      { type: forge.pki.oids.contentType, value: forge.pki.oids.data },
+      { type: forge.pki.oids.messageDigest },
+      { type: forge.pki.oids.signingTime, value: new Date() },
+    ],
+  });
 
-    if (!result.success) {
-      const stderr = new TextDecoder().decode(result.stderr);
-      throw new Error(`openssl signing failed: ${stderr}`);
-    }
+  p7.sign({ detached: false });
 
-    return await Deno.readFile(sigPath);
-  } finally {
-    // Clean up temp files
-    try {
-      await Deno.remove(tmpDir, { recursive: true });
-    } catch {
-      // best effort cleanup
-    }
+  const derBytes = forge.asn1.toDer(p7.toAsn1()).getBytes();
+  const result = new Uint8Array(derBytes.length);
+  for (let i = 0; i < derBytes.length; i++) {
+    result[i] = derBytes.charCodeAt(i);
   }
+  return result;
 }
 
 // ── Main handler ────────────────────────────────────────────────────

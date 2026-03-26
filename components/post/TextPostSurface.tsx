@@ -129,30 +129,32 @@ function TextPostSurfaceComponent({
             justifyContent: variant === "grid" ? "space-between" : "center",
           }}
         >
-          <View
-            style={{
-              alignSelf: "flex-start",
-              marginBottom: variant === "grid" ? 12 : 18,
-              paddingHorizontal: 10,
-              paddingVertical: 5,
-              borderRadius: 999,
-              backgroundColor: "rgba(255,255,255,0.08)",
-              borderWidth: 1,
-              borderColor: "rgba(255,255,255,0.08)",
-            }}
-          >
-            <Text
+          {variant !== "feed" && (
+            <View
               style={{
-                color: palette.textSecondary,
-                fontSize: 11,
-                fontWeight: "700",
-                letterSpacing: 0.8,
-                textTransform: "uppercase",
+                alignSelf: "flex-end",
+                marginBottom: variant === "grid" ? 12 : 18,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                borderRadius: 999,
+                backgroundColor: "rgba(255,255,255,0.08)",
+                borderWidth: 1,
+                borderColor: "rgba(255,255,255,0.08)",
               }}
             >
-              Text Post
-            </Text>
-          </View>
+              <Text
+                style={{
+                  color: palette.textSecondary,
+                  fontSize: 11,
+                  fontWeight: "700",
+                  letterSpacing: 0.8,
+                  textTransform: "uppercase",
+                }}
+              >
+                Text Post
+              </Text>
+            </View>
+          )}
 
           <HashtagText
             text={displayText}
@@ -173,9 +175,10 @@ function TextPostSurfaceComponent({
                 color: palette.textSecondary,
                 fontSize: 13,
                 fontWeight: "600",
+                textAlign: "center",
               }}
             >
-              Press through to reply, share, or react.
+              Let's connect, share and build community
             </Text>
           ) : (
             <View

@@ -1325,11 +1325,74 @@ function PostDetailScreenContent() {
                 paddingVertical: 18,
               }}
             >
-              <TextPostSurface
-                text={safePost?.caption || ""}
-                theme={safePost.textTheme}
-                variant="detail"
-              />
+              {Array.isArray(safePost.textSlides) &&
+              safePost.textSlides.length > 1 ? (
+                <View>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onScroll={(event) => {
+                      const slideW = SCREEN_WIDTH - 40;
+                      const idx = Math.round(
+                        event.nativeEvent.contentOffset.x / slideW,
+                      );
+                      setCurrentSlide(idx);
+                    }}
+                    scrollEventThrottle={16}
+                  >
+                    {safePost.textSlides.map(
+                      (
+                        slide: { id: string; content: string },
+                        index: number,
+                      ) => (
+                        <View
+                          key={slide.id || index}
+                          style={{ width: SCREEN_WIDTH - 40 }}
+                        >
+                          <TextPostSurface
+                            text={slide.content}
+                            theme={safePost.textTheme}
+                            variant="detail"
+                          />
+                        </View>
+                      ),
+                    )}
+                  </ScrollView>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "center",
+                      alignItems: "center",
+                      gap: 6,
+                      marginTop: 12,
+                    }}
+                    pointerEvents="none"
+                  >
+                    {safePost.textSlides.map((_: unknown, index: number) => (
+                      <View
+                        key={index}
+                        style={{
+                          width: index === currentSlide ? 12 : 6,
+                          height: 6,
+                          borderRadius: 3,
+                          opacity: index === currentSlide ? 1 : 0.5,
+                          backgroundColor:
+                            index === currentSlide
+                              ? "#3FDCFF"
+                              : "rgba(255,255,255,0.38)",
+                        }}
+                      />
+                    ))}
+                  </View>
+                </View>
+              ) : (
+                <TextPostSurface
+                  text={safePost?.caption || ""}
+                  theme={safePost.textTheme}
+                  variant="detail"
+                />
+              )}
               <PostDetailActionBar
                 variant="inline"
                 isLiked={isLiked}

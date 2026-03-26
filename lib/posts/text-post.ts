@@ -25,6 +25,16 @@ export const TEXT_POST_THEMES: Record<TextPostThemeKey, TextPostTheme> = {
     textPrimary: "#F8FAFC",
     textSecondary: "rgba(226,232,240,0.74)",
   },
+  deviant: {
+    key: "deviant",
+    label: "Deviant",
+    gradient: ["#1A0A2E", "#8A40CF", "#34A2DF"],
+    border: "rgba(255,91,252,0.22)",
+    accent: "#FF5BFC",
+    glow: "rgba(138,64,207,0.28)",
+    textPrimary: "#F8FAFC",
+    textSecondary: "rgba(63,220,255,0.82)",
+  },
   cobalt: {
     key: "cobalt",
     label: "Cobalt",
