@@ -16,7 +16,7 @@
  * glass treatment when available.
  */
 
-import type { ReactElement } from "react";
+import type { ReactElement, ReactNode } from "react";
 import { Dimensions } from "react-native";
 import TrueSheetNavigator from "@/components/navigation/true-sheet-navigator";
 
@@ -43,6 +43,10 @@ interface AppSheetProps {
   scrollable?: boolean;
   /** Fixed header element rendered above scrollable content */
   header?: ReactElement;
+  /** Optional route screen declarations */
+  children?: ReactNode;
+  /** Explicit base route for sheet navigator */
+  initialRouteName?: string;
 }
 
 export default function AppSheet({
@@ -50,9 +54,12 @@ export default function AppSheet({
   cornerRadius = DEFAULT_CORNER_RADIUS,
   scrollable = true,
   header,
+  children,
+  initialRouteName,
 }: AppSheetProps) {
   return (
     <TrueSheetNavigator
+      initialRouteName={initialRouteName}
       screenOptions={
         {
           detents,
@@ -64,7 +71,9 @@ export default function AppSheet({
           ...(header ? { header } : {}),
         } as any
       }
-    />
+    >
+      {children}
+    </TrueSheetNavigator>
   );
 }
 
@@ -74,28 +83,34 @@ export default function AppSheet({
 // We intentionally avoid setting custom background props here so the
 // native True Sheet liquid glass styling stays enabled where supported.
 
-const COMMENT_DETENTS = [0.4, 0.56, 0.7] as const;
+export const COMMENT_DETENTS = [0.42, 0.58, 0.75] as const;
 const COMMENT_MAX_FRACTION = COMMENT_DETENTS[COMMENT_DETENTS.length - 1];
 const COMMENT_MAX_HEIGHT = Math.round(SCREEN_HEIGHT * COMMENT_MAX_FRACTION);
 
 interface CommentSheetProps {
   /**
-   * Detents for the comment sheet. All numeric values are clamped to <= 0.7.
-   * Default: [0.4, 0.56, 0.7]
+   * Detents for the comment sheet. All numeric values are clamped to <= 0.75.
+   * Default: [0.42, 0.58, 0.75]
    */
   detents?: number[];
   /** Corner radius (default 16) */
   cornerRadius?: number;
   /** Fixed header element rendered above scrollable content */
   header?: ReactElement;
+  /** Optional route screen declarations */
+  children?: ReactNode;
+  /** Explicit base route for sheet navigator */
+  initialRouteName?: string;
 }
 
 export function CommentSheet({
   detents = [...COMMENT_DETENTS],
   cornerRadius = DEFAULT_CORNER_RADIUS,
   header,
+  children,
+  initialRouteName,
 }: CommentSheetProps) {
-  // Clamp all numeric detents to <= 0.7
+  // Clamp all numeric detents to <= 0.75
   const clampedDetents = [...new Set(detents.map((d) => Math.min(d, COMMENT_MAX_FRACTION)))].sort(
     (left, right) => left - right,
   );
@@ -105,6 +120,7 @@ export function CommentSheet({
 
   return (
     <TrueSheetNavigator
+      initialRouteName={initialRouteName}
       screenOptions={
         {
           detents: clampedDetents,
@@ -125,6 +141,8 @@ export function CommentSheet({
           ...(header ? { header } : {}),
         } as any
       }
-    />
+    >
+      {children}
+    </TrueSheetNavigator>
   );
 }
