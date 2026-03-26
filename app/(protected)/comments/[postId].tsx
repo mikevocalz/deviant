@@ -249,7 +249,9 @@ function CommentsScreenContent() {
 
   useSafeHeader(
     {
-      header: () => <SheetHeader title="Comments" onClose={() => router.back()} />,
+      header: () => (
+        <SheetHeader title="Comments" onClose={() => router.dismiss()} />
+      ),
       footer: (
         <CommentComposerFooter
           value={commentText}
@@ -325,7 +327,7 @@ export default function CommentsScreen() {
   const router = useRouter();
 
   return (
-    <ErrorBoundary screenName="Comments" onGoBack={() => router.back()}>
+    <ErrorBoundary screenName="Comments" onGoBack={() => router.dismiss()}>
       <CommentsScreenContent />
     </ErrorBoundary>
   );
