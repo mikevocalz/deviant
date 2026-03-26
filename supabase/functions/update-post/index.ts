@@ -30,6 +30,9 @@ function errorResponse(code: string, message: string): Response {
   return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
+const TEXT_POST_MAX_SLIDES = 6;
+const TEXT_POST_MAX_LENGTH = 2000;
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: corsHeaders });
@@ -76,6 +79,8 @@ Deno.serve(async (req) => {
     let body: {
       postId: number;
       content?: string;
+      textTheme?: "graphite" | "cobalt" | "ember" | "sage";
+      slides?: string[];
       location?: string;
       isNSFW?: boolean;
       media?: Array<{ order: number; url: string }>;
@@ -86,7 +91,8 @@ Deno.serve(async (req) => {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { postId, content, location, isNSFW, media } = body;
+    const { postId, content, textTheme, slides, location, isNSFW, media } =
+      body;
     if (!postId) return errorResponse("validation_error", "postId is required");
 
     const userData = await resolveOrProvisionUser(
@@ -99,7 +105,7 @@ Deno.serve(async (req) => {
     // Verify ownership
     const { data: post } = await supabaseAdmin
       .from("posts")
-      .select("author_id")
+      .select("author_id, post_kind")
       .eq("id", postId)
       .single();
     if (!post || post.author_id !== userData.id)
@@ -111,8 +117,43 @@ Deno.serve(async (req) => {
 
     const updateData: any = {};
     if (content !== undefined) updateData.content = content;
+    if (textTheme !== undefined) updateData.text_theme = textTheme;
     if (location !== undefined) updateData.location = location;
     if (isNSFW !== undefined) updateData.is_nsfw = isNSFW;
+
+    const normalizedSlides =
+      Array.isArray(slides) && post?.post_kind === "text"
+        ? slides
+            .map((slide) => (typeof slide === "string" ? slide.trim() : ""))
+            .filter((slide) => slide.length > 0)
+        : null;
+
+    if (normalizedSlides) {
+      if (normalizedSlides.length === 0) {
+        return errorResponse(
+          "validation_error",
+          "Text posts require at least one slide",
+          400,
+        );
+      }
+      if (normalizedSlides.length > TEXT_POST_MAX_SLIDES) {
+        return errorResponse(
+          "validation_error",
+          `Text posts support up to ${TEXT_POST_MAX_SLIDES} slides`,
+          400,
+        );
+      }
+      if (
+        normalizedSlides.some((slide) => slide.length > TEXT_POST_MAX_LENGTH)
+      ) {
+        return errorResponse(
+          "validation_error",
+          `Text post slides must be ${TEXT_POST_MAX_LENGTH} characters or fewer`,
+          400,
+        );
+      }
+      updateData.content = normalizedSlides[0];
+    }
 
     // Update post columns (if any)
     if (Object.keys(updateData).length > 0) {
@@ -122,6 +163,38 @@ Deno.serve(async (req) => {
         .eq("id", postId);
       if (error)
         return errorResponse("internal_error", "Failed to update post");
+    }
+
+    if (normalizedSlides) {
+      const { error: deleteSlidesError } = await supabaseAdmin
+        .from("post_text_slides")
+        .delete()
+        .eq("post_id", postId);
+      if (deleteSlidesError) {
+        console.error(
+          "[Edge:update-post] Slide cleanup error:",
+          deleteSlidesError,
+        );
+        return errorResponse("internal_error", "Failed to update text slides");
+      }
+
+      const { error: insertSlidesError } = await supabaseAdmin
+        .from("post_text_slides")
+        .insert(
+          normalizedSlides.map((slideContent, index) => ({
+            post_id: postId,
+            slide_index: index,
+            content: slideContent,
+          })),
+        );
+
+      if (insertSlidesError) {
+        console.error(
+          "[Edge:update-post] Slide insert error:",
+          insertSlidesError,
+        );
+        return errorResponse("internal_error", "Failed to update text slides");
+      }
     }
 
     // Update media URLs (e.g. after image rotation)

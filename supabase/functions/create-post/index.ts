@@ -41,13 +41,15 @@ interface CreatePostBody {
   content?: string;
   kind?: "media" | "text";
   textTheme?: "graphite" | "cobalt" | "ember" | "sage";
+  slides?: string[];
   location?: string;
   isNSFW?: boolean;
   visibility?: "public" | "followers" | "private";
   media?: MediaItem[];
 }
 
-const TEXT_POST_MAX_LENGTH = 500;
+const TEXT_POST_MAX_SLIDES = 6;
+const TEXT_POST_MAX_LENGTH = 2000;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -103,18 +105,32 @@ Deno.serve(async (req) => {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { content, kind, textTheme, location, isNSFW, visibility, media } =
-      body;
+    const {
+      content,
+      kind,
+      textTheme,
+      slides,
+      location,
+      isNSFW,
+      visibility,
+      media,
+    } = body;
     const postKind = kind === "text" ? "text" : "media";
     const normalizedTheme =
       textTheme && ["graphite", "cobalt", "ember", "sage"].includes(textTheme)
         ? textTheme
         : "graphite";
+    const normalizedSlides =
+      postKind === "text"
+        ? (Array.isArray(slides) && slides.length > 0
+            ? slides
+            : [content || ""]
+          )
+            .map((slide) => (typeof slide === "string" ? slide.trim() : ""))
+            .filter((slide) => slide.length > 0)
+        : [];
 
-    if (
-      postKind === "text" &&
-      (!content || typeof content !== "string" || content.trim().length === 0)
-    ) {
+    if (postKind === "text" && normalizedSlides.length === 0) {
       return errorResponse(
         "validation_error",
         "Text posts require content",
@@ -122,10 +138,17 @@ Deno.serve(async (req) => {
       );
     }
 
+    if (postKind === "text" && normalizedSlides.length > TEXT_POST_MAX_SLIDES) {
+      return errorResponse(
+        "validation_error",
+        `Text posts support up to ${TEXT_POST_MAX_SLIDES} slides`,
+        400,
+      );
+    }
+
     if (
       postKind === "text" &&
-      typeof content === "string" &&
-      content.trim().length > TEXT_POST_MAX_LENGTH
+      normalizedSlides.some((slide) => slide.length > TEXT_POST_MAX_LENGTH)
     ) {
       return errorResponse(
         "validation_error",
@@ -179,7 +202,10 @@ Deno.serve(async (req) => {
       .from("posts")
       .insert({
         author_id: userId,
-        content: content?.trim() || "",
+        content:
+          postKind === "text"
+            ? normalizedSlides[0] || ""
+            : content?.trim() || "",
         post_kind: postKind,
         text_theme: normalizedTheme,
         location: location || null,
@@ -197,6 +223,26 @@ Deno.serve(async (req) => {
     }
 
     console.log("[Edge:create-post] Post created:", post.id);
+
+    if (postKind === "text" && normalizedSlides.length > 0) {
+      const slideRows = normalizedSlides.map((slideContent, index) => ({
+        post_id: post.id,
+        slide_index: index,
+        content: slideContent,
+      }));
+
+      const { error: slidesError } = await supabaseAdmin
+        .from("post_text_slides")
+        .insert(slideRows);
+
+      if (slidesError) {
+        console.error("[Edge:create-post] Slides insert error:", slidesError);
+        return errorResponse(
+          "internal_error",
+          "Failed to store text post slides",
+        );
+      }
+    }
 
     // Insert media if provided
     if (media && media.length > 0) {
@@ -254,6 +300,7 @@ Deno.serve(async (req) => {
           location: post.location,
           kind: post.post_kind,
           textTheme: post.text_theme,
+          textSlideCount: postKind === "text" ? normalizedSlides.length : 0,
           isNSFW: post.is_nsfw,
           visibility: post.visibility,
           likesCount: 0,
