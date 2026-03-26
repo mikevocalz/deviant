@@ -704,6 +704,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         visible={mode === "sticker"}
         onDismiss={() => setMode("idle")}
         heightRatio={0.45}
+        visualStyle="glass"
       >
         <StickerPicker
           onSelectSticker={handleSelectSticker}

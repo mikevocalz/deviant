@@ -28,6 +28,7 @@ import {
   klipySearch,
   type KlipyItem,
 } from "@/src/stickers/api/klipy";
+import { GLASS_SURFACE, GLASS_TEXT_COLORS } from "@/lib/ui/glass";
 
 interface StickerPickerProps {
   onSelectSticker: (source: string) => void;
@@ -113,30 +114,129 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
     placeholderData: (previous) => previous,
   });
   const gifItems = gifQuery.data?.results ?? [];
+  const isGifFallback = gifQuery.data?.source === "fallback";
+  const gifFallbackCopy = useMemo(() => {
+    switch (gifQuery.data?.fallbackReason) {
+      case "restricted_key":
+        return "Klipy is returning 204 with the current key, so this tab is showing bundled animated reactions instead.";
+      case "missing_api_key":
+        return "No Klipy key is configured in this build, so this tab is using bundled animated reactions.";
+      case "request_failed":
+        return "Klipy search is temporarily unavailable, so this tab is using bundled animated reactions.";
+      default:
+        return "Showing bundled animated reactions while GIF search is unavailable.";
+    }
+  }, [gifQuery.data?.fallbackReason]);
 
   return (
     <View className="flex-1">
       {/* Header */}
-      <View className="flex-row justify-between items-center px-5 py-3">
-        <Text className="text-white text-xl font-bold">Stickers</Text>
-        <Pressable onPress={onClose}>
-          <Text className="text-blue-500 text-base font-semibold">Done</Text>
+      <View
+        className="flex-row justify-between items-center px-5 py-3"
+        style={{
+          borderBottomWidth: 1,
+          borderBottomColor: "rgba(255,255,255,0.08)",
+        }}
+      >
+        <View style={{ gap: 2 }}>
+          <Text
+            style={{
+              color: GLASS_TEXT_COLORS.primary,
+              fontSize: 22,
+              fontWeight: "700",
+            }}
+          >
+            Stickers
+          </Text>
+          <Text
+            style={{
+              color: GLASS_TEXT_COLORS.muted,
+              fontSize: 12,
+              fontWeight: "500",
+            }}
+          >
+            Add local packs, emoji, or GIF reactions
+          </Text>
+        </View>
+        <Pressable
+          onPress={onClose}
+          style={{
+            paddingHorizontal: 14,
+            paddingVertical: 8,
+            borderRadius: 999,
+            backgroundColor: "rgba(255,255,255,0.1)",
+            borderWidth: 1,
+            borderColor: GLASS_SURFACE.border,
+          }}
+        >
+          <Text
+            style={{
+              color: GLASS_TEXT_COLORS.primary,
+              fontSize: 14,
+              fontWeight: "700",
+            }}
+          >
+            Done
+          </Text>
         </Pressable>
       </View>
 
       {/* Search Bar */}
       <View className="px-5 mb-3">
-        <View className="flex-row items-center bg-neutral-800 rounded-xl px-4 py-2.5 gap-2">
-          <Search size={16} color="#8E8E93" strokeWidth={2} />
+        <View
+          className="flex-row items-center rounded-[18px] px-4 py-3 gap-2"
+          style={{
+            backgroundColor: "rgba(255,255,255,0.08)",
+            borderWidth: 1,
+            borderColor: GLASS_SURFACE.border,
+          }}
+        >
+          <Search size={16} color={GLASS_TEXT_COLORS.muted} strokeWidth={2} />
           <TextInput
-            className="flex-1 text-white text-[15px]"
+            className="flex-1 text-[15px]"
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder={isGifTab ? "Search GIFs..." : "Search stickers..."}
-            placeholderTextColor="#8E8E93"
+            placeholderTextColor={GLASS_TEXT_COLORS.muted}
+            style={{ color: GLASS_TEXT_COLORS.primary }}
           />
         </View>
       </View>
+
+      {isGifTab && isGifFallback && (
+        <View
+          style={{
+            marginHorizontal: 20,
+            marginBottom: 12,
+            paddingHorizontal: 14,
+            paddingVertical: 12,
+            borderRadius: 16,
+            backgroundColor: "rgba(255,255,255,0.08)",
+            borderWidth: 1,
+            borderColor: GLASS_SURFACE.border,
+            gap: 4,
+          }}
+        >
+          <Text
+            style={{
+              color: GLASS_TEXT_COLORS.primary,
+              fontSize: 13,
+              fontWeight: "700",
+            }}
+          >
+            Animated emoji fallback
+          </Text>
+          <Text
+            style={{
+              color: GLASS_TEXT_COLORS.secondary,
+              fontSize: 12,
+              lineHeight: 18,
+            }}
+          >
+            {gifFallbackCopy}
+          </Text>
+        </View>
+      )}
 
       {/* Tab Selector — compact 36dp height, horizontally scrollable */}
       <View style={{ height: 36, marginBottom: 10 }}>
@@ -154,18 +254,28 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             return (
               <Pressable
                 key={tab.id}
-                className={`flex-row items-center h-[30px] px-3 rounded-full gap-1 ${
-                  isActive ? "bg-blue-500" : "bg-neutral-800"
-                }`}
+                className="flex-row items-center h-[30px] px-3 rounded-full gap-1"
+                style={{
+                  backgroundColor: isActive
+                    ? "rgba(255,255,255,0.18)"
+                    : "rgba(255,255,255,0.08)",
+                  borderWidth: 1,
+                  borderColor: isActive
+                    ? "rgba(255,255,255,0.18)"
+                    : GLASS_SURFACE.border,
+                }}
                 onPress={() => setActiveTab(tab.id)}
               >
                 {tab.icon ? (
                   <Text className="text-[13px]">{tab.icon}</Text>
                 ) : null}
                 <Text
-                  className={`text-xs font-semibold ${
-                    isActive ? "text-white" : "text-neutral-400"
-                  }`}
+                  className="text-xs font-semibold"
+                  style={{
+                    color: isActive
+                      ? GLASS_TEXT_COLORS.primary
+                      : GLASS_TEXT_COLORS.secondary,
+                  }}
                   numberOfLines={1}
                 >
                   {tab.label}
@@ -283,28 +393,47 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             ListEmptyComponent={
               gifQuery.isError ? (
                 <View className="flex-1 justify-center items-center gap-2 pt-12">
-                  <Text className="text-neutral-300 text-base font-semibold">
+                  <Text
+                    className="text-base font-semibold"
+                    style={{ color: GLASS_TEXT_COLORS.primary }}
+                  >
                     GIF search is unavailable right now
                   </Text>
-                  <Text className="text-neutral-500 text-xs text-center px-8">
+                  <Text
+                    className="text-xs text-center px-8"
+                    style={{ color: GLASS_TEXT_COLORS.muted }}
+                  >
                     {"Klipy didn't return results. Try again in a moment."}
                   </Text>
                 </View>
               ) : (
                 <View className="flex-1 justify-center items-center gap-2 pt-12">
-                  <Text className="text-neutral-300 text-base font-semibold">
-                    No GIFs found
+                  <Text
+                    className="text-base font-semibold"
+                    style={{ color: GLASS_TEXT_COLORS.primary }}
+                  >
+                    {isGifFallback ? "No fallback GIFs found" : "No GIFs found"}
                   </Text>
-                  <Text className="text-neutral-500 text-xs text-center px-8">
-                    Try another search term.
+                  <Text
+                    className="text-xs text-center px-8"
+                    style={{ color: GLASS_TEXT_COLORS.muted }}
+                  >
+                    {isGifFallback
+                      ? "Try happy, party, fire, love, wow, or dance."
+                      : "Try another search term."}
                   </Text>
                 </View>
               )
             }
             ListFooterComponent={
               <View className="pb-10 pt-4 items-center">
-                <Text className="text-neutral-500 text-[11px] font-medium">
-                  Powered by Klipy
+                <Text
+                  className="text-[11px] font-medium"
+                  style={{ color: GLASS_TEXT_COLORS.muted }}
+                >
+                  {isGifFallback
+                    ? "Bundled animated reactions"
+                    : "Powered by Klipy"}
                 </Text>
               </View>
             }
@@ -324,7 +453,9 @@ const GifSkeletonItem = ({ width }: { width: number }) => (
       width,
       height: width * 1.2,
       borderRadius: 18,
-      backgroundColor: "rgba(255,255,255,0.06)",
+      backgroundColor: "rgba(255,255,255,0.08)",
+      borderWidth: 1,
+      borderColor: GLASS_SURFACE.border,
       marginBottom: 10,
     }}
   />
@@ -354,9 +485,9 @@ const GifGridItem = ({
           height: width * 1.2,
           borderRadius: 18,
           overflow: "hidden",
-          backgroundColor: "rgba(255,255,255,0.05)",
+          backgroundColor: "rgba(255,255,255,0.08)",
           borderWidth: 1,
-          borderColor: "rgba(255,255,255,0.08)",
+          borderColor: GLASS_SURFACE.border,
         }}
       >
         <Image
@@ -368,7 +499,8 @@ const GifGridItem = ({
         />
       </View>
       <Text
-        className="text-neutral-400 text-[11px] font-semibold mt-1"
+        className="text-[11px] font-semibold mt-1"
+        style={{ color: GLASS_TEXT_COLORS.secondary }}
         numberOfLines={1}
       >
         {item.title || item.content_description || "GIF"}
