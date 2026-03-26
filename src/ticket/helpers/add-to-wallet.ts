@@ -14,6 +14,7 @@ import { Platform } from "react-native";
 import * as Linking from "expo-linking";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import { Buffer } from "buffer";
 import { supabase } from "@/lib/supabase/client";
 import { authClient } from "@/lib/auth-client";
 import type { Ticket } from "@/lib/stores/ticket-store";
@@ -111,12 +112,20 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
       },
     );
 
-    // Check for JSON error responses
-    const contentType = response.headers.get("Content-Type") || "";
+    const contentType =
+      response.headers.get("Content-Type") ||
+      response.headers.get("content-type") ||
+      "";
+
     if (contentType.includes("application/json")) {
-      const json = await response.json();
-      const code = json?.error?.code || "server_error";
-      const message = json?.error?.message || "Failed to generate pass";
+      const raw = await response.text();
+      let json: any = null;
+      try {
+        json = JSON.parse(raw);
+      } catch {
+        json = null;
+      }
+      const code = json?.error?.code || `http_${response.status}`;
       return { success: false, error: code };
     }
 
@@ -124,38 +133,30 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
       return { success: false, error: `http_${response.status}` };
     }
 
-    // Write .pkpass binary to temp file
-    const blob = await response.blob();
-    const reader = new FileReader();
-    const base64Data = await new Promise<string>((resolve, reject) => {
-      reader.onload = () => {
-        const result = reader.result as string;
-        // Strip data URL prefix: "data:application/...;base64,"
-        const base64 = result.split(",")[1];
-        resolve(base64);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(blob);
-    });
+    const tmpPath = `${LegacyFileSystem.cacheDirectory}ticket_${ticket.id}-${Date.now()}.pkpass`;
+    const arrayBuffer = await response.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
 
-    const tmpPath = `${LegacyFileSystem.cacheDirectory}ticket_${ticket.id}.pkpass`;
     await LegacyFileSystem.writeAsStringAsync(tmpPath, base64Data, {
       encoding: LegacyFileSystem.EncodingType.Base64,
     });
 
-    // Open .pkpass — iOS shows the native "Add to Apple Wallet" sheet
-    const canShare = await Sharing.isAvailableAsync();
-    if (canShare) {
+    const fileUri = tmpPath.startsWith("file://")
+      ? tmpPath
+      : `file://${tmpPath}`;
+
+    try {
+      await Linking.openURL(fileUri);
+    } catch (openError) {
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        throw openError;
+      }
+
       await Sharing.shareAsync(tmpPath, {
         mimeType: "application/vnd.apple.pkpass",
         UTI: "com.apple.pkpass",
       });
-    } else {
-      // Fallback: try opening the file URL directly
-      const fileUri = tmpPath.startsWith("file://")
-        ? tmpPath
-        : `file://${tmpPath}`;
-      await Linking.openURL(fileUri);
     }
 
     return { success: true };

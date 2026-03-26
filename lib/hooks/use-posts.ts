@@ -112,9 +112,11 @@ export function usePost(id: string) {
 
   return useQuery({
     queryKey: postKeys.detail(id),
-    queryFn: () => {
+    queryFn: async () => {
       if (__DEV__) console.log("[usePost] Fetching post:", id);
-      return postsApi.getPostById(id);
+      const cachedSnapshot = findCachedPostSnapshot(queryClient, id);
+      const fetchedPost = await postsApi.getPostById(id);
+      return fetchedPost ?? cachedSnapshot ?? null;
     },
     // STRICT VALIDATION: Only enable query if ID is valid format (numeric or UUID)
     // This prevents queries with "undefined", "null", empty strings, etc.

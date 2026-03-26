@@ -39,8 +39,32 @@ function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
   const author = dbPost.author || {};
   const postKind =
     dbPost?.[DB.posts.postKind] === "text" ? "text" : ("media" as const);
-  const textSlides = normalizeTextPostSlides(
+  const rawSlides = Array.isArray(
     dbPost.post_text_slides || dbPost.textSlides || dbPost.slides,
+  )
+    ? (dbPost.post_text_slides || dbPost.textSlides || dbPost.slides).map(
+        (slide: any, index: number) => ({
+          id:
+            slide?.[DB.postTextSlides.id] ||
+            slide?.id ||
+            `${dbPost?.[DB.posts.id] || "post"}-slide-${index}`,
+          order:
+            typeof slide?.order === "number"
+              ? slide.order
+              : typeof slide?.[DB.postTextSlides.slideIndex] === "number"
+                ? slide[DB.postTextSlides.slideIndex]
+                : index,
+          content:
+            typeof slide?.content === "string"
+              ? slide.content
+              : typeof slide?.[DB.postTextSlides.content] === "string"
+                ? slide[DB.postTextSlides.content]
+                : "",
+        }),
+      )
+    : [];
+  const textSlides = normalizeTextPostSlides(
+    rawSlides,
     dbPost[DB.posts.content],
   );
   const textSlideCount = textSlides.length;
@@ -230,24 +254,51 @@ export const postsApi = {
             ${DB.postsMedia.order},
             ${DB.postsMedia.mimeType},
             ${DB.postsMedia.livePhotoVideoUrl}
-          ),
-          post_text_slides(
-            ${DB.postTextSlides.id},
-            ${DB.postTextSlides.slideIndex},
-            ${DB.postTextSlides.content}
           )
         `,
         )
         .eq(DB.posts.id, id)
-        .single();
+        .maybeSingle();
 
       if (error) {
         console.error("[Posts] getPostById error:", error);
+        throw error;
+      }
+
+      if (!data) {
         return null;
       }
 
+      let enrichedPost = data;
+
+      if (data?.[DB.posts.postKind] === "text") {
+        const { data: slides, error: slidesError } = await supabase
+          .from(DB.postTextSlides.table)
+          .select(
+            `
+            ${DB.postTextSlides.id},
+            ${DB.postTextSlides.slideIndex},
+            ${DB.postTextSlides.content}
+          `,
+          )
+          .eq(DB.postTextSlides.postId, id)
+          .order(DB.postTextSlides.slideIndex, { ascending: true });
+
+        if (slidesError) {
+          console.error("[Posts] getPostById slides error:", slidesError);
+        } else {
+          enrichedPost = {
+            ...data,
+            post_text_slides: slides || [],
+          };
+        }
+      }
+
       const likedSet = await fetchViewerLikedPostIds([Number(id)]);
-      return transformPost(data, likedSet.has(String(data[DB.posts.id])));
+      return transformPost(
+        enrichedPost,
+        likedSet.has(String(enrichedPost[DB.posts.id])),
+      );
     } catch (error) {
       console.error("[Posts] getPostById error:", error);
       return null;

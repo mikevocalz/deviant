@@ -407,7 +407,6 @@ async function signManifest(
         wwdrPath,
         "-outform",
         "DER",
-        "-nodetach",
       ],
       stdout: "piped",
       stderr: "piped",
