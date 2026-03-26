@@ -35,7 +35,10 @@ async function fetchViewerLikedPostIds(
 /**
  * Transform database post to app Post type
  */
-function transformPost(dbPost: any, viewerHasLiked: boolean = false): Post {
+export function transformPost(
+  dbPost: any,
+  viewerHasLiked: boolean = false,
+): Post {
   const author = dbPost.author || {};
   const postKind =
     dbPost?.[DB.posts.postKind] === "text" ? "text" : ("media" as const);

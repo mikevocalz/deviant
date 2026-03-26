@@ -39,7 +39,6 @@ import {
   useLikesSheet,
   fireLikesTap,
 } from "@/src/features/likes/LikesSheetController";
-import { CommentsSheet } from "@/components/comments-sheet";
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { ShareToInboxSheet } from "@/components/share-to-inbox-sheet";
 import { useRouter } from "expo-router";
@@ -231,14 +230,10 @@ export function Feed() {
   // ── Lifted sheets (rendered outside FlatList to avoid cell clipping) ──
   const actionSheetPostId = useFeedPostUIStore((s) => s.actionSheetPostId);
   const shareSheetPostId = useFeedPostUIStore((s) => s.shareSheetPostId);
-  const commentsSheetPostId = useFeedPostUIStore((s) => s.commentsSheetPostId);
   const setActionSheetPostId = useFeedPostUIStore(
     (s) => s.setActionSheetPostId,
   );
   const setShareSheetPostId = useFeedPostUIStore((s) => s.setShareSheetPostId);
-  const setCommentsSheetPostId = useFeedPostUIStore(
-    (s) => s.setCommentsSheetPostId,
-  );
 
   // Perf: Bootstrap hydrates the TanStack cache BEFORE individual queries run.
   // When perf_bootstrap_feed flag is ON, a single edge function call populates
@@ -634,12 +629,6 @@ export function Feed() {
       />
 
       {/* Sheets lifted from FeedPost — rendered outside FlatList so they aren't clipped by cell boundaries */}
-      <CommentsSheet
-        visible={!!commentsSheetPostId}
-        onClose={() => setCommentsSheetPostId(null)}
-        postId={commentsSheetPostId}
-      />
-
       <PostActionSheet
         visible={!!actionSheetPostId}
         onClose={() => setActionSheetPostId(null)}

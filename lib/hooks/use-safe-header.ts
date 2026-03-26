@@ -13,6 +13,26 @@ import { useLayoutEffect, useRef } from "react";
 import { useNavigation } from "expo-router";
 import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
 
+function serializeOptions(value: unknown): string {
+  try {
+    return JSON.stringify(value, (_key, nestedValue) => {
+      if (typeof nestedValue === "function") {
+        return "__function__";
+      }
+      if (
+        nestedValue &&
+        typeof nestedValue === "object" &&
+        "$$typeof" in (nestedValue as Record<string, unknown>)
+      ) {
+        return "__react_element__";
+      }
+      return nestedValue;
+    });
+  } catch {
+    return "__non_serializable__";
+  }
+}
+
 /**
  * Safely update navigation header options without causing loops.
  * 
@@ -26,7 +46,16 @@ import type { NativeStackNavigationOptions } from "@react-navigation/native-stac
  * useSafeHeader({ headerTitle: title });
  */
 export function useSafeHeader(
-  options: Partial<NativeStackNavigationOptions>,
+  options: Partial<
+    NativeStackNavigationOptions & {
+      footer?: unknown;
+      detents?: unknown;
+      detentIndex?: number;
+      maxHeight?: number;
+      scrollable?: boolean;
+      dimmed?: boolean;
+    }
+  >,
   deps: readonly unknown[] = []
 ): void {
   const navigation = useNavigation();
@@ -35,7 +64,7 @@ export function useSafeHeader(
 
   useLayoutEffect(() => {
     // Serialize options to detect changes
-    const optionsKey = JSON.stringify(options);
+    const optionsKey = serializeOptions(options);
     const depsUnchanged =
       lastDepsRef.current.length === deps.length &&
       deps.every((dep, index) => Object.is(dep, lastDepsRef.current[index]));

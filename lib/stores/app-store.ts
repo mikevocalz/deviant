@@ -21,6 +21,7 @@ interface AppState {
   setSplashAnimationFinished: (finished: boolean) => void;
   onAnimationFinish: (isCancelled: boolean) => void;
   setNsfwEnabled: (enabled: boolean) => void;
+  toggleNsfwEnabled: () => boolean;
   setFeedMode: (mode: FeedMode) => void;
   loadNsfwSetting: () => Promise<void>;
   setPendingNotificationRoute: (route: string | null) => void;
@@ -91,12 +92,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     return route;
   },
   setNsfwEnabled: (enabled) => {
-    set({ nsfwEnabled: enabled });
+    set({ nsfwEnabled: enabled, nsfwLoaded: true });
     try {
       mmkv.set(NSFW_STORAGE_KEY, JSON.stringify(enabled));
     } catch (error) {
       console.log("Error saving NSFW setting:", error);
     }
+  },
+  toggleNsfwEnabled: () => {
+    const nextEnabled = !get().nsfwEnabled;
+    get().setNsfwEnabled(nextEnabled);
+    return nextEnabled;
   },
   setFeedMode: (mode) => {
     set({ feedMode: mode });

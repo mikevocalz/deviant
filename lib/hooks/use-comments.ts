@@ -1,5 +1,5 @@
 /**
- * React Query hooks for comments
+ * React Query hooks for deterministic 2-level comment threads.
  */
 
 import {
@@ -15,122 +15,80 @@ import { postKeys } from "@/lib/hooks/use-posts";
 import { usePostStore } from "@/lib/stores/post-store";
 import { Image } from "expo-image";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
+import {
+  countCommentsTree,
+  findCommentThread,
+  insertCommentIntoThreads,
+} from "@/lib/comments/threading";
 
-// Query keys
+export type CommentThread = {
+  parentComment: Comment;
+  replies: Comment[];
+};
+
 export const commentKeys = {
   all: ["comments"] as const,
   byPost: (postId: string) => [...commentKeys.all, "post", postId] as const,
-  byParent: (parentId: string) =>
-    [...commentKeys.all, "parent", parentId] as const,
+  thread: (postId: string, rootCommentId: string) =>
+    [...commentKeys.all, "thread", postId, rootCommentId] as const,
 };
 
-function countCommentsTree(comments: Comment[] = []): number {
-  return comments.reduce(
-    (total, comment) => total + 1 + countCommentsTree(comment.replies || []),
-    0,
-  );
-}
+function findCachedThread(
+  queryClient: QueryClient,
+  postId: string,
+  rootCommentId: string,
+): CommentThread | null {
+  const cachedThread = queryClient.getQueriesData<CommentThread>({
+    queryKey: commentKeys.thread(postId, rootCommentId),
+  });
 
-function findCommentMeta(
-  comments: Comment[],
-  targetId: string,
-  inheritedRootId: string | null = null,
-): { depth: number; rootId: string | null } | null {
-  for (const comment of comments) {
-    const currentRootId = inheritedRootId ?? comment.rootId ?? comment.id;
-    if (comment.id === targetId) {
-      return {
-        depth: typeof comment.depth === "number" ? comment.depth : 0,
-        rootId: currentRootId,
-      };
-    }
-    const nested = findCommentMeta(
-      comment.replies || [],
-      targetId,
-      currentRootId,
-    );
-    if (nested) return nested;
+  for (const [, data] of cachedThread) {
+    if (data?.parentComment) return data;
   }
+
+  const candidates = [50, 3, "all"] as const;
+  for (const limit of candidates) {
+    const cached = queryClient.getQueryData<Comment[]>([
+      ...commentKeys.byPost(postId),
+      limit,
+    ]);
+    if (!Array.isArray(cached) || cached.length === 0) continue;
+    const thread = findCommentThread(cached, rootCommentId);
+    if (thread) return thread;
+  }
+
   return null;
 }
 
-function findCommentById(
-  comments: Comment[],
-  targetId: string,
-): Comment | undefined {
-  for (const comment of comments) {
-    if (comment.id === targetId) return comment;
-    const nested = findCommentById(comment.replies || [], targetId);
-    if (nested) return nested;
-  }
-  return undefined;
-}
-
-function insertCommentIntoTree(
-  comments: Comment[],
-  parentId: string | undefined,
-  optimisticComment: Comment,
-): Comment[] {
-  if (!parentId) {
-    return [optimisticComment, ...comments];
-  }
-
-  return comments.map((comment) => {
-    if (comment.id === parentId) {
-      return {
-        ...comment,
-        replies: [...(comment.replies || []), optimisticComment],
-      };
-    }
-
-    if (comment.replies?.length) {
-      return {
-        ...comment,
-        replies: insertCommentIntoTree(
-          comment.replies,
-          parentId,
-          optimisticComment,
-        ),
-      };
-    }
-
-    return comment;
-  });
-}
-
-// Fetch comments for a post
 export function useComments(postId: string, limit?: number) {
   const queryClient = useQueryClient();
+
   return useQuery({
     queryKey: [...commentKeys.byPost(postId), limit || "all"],
     staleTime: STALE_TIMES.comments,
     gcTime: GC_TIMES.short,
-    // Show any cached comments for this post instantly (e.g. feed's 3-comment preview)
-    // while the full fetch loads in the background — eliminates loading spinner
-    placeholderData: (): any => {
+    placeholderData: (): Comment[] | undefined => {
       if (!postId) return undefined;
       const candidates = [50, 3, "all"] as const;
-      for (const l of candidates) {
-        if (l === (limit || "all")) continue;
-        const cached = queryClient.getQueryData([
+      for (const candidate of candidates) {
+        if (candidate === (limit || "all")) continue;
+        const cached = queryClient.getQueryData<Comment[]>([
           ...commentKeys.byPost(postId),
-          l,
+          candidate,
         ]);
-        if (Array.isArray(cached) && cached.length > 0) return cached;
+        if (Array.isArray(cached) && cached.length > 0) {
+          return cached;
+        }
       }
       return undefined;
     },
     queryFn: async () => {
       try {
         const comments = await commentsApiClient.getComments(postId, limit);
-        // Update comment count in store when comments are fetched
-        // For limited fetches, only update if we got the full count (limit reached)
-        // For unlimited fetches, always update
         const { postCommentCounts } = usePostStore.getState();
         const currentCount = postCommentCounts[postId];
 
         if (!limit || limit >= 50) {
-          // Full fetch - update count
           const totalComments = countCommentsTree(comments);
           if (currentCount === undefined || totalComments !== currentCount) {
             usePostStore.setState({
@@ -145,7 +103,6 @@ export function useComments(postId: string, limit?: number) {
           comments.length >= limit &&
           currentCount === undefined
         ) {
-          // Limited fetch reached limit - set minimum count
           usePostStore.setState({
             postCommentCounts: {
               ...postCommentCounts,
@@ -153,10 +110,11 @@ export function useComments(postId: string, limit?: number) {
             },
           });
         }
-        // Prefetch avatar images so they appear instantly when comments render
+
         const avatarUrls = comments
-          .map((c) => c.avatar)
+          .flatMap((comment) => [comment.avatar, ...(comment.replies || []).map((reply) => reply.avatar)])
           .filter((url): url is string => !!url && url.startsWith("http"));
+
         if (avatarUrls.length > 0) {
           Image.prefetch(avatarUrls).catch(() => {});
         }
@@ -164,14 +122,13 @@ export function useComments(postId: string, limit?: number) {
         return comments;
       } catch (error) {
         console.error("[useComments] Error fetching comments:", error);
-        return []; // Return empty array on error to prevent crash
+        return [];
       }
     },
     enabled: !!postId,
   });
 }
 
-/** Prefetch comments for a post before navigating — eliminates loading state. */
 export function prefetchComments(
   queryClient: QueryClient,
   postId: string,
@@ -185,7 +142,6 @@ export function prefetchComments(
   });
 }
 
-/** Hook that returns prefetch fn for use in Pressable onPress. */
 export function usePrefetchComments() {
   const queryClient = useQueryClient();
   return useCallback(
@@ -194,158 +150,155 @@ export function usePrefetchComments() {
   );
 }
 
-// Create comment mutation with optimistic updates
+export function useCommentThread(
+  postId: string,
+  rootCommentId: string,
+  limit?: number,
+) {
+  const queryClient = useQueryClient();
+
+  return useQuery({
+    queryKey: [...commentKeys.thread(postId, rootCommentId), limit || "all"],
+    placeholderData: (): CommentThread | undefined => {
+      if (!postId || !rootCommentId) return undefined;
+      return findCachedThread(queryClient, postId, rootCommentId) || undefined;
+    },
+    queryFn: async () => {
+      const thread = await commentsApiClient.getCommentThread(
+        postId,
+        rootCommentId,
+        limit,
+      );
+      return thread;
+    },
+    enabled: !!postId && !!rootCommentId,
+  });
+}
+
 export function useCreateComment() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: commentsApiClient.createComment,
-    // Optimistic update: show comment immediately
     onMutate: async (newComment) => {
-      // Cancel any outgoing refetches (including limited queries)
       await queryClient.cancelQueries({
         queryKey: commentKeys.byPost(newComment.post),
       });
 
-      // Snapshot the previous value for all comment queries (including limited ones)
-      const previousQueries = queryClient.getQueriesData({
+      if (newComment.parent) {
+        await queryClient.cancelQueries({
+          queryKey: commentKeys.thread(newComment.post, newComment.parent),
+        });
+      }
+
+      const previousQueries = queryClient.getQueriesData<Comment[]>({
         queryKey: commentKeys.byPost(newComment.post),
       });
-      const previousReplyQueries = newComment.parent
-        ? queryClient.getQueriesData({
-            queryKey: commentKeys.byParent(newComment.parent),
+      const previousThreadQueries = newComment.parent
+        ? queryClient.getQueriesData<CommentThread>({
+            queryKey: commentKeys.thread(newComment.post, newComment.parent),
           })
         : [];
 
-      // Get current comment count for rollback
       const store = usePostStore.getState();
       const previousCount = store.getCommentCount(newComment.post, 0);
-
-      // Optimistically increment comment count
       store.setCommentCount(newComment.post, previousCount + 1);
 
-      // Optimistically add the new comment
-      const parentMeta = newComment.parent
-        ? previousQueries.reduce<{
-            depth: number;
-            rootId: string | null;
-          } | null>(
-            (found, [, data]) =>
-              found ||
-              (Array.isArray(data)
-                ? findCommentMeta(data, newComment.parent as string)
-                : null),
-            null,
-          )
-        : null;
+      const createdAt = new Date().toISOString();
       const optimisticComment: Comment = {
         id: `temp-${Date.now()}`,
         username: newComment.authorUsername || "You",
         avatar: "",
         text: newComment.text,
         timeAgo: "Just now",
+        createdAt,
         likes: 0,
         postId: newComment.post,
         parentId: newComment.parent || null,
-        rootId: parentMeta?.rootId || null,
-        depth: newComment.parent ? (parentMeta?.depth || 0) + 1 : 0,
+        rootId: newComment.parent || null,
+        depth: newComment.parent ? 1 : 0,
         replies: [],
       };
 
-      // Update ALL comment queries for this post (including limited queries like limit: 3)
       queryClient.setQueriesData<Comment[]>(
         { queryKey: commentKeys.byPost(newComment.post) },
         (old) => {
           if (!old) return [optimisticComment];
-          return insertCommentIntoTree(
-            old,
-            newComment.parent,
-            optimisticComment,
-          );
+          return insertCommentIntoThreads(old, optimisticComment);
         },
       );
 
       if (newComment.parent) {
-        queryClient.setQueriesData<Comment[]>(
-          { queryKey: commentKeys.byParent(newComment.parent) },
-          (old) => [...(old || []), optimisticComment],
+        const fallbackThread =
+          previousThreadQueries.find(([, data]) => !!data?.parentComment)?.[1] ||
+          previousQueries.reduce<CommentThread | null>(
+            (thread, [, data]) =>
+              thread || (Array.isArray(data)
+                ? findCommentThread(data, newComment.parent as string)
+                : null),
+            null,
+          );
+
+        queryClient.setQueriesData<CommentThread | null>(
+          { queryKey: commentKeys.thread(newComment.post, newComment.parent) },
+          (old) => {
+            const baseThread = old?.parentComment ? old : fallbackThread;
+            if (!baseThread?.parentComment) return old;
+            const nextReplies = [...(baseThread.replies || []), optimisticComment];
+            return {
+              parentComment: {
+                ...baseThread.parentComment,
+                replies: nextReplies,
+              },
+              replies: nextReplies,
+            };
+          },
         );
       }
 
-      return { previousQueries, previousReplyQueries };
+      return { previousQueries, previousThreadQueries, previousCount };
     },
-    onError: (err, newComment, context) => {
-      // Roll back on error - restore all previous query states
-      if (context?.previousQueries) {
-        context.previousQueries.forEach(([queryKey, data]) => {
-          queryClient.setQueryData(queryKey, data);
-        });
-      }
-      if (context?.previousReplyQueries) {
-        context.previousReplyQueries.forEach(([queryKey, data]) => {
-          queryClient.setQueryData(queryKey, data);
-        });
-      }
-      // Rollback comment count increment
-      const store = usePostStore.getState();
-      const currentCount = store.getCommentCount(newComment.post, 0);
-      if (currentCount > 0) {
-        store.setCommentCount(newComment.post, currentCount - 1);
+    onError: (_error, newComment, context) => {
+      context?.previousQueries?.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+      context?.previousThreadQueries?.forEach(([queryKey, data]) => {
+        queryClient.setQueryData(queryKey, data);
+      });
+
+      if (typeof context?.previousCount === "number") {
+        usePostStore.getState().setCommentCount(newComment.post, context.previousCount);
       }
     },
     onSettled: (_, __, variables) => {
-      // Always refetch after mutation settles to get real data
-      // This invalidates ALL comment queries for this post (including limited ones)
       queryClient.invalidateQueries({
         queryKey: commentKeys.byPost(variables.post),
-        refetchType: "active", // Only refetch active queries (ones currently being used)
+        refetchType: "active",
       });
-      // Also invalidate the post data so comment count updates in feed/post details
+
+      if (variables.parent) {
+        queryClient.invalidateQueries({
+          queryKey: commentKeys.thread(variables.post, variables.parent),
+          refetchType: "active",
+        });
+      }
+
       queryClient.invalidateQueries({
         queryKey: postKeys.detail(variables.post),
       });
       queryClient.invalidateQueries({
         queryKey: postKeys.all,
       });
-      if (variables.parent) {
-        queryClient.invalidateQueries({
-          queryKey: commentKeys.byParent(variables.parent),
-          refetchType: "active",
-        });
-      }
     },
   });
 }
 
-// Fetch replies to a comment
 export function useReplies(parentId: string, postId: string, limit?: number) {
-  const queryClient = useQueryClient();
-  return useQuery({
-    queryKey: [...commentKeys.byParent(parentId), postId, limit || "all"],
-    placeholderData: (): Comment[] | undefined => {
-      if (!parentId || !postId) return undefined;
-      const candidates = [50, 3, "all"] as const;
-      for (const l of candidates) {
-        const cached = queryClient.getQueryData<Comment[]>([
-          ...commentKeys.byPost(postId),
-          l,
-        ]);
-        if (!Array.isArray(cached) || cached.length === 0) continue;
-        const parent = findCommentById(cached, parentId);
-        if (parent?.replies?.length) return parent.replies;
-      }
-      return undefined;
-    },
-    queryFn: async () => {
-      const replies = await commentsApiClient.getReplies(
-        parentId,
-        postId,
-        limit,
-      );
-      return replies;
-    },
-    enabled: !!parentId && !!postId,
-  });
+  const thread = useCommentThread(postId, parentId, limit);
+  return {
+    ...thread,
+    data: thread.data?.replies || [],
+  };
 }
 
 export type { Comment };

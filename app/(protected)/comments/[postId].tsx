@@ -1,604 +1,324 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
-  Pressable,
+  FlatList,
   ActivityIndicator,
-  Platform,
-  ScrollView,
-  TextInput as RNTextInput,
-  Dimensions,
+  TextInput,
 } from "react-native";
-import {
-  KeyboardController,
-  KeyboardEvents,
-  KeyboardProvider,
-  KeyboardAvoidingView,
-} from "react-native-keyboard-controller";
-import { BlurView } from "expo-blur";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { useQuery } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { SheetHeader } from "@/components/ui/sheet-header";
-import { X, Send } from "lucide-react-native";
-import { useEffect, useCallback, useMemo, useRef, useState } from "react";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useCommentsStore } from "@/lib/stores/comments-store";
-import { useAuthStore } from "@/lib/stores/auth-store";
+import { ThreadedComment, type CommentData } from "@/components/comments/threaded-comment";
+import { CommentComposerFooter } from "@/components/comments/comment-composer-footer";
 import { useComments, useCreateComment } from "@/lib/hooks/use-comments";
-import { useColorScheme } from "@/lib/hooks";
+import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { Image } from "expo-image";
-import {
-  ThreadedComment,
-  type CommentData,
-} from "@/components/comments/threaded-comment";
 import { usersApi } from "@/lib/api/users";
-import { useQuery } from "@tanstack/react-query";
+import { useSafeHeader } from "@/lib/hooks/use-safe-header";
+import type { Comment } from "@/lib/types";
 
-// Generate unique client mutation ID for idempotency
-function generateMutationId(): string {
-  return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-}
-
-function mapCommentTree(comment: any): CommentData {
+function mapCommentTree(comment: Comment): CommentData {
   return {
     id: comment.id,
     username: comment.username,
     avatar: comment.avatar,
     text: comment.text,
     timeAgo: comment.timeAgo,
+    createdAt: comment.createdAt,
     likes: comment.likes,
     hasLiked: comment.hasLiked,
     depth: comment.depth,
     parentId: comment.parentId,
     rootId: comment.rootId,
     replies: Array.isArray(comment.replies)
-      ? comment.replies
-          .filter(
-            (reply: any) => reply && reply.id && reply.username && reply.text,
-          )
-          .map(mapCommentTree)
+      ? comment.replies.map((reply) => ({ ...mapCommentTree(reply), replies: [] }))
       : [],
   };
 }
 
 function collectCommenters(
-  comments: any[],
+  comments: Comment[],
   currentUsername?: string,
-  acc: { username: string; avatar?: string }[] = [],
-  seen = new Set<string>(),
-) {
-  for (const comment of comments) {
-    if (
-      comment?.username &&
-      !seen.has(comment.username) &&
-      comment.username !== currentUsername
-    ) {
-      seen.add(comment.username);
-      acc.push({ username: comment.username, avatar: comment.avatar });
-    }
-    if (Array.isArray(comment?.replies)) {
-      collectCommenters(comment.replies, currentUsername, acc, seen);
-    }
-  }
-  return acc;
+): Array<{ username: string; avatar?: string }> {
+  const seen = new Set<string>();
+  const collected: Array<{ username: string; avatar?: string }> = [];
+
+  comments.forEach((comment) => {
+    const candidates = [comment, ...(comment.replies || [])];
+    candidates.forEach((candidate) => {
+      if (
+        candidate?.username &&
+        candidate.username !== currentUsername &&
+        !seen.has(candidate.username)
+      ) {
+        seen.add(candidate.username);
+        collected.push({
+          username: candidate.username,
+          avatar: candidate.avatar,
+        });
+      }
+    });
+  });
+
+  return collected;
 }
 
+type ReplyTarget = {
+  structuralParentId: string;
+  replyToCommentId: string;
+  username: string;
+};
+
 function CommentsScreenContent() {
-  const { postId } = useLocalSearchParams<{ postId: string }>();
-  const { commentId } = useLocalSearchParams<{ commentId?: string }>();
+  const { postId, commentId } = useLocalSearchParams<{
+    postId: string;
+    commentId?: string;
+  }>();
   const router = useRouter();
-  const { colors } = useColorScheme();
-  const user = useAuthStore((s) => s.user);
-  const showToast = useUIStore((s) => s.showToast);
-  const {
-    newComment: comment,
-    replyingTo,
-    setNewComment: setComment,
-    setReplyingTo,
-  } = useCommentsStore();
-  const insets = useSafeAreaInsets();
+  const user = useAuthStore((state) => state.user);
+  const showToast = useUIStore((state) => state.showToast);
+  const inputRef = useRef<TextInput>(null);
+  const redirectedReplyRef = useRef(false);
 
-  // PHASE 1 FIX: Robust submit lock to prevent duplicates
-  const [isSubmitLocked, setIsSubmitLocked] = useState(false);
-  const lastSubmitTimeRef = useRef<number>(0);
-  const submitCooldownMs = 2000; // 2 second cooldown between submits
-
-  // @mention autocomplete state
+  const [commentText, setCommentText] = useState("");
+  const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
   const [cursorPos, setCursorPos] = useState(0);
-  const inputRef = useRef<any>(null);
 
-  // Fetch real comments from API — limit must match prefetchComments (50) for cache hit
   const { data: comments = [], isLoading } = useComments(postId || "", 50);
   const createComment = useCreateComment();
 
-  const handleSend = useCallback(() => {
-    // PHASE 1 FIX: Comprehensive duplicate prevention
-    const now = Date.now();
-    if (__DEV__)
-      console.log("[Comments] handleSend called", {
-        isSubmitLocked,
-        isPending: createComment.isPending,
-        timeSinceLastSubmit: now - lastSubmitTimeRef.current,
-      });
+  const commenters = useMemo(
+    () => collectCommenters(comments, user?.username),
+    [comments, user?.username],
+  );
 
-    // CHECK 1: Local submit lock (prevents rapid taps)
-    if (isSubmitLocked) {
-      if (__DEV__) console.log("[Comments] BLOCKED: Submit locked");
-      return;
-    }
-
-    // CHECK 2: Mutation already in flight
-    if (createComment.isPending) {
-      if (__DEV__) console.log("[Comments] BLOCKED: Mutation pending");
-      return;
-    }
-
-    // CHECK 3: Cooldown period (prevents double-tap even if lock was released)
-    if (now - lastSubmitTimeRef.current < submitCooldownMs) {
-      if (__DEV__) console.log("[Comments] BLOCKED: Cooldown period");
-      return;
-    }
-
-    if (!comment.trim()) {
-      showToast("warning", "Empty", "Please enter a comment");
-      return;
-    }
-    if (!postId) {
-      showToast("error", "Error", "No post ID found");
-      return;
-    }
-
-    // Validate user is logged in
-    if (!user) {
-      showToast("error", "Error", "You must be logged in to comment");
-      return;
-    }
-
-    if (!user.username) {
-      showToast(
-        "error",
-        "Error",
-        "User profile incomplete. Please log out and log back in.",
-      );
-      return;
-    }
-
-    // LOCK IMMEDIATELY before any async work
-    setIsSubmitLocked(true);
-    lastSubmitTimeRef.current = now;
-
-    // Generate unique mutation ID for server-side idempotency
-    const clientMutationId = generateMutationId();
-    if (__DEV__)
-      console.log(
-        "[Comments] Submitting with clientMutationId:",
-        clientMutationId,
-      );
-
-    const commentText = comment.trim();
-    const parentId = replyingTo || undefined;
-
-    // Clear input IMMEDIATELY to prevent re-submission of same text
-    const originalComment = comment;
-    const originalReplyingTo = replyingTo;
-    setComment("");
-    setReplyingTo(null);
-    KeyboardController.dismiss();
-
-    createComment.mutate(
-      {
-        post: postId,
-        text: commentText,
-        parent: parentId,
-        authorUsername: user.username,
-        authorId: user.id,
-        clientMutationId, // For server-side idempotency
-      },
-      {
-        onSuccess: () => {
-          KeyboardController.dismiss();
-          showToast("success", "Posted!", "Your comment was added");
-          // Unlock after success
-          setIsSubmitLocked(false);
-        },
-        onError: (error: any) => {
-          console.error("[Comments] Error:", error);
-          // Restore input on error so user can retry
-          setComment(originalComment);
-          setReplyingTo(originalReplyingTo);
-          const errorMessage =
-            error?.message ||
-            error?.error?.message ||
-            error?.error ||
-            "Failed to create comment";
-          showToast("error", "Failed", errorMessage);
-          // Unlock after error
-          setIsSubmitLocked(false);
-        },
-      },
-    );
-  }, [
-    comment,
-    postId,
-    replyingTo,
-    createComment,
-    setComment,
-    setReplyingTo,
-    user,
-    showToast,
-    isSubmitLocked,
-  ]);
-
-  useEffect(() => {
-    const sub = KeyboardEvents.addListener("keyboardDidHide", () => {
-      setReplyingTo(null);
-    });
-
-    return () => {
-      sub.remove();
-    };
-  }, [setReplyingTo]);
-
-  // Extract unique commenters for @mention autocomplete (instant local results)
-  const commenters = useMemo(() => {
-    return collectCommenters(comments, user?.username);
-  }, [comments, user?.username]);
-
-  // Detect @mention query from cursor position
   const mentionQuery = useMemo(() => {
-    const before = comment.slice(0, cursorPos);
+    const before = commentText.slice(0, cursorPos);
     const match = before.match(/@(\w*)$/);
     return match ? match[1] : null;
-  }, [comment, cursorPos]);
+  }, [commentText, cursorPos]);
 
-  // API-backed user search for @mentions (searches all users, not just commenters)
   const { data: apiMentionResults = [] } = useQuery({
     queryKey: ["users", "mention-search", mentionQuery],
     queryFn: async () => {
       if (!mentionQuery || mentionQuery.length < 1) return [];
       const result = await usersApi.searchUsers(mentionQuery.toLowerCase(), 8);
-      return (result.docs || []).map((u: any) => ({
-        username: u.username,
-        avatar: u.avatar,
+      return (result.docs || []).map((entry: any) => ({
+        username: entry.username,
+        avatar: entry.avatar,
       }));
     },
     enabled: !!mentionQuery && mentionQuery.length >= 1,
     staleTime: 10_000,
   });
 
-  // Merge local commenters + API results, deduplicated
   const mentionSuggestions = useMemo(() => {
     if (mentionQuery === null) return [];
-    // No query yet (just typed @) — show local commenters
     if (!mentionQuery) return commenters.slice(0, 5);
-    // Merge: local matches first, then API results
+
     const seen = new Set<string>();
-    const merged: { username: string; avatar?: string }[] = [];
-    const localMatches = commenters.filter((c) =>
-      c.username.toLowerCase().includes(mentionQuery.toLowerCase()),
-    );
-    for (const u of localMatches) {
-      if (!seen.has(u.username)) {
-        seen.add(u.username);
-        merged.push(u);
+    const merged: Array<{ username: string; avatar?: string }> = [];
+
+    commenters
+      .filter((candidate) =>
+        candidate.username.toLowerCase().includes(mentionQuery.toLowerCase()),
+      )
+      .forEach((candidate) => {
+        if (!seen.has(candidate.username)) {
+          seen.add(candidate.username);
+          merged.push(candidate);
+        }
+      });
+
+    apiMentionResults.forEach((candidate) => {
+      if (
+        !seen.has(candidate.username) &&
+        candidate.username !== user?.username
+      ) {
+        seen.add(candidate.username);
+        merged.push(candidate);
       }
-    }
-    for (const u of apiMentionResults) {
-      if (!seen.has(u.username) && u.username !== user?.username) {
-        seen.add(u.username);
-        merged.push(u);
-      }
-    }
+    });
+
     return merged.slice(0, 8);
   }, [mentionQuery, commenters, apiMentionResults, user?.username]);
 
   const handleInsertMention = useCallback(
     (username: string) => {
-      const before = comment.slice(0, cursorPos);
-      const after = comment.slice(cursorPos);
-      const atIdx = before.lastIndexOf("@");
-      const newBefore = before.slice(0, atIdx);
-      const newText = `${newBefore}@${username} ${after}`;
-      const newCursor = newBefore.length + username.length + 2;
-      setComment(newText);
-      setCursorPos(newCursor);
-      inputRef.current?.focus();
+      const before = commentText.slice(0, cursorPos);
+      const after = commentText.slice(cursorPos);
+      const atIndex = before.lastIndexOf("@");
+      const newBefore = before.slice(0, atIndex);
+      const nextText = `${newBefore}@${username} ${after}`;
+      setCommentText(nextText);
+      setCursorPos(newBefore.length + username.length + 2);
+      requestAnimationFrame(() => inputRef.current?.focus());
     },
-    [comment, cursorPos, setComment],
+    [commentText, cursorPos],
   );
 
-  const handleReply = useCallback(
-    (username: string, commentIdParam: string) => {
-      if (!username || !commentIdParam) return;
-      setReplyingTo(commentIdParam);
-      setComment(`@${username} `);
-    },
-    [setReplyingTo, setComment],
-  );
+  const handleReply = useCallback((username: string, rootCommentId: string) => {
+    setReplyTarget({
+      structuralParentId: rootCommentId,
+      replyToCommentId: rootCommentId,
+      username,
+    });
+    setCommentText(`@${username} `);
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
+
+  const handleCancelReply = useCallback(() => {
+    setReplyTarget(null);
+    setCommentText("");
+  }, []);
 
   const handleViewReplies = useCallback(
-    (commentIdParam: string) => {
-      if (!commentIdParam || !postId) return;
+    (rootCommentId: string) => {
+      if (!postId) return;
       router.push(
-        `/(protected)/comments/replies/${commentIdParam}?postId=${postId}`,
+        `/(protected)/comments/replies/${rootCommentId}?postId=${postId}`,
       );
     },
-    [router, postId],
+    [postId, router],
   );
 
   const handleProfilePress = useCallback(
-    (username: string, avatar?: string) => {
-      if (!username) return;
+    (username: string) => {
       router.push({
         pathname: `/(protected)/profile/${username}`,
-        params: avatar ? { avatar } : {},
       } as any);
     },
     [router],
   );
 
-  const SCREEN_HEIGHT = Dimensions.get("window").height;
-  const SHEET_MAX_HEIGHT = Math.round(SCREEN_HEIGHT * 0.7);
+  const handleSend = useCallback(() => {
+    if (!commentText.trim() || !postId) return;
+    if (!user?.username) {
+      showToast("error", "Error", "You must be logged in to comment");
+      return;
+    }
+
+    const originalText = commentText;
+    const originalReplyTarget = replyTarget;
+    setCommentText("");
+    setReplyTarget(null);
+
+    createComment.mutate(
+      {
+        post: postId,
+        text: originalText.trim(),
+        parent: originalReplyTarget?.structuralParentId,
+        replyToCommentId: originalReplyTarget?.replyToCommentId,
+        authorUsername: user.username,
+        authorId: user.id,
+      },
+      {
+        onError: (error: any) => {
+          setCommentText(originalText);
+          setReplyTarget(originalReplyTarget);
+          showToast(
+            "error",
+            "Failed",
+            error?.message || "Failed to create comment",
+          );
+        },
+      },
+    );
+  }, [commentText, createComment, postId, replyTarget, showToast, user]);
+
+  useEffect(() => {
+    if (!commentId || redirectedReplyRef.current || comments.length === 0) {
+      return;
+    }
+
+    const isTopLevel = comments.some((comment) => comment.id === commentId);
+    if (isTopLevel) return;
+
+    for (const comment of comments) {
+      if ((comment.replies || []).some((reply) => reply.id === commentId)) {
+        redirectedReplyRef.current = true;
+        router.replace(
+          `/(protected)/comments/replies/${comment.id}?postId=${postId}&focusCommentId=${commentId}`,
+        );
+        return;
+      }
+    }
+  }, [commentId, comments, postId, router]);
+
+  useSafeHeader(
+    {
+      header: () => <SheetHeader title="Comments" onClose={() => router.back()} />,
+      footer: (
+        <CommentComposerFooter
+          value={commentText}
+          placeholder="Add a comment... (@ to mention)"
+          isSubmitting={createComment.isPending}
+          replyTargetLabel={replyTarget?.username}
+          mentionSuggestions={mentionSuggestions}
+          inputRef={inputRef}
+          onChangeText={setCommentText}
+          onSelectionChange={setCursorPos}
+          onInsertMention={handleInsertMention}
+          onCancelReply={handleCancelReply}
+          onSubmit={handleSend}
+        />
+      ),
+    },
+    [
+      router,
+      commentText,
+      createComment.isPending,
+      replyTarget?.username,
+      mentionSuggestions,
+      handleInsertMention,
+      handleCancelReply,
+      handleSend,
+    ],
+  );
 
   return (
-    <KeyboardProvider statusBarTranslucent navigationBarTranslucent>
-      <KeyboardAvoidingView
-        behavior="padding"
-        style={{ flex: 1, justifyContent: "flex-end" }}
-      >
-        {/* Tappable backdrop — dismisses the sheet */}
-        <Pressable style={{ flex: 1 }} onPress={() => router.back()} />
-
-        {/* Sheet container — liquid glass, 70% height */}
-        <BlurView
-          intensity={40}
-          tint="dark"
-          style={{
-            height: SHEET_MAX_HEIGHT,
-            borderTopLeftRadius: 20,
-            borderTopRightRadius: 20,
-            overflow: "hidden",
-          }}
-        >
-          <View
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0,0,0,0.55)",
-            }}
-          >
-            {/* Grabber handle */}
-            <View
-              style={{
-                alignItems: "center",
-                paddingTop: 10,
-                paddingBottom: 2,
-              }}
-            >
-              <View
-                style={{
-                  width: 40,
-                  height: 5,
-                  borderRadius: 3,
-                  backgroundColor: "rgba(255,255,255,0.3)",
-                }}
-              />
-            </View>
-
-            <SheetHeader title="Comments" onClose={() => router.back()} />
-            <ScrollView
-              style={{ flex: 1 }}
-              contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
-              keyboardShouldPersistTaps="handled"
-              nestedScrollEnabled
-            >
-              {isLoading ? (
-                <View style={{ alignItems: "center", paddingVertical: 40 }}>
-                  <ActivityIndicator size="small" color="#3EA4E5" />
-                  <Text style={{ color: "#666", fontSize: 12, marginTop: 8 }}>
-                    Loading comments...
-                  </Text>
-                </View>
-              ) : comments.length === 0 ? (
-                <View style={{ alignItems: "center", paddingVertical: 40 }}>
-                  <Text style={{ color: "#999" }}>No comments yet</Text>
-                  <Text style={{ color: "#666", fontSize: 12, marginTop: 8 }}>
-                    Be the first to comment!
-                  </Text>
-                </View>
-              ) : (
-                comments
-                  .filter(
-                    (item) => item && item.id && item.username && item.text,
-                  )
-                  .map((item) => {
-                    const isHighlightedComment = item.id === commentId;
-
-                    // Transform to CommentData format for ThreadedComment component
-                    const commentData = mapCommentTree(item);
-
-                    return (
-                      <ThreadedComment
-                        key={item.id}
-                        postId={postId || ""}
-                        comment={commentData}
-                        isHighlighted={isHighlightedComment}
-                        onReply={handleReply}
-                        onViewAllReplies={handleViewReplies}
-                        onProfilePress={handleProfilePress}
-                        maxVisibleReplies={isHighlightedComment ? 100 : 2}
-                        showAllReplies={isHighlightedComment}
-                      />
-                    );
-                  })
-              )}
-            </ScrollView>
-
-            {/* Input at bottom - outside scroll view */}
-            <View>
-              <View
-                style={{
-                  borderTopWidth: 1,
-                  borderTopColor: "rgba(255,255,255,0.08)",
-                  paddingHorizontal: 16,
-                  paddingVertical: 12,
-                  paddingBottom: Math.max(insets.bottom, 12),
-                }}
-              >
-                {replyingTo && (
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      justifyContent: "space-between",
-                      marginBottom: 8,
-                    }}
-                  >
-                    <Text style={{ color: "#666", fontSize: 12 }}>
-                      Replying to comment
-                    </Text>
-                    <Pressable
-                      onPress={() => {
-                        setReplyingTo(null);
-                        setComment("");
-                        KeyboardController.dismiss();
-                      }}
-                      hitSlop={12}
-                    >
-                      <X size={16} color="#666" />
-                    </Pressable>
-                  </View>
-                )}
-                {/* @mention autocomplete dropdown */}
-                {mentionSuggestions.length > 0 && (
-                  <View
-                    style={{
-                      backgroundColor: "#1a1a1a",
-                      borderRadius: 12,
-                      marginBottom: 8,
-                      maxHeight: 180,
-                      overflow: "hidden",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: "#666",
-                        fontSize: 11,
-                        paddingHorizontal: 12,
-                        paddingTop: 8,
-                        paddingBottom: 4,
-                      }}
-                    >
-                      Mention a user
-                    </Text>
-                    {mentionSuggestions.map((u) => (
-                      <Pressable
-                        key={u.username}
-                        onPress={() => handleInsertMention(u.username)}
-                        style={{
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 10,
-                          paddingHorizontal: 12,
-                          paddingVertical: 8,
-                        }}
-                      >
-                        <Image
-                          source={{
-                            uri: u.avatar || "",
-                          }}
-                          style={{ width: 28, height: 28, borderRadius: 6 }}
-                        />
-                        <Text
-                          style={{
-                            color: "#fff",
-                            fontSize: 14,
-                            fontWeight: "500",
-                          }}
-                        >
-                          {u.username}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
-                )}
-
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  <RNTextInput
-                    ref={inputRef}
-                    value={comment}
-                    onChangeText={setComment}
-                    onSelectionChange={(e) =>
-                      setCursorPos(e.nativeEvent.selection.end)
-                    }
-                    placeholder="Add a comment... (@ to mention)"
-                    placeholderTextColor="#666"
-                    multiline
-                    returnKeyType="send"
-                    onSubmitEditing={
-                      isSubmitLocked || createComment.isPending
-                        ? undefined
-                        : handleSend
-                    }
-                    blurOnSubmit={false}
-                    enablesReturnKeyAutomatically={true}
-                    editable={!isSubmitLocked && !createComment.isPending}
-                    style={{
-                      flex: 1,
-                      minHeight: 40,
-                      maxHeight: 100,
-                      backgroundColor: "#1a1a1a",
-                      borderRadius: 20,
-                      paddingHorizontal: 16,
-                      paddingVertical: 10,
-                      color: "#fff",
-                    }}
-                  />
-                  <Pressable
-                    onPress={handleSend}
-                    disabled={
-                      !comment.trim() ||
-                      createComment.isPending ||
-                      !user ||
-                      isSubmitLocked
-                    }
-                    style={{
-                      width: 40,
-                      height: 40,
-                      borderRadius: 20,
-                      backgroundColor:
-                        comment.trim() && !createComment.isPending && user
-                          ? "#3EA4E5"
-                          : "#1a1a1a",
-                      justifyContent: "center",
-                      alignItems: "center",
-                    }}
-                  >
-                    {createComment.isPending || isSubmitLocked ? (
-                      <ActivityIndicator size="small" color="#666" />
-                    ) : (
-                      <Send
-                        size={20}
-                        color={comment.trim() && user ? "#fff" : "#666"}
-                      />
-                    )}
-                  </Pressable>
-                </View>
-              </View>
-            </View>
-          </View>
-        </BlurView>
-      </KeyboardAvoidingView>
-    </KeyboardProvider>
+    <View style={{ flex: 1, backgroundColor: "#000" }}>
+      {isLoading ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+          <ActivityIndicator size="small" color="#3EA4E5" />
+          <Text style={{ color: "#7C8798", marginTop: 10 }}>
+            Loading comments...
+          </Text>
+        </View>
+      ) : comments.length === 0 ? (
+        <View style={{ flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 }}>
+          <Text style={{ color: "#FFFFFF", fontSize: 16, fontWeight: "700" }}>
+            No comments yet
+          </Text>
+          <Text style={{ color: "#7C8798", marginTop: 8, textAlign: "center" }}>
+            Start the conversation.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={comments}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={{ padding: 16, gap: 12 }}
+          renderItem={({ item }) => (
+            <ThreadedComment
+              postId={postId || ""}
+              comment={mapCommentTree(item)}
+              isHighlighted={item.id === commentId}
+              onReply={handleReply}
+              onViewAllReplies={handleViewReplies}
+              onProfilePress={handleProfilePress}
+              maxVisibleReplies={0}
+              showAllReplies={false}
+            />
+          )}
+        />
+      )}
+    </View>
   );
 }
 
-// Wrap with ErrorBoundary for crash protection
 export default function CommentsScreen() {
   const router = useRouter();
 

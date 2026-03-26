@@ -22,7 +22,7 @@ import {
 import { Image } from "expo-image";
 import { Avatar } from "@/components/ui/avatar";
 import { useSearchStore } from "@/lib/stores/search-store";
-import { useEffect, useCallback, useRef, useMemo, useState } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import { Debouncer } from "@tanstack/pacer";
 import { SearchSkeleton, SearchResultsSkeleton } from "@/components/skeletons";
 import {
@@ -48,11 +48,100 @@ const GRID_COLS = SCREEN_WIDTH >= 768 ? 5 : 4;
 const GRID_GAP = 2;
 const GRID_CELL_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
 
-function DiscoverSection({
+function PostGridTile({
+  post,
+  size,
   router,
+  queryClient,
+}: {
+  post: Post;
+  size: number;
+  router: ReturnType<typeof useRouter>;
+  queryClient: ReturnType<typeof useQueryClient>;
+}) {
+  const firstMedia = post.media?.[0];
+  const isTextPost = post.kind === "text";
+  const isVideo = post.type === "video" || firstMedia?.type === "video";
+  const videoUrl = isVideo ? firstMedia?.url : undefined;
+  const imageUri = post.thumbnail || (!isVideo ? firstMedia?.url : undefined);
+
+  return (
+    <Pressable
+      onPress={() => {
+        if (post.id) {
+          navigateToPost(router, queryClient, post.id);
+        }
+      }}
+      style={{
+        width: size,
+        height: size,
+        padding: 1,
+      }}
+    >
+      <View
+        className="flex-1 overflow-hidden bg-secondary"
+        style={{ borderRadius: 8 }}
+      >
+        {isTextPost ? (
+          <TextPostSurface
+            text={post.caption}
+            theme={post.textTheme}
+            variant="grid"
+            style={{ minHeight: "100%", height: "100%" }}
+          />
+        ) : imageUri ? (
+          <>
+            <Image
+              source={{ uri: imageUri }}
+              style={{ width: "100%", height: "100%" }}
+              contentFit="cover"
+              cachePolicy="memory-disk"
+            />
+            {isVideo ? (
+              <View className="absolute top-2 right-2">
+                <Play size={20} color="#fff" fill="#fff" />
+              </View>
+            ) : null}
+            {post.hasMultipleImages ? (
+              <View
+                style={{
+                  position: "absolute",
+                  top: 6,
+                  right: 6,
+                  backgroundColor: "rgba(0,0,0,0.5)",
+                  borderRadius: 4,
+                  paddingHorizontal: 4,
+                  paddingVertical: 2,
+                }}
+              >
+                <Text
+                  style={{ color: "#fff", fontSize: 10, fontWeight: "600" }}
+                >
+                  +
+                </Text>
+              </View>
+            ) : null}
+          </>
+        ) : videoUrl ? (
+          <>
+            <VideoThumbnailImage videoUrl={videoUrl} />
+            <View className="absolute top-2 right-2">
+              <Play size={20} color="#fff" fill="#fff" />
+            </View>
+          </>
+        ) : (
+          <View className="w-full h-full items-center justify-center">
+            <Text className="text-muted-foreground text-xs">No preview</Text>
+          </View>
+        )}
+      </View>
+    </Pressable>
+  );
+}
+
+function DiscoverSection({
   users,
 }: {
-  router: ReturnType<typeof useRouter>;
   users: DiscoverDTO["users"];
 }) {
   return (
@@ -154,92 +243,16 @@ function DiscoverGrid({
 }) {
   const renderItem = useCallback(
     ({ item }: { item: Post }) => {
-      const isVideo = item.type === "video";
-      const videoUrl = isVideo ? item.media?.[0]?.url : undefined;
-      // For video posts, NEVER use the video URL as image source — expo-image can't render it
-      const imageUri =
-        item.thumbnail || (!isVideo ? item.media?.[0]?.url : undefined);
       return (
-        <Pressable
-          onPress={() => {
-            navigateToPost(router, queryClient, item.id);
-          }}
-          style={{
-            width: GRID_CELL_SIZE,
-            height: GRID_CELL_SIZE,
-            borderRadius: 8,
-            overflow: "hidden",
-          }}
-        >
-          {imageUri ? (
-            <>
-              <Image
-                source={{ uri: imageUri }}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-                cachePolicy="memory-disk"
-              />
-              {isVideo && (
-                <View
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    right: 6,
-                  }}
-                >
-                  <Play size={16} color="#fff" fill="#fff" />
-                </View>
-              )}
-              {item.hasMultipleImages && (
-                <View
-                  style={{
-                    position: "absolute",
-                    top: 6,
-                    right: 6,
-                    backgroundColor: "rgba(0,0,0,0.5)",
-                    borderRadius: 4,
-                    paddingHorizontal: 4,
-                    paddingVertical: 2,
-                  }}
-                >
-                  <Text
-                    style={{ color: "#fff", fontSize: 10, fontWeight: "600" }}
-                  >
-                    +
-                  </Text>
-                </View>
-              )}
-            </>
-          ) : isVideo && videoUrl ? (
-            <>
-              <VideoThumbnailImage videoUrl={videoUrl} />
-              <View
-                style={{
-                  position: "absolute",
-                  top: 6,
-                  right: 6,
-                }}
-              >
-                <Play size={16} color="#fff" fill="#fff" />
-              </View>
-            </>
-          ) : (
-            <View
-              style={{
-                width: "100%",
-                height: "100%",
-                backgroundColor: "#1a1a1a",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-            >
-              <Text style={{ color: "#444", fontSize: 10 }}>Aa</Text>
-            </View>
-          )}
-        </Pressable>
+        <PostGridTile
+          post={item}
+          size={GRID_CELL_SIZE}
+          router={router}
+          queryClient={queryClient}
+        />
       );
     },
-    [router],
+    [queryClient, router],
   );
 
   if (posts.length === 0) return null;
@@ -323,7 +336,14 @@ function SearchScreenContent() {
     useSearchResults(debouncedSearch);
 
   const isHashtag = debouncedSearch.startsWith("#");
-  const searchResults = searchData?.posts?.docs || [];
+  const discoverPosts = useMemo(
+    () => (discoverData?.posts || []).filter((post) => !post.isNSFW),
+    [discoverData?.posts],
+  );
+  const searchResults = useMemo(
+    () => (searchData?.posts?.docs || []).filter((post) => !post.isNSFW),
+    [searchData?.posts?.docs],
+  );
   const userResults = searchData?.users?.docs || [];
 
   const handleQueryChange = useCallback(
@@ -461,64 +481,14 @@ function SearchScreenContent() {
                   {searchResults.length > 0 ? (
                     <View className="flex-row flex-wrap">
                       {searchResults.map((post: any) => {
-                        const firstMedia = post.media?.[0];
-                        const thumbnail = firstMedia?.url;
-                        const isTextPost = post.kind === "text";
-                        const isVideo = firstMedia?.type === "video";
-
                         return (
-                          <Pressable
+                          <PostGridTile
                             key={post.id}
-                            onPress={() => {
-                              if (post?.id) {
-                                navigateToPost(router, queryClient, post.id);
-                              }
-                            }}
-                            style={{
-                              width: columnWidth,
-                              height: columnWidth,
-                              padding: 1,
-                            }}
-                          >
-                            <View
-                              className="flex-1 overflow-hidden bg-secondary"
-                              style={{ borderRadius: 8 }}
-                            >
-                              {isTextPost ? (
-                                <TextPostSurface
-                                  text={post.caption}
-                                  theme={post.textTheme}
-                                  variant="grid"
-                                  style={{ minHeight: "100%", height: "100%" }}
-                                />
-                              ) : thumbnail &&
-                                (thumbnail.startsWith("http://") ||
-                                  thumbnail.startsWith("https://")) ? (
-                                <>
-                                  <Image
-                                    source={{ uri: thumbnail }}
-                                    style={{ width: "100%", height: "100%" }}
-                                    contentFit="cover"
-                                  />
-                                  {isVideo && (
-                                    <View className="absolute top-2 right-2">
-                                      <Play
-                                        size={20}
-                                        color="#fff"
-                                        fill="#fff"
-                                      />
-                                    </View>
-                                  )}
-                                </>
-                              ) : (
-                                <View className="w-full h-full items-center justify-center">
-                                  <Text className="text-muted-foreground text-xs">
-                                    No preview
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                          </Pressable>
+                            post={post}
+                            size={columnWidth}
+                            router={router}
+                            queryClient={queryClient}
+                          />
                         );
                       })}
                     </View>
@@ -581,70 +551,14 @@ function SearchScreenContent() {
                       </Text>
                       <View className="flex-row flex-wrap">
                         {searchResults.map((post: any) => {
-                          const firstMedia = post.media?.[0];
-                          const thumbnail = firstMedia?.url;
-                          const isTextPost = post.kind === "text";
-                          const isVideo = firstMedia?.type === "video";
-
                           return (
-                            <Pressable
+                            <PostGridTile
                               key={post.id}
-                              onPress={() => {
-                                if (post?.id) {
-                                  navigateToPost(router, queryClient, post.id);
-                                }
-                              }}
-                              style={{
-                                width: columnWidth,
-                                height: columnWidth,
-                                padding: 1,
-                              }}
-                            >
-                              <View
-                                className="flex-1 overflow-hidden bg-secondary"
-                                style={{ borderRadius: 8 }}
-                              >
-                                {isTextPost ? (
-                                  <TextPostSurface
-                                    text={post.caption}
-                                    theme={post.textTheme}
-                                    variant="grid"
-                                    style={{
-                                      minHeight: "100%",
-                                      height: "100%",
-                                    }}
-                                  />
-                                ) : thumbnail &&
-                                  (thumbnail.startsWith("http://") ||
-                                    thumbnail.startsWith("https://")) ? (
-                                  <>
-                                    <Image
-                                      source={{ uri: thumbnail }}
-                                      style={{
-                                        width: "100%",
-                                        height: "100%",
-                                      }}
-                                      contentFit="cover"
-                                    />
-                                    {isVideo && (
-                                      <View className="absolute top-2 right-2">
-                                        <Play
-                                          size={20}
-                                          color="#fff"
-                                          fill="#fff"
-                                        />
-                                      </View>
-                                    )}
-                                  </>
-                                ) : (
-                                  <View className="w-full h-full items-center justify-center">
-                                    <Text className="text-muted-foreground text-xs">
-                                      No preview
-                                    </Text>
-                                  </View>
-                                )}
-                              </View>
-                            </Pressable>
+                              post={post}
+                              size={columnWidth}
+                              router={router}
+                              queryClient={queryClient}
+                            />
                           );
                         })}
                       </View>
@@ -666,13 +580,10 @@ function SearchScreenContent() {
           <SearchSkeleton />
         ) : (
           <>
-            <DiscoverSection
-              router={router}
-              users={discoverData?.users ?? []}
-            />
+            <DiscoverSection users={discoverData?.users ?? []} />
             <DiscoverGrid
               router={router}
-              posts={discoverData?.posts ?? []}
+              posts={discoverPosts}
               queryClient={queryClient}
             />
           </>

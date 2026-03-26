@@ -45,7 +45,7 @@ import {
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
 import { Switch } from "react-native";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
@@ -172,6 +172,7 @@ function CreateScreenContent() {
   const [selectedTagUsers, setSelectedTagUsers] = useState<TagCandidate[]>([]);
   const { pickFromLibrary } = useMediaPicker();
   const { mutate: createPost, isPending: isCreating } = useCreatePost();
+  const isSubmittingRef = useRef(false);
   const { user } = useAuthStore();
   const showToast = useUIStore((s) => s.showToast);
   const { colors } = useColorScheme();
@@ -422,11 +423,12 @@ function CreateScreenContent() {
     console.log("[Create] selectedMedia:", currentSelectedMedia.length);
     console.log("[Create] caption length:", trimmedCaption.length);
 
-    // Prevent double submission
-    if (isCreating || isUploading) {
-      console.log("[Create] Already creating or uploading, ignoring");
+    // Prevent double submission — ref check is synchronous (survives rapid taps)
+    if (isSubmittingRef.current || isCreating || isUploading) {
+      console.log("[Create] Already submitting, ignoring");
       return;
     }
+    isSubmittingRef.current = true;
 
     if (!isTextSubmission && currentSelectedMedia.length === 0) {
       showToast(
@@ -434,6 +436,7 @@ function CreateScreenContent() {
         "No Media",
         "Please select at least one photo or video",
       );
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -446,6 +449,7 @@ function CreateScreenContent() {
         "Empty Slide",
         "Each slide needs text before you can post.",
       );
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -458,6 +462,7 @@ function CreateScreenContent() {
         "Too Long",
         `Text posts are limited to ${TEXT_POST_MAX_LENGTH} characters.`,
       );
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -467,6 +472,7 @@ function CreateScreenContent() {
         "Caption Too Short",
         `Please write at least ${MIN_CAPTION_LENGTH} characters. Currently: ${trimmedCaption.length}`,
       );
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -524,6 +530,7 @@ function CreateScreenContent() {
             "Upload Failed",
             "Could not upload media. Please try again.",
           );
+          isSubmittingRef.current = false;
           return;
         }
 
@@ -535,6 +542,7 @@ function CreateScreenContent() {
             "Upload Error",
             `${failedUploads.length} file(s) failed to upload. Please try again.`,
           );
+          isSubmittingRef.current = false;
           return;
         }
 
@@ -610,6 +618,7 @@ function CreateScreenContent() {
             }
 
             showToast("success", "Posted!", "Your post is now live");
+            isSubmittingRef.current = false;
             reset();
             setSelectedTagUsers([]);
             router.back();
@@ -620,6 +629,7 @@ function CreateScreenContent() {
               "[Create] Error details:",
               JSON.stringify(error, null, 2),
             );
+            isSubmittingRef.current = false;
             const errorMessage =
               error?.message ||
               error?.error?.message ||
@@ -630,6 +640,7 @@ function CreateScreenContent() {
       );
     } catch (error) {
       console.error("[Create] Unexpected error:", error);
+      isSubmittingRef.current = false;
       showToast("error", "Error", "Something went wrong. Please try again.");
     }
   }, [

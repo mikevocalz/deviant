@@ -1,6 +1,54 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { normalizeTextPostTheme } from "@/lib/posts/text-post";
+import { transformPost } from "@/lib/api/posts";
+
+const SEARCH_POST_SELECT = `
+  ${DB.posts.id},
+  ${DB.posts.authorId},
+  ${DB.posts.content},
+  ${DB.posts.postKind},
+  ${DB.posts.textTheme},
+  ${DB.posts.likesCount},
+  ${DB.posts.commentsCount},
+  ${DB.posts.isNsfw},
+  ${DB.posts.location},
+  ${DB.posts.createdAt},
+  author:users!posts_author_id_users_id_fk(
+    ${DB.users.id},
+    ${DB.users.username},
+    ${DB.users.firstName},
+    ${DB.users.verified},
+    avatar:${DB.users.avatarId}(url)
+  ),
+  media:posts_media(
+    ${DB.postsMedia.type},
+    ${DB.postsMedia.url},
+    ${DB.postsMedia.order},
+    ${DB.postsMedia.mimeType},
+    ${DB.postsMedia.livePhotoVideoUrl}
+  ),
+  post_text_slides(
+    ${DB.postTextSlides.id},
+    ${DB.postTextSlides.slideIndex},
+    ${DB.postTextSlides.content}
+  )
+`;
+
+async function fetchSearchPostsByIds(postIds: string[]) {
+  if (postIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from(DB.posts.table)
+    .select(SEARCH_POST_SELECT)
+    .in(DB.posts.id, postIds)
+    .eq(DB.posts.visibility, "public")
+    .eq(DB.posts.isNsfw, false)
+    .order(DB.posts.createdAt, { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((post: any) => transformPost(post, false));
+}
 
 export const searchApi = {
   /**
@@ -10,61 +58,74 @@ export const searchApi = {
     try {
       console.log("[Search] searchPosts, query:", query);
 
-      if (!query || query.length < 1) {
+      const normalizedQuery = query.trim();
+
+      if (!normalizedQuery || normalizedQuery.length < 1) {
         return { docs: [], totalDocs: 0 };
       }
 
-      const { data, error, count } = await supabase
-        .from(DB.posts.table)
-        .select(
-          `
-          *,
-          author:${DB.posts.authorId}(
-            ${DB.users.id},
-            ${DB.users.username},
-            ${DB.users.firstName},
-            ${DB.users.verified},
-            avatar:${DB.users.avatarId}(url)
-          ),
-          media:posts_media(
-            type,
-            url
-          )
-        `,
-          { count: "exact" },
-        )
-        .ilike(DB.posts.content, `%${query}%`)
-        .eq(DB.posts.visibility, "public")
-        .order(DB.posts.createdAt, { ascending: false })
-        .limit(limit);
+      const searchPattern = `%${normalizedQuery}%`;
 
-      if (error) throw error;
+      const [{ data: contentMatches, error: contentError }, { data: slideRows, error: slideError }] =
+        await Promise.all([
+          supabase
+            .from(DB.posts.table)
+            .select(SEARCH_POST_SELECT)
+            .ilike(DB.posts.content, searchPattern)
+            .eq(DB.posts.visibility, "public")
+            .eq(DB.posts.isNsfw, false)
+            .order(DB.posts.createdAt, { ascending: false })
+            .limit(limit * 2),
+          supabase
+            .from(DB.postTextSlides.table)
+            .select(
+              `
+              ${DB.postTextSlides.postId},
+              post:posts!inner(
+                ${DB.posts.id},
+                ${DB.posts.visibility},
+                ${DB.posts.isNsfw}
+              )
+            `,
+            )
+            .ilike(DB.postTextSlides.content, searchPattern)
+            .eq("post.visibility", "public")
+            .eq("post.is_nsfw", false)
+            .limit(limit * 4),
+        ]);
 
-      const docs = (data || []).map((post: any) => ({
-        id: String(post[DB.posts.id]),
-        author: {
-          username: post.author?.[DB.users.username] || "unknown",
-          avatar: post.author?.avatar?.url || "",
-          verified: post.author?.[DB.users.verified] || false,
-          name:
-            post.author?.[DB.users.firstName] ||
-            post.author?.[DB.users.username] ||
-            "Unknown",
-        },
-        media: (post.media || []).map((m: any) => ({
-          type: m.type || "image",
-          url: m.url || "",
-        })),
-        kind: post[DB.posts.postKind] === "text" ? "text" : "media",
-        textTheme: normalizeTextPostTheme(post[DB.posts.textTheme]),
-        caption: post[DB.posts.content] || "",
-        likes: Number(post[DB.posts.likesCount]) || 0,
-        comments: [],
-        timeAgo: formatTimeAgo(post[DB.posts.createdAt]),
-        location: post[DB.posts.location],
-      }));
+      if (contentError) throw contentError;
+      if (slideError) throw slideError;
 
-      return { docs, totalDocs: count || 0 };
+      const contentPosts = (contentMatches || []).map((post: any) =>
+        transformPost(post, false),
+      );
+      const seenPostIds = new Set(contentPosts.map((post) => post.id));
+      const extraSlidePostIds = Array.from(
+        new Set(
+          (slideRows || [])
+            .map((row: any) => row?.[DB.postTextSlides.postId])
+            .filter(
+              (postId): postId is string | number =>
+                postId !== null && postId !== undefined,
+            )
+            .map((postId) => String(postId)),
+        ),
+      ).filter((postId) => !seenPostIds.has(postId));
+
+      const extraSlidePosts = await fetchSearchPostsByIds(
+        extraSlidePostIds.slice(0, limit * 2),
+      );
+
+      const docs = [...contentPosts, ...extraSlidePosts]
+        .sort((a, b) => {
+          const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+          const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+          return bTime - aTime;
+        })
+        .slice(0, limit);
+
+      return { docs, totalDocs: docs.length };
     } catch (error) {
       console.error("[Search] searchPosts error:", error);
       return { docs: [], totalDocs: 0 };
@@ -121,20 +182,3 @@ export const searchApi = {
     }
   },
 };
-
-function formatTimeAgo(dateString: string): string {
-  if (!dateString) return "Just now";
-  const date = new Date(dateString);
-  const now = new Date();
-  const diffMs = now.getTime() - date.getTime();
-  const diffSecs = Math.floor(diffMs / 1000);
-  const diffMins = Math.floor(diffSecs / 60);
-  const diffHours = Math.floor(diffMins / 60);
-  const diffDays = Math.floor(diffHours / 24);
-
-  if (diffSecs < 60) return "Just now";
-  if (diffMins < 60) return `${diffMins}m`;
-  if (diffHours < 24) return `${diffHours}h`;
-  if (diffDays < 7) return `${diffDays}d`;
-  return `${Math.floor(diffDays / 7)}w`;
-}

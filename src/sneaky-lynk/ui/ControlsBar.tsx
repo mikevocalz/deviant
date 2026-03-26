@@ -20,7 +20,7 @@ import {
 } from "@/components/media/DVNTLiquidGlass";
 import type { RoomReaction } from "../hooks/useRoomReactions";
 
-const REACTION_EMOJIS = ["❤️", "🔥", "😂", "👏", "😍", "😮"];
+const REACTION_EMOJIS = ["😂", "😢", "😊", "😈", "🥵", "💝"];
 
 interface ControlsBarProps {
   isMuted: boolean;

@@ -1060,7 +1060,7 @@ function ChatScreenContent() {
   const { deleteMessage, editMessage, reactToMessage } = useChatStore();
 
   // Reaction emojis (Instagram-style)
-  const REACTION_EMOJIS = ["❤️", "😂", "😮", "😢", "😡", "👍"];
+  const REACTION_EMOJIS = ["😂", "😢", "😊", "😈", "🥵", "💝"];
 
   // Double-tap tracking
   const lastTapRef = useRef<{ id: string; time: number }>({ id: "", time: 0 });

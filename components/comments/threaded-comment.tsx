@@ -18,6 +18,7 @@ function renderCommentText(
         if (!part.startsWith("@")) {
           return <Text key={index}>{part}</Text>;
         }
+
         const username = part.slice(1);
         return (
           <Text
@@ -39,6 +40,7 @@ export interface CommentData {
   avatar?: string;
   text: string;
   timeAgo?: string;
+  createdAt?: string;
   likes?: number;
   hasLiked?: boolean;
   postId?: string;
@@ -84,50 +86,41 @@ export function CommentLikeButton({
   );
 }
 
-interface ThreadedCommentProps {
+interface CommentRowProps {
   comment: CommentData;
   postId: string;
+  variant?: "root" | "reply";
   isHighlighted?: boolean;
-  onReply: (username: string, commentId: string) => void;
-  onViewAllReplies?: (commentId: string) => void;
+  onReply?: (username: string, commentId: string) => void;
   onProfilePress: (username: string) => void;
-  maxVisibleReplies?: number;
-  showAllReplies?: boolean;
+  onViewAllReplies?: (commentId: string) => void;
+  replyCount?: number;
 }
 
-const AVATAR_SIZE = [36, 30, 24] as const;
-const MAX_DEPTH = 2;
-
-function CommentNode({
+export function CommentRow({
   comment,
   postId,
+  variant = "root",
+  isHighlighted = false,
   onReply,
   onProfilePress,
   onViewAllReplies,
-  maxVisibleReplies,
-  showAllReplies,
-  isRoot,
-}: ThreadedCommentProps & { isRoot: boolean }) {
-  const depth = Math.min(comment.depth || 0, MAX_DEPTH);
-  const avatarSize = AVATAR_SIZE[Math.min(depth, AVATAR_SIZE.length - 1)];
-  const canReply = depth < MAX_DEPTH;
-  const replies = Array.isArray(comment.replies) ? comment.replies : [];
-  const visibleReplies =
-    isRoot && !showAllReplies ? replies.slice(0, maxVisibleReplies) : replies;
-  const hiddenReplies = replies.length - visibleReplies.length;
+  replyCount,
+}: CommentRowProps) {
+  const avatarSize = variant === "reply" ? 30 : 36;
+  const canViewReplies =
+    variant === "root" && !!onViewAllReplies && (replyCount || 0) > 0;
 
   const handleReply = useCallback(() => {
-    onReply(comment.username, comment.id);
+    onReply?.(comment.username, comment.id);
   }, [comment.id, comment.username, onReply]);
 
   return (
     <View
       style={[
-        styles.node,
-        depth > 0 && styles.nestedNode,
-        depth === 1 && styles.depthOne,
-        depth === 2 && styles.depthTwo,
-        isRoot && styles.rootNode,
+        styles.card,
+        variant === "reply" ? styles.replyCard : styles.rootCard,
+        isHighlighted && styles.highlightedCard,
       ]}
     >
       <View style={styles.row}>
@@ -144,7 +137,10 @@ function CommentNode({
           <View style={styles.headerRow}>
             <Pressable onPress={() => onProfilePress(comment.username)}>
               <Text
-                style={[styles.username, depth > 0 && styles.usernameNested]}
+                style={[
+                  styles.username,
+                  variant === "reply" && styles.replyUsername,
+                ]}
               >
                 {comment.username}
               </Text>
@@ -154,7 +150,7 @@ function CommentNode({
 
           {renderCommentText(
             comment.text,
-            [styles.body, depth > 0 && styles.bodyNested],
+            [styles.body, variant === "reply" && styles.replyBody],
             onProfilePress,
           )}
 
@@ -165,46 +161,38 @@ function CommentNode({
               initialLikes={comment.likes}
               initialHasLiked={comment.hasLiked}
             />
-            {canReply ? (
+            {onReply ? (
               <Pressable onPress={handleReply}>
                 <Text style={styles.replyText}>Reply</Text>
               </Pressable>
             ) : null}
           </View>
+
+          {canViewReplies ? (
+            <Pressable
+              onPress={() => onViewAllReplies?.(comment.id)}
+              style={styles.viewRepliesButton}
+            >
+              <Text style={styles.viewRepliesText}>
+                View replies ({replyCount})
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
-
-      {visibleReplies.length > 0 ? (
-        <View style={styles.replies}>
-          {visibleReplies.map((reply) => (
-            <CommentNode
-              key={reply.id}
-              comment={reply}
-              postId={postId}
-              isHighlighted={false}
-              onReply={onReply}
-              onViewAllReplies={onViewAllReplies}
-              onProfilePress={onProfilePress}
-              maxVisibleReplies={maxVisibleReplies}
-              showAllReplies
-              isRoot={false}
-            />
-          ))}
-        </View>
-      ) : null}
-
-      {isRoot && hiddenReplies > 0 && onViewAllReplies ? (
-        <Pressable
-          onPress={() => onViewAllReplies(comment.id)}
-          style={styles.viewAllButton}
-        >
-          <Text style={styles.viewAllText}>
-            View all {replies.length} replies
-          </Text>
-        </Pressable>
-      ) : null}
     </View>
   );
+}
+
+interface ThreadedCommentProps {
+  comment: CommentData;
+  postId: string;
+  isHighlighted?: boolean;
+  onReply: (username: string, commentId: string) => void;
+  onViewAllReplies?: (commentId: string) => void;
+  onProfilePress: (username: string) => void;
+  maxVisibleReplies?: number;
+  showAllReplies?: boolean;
 }
 
 function ThreadedCommentComponent({
@@ -214,61 +202,73 @@ function ThreadedCommentComponent({
   onReply,
   onViewAllReplies,
   onProfilePress,
-  maxVisibleReplies = 2,
+  maxVisibleReplies = 0,
   showAllReplies = false,
 }: ThreadedCommentProps) {
+  const replies = Array.isArray(comment.replies) ? comment.replies : [];
+  const visibleReplies =
+    showAllReplies || maxVisibleReplies >= replies.length
+      ? replies
+      : replies.slice(0, maxVisibleReplies);
+  const hiddenReplies = Math.max(replies.length - visibleReplies.length, 0);
+
   return (
-    <View style={[styles.container, isHighlighted && styles.highlighted]}>
-      {isHighlighted ? <View style={styles.highlightBar} /> : null}
-      <CommentNode
+    <View style={styles.thread}>
+      <CommentRow
         comment={comment}
         postId={postId}
         isHighlighted={isHighlighted}
         onReply={onReply}
-        onViewAllReplies={onViewAllReplies}
         onProfilePress={onProfilePress}
-        maxVisibleReplies={maxVisibleReplies}
-        showAllReplies={showAllReplies}
-        isRoot
+        onViewAllReplies={hiddenReplies > 0 || maxVisibleReplies === 0 ? onViewAllReplies : undefined}
+        replyCount={replies.length}
       />
+
+      {visibleReplies.length > 0 ? (
+        <View style={styles.replyList}>
+          {visibleReplies.map((reply) => (
+            <CommentRow
+              key={reply.id}
+              comment={{ ...reply, replies: [] }}
+              postId={postId}
+              variant="reply"
+              onReply={onReply}
+              onProfilePress={onProfilePress}
+            />
+          ))}
+        </View>
+      ) : null}
     </View>
   );
 }
 
+export const ThreadedComment = memo(ThreadedCommentComponent);
+
 const styles = StyleSheet.create({
-  container: {
-    marginBottom: 18,
-    position: "relative",
-  },
-  highlighted: {
-    paddingLeft: 8,
-  },
-  highlightBar: {
-    position: "absolute",
-    top: 0,
-    bottom: 0,
-    left: 0,
-    width: 3,
-    borderRadius: 999,
-    backgroundColor: "#3EA4E5",
-  },
-  node: {
+  thread: {
     gap: 10,
   },
-  rootNode: {
-    paddingRight: 2,
+  card: {
+    borderRadius: 18,
+    backgroundColor: "rgba(17,17,19,0.92)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 14,
+    paddingVertical: 13,
   },
-  nestedNode: {
-    marginTop: 12,
-    paddingLeft: 14,
-    borderLeftWidth: 1,
-    borderLeftColor: "rgba(148,163,184,0.18)",
+  rootCard: {
+    marginBottom: 0,
   },
-  depthOne: {
-    marginLeft: 16,
+  replyCard: {
+    marginLeft: 18,
+    backgroundColor: "rgba(22,22,26,0.9)",
   },
-  depthTwo: {
-    marginLeft: 10,
+  highlightedCard: {
+    borderColor: "rgba(62,164,229,0.75)",
+    shadowColor: "#3EA4E5",
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
   },
   row: {
     flexDirection: "row",
@@ -276,72 +276,67 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    gap: 6,
   },
   headerRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
+    gap: 8,
   },
   username: {
     color: "#FFFFFF",
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
   },
-  usernameNested: {
+  replyUsername: {
     fontSize: 13,
   },
   timeAgo: {
     color: "#7C8798",
-    fontSize: 11,
-    fontWeight: "600",
+    fontSize: 12,
   },
   body: {
-    color: "#E5E7EB",
+    color: "#F3F4F6",
     fontSize: 14,
     lineHeight: 20,
-    marginTop: 4,
   },
-  bodyNested: {
-    color: "#D6DCE5",
+  replyBody: {
     fontSize: 13,
-    lineHeight: 18,
+    lineHeight: 19,
   },
   actions: {
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
-    marginTop: 8,
-  },
-  replies: {
-    marginLeft: 4,
   },
   likeButton: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: 5,
   },
   likeCount: {
     color: "#7C8798",
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "700",
   },
   likeCountActive: {
     color: "#FF5BFC",
   },
   replyText: {
-    color: "#94A3B8",
+    color: "#3EA4E5",
     fontSize: 12,
     fontWeight: "700",
   },
-  viewAllButton: {
-    marginLeft: 64,
-    marginTop: 10,
+  viewRepliesButton: {
+    marginTop: 2,
+    alignSelf: "flex-start",
   },
-  viewAllText: {
-    color: "#60A5FA",
+  viewRepliesText: {
+    color: "#9CD6F5",
     fontSize: 12,
     fontWeight: "700",
+  },
+  replyList: {
+    gap: 10,
   },
 });
-
-export const ThreadedComment = memo(ThreadedCommentComponent);

@@ -4,6 +4,7 @@ export type Comment = {
   avatar: string;
   text: string;
   timeAgo: string;
+  createdAt?: string;
   likes: number;
   hasLiked?: boolean;
   postId?: string;

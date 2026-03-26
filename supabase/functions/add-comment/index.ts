@@ -85,14 +85,19 @@ Deno.serve(async (req) => {
       return errorResponse("rate_limited", "Too many comments. Slow down.");
     }
 
-    let body: { postId: number; content: string; parentId?: number | null };
+    let body: {
+      postId: number;
+      content: string;
+      parentId?: number | null;
+      replyToCommentId?: number | null;
+    };
     try {
       body = await req.json();
     } catch {
       return errorResponse("validation_error", "Invalid JSON body");
     }
 
-    const { postId, content, parentId } = body;
+    const { postId, content, parentId, replyToCommentId } = body;
     if (!postId || typeof postId !== "number") {
       return errorResponse(
         "validation_error",
@@ -124,22 +129,25 @@ Deno.serve(async (req) => {
     let depth = 0;
     let parentAuthorId: number | null = null;
 
-    if (parentId != null) {
-      const { data: parentComment, error: parentError } = await supabaseAdmin
+    const requestedReplyTargetId = replyToCommentId ?? parentId ?? null;
+
+    if (requestedReplyTargetId != null) {
+      const { data: replyTargetComment, error: replyTargetError } =
+        await supabaseAdmin
         .from("comments")
         .select("id, post_id, author_id, parent_id, root_id, depth")
-        .eq("id", parentId)
+        .eq("id", requestedReplyTargetId)
         .single();
 
-      if (parentError || !parentComment) {
+      if (replyTargetError || !replyTargetComment) {
         return errorResponse(
           "validation_error",
-          "Parent comment not found",
+          "Reply target comment not found",
           400,
         );
       }
 
-      if (Number(parentComment.post_id) !== postId) {
+      if (Number(replyTargetComment.post_id) !== postId) {
         return errorResponse(
           "validation_error",
           "Replies must belong to the same post",
@@ -147,22 +155,29 @@ Deno.serve(async (req) => {
         );
       }
 
-      const parentDepth = Number(parentComment.depth) || 0;
-      if (parentDepth >= 2) {
-        return errorResponse(
-          "validation_error",
-          "Replies are limited to 2 levels",
-          400,
+      parentAuthorId = Number(replyTargetComment.author_id) || null;
+
+      normalizedParentId =
+        replyTargetComment.parent_id == null
+          ? Number(replyTargetComment.id)
+          : Number(
+              replyTargetComment.root_id || replyTargetComment.parent_id,
+            );
+      rootId = normalizedParentId;
+      depth = 1;
+
+      if (
+        parentId != null &&
+        Number(parentId) !== normalizedParentId &&
+        requestedReplyTargetId !== parentId
+      ) {
+        console.warn(
+          "[Edge:add-comment] Ignoring mismatched parentId",
+          parentId,
+          "->",
+          normalizedParentId,
         );
       }
-
-      normalizedParentId = Number(parentComment.id);
-      rootId =
-        parentComment.root_id != null
-          ? Number(parentComment.root_id)
-          : Number(parentComment.id);
-      depth = parentDepth + 1;
-      parentAuthorId = Number(parentComment.author_id) || null;
     }
 
     // Insert comment
