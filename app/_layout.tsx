@@ -113,9 +113,7 @@ export default function RootLayout() {
   const openedFromShareIntent = useDeepLinkStore(
     (s) => s.openedFromShareIntent,
   );
-  const pendingShareIntentRoute = useAppStore(
-    (s) => s.pendingShareIntentRoute,
-  );
+  const pendingShareIntentRoute = useAppStore((s) => s.pendingShareIntentRoute);
 
   useEffect(() => {
     const delay = openedFromShareIntent ? 0 : 1500;
@@ -206,7 +204,10 @@ export default function RootLayout() {
         case "like":
         case "comment":
         case "mention":
-          if ((data.type === "comment" || data.type === "mention") && data.postId) {
+          if (
+            (data.type === "comment" || data.type === "mention") &&
+            data.postId
+          ) {
             route = getPostDetailCommentsRoute(
               String(data.postId),
               typeof data.commentId === "string" ? data.commentId : undefined,
