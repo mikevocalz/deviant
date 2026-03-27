@@ -35,13 +35,7 @@ export function useUnreadMessageCount() {
 
   const query = useQuery<{ inbox: number; spam: number }>({
     queryKey: messageKeys.unreadCount(viewerId),
-    queryFn: async () => {
-      const [inboxCount, spamCount] = await Promise.all([
-        messagesApiClient.getUnreadCount(),
-        messagesApiClient.getSpamUnreadCount(),
-      ]);
-      return { inbox: inboxCount, spam: spamCount };
-    },
+    queryFn: () => messagesApiClient.getUnreadCounts(),
     enabled: !!viewerId,
     staleTime: STALE_TIMES.unreadCounts,
     gcTime: GC_TIMES.short,

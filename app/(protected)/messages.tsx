@@ -51,6 +51,7 @@ import { useScreenTrace } from "@/lib/perf/screen-trace";
 import { useBootstrapMessages } from "@/lib/hooks/use-bootstrap-messages";
 import { screenPrefetch } from "@/lib/prefetch";
 import { useChatStore } from "@/lib/stores/chat-store";
+import { supabase } from "@/lib/supabase/client";
 
 interface ConversationItem {
   id: string;
@@ -533,6 +534,62 @@ function MessagesScreenContent() {
 
   const { data: inboxUnreadCount = 0, spamCount: spamUnreadCount = 0 } =
     useUnreadMessageCount();
+
+  // Realtime subscription for conversation list — listen for new messages
+  // so last-message preview and unread status update automatically.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let cancelled = false;
+
+    const channelId = `conv-list-${currentUser.id}-${Date.now()}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          if (cancelled) return;
+          const newMsg = payload.new as any;
+          const convId = String(newMsg.conversation_id);
+          const content = newMsg.content || "";
+          const isMine = String(newMsg.sender_id) === String(currentUser.id);
+
+          // Optimistically patch conversation list cache
+          queryClient.setQueriesData<any[]>(
+            { queryKey: ["messages", "filtered"] },
+            (old) => {
+              if (!Array.isArray(old)) return old;
+              return old.map((conv: any) => {
+                if (String(conv.id) !== convId) return conv;
+                return {
+                  ...conv,
+                  lastMessage: content,
+                  timestamp: "Just now",
+                  unread: !isMine ? true : conv.unread,
+                };
+              });
+            },
+          );
+
+          // Refresh unread counts badge
+          if (!isMine) {
+            queryClient.invalidateQueries({
+              queryKey: messageKeys.unreadCount(currentUser.id),
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id, queryClient]);
 
   // Soft refetch on focus — only if data is stale (> 30s old)
   // Replaces aggressive invalidateQueries which forced refetch on EVERY screen focus
