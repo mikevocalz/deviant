@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
         .select(
           `
           id, created_at, content, post_kind, text_theme, is_nsfw, likes_count,
-          media:posts_media(type, url, "order")
+          media:posts_media(type, url, _order)
         `,
         )
         .eq("author_id", profileUserId)

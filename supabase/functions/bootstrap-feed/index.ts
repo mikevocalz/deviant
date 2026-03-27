@@ -88,7 +88,7 @@ Deno.serve(async (req: Request) => {
             id, username, first_name, verified,
             avatar:avatar_id(url)
           ),
-          media:posts_media(type, url, "order")
+          media:posts_media(type, url, _order, mime_type, live_photo_video_url)
         `,
           { count: "exact" },
         )
@@ -98,7 +98,7 @@ Deno.serve(async (req: Request) => {
 
       // 2. Viewer's liked post IDs — use integer ID
       intUserId
-        ? supabase.from("post_likes").select("post_id").eq("user_id", intUserId)
+        ? supabase.from("likes").select("post_id").eq("user_id", intUserId)
         : Promise.resolve({ data: [] }),
 
       // 3. Viewer's bookmarked post IDs — use integer ID
@@ -189,7 +189,7 @@ Deno.serve(async (req: Request) => {
           verified: author?.verified || false,
         },
         media: (p.media || [])
-          .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
+          .sort((a: any, b: any) => (a._order || 0) - (b._order || 0))
           .map((m: any) => ({
             type: m.type || "image",
             url: m.url || "",

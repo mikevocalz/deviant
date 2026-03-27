@@ -203,7 +203,7 @@ async function buildTile2(
     .select(
       `
       id, content, likes_count,
-      media:posts_media(type, url, "order")
+      media:posts_media(type, url, _order)
     `,
     )
     .gte("created_at", sevenDaysAgo)
