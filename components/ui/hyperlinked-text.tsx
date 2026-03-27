@@ -106,7 +106,7 @@ export const HyperlinkedText = memo(function HyperlinkedText({
             return (
               <Text
                 key={i}
-                style={{ color: mentionColor, fontWeight: "600" }}
+                style={{ color: mentionColor, fontWeight: "800" }}
                 onPress={() => handleMention(token.value)}
                 suppressHighlighting
               >

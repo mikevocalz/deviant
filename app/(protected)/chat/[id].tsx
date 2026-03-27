@@ -1259,7 +1259,10 @@ function ChatScreenContent() {
               {/* Group Audio Call */}
               <Pressable
                 onPress={() => {
-                  const ids = safeGroupMembers.map((m) => m.id).join(",");
+                  const ids = safeGroupMembers
+                    .map((m) => m.id || m.authId || "")
+                    .filter(Boolean)
+                    .join(",");
                   if (ids) {
                     router.push({
                       pathname: "/(protected)/call/[roomId]",
@@ -1283,7 +1286,10 @@ function ChatScreenContent() {
               {/* Group Video Call */}
               <Pressable
                 onPress={() => {
-                  const ids = safeGroupMembers.map((m) => m.id).join(",");
+                  const ids = safeGroupMembers
+                    .map((m) => m.id || m.authId || "")
+                    .filter(Boolean)
+                    .join(",");
                   if (ids) {
                     router.push({
                       pathname: "/(protected)/call/[roomId]",

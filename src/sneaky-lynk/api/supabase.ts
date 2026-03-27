@@ -372,11 +372,4 @@ export const sneakyLynkApi = {
       return null;
     }
   },
-
-  async setRoomMode(
-    roomId: string,
-    mode: "sweet" | "spicy",
-  ): Promise<ApiResponse<{ roomId: string; mode: "sweet" | "spicy" }>> {
-    return callEdgeFunction("video_set_room_mode", { roomId, mode });
-  },
 };

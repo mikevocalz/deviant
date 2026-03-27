@@ -336,7 +336,7 @@ function SneakyLynkContent({
     const localOnly = localRooms.filter(
       (r) => !dbIds.has(r.id) && r.source === "sneaky_lynk",
     );
-    return [...dbRooms, ...localOnly].filter((r) => r.isLive);
+    return [...dbRooms, ...localOnly];
   }, [dbRooms, localRooms])();
 
   const handleCreateLynk = useCallback(() => {

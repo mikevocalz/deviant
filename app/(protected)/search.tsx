@@ -41,6 +41,7 @@ import {
   type LocationData,
 } from "@/components/ui/location-autocomplete-v3";
 import { TextPostSurface } from "@/components/post/TextPostSurface";
+import { resolveTextPostPresentation } from "@/lib/posts/text-post";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const columnWidth = (SCREEN_WIDTH - 8) / 3;
@@ -61,6 +62,10 @@ function PostGridTile({
 }) {
   const firstMedia = post.media?.[0];
   const isTextPost = post.kind === "text";
+  const textPostPreview = resolveTextPostPresentation(
+    post.textSlides,
+    post.caption,
+  );
   const isVideo = post.type === "video" || firstMedia?.type === "video";
   const videoUrl = isVideo ? firstMedia?.url : undefined;
   const imageUri = post.thumbnail || (!isVideo ? firstMedia?.url : undefined);
@@ -84,7 +89,7 @@ function PostGridTile({
       >
         {isTextPost ? (
           <TextPostSurface
-            text={post.caption}
+            text={textPostPreview.previewText}
             theme={post.textTheme}
             variant="grid"
             style={{ minHeight: "100%", height: "100%" }}

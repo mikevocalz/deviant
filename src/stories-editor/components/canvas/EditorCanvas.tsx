@@ -231,7 +231,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = React.memo(
                 y={0}
                 width={CANVAS_WIDTH}
                 height={CANVAS_HEIGHT}
-                fit="cover"
+                fit="contain"
               />
             )}
 

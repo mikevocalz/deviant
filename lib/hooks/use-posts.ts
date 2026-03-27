@@ -8,6 +8,7 @@ import {
 import { debounce } from "@tanstack/pacer";
 import { postsApi } from "@/lib/api/posts";
 import type { Post } from "@/lib/types";
+import { resolveTextPostPresentation } from "@/lib/posts/text-post";
 import { useRef, useCallback, useMemo } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
@@ -394,6 +395,20 @@ export function useCreatePost() {
         queryKey: postKeys.all,
       });
 
+      const optimisticTextPresentation =
+        newPostData.kind === "text"
+          ? resolveTextPostPresentation(
+              (newPostData.slides || [newPostData.content || ""]).map(
+                (content, order) => ({
+                  id: `draft-${order}`,
+                  order,
+                  content,
+                }),
+              ),
+              newPostData.content,
+            )
+          : { textSlides: [], caption: "", previewText: "" };
+
       // Optimistically add the new post to infinite feed
       queryClient.setQueryData(postKeys.feedInfinite(), (old: any) => {
         if (!old || !old.pages || old.pages.length === 0) return old;
@@ -416,7 +431,18 @@ export function useCreatePost() {
                 ? ("text" as const)
                 : ("media" as const),
             textTheme: newPostData.textTheme || "graphite",
-            caption: newPostData.content || "",
+            caption:
+              newPostData.kind === "text"
+                ? optimisticTextPresentation.caption
+                : newPostData.content || "",
+            textSlides:
+              newPostData.kind === "text"
+                ? optimisticTextPresentation.textSlides
+                : undefined,
+            textSlideCount:
+              newPostData.kind === "text"
+                ? optimisticTextPresentation.textSlides.length
+                : undefined,
             likes: 0,
             comments: [],
             timeAgo: "Just now",
@@ -461,7 +487,18 @@ export function useCreatePost() {
               ? ("text" as const)
               : ("media" as const),
           textTheme: newPostData.textTheme || "graphite",
-          caption: newPostData.content || "",
+          caption:
+            newPostData.kind === "text"
+              ? optimisticTextPresentation.caption
+              : newPostData.content || "",
+          textSlides:
+            newPostData.kind === "text"
+              ? optimisticTextPresentation.textSlides
+              : undefined,
+          textSlideCount:
+            newPostData.kind === "text"
+              ? optimisticTextPresentation.textSlides.length
+              : undefined,
           likes: 0,
           comments: [],
           timeAgo: "Just now",
@@ -499,7 +536,18 @@ export function useCreatePost() {
                   ? ("text" as const)
                   : ("media" as const),
               textTheme: newPostData.textTheme || "graphite",
-              caption: newPostData.content || "",
+              caption:
+                newPostData.kind === "text"
+                  ? optimisticTextPresentation.caption
+                  : newPostData.content || "",
+              textSlides:
+                newPostData.kind === "text"
+                  ? optimisticTextPresentation.textSlides
+                  : undefined,
+              textSlideCount:
+                newPostData.kind === "text"
+                  ? optimisticTextPresentation.textSlides.length
+                  : undefined,
               likes: 0,
               comments: [],
               timeAgo: "Just now",

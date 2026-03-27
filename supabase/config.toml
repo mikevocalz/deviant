@@ -96,3 +96,6 @@ verify_jwt = false
 
 [functions.wallet_web_service]
 verify_jwt = false
+
+[functions.get-text-post-slides]
+verify_jwt = false

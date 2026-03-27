@@ -59,6 +59,70 @@ interface UseVideoRoomOptions {
   onError?: (error: string) => void;
 }
 
+function resolvePeerTracks(peer: any) {
+  const videoTrack =
+    peer.cameraTrack ??
+    peer.videoTrack ??
+    peer.tracks?.find((track: any) => track.metadata?.type === "camera") ??
+    null;
+  const audioTrack =
+    peer.microphoneTrack ??
+    peer.audioTrack ??
+    peer.tracks?.find((track: any) => track.metadata?.type === "microphone") ??
+    null;
+
+  return { videoTrack, audioTrack };
+}
+
+function isTrackActive(track: any): boolean {
+  if (!track) return false;
+
+  const mediaTrack = track.track ?? null;
+  if (mediaTrack) {
+    if (mediaTrack.readyState === "ended") return false;
+    if (typeof mediaTrack.enabled === "boolean" && !mediaTrack.enabled) {
+      return false;
+    }
+    return true;
+  }
+
+  const stream = track.stream ?? null;
+  if (stream && typeof stream.getTracks === "function") {
+    const liveTracks = stream
+      .getTracks()
+      .filter((item: MediaStreamTrack | null | undefined) => {
+        return item && item.readyState !== "ended";
+      });
+
+    if (liveTracks.length > 0) {
+      return liveTracks.some((item: MediaStreamTrack) => item.enabled !== false);
+    }
+
+    if (typeof stream.active === "boolean") {
+      return stream.active;
+    }
+  }
+
+  return !!(track.trackId || stream);
+}
+
+function getPeerIdentity(peer: any): string {
+  const metadata = (peer.metadata as Record<string, unknown>) || {};
+  const userId = metadata.userId;
+
+  return typeof userId === "string" && userId.length > 0 ? userId : peer.id;
+}
+
+function getPeerScore(peer: any): number {
+  const { videoTrack, audioTrack } = resolvePeerTracks(peer);
+
+  return (
+    (isTrackActive(videoTrack) ? 4 : videoTrack ? 1 : 0) +
+    (isTrackActive(audioTrack) ? 4 : audioTrack ? 1 : 0) +
+    (peer.screenShareVideoTrack ? 1 : 0)
+  );
+}
+
 export function useVideoRoom({
   roomId,
   anonymous = false,
@@ -127,14 +191,12 @@ export function useVideoRoom({
     // room store so the Sneaky Lynk controls don't drift after failed toggles
     // or async track publication.
     const camera = cameraRef.current;
-    getStore().setCameraOn(!!(camera.isCameraOn || camera.cameraStream));
+    getStore().setCameraOn(!!camera.isCameraOn);
   }, [cameraHook.isCameraOn, cameraHook.cameraStream, getStore]);
 
   useEffect(() => {
     const microphone = microphoneRef.current;
-    getStore().setMicOn(
-      !!(microphone.isMicrophoneOn || microphone.microphoneStream),
-    );
+    getStore().setMicOn(!!microphone.isMicrophoneOn);
   }, [
     microphoneHook.isMicrophoneOn,
     microphoneHook.microphoneStream,
@@ -262,6 +324,44 @@ export function useVideoRoom({
       } catch (error) {
         console.error("[useVideoRoom] Failed to set microphone state:", error);
         onErrorRef.current?.("Failed to toggle microphone");
+      }
+    },
+    [getStore],
+  );
+
+  const setCameraEnabled = useCallback(
+    async (enabled: boolean) => {
+      try {
+        const camera = cameraRef.current;
+
+        if (enabled) {
+          if (!camera.isCameraOn) {
+            const toggleError = await camera.toggleCamera();
+            if (toggleError) {
+              console.error("[useVideoRoom] Failed to start camera:", toggleError);
+              onErrorRef.current?.("Failed to start camera");
+              getStore().setCameraOn(false);
+              return;
+            }
+          }
+
+          getStore().setCameraOn(true);
+          return;
+        }
+
+        if (camera.isCameraOn) {
+          const toggleError = await camera.toggleCamera();
+          if (toggleError) {
+            console.error("[useVideoRoom] Failed to stop camera:", toggleError);
+            onErrorRef.current?.("Failed to toggle camera");
+            return;
+          }
+        }
+
+        getStore().setCameraOn(false);
+      } catch (error) {
+        console.error("[useVideoRoom] Failed to set camera state:", error);
+        onErrorRef.current?.("Failed to toggle camera");
       }
     },
     [getStore],
@@ -494,23 +594,12 @@ export function useVideoRoom({
     if (cameraToggleInFlightRef.current) return;
     cameraToggleInFlightRef.current = true;
 
-    // CRITICAL: Use SDK's toggleCamera() — NOT startCamera().
-    // startCamera() only creates the local track but does NOT publish it.
-    // toggleCamera() both starts the device AND publishes the track when
-    // peerStatus === "connected", so remote peers can see the video.
     try {
-      const error = await cameraRef.current.toggleCamera();
-
-      if (error) {
-        console.error("[useVideoRoom] Failed to toggle camera:", error);
-        onErrorRef.current?.("Failed to toggle camera");
-      }
+      await setCameraEnabled(!cameraRef.current.isCameraOn);
     } finally {
-      const camera = cameraRef.current;
-      getStore().setCameraOn(!!(camera.isCameraOn || camera.cameraStream));
       cameraToggleInFlightRef.current = false;
     }
-  }, [getStore]);
+  }, [setCameraEnabled]);
 
   const toggleMic = useCallback(async () => {
     if (micToggleInFlightRef.current) return;
@@ -529,13 +618,34 @@ export function useVideoRoom({
     }
     cameraSwitchInFlightRef.current = true;
     try {
+      const stream = cameraRef.current.cameraStream;
+      const videoTrack = stream?.getVideoTracks?.()[0];
       const currentCameraId = cameraRef.current.currentCamera?.deviceId;
       const nextFacing = getStore().isFrontCamera ? "back" : "front";
       const targetCameraId = getPreferredCameraId(nextFacing);
 
+      if (videoTrack && typeof (videoTrack as any)._switchCamera === "function") {
+        (videoTrack as any)._switchCamera();
+        getStore().setFrontCamera(nextFacing === "front");
+        return;
+      }
+
       if (targetCameraId && targetCameraId !== currentCameraId) {
-        const selectError =
-          await cameraRef.current.selectCamera(targetCameraId);
+        const selectError = await cameraRef.current.selectCamera(targetCameraId);
+        if (!selectError && cameraRef.current.isCameraOn) {
+          cameraRef.current.stopCamera();
+          const [, startError] =
+            await cameraRef.current.startCamera(targetCameraId);
+          if (!startError) {
+            getStore().setFrontCamera(nextFacing === "front");
+            return;
+          }
+          console.warn(
+            "[useVideoRoom] startCamera after selectCamera failed:",
+            startError,
+          );
+        }
+
         if (!selectError) {
           getStore().setFrontCamera(nextFacing === "front");
           return;
@@ -544,18 +654,6 @@ export function useVideoRoom({
           "[useVideoRoom] selectCamera failed, falling back to track switch:",
           selectError,
         );
-      }
-
-      const stream = cameraRef.current.cameraStream;
-      const videoTrack = stream?.getVideoTracks?.()[0];
-
-      if (
-        videoTrack &&
-        typeof (videoTrack as any)._switchCamera === "function"
-      ) {
-        (videoTrack as any)._switchCamera();
-        getStore().setFrontCamera(nextFacing === "front");
-        return;
       }
 
       console.warn("[useVideoRoom] No camera-switch path available");
@@ -613,34 +711,26 @@ export function useVideoRoom({
   useEffect(() => {
     // Use remotePeers (peers is deprecated in v0.25)
     const allPeers = peersHook.remotePeers || peersHook.peers || [];
-    const participants: Participant[] = allPeers.map((peer: any) => {
+    const peersByUserId = new Map<string, any>();
+
+    allPeers.forEach((peer: any) => {
+      const identity = getPeerIdentity(peer);
+      const existingPeer = peersByUserId.get(identity);
+
+      if (!existingPeer || getPeerScore(peer) >= getPeerScore(existingPeer)) {
+        peersByUserId.set(identity, peer);
+      }
+    });
+
+    const participants: Participant[] = Array.from(peersByUserId.values()).map(
+      (peer: any) => {
       const metadata = (peer.metadata as Record<string, unknown>) || {};
-      // Fishjam SDK v0.25: use distinguished tracks, fallback to legacy
-      const videoTrack =
-        peer.cameraTrack ??
-        peer.videoTrack ??
-        peer.tracks?.find((t: any) => t.metadata?.type === "camera") ??
-        null;
-      const audioTrack =
-        peer.microphoneTrack ??
-        peer.audioTrack ??
-        peer.tracks?.find((t: any) => t.metadata?.type === "microphone") ??
-        null;
-      const hasVideoTrack = !!(
-        videoTrack?.stream ||
-        videoTrack?.track ||
-        videoTrack?.trackId
-      );
-      const hasAudioTrack = !!(
-        audioTrack?.stream ||
-        audioTrack?.track ||
-        audioTrack?.trackId
-      );
+      const { videoTrack, audioTrack } = resolvePeerTracks(peer);
 
       return {
         odId: peer.id,
         oderId: peer.id,
-        userId: (metadata.userId as string) || peer.id,
+        userId: getPeerIdentity(peer),
         username: metadata.username as string | undefined,
         displayName:
           (metadata.displayName as string | undefined) ||
@@ -648,8 +738,8 @@ export function useVideoRoom({
         avatar: metadata.avatar as string | undefined,
         role: (metadata.role as MemberRole) || "participant",
         isLocal: false,
-        isCameraOn: hasVideoTrack,
-        isMicOn: hasAudioTrack,
+        isCameraOn: isTrackActive(videoTrack),
+        isMicOn: isTrackActive(audioTrack),
         isScreenSharing: !!peer.screenShareVideoTrack,
         videoTrack,
         audioTrack,
@@ -715,6 +805,8 @@ export function useVideoRoom({
     leave,
     toggleCamera,
     toggleMic,
+    setCameraEnabled,
+    setMicEnabled,
     switchCamera,
     kickUser,
     banUser,

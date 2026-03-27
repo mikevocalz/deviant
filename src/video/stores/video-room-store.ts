@@ -233,9 +233,27 @@ export const useVideoRoomStore = create<VideoRoomStore>((set, get) => ({
         const currVidStream = curr.videoTrack?.stream ?? null;
         if (prevVidStream !== currVidStream) return false;
 
+        const prevVidTrack = p.videoTrack?.track ?? null;
+        const currVidTrack = curr.videoTrack?.track ?? null;
+        if (prevVidTrack !== currVidTrack) return false;
+
+        const prevVidTrackId = p.videoTrack?.trackId ?? prevVidTrack?.id ?? null;
+        const currVidTrackId =
+          curr.videoTrack?.trackId ?? currVidTrack?.id ?? null;
+        if (prevVidTrackId !== currVidTrackId) return false;
+
         const prevAudStream = p.audioTrack?.stream ?? null;
         const currAudStream = curr.audioTrack?.stream ?? null;
         if (prevAudStream !== currAudStream) return false;
+
+        const prevAudTrack = p.audioTrack?.track ?? null;
+        const currAudTrack = curr.audioTrack?.track ?? null;
+        if (prevAudTrack !== currAudTrack) return false;
+
+        const prevAudTrackId = p.audioTrack?.trackId ?? prevAudTrack?.id ?? null;
+        const currAudTrackId =
+          curr.audioTrack?.trackId ?? currAudTrack?.id ?? null;
+        if (prevAudTrackId !== currAudTrackId) return false;
 
         return true;
       })

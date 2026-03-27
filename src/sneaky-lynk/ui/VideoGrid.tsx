@@ -5,7 +5,7 @@
  * Shows RTCView for camera-on participants, avatar placeholder for camera-off.
  */
 
-import React, { memo, useMemo, useEffect, useRef } from "react";
+import React, { memo, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,6 @@ import {
   ScrollView,
   useWindowDimensions,
   StyleSheet,
-  Animated as RNAnimated,
 } from "react-native";
 import { RTCView } from "@fishjam-cloud/react-native-client";
 import { LinearGradient } from "expo-linear-gradient";
@@ -33,6 +32,12 @@ import Animated, {
   FadeIn,
   FadeOut,
   LinearTransition,
+  useSharedValue,
+  useAnimatedStyle,
+  withRepeat,
+  withSequence,
+  withTiming,
+  cancelAnimation,
 } from "react-native-reanimated";
 
 export interface VideoParticipant {
@@ -60,51 +65,42 @@ interface VideoGridProps {
 // ── Animated sound bars for speaking indicator ────────────────────
 
 const SpeakingBars = memo(function SpeakingBars() {
-  const bar1 = useRef(new RNAnimated.Value(0.3)).current;
-  const bar2 = useRef(new RNAnimated.Value(0.6)).current;
-  const bar3 = useRef(new RNAnimated.Value(0.4)).current;
+  const bar1 = useSharedValue(0.3);
+  const bar2 = useSharedValue(0.6);
+  const bar3 = useSharedValue(0.4);
 
   useEffect(() => {
-    const animate = (value: RNAnimated.Value, duration: number) =>
-      RNAnimated.loop(
-        RNAnimated.sequence([
-          RNAnimated.timing(value, {
-            toValue: 1,
-            duration,
-            useNativeDriver: false,
-          }),
-          RNAnimated.timing(value, {
-            toValue: 0.2,
-            duration,
-            useNativeDriver: false,
-          }),
-        ]),
-      );
-    const a1 = animate(bar1, 320);
-    const a2 = animate(bar2, 240);
-    const a3 = animate(bar3, 380);
-    a1.start();
-    a2.start();
-    a3.start();
+    bar1.value = withRepeat(
+      withSequence(withTiming(1, { duration: 320 }), withTiming(0.2, { duration: 320 })),
+      -1,
+      false,
+    );
+    bar2.value = withRepeat(
+      withSequence(withTiming(1, { duration: 240 }), withTiming(0.2, { duration: 240 })),
+      -1,
+      false,
+    );
+    bar3.value = withRepeat(
+      withSequence(withTiming(1, { duration: 380 }), withTiming(0.2, { duration: 380 })),
+      -1,
+      false,
+    );
     return () => {
-      a1.stop();
-      a2.stop();
-      a3.stop();
+      cancelAnimation(bar1);
+      cancelAnimation(bar2);
+      cancelAnimation(bar3);
     };
   }, [bar1, bar2, bar3]);
 
-  const barStyle = (anim: RNAnimated.Value) => ({
-    width: 3,
-    borderRadius: 1.5,
-    backgroundColor: "#3FDCFF",
-    height: anim.interpolate({ inputRange: [0, 1], outputRange: [4, 14] }),
-  });
+  const bar1Style = useAnimatedStyle(() => ({ height: 4 + bar1.value * 10 }));
+  const bar2Style = useAnimatedStyle(() => ({ height: 4 + bar2.value * 10 }));
+  const bar3Style = useAnimatedStyle(() => ({ height: 4 + bar3.value * 10 }));
 
   return (
     <View style={styles.speakingBars}>
-      <RNAnimated.View style={barStyle(bar1)} />
-      <RNAnimated.View style={barStyle(bar2)} />
-      <RNAnimated.View style={barStyle(bar3)} />
+      <Animated.View style={[styles.speakingBar, bar1Style]} />
+      <Animated.View style={[styles.speakingBar, bar2Style]} />
+      <Animated.View style={[styles.speakingBar, bar3Style]} />
     </View>
   );
 });
@@ -134,30 +130,33 @@ const VideoTile = memo(function VideoTile({
     isHandRaised,
     isFrontCamera,
   } = participant;
-  const hasStream = videoTrack?.stream;
-  const showVideo = isCameraOn && hasStream;
+  const MediaStreamCtor = globalThis.MediaStream as
+    | (new (tracks?: any[]) => MediaStream)
+    | undefined;
+  const resolvedVideoStream =
+    videoTrack?.stream ??
+    (videoTrack?.track && MediaStreamCtor
+      ? new MediaStreamCtor([videoTrack.track])
+      : null);
+  const showVideo = isCameraOn && !!resolvedVideoStream;
   const isAnon = user.isAnonymous;
   const label = user.anonLabel || user.username || user.displayName || "Guest";
   const showHostIdentityPill = role === "host";
 
-  // Animated glow for speaking
-  const glowAnim = useRef(new RNAnimated.Value(0)).current;
+  // Animated glow for speaking (Reanimated — runs on UI thread)
+  const glowAnim = useSharedValue(0);
   useEffect(() => {
-    RNAnimated.timing(glowAnim, {
-      toValue: isSpeaking ? 1 : 0,
-      duration: 250,
-      useNativeDriver: false,
-    }).start();
+    glowAnim.value = withTiming(isSpeaking ? 1 : 0, { duration: 250 });
   }, [isSpeaking, glowAnim]);
 
-  const borderColor = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["transparent", "#3FDCFF"],
-  });
-  const borderWidth = glowAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, 2.5],
-  });
+  const glowStyle = useAnimatedStyle(() => ({
+    borderColor: glowAnim.value > 0.5 ? "#3FDCFF" : "transparent",
+    borderWidth: glowAnim.value * 2.5,
+    shadowColor: glowAnim.value > 0.5 ? "#3FDCFF" : "#000",
+    shadowOpacity: 0.14 + glowAnim.value * 0.18,
+    shadowRadius: 12 + glowAnim.value * 6,
+    shadowOffset: { width: 0, height: 10 },
+  }));
 
   return (
     <Animated.View
@@ -166,19 +165,14 @@ const VideoTile = memo(function VideoTile({
       layout={LinearTransition.springify().damping(18).stiffness(180)}
       style={{ width: tileWidth, height: tileHeight }}
     >
-      <RNAnimated.View
+      <Animated.View
         style={[
           styles.tileOuter,
           {
             width: tileWidth,
             height: tileHeight,
-            borderColor,
-            borderWidth,
-            shadowColor: isSpeaking ? "#3FDCFF" : "#000",
-            shadowOpacity: isSpeaking ? 0.32 : 0.14,
-            shadowRadius: isSpeaking ? 18 : 12,
-            shadowOffset: { width: 0, height: 10 },
           },
+          glowStyle,
         ]}
       >
         <Pressable
@@ -188,7 +182,7 @@ const VideoTile = memo(function VideoTile({
         >
           {showVideo ? (
             <RTCView
-              mediaStream={videoTrack.stream}
+              mediaStream={resolvedVideoStream}
               style={StyleSheet.absoluteFill}
               objectFit="cover"
               mirror={isLocal && isFrontCamera !== false}
@@ -291,7 +285,7 @@ const VideoTile = memo(function VideoTile({
             )}
           </View>
         </Pressable>
-      </RNAnimated.View>
+      </Animated.View>
     </Animated.View>
   );
 });
@@ -642,5 +636,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 2,
     height: 14,
+  },
+  speakingBar: {
+    width: 3,
+    borderRadius: 1.5,
+    backgroundColor: "#3FDCFF",
   },
 });

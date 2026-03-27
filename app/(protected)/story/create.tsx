@@ -36,7 +36,13 @@ import { useColorScheme } from "@/lib/hooks";
 import { useCreateStoryStore } from "@/lib/stores/create-story-store";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
 import { useMediaPicker } from "@/lib/hooks";
-import { useCallback, useLayoutEffect, useEffect, useState } from "react";
+import {
+  useCallback,
+  useLayoutEffect,
+  useEffect,
+  useState,
+  useRef,
+} from "react";
 import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -50,6 +56,7 @@ import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { useStoryFlowStore } from "@/lib/stores/story-flow-store";
 import { useStoryEditorResultStore } from "@/lib/stores/story-editor-result-store";
 import type { StoryAnimatedGifOverlay } from "@/lib/types";
+import * as LegacyFileSystem from "expo-file-system/legacy";
 
 function StoryVideoPreview({ uri }: { uri: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -119,6 +126,35 @@ const MAX_STORY_ITEMS = 4;
 const MAX_VIDEO_DURATION = 30;
 const MAX_FILE_SIZE_MB = 50;
 
+function normalizeSharedUri(rawUri: string): string | null {
+  const decodedUri = decodeURIComponent(rawUri).trim();
+  if (!decodedUri) return null;
+
+  if (/^(file|content|assets-library|ph|https?):\/\//i.test(decodedUri)) {
+    return decodedUri;
+  }
+
+  if (decodedUri.startsWith("/")) {
+    return `file://${decodedUri}`;
+  }
+
+  return decodedUri;
+}
+
+function inferSharedAssetExtension(
+  uri: string,
+  type: "image" | "video",
+): string {
+  const path = uri.split("?")[0] || uri;
+  const pathMatch = path.match(/\.([a-zA-Z0-9]+)$/);
+
+  if (pathMatch?.[1]) {
+    return pathMatch[1].toLowerCase();
+  }
+
+  return type === "video" ? "mp4" : "jpg";
+}
+
 function CreateStoryScreenContent() {
   const router = useRouter();
   const navigation = useNavigation();
@@ -171,11 +207,23 @@ function CreateStoryScreenContent() {
 
   const consumeCameraResult = useCameraResultStore((s) => s.consumeResult);
   const consumeEditorResult = useStoryEditorResultStore((s) => s.consumeResult);
+  const sharedImportKeyRef = useRef<string | null>(null);
 
   // Pick up edited URI coming back from the Skia editor
-  const { editedUri, editedIndex } = useLocalSearchParams<{
+  const {
+    editedUri,
+    editedIndex,
+    sharedUri,
+    sharedType,
+    openEditor,
+    sharedAt,
+  } = useLocalSearchParams<{
     editedUri?: string;
     editedIndex?: string;
+    sharedUri?: string;
+    sharedType?: string;
+    openEditor?: string;
+    sharedAt?: string;
   }>();
 
   const applyEditedResult = useCallback(
@@ -422,6 +470,102 @@ function CreateStoryScreenContent() {
     [ensureHubState, mediaAssets, router, transitionTo],
   );
 
+  useEffect(() => {
+    if (!sharedUri) return;
+
+    const importKey = [
+      sharedAt || "shared",
+      sharedType || "image",
+      sharedUri,
+      openEditor || "0",
+    ].join(":");
+
+    if (sharedImportKeyRef.current === importKey) {
+      return;
+    }
+
+    sharedImportKeyRef.current = importKey;
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const normalizedType = sharedType === "video" ? "video" : "image";
+        const normalizedUri = normalizeSharedUri(sharedUri);
+
+        if (!normalizedUri) {
+          throw new Error("Missing shared asset URI");
+        }
+
+        let accessibleUri = normalizedUri;
+        if (/^https?:\/\//i.test(normalizedUri)) {
+          const extension = inferSharedAssetExtension(
+            normalizedUri,
+            normalizedType,
+          );
+          const downloadPath = `${LegacyFileSystem.cacheDirectory}story-share-${Date.now()}.${extension}`;
+          const download = await LegacyFileSystem.downloadAsync(
+            normalizedUri,
+            downloadPath,
+          );
+          accessibleUri = download.uri;
+        }
+
+        if (cancelled) return;
+
+        const asset: MediaAsset = {
+          id: `${accessibleUri}-${sharedAt || Date.now()}`,
+          uri: accessibleUri,
+          type: normalizedType,
+          kind: normalizedType === "video" ? "video" : "image",
+        };
+
+        reset();
+        setMediaAssets([asset]);
+        setCurrentIndex(0);
+        ensureHubState();
+
+        if (openEditor === "1") {
+          setTimeout(() => {
+            if (cancelled) return;
+
+            router.push({
+              pathname: "/(protected)/story/editor",
+              params: {
+                uri: encodeURIComponent(asset.uri),
+                type: asset.type,
+                index: "0",
+              },
+            });
+          }, 300);
+        }
+      } catch (error) {
+        console.warn("[Story] Failed to import shared asset:", error);
+        if (!cancelled) {
+          showToast(
+            "error",
+            "Share Failed",
+            "We couldn't import that media into your story.",
+          );
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    ensureHubState,
+    openEditor,
+    reset,
+    router,
+    setCurrentIndex,
+    setMediaAssets,
+    sharedAt,
+    sharedType,
+    sharedUri,
+    showToast,
+  ]);
+
   const handleShare = useCallback(async () => {
     console.log("[Story] handleShare called", {
       isSharing,
@@ -665,7 +809,7 @@ function CreateStoryScreenContent() {
                     <Image
                       source={{ uri: currentMedia }}
                       style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
+                      contentFit="contain"
                     />
                     {/* Tap anywhere to open Skia editor */}
                     <Pressable

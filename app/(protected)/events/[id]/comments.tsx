@@ -327,7 +327,7 @@ function EventCommentsScreenContent() {
                               `/(protected)/profile/${part.slice(1)}` as any,
                             )
                           }
-                          style={{ color: MENTION_COLOR, fontWeight: "600" }}
+                          style={{ color: MENTION_COLOR, fontWeight: "800" }}
                         >
                           {part}
                         </Text>

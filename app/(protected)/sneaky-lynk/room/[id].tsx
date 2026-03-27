@@ -16,6 +16,7 @@ import {
   ScrollView,
   ActivityIndicator,
   Switch,
+  AppState,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -647,12 +648,21 @@ function LocalRoom({
     router.back();
   }, [router, id, endRoom, reset, storeListeners.length, showToast]);
   const handleShare = useCallback(async () => {
-    const shared = await shareUrl(buildLynkShareUrl(id), {
+    const shareResult = await shareUrl(buildLynkShareUrl(id), {
       title: roomTitle,
       message: `Join "${roomTitle}" on DVNT\n${buildLynkShareUrl(id)}`,
     });
-    if (shared) {
+    if (shareResult === "shared") {
       showToast("success", "Invite Shared", "Your Lynk invite is ready.");
+      return;
+    }
+
+    if (shareResult === "error") {
+      showToast(
+        "error",
+        "Share Failed",
+        "We couldn't open the share sheet right now.",
+      );
       return;
     }
 
@@ -690,6 +700,18 @@ function LocalRoom({
   const handleSwitchCamera = useCallback(async () => {
     const devices = cameraRef.current.cameraDevices || [];
     const nextFacing = isFrontCamera ? "back" : "front";
+    const liveVideoTrack = cameraRef.current.cameraStream?.getVideoTracks?.()[0];
+
+    if (
+      liveVideoTrack &&
+      typeof (liveVideoTrack as any)._switchCamera === "function"
+    ) {
+      (liveVideoTrack as any)._switchCamera();
+      setIsFrontCamera((prev) => !prev);
+      return;
+    }
+
+    const wasCameraOn = localVideoOn && !!cameraRef.current.cameraStream;
     const nextCamera = devices.find((device: any) => {
       const label = String(device?.label || "").toLowerCase();
       const deviceId = String(device?.deviceId || "").toLowerCase();
@@ -705,6 +727,21 @@ function LocalRoom({
 
     if (nextCamera?.deviceId) {
       const error = await cameraRef.current.selectCamera(nextCamera.deviceId);
+      if (!error && wasCameraOn) {
+        cameraRef.current.stopCamera();
+        const [, startError] = await cameraRef.current.startCamera(
+          nextCamera.deviceId,
+        );
+        if (!startError) {
+          setIsFrontCamera((prev) => !prev);
+          return;
+        }
+        console.warn(
+          "[SneakyLynk:Local] startCamera after selectCamera failed:",
+          startError,
+        );
+      }
+
       if (!error) {
         setIsFrontCamera((prev) => !prev);
         return;
@@ -713,14 +750,6 @@ function LocalRoom({
         "[SneakyLynk:Local] selectCamera failed, falling back to track switch:",
         error,
       );
-    }
-
-    const stream = cameraRef.current.cameraStream;
-    const videoTrack = stream?.getVideoTracks?.()[0];
-    if (videoTrack && typeof (videoTrack as any)._switchCamera === "function") {
-      (videoTrack as any)._switchCamera();
-      setIsFrontCamera((prev) => !prev);
-      return;
     }
 
     showToast(
@@ -900,10 +929,6 @@ function ServerRoom({
       ? "This Lynk has ended and can't be reopened."
       : null,
   );
-  const [roomMode, setRoomMode] = useState<"sweet" | "spicy">(
-    initialRoom?.sweetSpicyMode || "sweet",
-  );
-  const [isUpdatingRoomMode, setIsUpdatingRoomMode] = useState(false);
   const [presenceEvent, setPresenceEvent] = useState<PresenceEvent | null>(
     null,
   );
@@ -911,6 +936,7 @@ function ServerRoom({
   const desiredMicEnabledRef = useRef(true);
   const desiredVideoEnabledRef = useRef(roomHasVideo);
   const handToggleInFlightRef = useRef(false);
+  const shareInFlightRef = useRef(false);
   const markRoomClosed = useCallback(
     (room?: SneakyRoom | null, reason?: string) => {
       if (room) setRoomSnapshot(room);
@@ -941,6 +967,9 @@ function ServerRoom({
       }
     },
   });
+  // Stable ref so callbacks never capture a stale videoRoom object
+  const videoRoomRef = useRef(videoRoom);
+  videoRoomRef.current = videoRoom;
 
   // When anonymous, use the anon label from the server response instead of real profile
   const localAnonLabel = normalizeAnonLabel(
@@ -985,14 +1014,31 @@ function ServerRoom({
           | "connected"
           | "reconnecting"
           | "disconnected");
-  const derivedRoomMode = (roomSnapshot?.sweetSpicyMode ||
-    videoRoom.room?.sweetSpicyMode ||
-    "sweet") as "sweet" | "spicy";
+  const previousConnectionStateRef = useRef(connectionState);
+  const appStateRef = useRef(AppState.currentState);
 
-  useEffect(() => {
-    if (isUpdatingRoomMode) return;
-    setRoomMode(derivedRoomMode);
-  }, [derivedRoomMode, isUpdatingRoomMode]);
+  const reconcileDesiredMedia = useCallback(
+    async (reason: "join" | "reconnect" | "foreground") => {
+      try {
+        console.log("[SneakyLynk:Server] Reconciling media after", reason);
+        // On reconnect or foreground resume the audio session may have been
+        // interrupted — restart it. On initial join the session is already
+        // active (started in the join effect), so only ensure speaker routing.
+        if (reason === "reconnect" || reason === "foreground") {
+          audioSession.startForLynk(true);
+        } else {
+          audioSession.setSpeakerOn(true);
+        }
+        await videoRoomRef.current.setCameraEnabled(
+          roomHasVideo && desiredVideoEnabledRef.current,
+        );
+        await videoRoomRef.current.setMicEnabled(desiredMicEnabledRef.current);
+      } catch (error) {
+        console.warn("[SneakyLynk:Server] Failed to reconcile media:", error);
+      }
+    },
+    [roomHasVideo],
+  );
 
   const showPresenceEvent = useCallback((tone: PresenceTone, label: string) => {
     if (presenceTimeoutRef.current) {
@@ -1097,16 +1143,14 @@ function ServerRoom({
         },
         (payload) => {
           const room = payload.new as any;
-          const nextMode =
-            room?.sweet_spicy_mode === "spicy" ? "spicy" : "sweet";
-
           setRoomSnapshot((prev) => ({
             id: prev?.id || room.uuid || id,
             createdBy: prev?.createdBy || room.created_by || "",
             title: room.title || prev?.title || paramTitle || "Sneaky Lynk",
             topic: room.topic || prev?.topic || "",
             description: room.description || prev?.description || "",
-            sweetSpicyMode: nextMode,
+            sweetSpicyMode:
+              room?.sweet_spicy_mode === "spicy" ? "spicy" : "sweet",
             isLive: room.status === "open",
             hasVideo: room.has_video ?? prev?.hasVideo ?? roomHasVideo,
             isPublic: room.is_public ?? prev?.isPublic ?? true,
@@ -1126,10 +1170,6 @@ function ServerRoom({
               room.fishjam_room_id || prev?.fishjamRoomId || undefined,
           }));
 
-          if (!isUpdatingRoomMode) {
-            setRoomMode(nextMode);
-          }
-
           if (room.status === "ended") {
             setClosedReason("This Lynk has ended and can't be reopened.");
           }
@@ -1140,7 +1180,7 @@ function ServerRoom({
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, isUpdatingRoomMode, paramTitle, roomHasVideo]);
+  }, [id, paramTitle, roomHasVideo]);
 
   useEffect(() => {
     if (!id || !videoRoom.localUser?.id || connectionState !== "connected") {
@@ -1223,67 +1263,40 @@ function ServerRoom({
   ]);
 
   useEffect(() => {
-    if (connectionState !== "connected") return;
+    const previousState = previousConnectionStateRef.current;
+    previousConnectionStateRef.current = connectionState;
 
-    let cancelled = false;
+    if (connectionState !== "connected") {
+      return;
+    }
 
-    void (async () => {
-      try {
-        console.log(
-          "[SneakyLynk:Server] Peer connected — reconciling media, isHost:",
-          isHost,
-        );
-        audioSession.startForLynk(true);
-        audioSession.setSpeakerOn(true);
+    if (previousState === "connected") {
+      return;
+    }
 
-        const wantsVideo = roomHasVideo && desiredVideoEnabledRef.current;
-        const hasVideoTrack = !!(
-          videoRoom.isCameraOn ||
-          videoRoom.camera.isCameraOn ||
-          videoRoom.camera.cameraStream
-        );
-        if (!cancelled && wantsVideo !== hasVideoTrack) {
-          console.log(
-            "[SneakyLynk:Server] Reconciling camera state:",
-            wantsVideo,
-          );
-          await videoRoom.toggleCamera();
-        }
+    void reconcileDesiredMedia(
+      previousState === "reconnecting" ? "reconnect" : "join",
+    );
+  }, [connectionState, reconcileDesiredMedia]);
 
-        const wantsMic = desiredMicEnabledRef.current;
-        const hasMicTrack = !!(
-          videoRoom.isMicOn ||
-          videoRoom.microphone.isMicrophoneOn ||
-          videoRoom.microphone.microphoneStream
-        );
-        if (!cancelled && wantsMic !== hasMicTrack) {
-          console.log(
-            "[SneakyLynk:Server] Reconciling microphone state:",
-            wantsMic,
-          );
-          await videoRoom.toggleMic();
-        }
-      } catch (e) {
-        console.warn("[SneakyLynk:Server] Failed to reconcile media:", e);
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      const previousAppState = appStateRef.current;
+      appStateRef.current = nextAppState;
+
+      if (
+        previousAppState !== "active" &&
+        nextAppState === "active" &&
+        previousConnectionStateRef.current === "connected"
+      ) {
+        void reconcileDesiredMedia("foreground");
       }
-    })();
+    });
 
     return () => {
-      cancelled = true;
+      subscription.remove();
     };
-  }, [
-    connectionState,
-    isHost,
-    roomHasVideo,
-    videoRoom.camera.cameraStream,
-    videoRoom.camera.isCameraOn,
-    videoRoom.isCameraOn,
-    videoRoom.isMicOn,
-    videoRoom.microphone.isMicrophoneOn,
-    videoRoom.microphone.microphoneStream,
-    videoRoom.toggleCamera,
-    videoRoom.toggleMic,
-  ]);
+  }, [reconcileDesiredMedia]);
 
   // Safety net: if remote peers joined but our mic never published, force it on.
   useEffect(() => {
@@ -1293,12 +1306,12 @@ function ServerRoom({
     if (videoRoom.isMicOn || videoRoom.microphone.isMicrophoneOn) return;
 
     const timer = setTimeout(async () => {
-      if (videoRoom.isMicOn || videoRoom.microphone.isMicrophoneOn) return;
+      if (videoRoomRef.current.isMicOn || videoRoomRef.current.microphone.isMicrophoneOn) return;
       console.warn(
         "[SneakyLynk:Server] MIC_SAFETY: remote peers present but mic is still off, force-starting",
       );
       try {
-        await videoRoom.toggleMic();
+        await videoRoomRef.current.setMicEnabled(true);
       } catch (error) {
         console.warn("[SneakyLynk:Server] MIC_SAFETY failed:", error);
       }
@@ -1310,7 +1323,6 @@ function ServerRoom({
     videoRoom.participants.length,
     videoRoom.isMicOn,
     videoRoom.microphone.isMicrophoneOn,
-    videoRoom.toggleMic,
   ]);
 
   // Speaking indicator - only clear when muted, don't auto-set when unmuted
@@ -1389,15 +1401,19 @@ function ServerRoom({
     showToast,
   ]);
   const handleToggleMic = useCallback(async () => {
-    desiredMicEnabledRef.current = !desiredMicEnabledRef.current;
-    await videoRoom.toggleMic();
-  }, [videoRoom]);
+    const actuallyOn = videoRoomRef.current.isMicOn;
+    const nextEnabled = !actuallyOn;
+    desiredMicEnabledRef.current = nextEnabled;
+    await videoRoomRef.current.setMicEnabled(nextEnabled);
+  }, []);
   const handleToggleVideo = useCallback(async () => {
-    desiredVideoEnabledRef.current = !desiredVideoEnabledRef.current;
-    await videoRoom.toggleCamera();
-  }, [videoRoom]);
+    const actuallyOn = videoRoomRef.current.isCameraOn;
+    const nextEnabled = !actuallyOn;
+    desiredVideoEnabledRef.current = nextEnabled;
+    await videoRoomRef.current.setCameraEnabled(nextEnabled);
+  }, []);
   const handleSwitchCamera = useCallback(async () => {
-    if (!desiredVideoEnabledRef.current) {
+    if (!videoRoomRef.current.isCameraOn) {
       showToast(
         "info",
         "Camera Off",
@@ -1406,8 +1422,8 @@ function ServerRoom({
       return;
     }
 
-    await videoRoom.switchCamera();
-  }, [showToast, videoRoom]);
+    await videoRoomRef.current.switchCamera();
+  }, [showToast]);
   const handleToggleHand = useCallback(async () => {
     if (handToggleInFlightRef.current) return;
 
@@ -1453,6 +1469,10 @@ function ServerRoom({
   const handleChat = useCallback(() => openChat(), [openChat]);
   const handleCloseChat = useCallback(() => closeChat(), [closeChat]);
   const handleShare = useCallback(async () => {
+    if (shareInFlightRef.current) {
+      return;
+    }
+
     const isLiveRoom =
       !closedReason &&
       (roomSnapshot?.status ?? videoRoom.room?.status ?? "open") === "open";
@@ -1466,16 +1486,32 @@ function ServerRoom({
       return;
     }
 
-    const shared = await shareUrl(buildLynkShareUrl(id), {
-      title: roomTitle,
-      message: `Jump into "${roomTitle}" on DVNT\n${buildLynkShareUrl(id)}`,
-    });
-    if (shared) {
-      showToast("success", "Invite Shared", "Your Lynk invite is ready.");
-      return;
-    }
+    shareInFlightRef.current = true;
 
-    showToast("info", "Share Cancelled", "Invite sharing was dismissed.");
+    try {
+      const shareTargetUrl = buildLynkShareUrl(id);
+      const shareResult = await shareUrl(shareTargetUrl, {
+        title: roomTitle,
+        message: `Jump into "${roomTitle}" on DVNT\n${shareTargetUrl}`,
+      });
+      if (shareResult === "shared") {
+        showToast("success", "Invite Shared", "Your Lynk invite is ready.");
+        return;
+      }
+
+      if (shareResult === "error") {
+        showToast(
+          "error",
+          "Share Failed",
+          "We couldn't open the share sheet right now.",
+        );
+        return;
+      }
+
+      showToast("info", "Share Cancelled", "Invite sharing was dismissed.");
+    } finally {
+      shareInFlightRef.current = false;
+    }
   }, [closedReason, id, roomSnapshot?.status, roomTitle, showToast, videoRoom.room?.status]);
   const handleEjectDismiss = useCallback(() => {
     hideEject();
@@ -1491,42 +1527,6 @@ function ServerRoom({
 
   // ── Derived values that depend on videoRoom (also before early return) ─
   const roomUuid = videoRoom.room?.id || id;
-  const handleRoomModeChange = useCallback(
-    async (nextMode: "sweet" | "spicy") => {
-      if (!isHost || nextMode === roomMode) return;
-
-      const previousMode = roomMode;
-      setIsUpdatingRoomMode(true);
-      setRoomMode(nextMode);
-      setRoomSnapshot((prev) =>
-        prev ? { ...prev, sweetSpicyMode: nextMode } : prev,
-      );
-
-      const result = await sneakyLynkApi.setRoomMode(id, nextMode);
-
-      if (!result.ok) {
-        setRoomMode(previousMode);
-        setRoomSnapshot((prev) =>
-          prev ? { ...prev, sweetSpicyMode: previousMode } : prev,
-        );
-        showToast(
-          "error",
-          "Mode Update Failed",
-          result.error?.message || "Couldn't update room mode.",
-        );
-        setIsUpdatingRoomMode(false);
-        return;
-      }
-
-      const confirmedMode = result.data?.mode || nextMode;
-      setRoomMode(confirmedMode);
-      setRoomSnapshot((prev) =>
-        prev ? { ...prev, sweetSpicyMode: confirmedMode } : prev,
-      );
-      setIsUpdatingRoomMode(false);
-    },
-    [id, isHost, roomMode, showToast],
-  );
 
   // ── CRITICAL: All useCallback handlers BEFORE early return ────────
   const handleMutePeer = useCallback(
@@ -1865,6 +1865,7 @@ function RoomLayout({
     roomId,
     currentUser: localUser,
   });
+  const controlsClearance = insets.bottom + 168;
 
   return (
     <View className="flex-1 bg-background">
@@ -2092,7 +2093,7 @@ function RoomLayout({
 
         <View
           className="flex-1"
-          style={{ paddingHorizontal: 6, paddingBottom: 126 }}
+          style={{ paddingHorizontal: 6, paddingBottom: controlsClearance }}
         >
           <VideoGrid
             participants={allParticipants}
@@ -2112,6 +2113,7 @@ function RoomLayout({
           handRaised={isHandRaised}
           hasVideo={hasVideo ?? true}
           localRole={localRole}
+          overlayOpen={isChatOpen}
           floatingReactions={reactions}
           onLeave={onLeave}
           onToggleMute={onToggleMic}
@@ -2123,11 +2125,13 @@ function RoomLayout({
           onSendReaction={sendReaction}
         />
 
-        <EjectModal
-          visible={showEjectModal}
-          payload={ejectPayload}
-          onDismiss={onEjectDismiss}
-        />
+        {showEjectModal ? (
+          <EjectModal
+            visible={showEjectModal}
+            payload={ejectPayload}
+            onDismiss={onEjectDismiss}
+          />
+        ) : null}
 
         <ChatSheet
           isOpen={isChatOpen}

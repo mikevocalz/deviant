@@ -6,8 +6,8 @@ import { requireBetterAuthToken } from "../auth/identity";
 import { likesApi } from "./likes";
 import {
   getPrimaryTextPostContent,
-  normalizeTextPostSlides,
   normalizeTextPostTheme,
+  resolveTextPostPresentation,
 } from "@/lib/posts/text-post";
 
 interface CreatePostResponse {
@@ -17,6 +17,22 @@ interface CreatePostResponse {
 }
 
 const PAGE_SIZE = 10;
+
+interface TextSlidesFunctionResponse {
+  ok: boolean;
+  data?: {
+    posts: Array<{
+      postId: string;
+      slides: Array<{
+        id: string | number;
+        post_id?: string | number;
+        slide_index?: number;
+        content?: string;
+      }>;
+    }>;
+  };
+  error?: { code: string; message: string };
+}
 
 /**
  * Batch-fetch which post IDs the current viewer has liked (Edge Function).
@@ -29,6 +45,93 @@ async function fetchViewerLikedPostIds(
   } catch (err) {
     console.error("[Posts] fetchViewerLikedPostIds error:", err);
     return new Set();
+  }
+}
+
+async function fetchTextPostSlidesViaFunction(
+  postIds: Array<string | number>,
+): Promise<Map<string, any[]>> {
+  const normalizedPostIds = Array.from(
+    new Set(
+      postIds
+        .map((postId) => Number(postId))
+        .filter((postId) => Number.isFinite(postId)),
+    ),
+  );
+
+  if (normalizedPostIds.length === 0) {
+    return new Map();
+  }
+
+  let headers: Record<string, string> | undefined;
+  try {
+    const token = await requireBetterAuthToken();
+    if (token) {
+      headers = { Authorization: `Bearer ${token}` };
+    }
+  } catch {
+    headers = undefined;
+  }
+
+  try {
+    const { data, error } =
+      await supabase.functions.invoke<TextSlidesFunctionResponse>(
+        "get-text-post-slides",
+        {
+          body: { postIds: normalizedPostIds },
+          headers,
+        },
+      );
+
+    if (error) {
+      console.error("[Posts] fetchTextPostSlidesViaFunction error:", error);
+      return new Map();
+    }
+
+    if (!data?.ok) {
+      console.error(
+        "[Posts] fetchTextPostSlidesViaFunction payload error:",
+        data?.error,
+      );
+      return new Map();
+    }
+
+    return new Map(
+      (data?.data?.posts || []).map((post) => [String(post.postId), post.slides]),
+    );
+  } catch (error) {
+    console.error("[Posts] fetchTextPostSlidesViaFunction exception:", error);
+    return new Map();
+  }
+}
+
+async function hydrateTextPostSlides<T extends Record<string, any>>(
+  rows: T[],
+): Promise<T[]> {
+  if (!Array.isArray(rows) || rows.length === 0) return rows;
+
+  const textPostIds = rows
+    .filter((row) => row?.[DB.posts.postKind] === "text")
+    .map((row) => Number(row?.[DB.posts.id]))
+    .filter((id) => Number.isFinite(id));
+
+  if (textPostIds.length === 0) return rows;
+
+  try {
+    const slidesByPostId = await fetchTextPostSlidesViaFunction(textPostIds);
+
+    return rows.map((row) => {
+      const rowPostId = String(row?.[DB.posts.id] ?? "");
+      const hydratedSlides = slidesByPostId.get(rowPostId);
+      if (!hydratedSlides) return row;
+      return {
+        ...row,
+        post_text_slides: hydratedSlides,
+      };
+    });
+  } catch (error) {
+    console.error("[Posts] hydrateTextPostSlides exception:", error);
+    return rows;
   }
 }
 
@@ -66,15 +169,16 @@ export function transformPost(
         }),
       )
     : [];
-  const textSlides = normalizeTextPostSlides(
-    rawSlides,
-    dbPost[DB.posts.content],
-  );
+  const textPresentation =
+    postKind === "text"
+      ? resolveTextPostPresentation(rawSlides, dbPost[DB.posts.content])
+      : { textSlides: [], caption: "", previewText: "" };
+  const textSlides = textPresentation.textSlides;
   const textSlideCount = textSlides.length;
-  const previewText = getPrimaryTextPostContent(
-    textSlides,
-    dbPost[DB.posts.content],
-  );
+  const previewText =
+    postKind === "text"
+      ? textPresentation.previewText
+      : getPrimaryTextPostContent([], dbPost[DB.posts.content]);
   const allMedia = (dbPost.media || []).map((m: any) => {
     const rawType: string = m[DB.postsMedia.type] || "image";
     const mimeType: string | undefined = m[DB.postsMedia.mimeType] ?? undefined;
@@ -123,7 +227,7 @@ export function transformPost(
     media,
     kind: postKind,
     textTheme: normalizeTextPostTheme(dbPost?.[DB.posts.textTheme]),
-    caption: previewText,
+    caption: postKind === "text" ? textPresentation.caption : previewText,
     textSlides: postKind === "text" ? textSlides : undefined,
     textSlideCount: postKind === "text" ? textSlideCount : undefined,
     likes: Number(dbPost[DB.posts.likesCount]) || 0,
@@ -206,10 +310,11 @@ export const postsApi = {
         throw error;
       }
 
-      const postIds = (posts || []).map((p: any) => Number(p[DB.posts.id]));
+      const hydratedPosts = await hydrateTextPostSlides(posts || []);
+      const postIds = hydratedPosts.map((p: any) => Number(p[DB.posts.id]));
       const likedSet = await fetchViewerLikedPostIds(postIds);
 
-      const transformed = (posts || []).map((p: any) => {
+      const transformed = hydratedPosts.map((p: any) => {
         const pid = String(p[DB.posts.id]);
         return transformPost(p, likedSet.has(pid));
       });
@@ -275,21 +380,10 @@ export const postsApi = {
       let enrichedPost = data;
 
       if (data?.[DB.posts.postKind] === "text") {
-        const { data: slides, error: slidesError } = await supabase
-          .from(DB.postTextSlides.table)
-          .select(
-            `
-            ${DB.postTextSlides.id},
-            ${DB.postTextSlides.slideIndex},
-            ${DB.postTextSlides.content}
-          `,
-          )
-          .eq(DB.postTextSlides.postId, id)
-          .order(DB.postTextSlides.slideIndex, { ascending: true });
+        const slidesByPostId = await fetchTextPostSlidesViaFunction([id]);
+        const slides = slidesByPostId.get(String(id));
 
-        if (slidesError) {
-          console.error("[Posts] getPostById slides error:", slidesError);
-        } else {
+        if (slides) {
           enrichedPost = {
             ...data,
             post_text_slides: slides || [],
@@ -418,10 +512,11 @@ export const postsApi = {
         return [];
       }
 
-      const postIds = (data || []).map((p: any) => Number(p[DB.posts.id]));
+      const hydratedPosts = await hydrateTextPostSlides(data || []);
+      const postIds = hydratedPosts.map((p: any) => Number(p[DB.posts.id]));
       const likedSet = await fetchViewerLikedPostIds(postIds);
 
-      return (data || []).map((p: any) => {
+      return hydratedPosts.map((p: any) => {
         const pid = String(p[DB.posts.id]);
         return transformPost(p, likedSet.has(pid));
       });
@@ -502,7 +597,8 @@ export const postsApi = {
         if (unique.length >= limit) break;
       }
 
-      const postIds = unique.map((p: any) => Number(p[DB.posts.id]));
+      const hydratedPosts = await hydrateTextPostSlides(unique);
+      const postIds = hydratedPosts.map((p: any) => Number(p[DB.posts.id]));
       const likedSet = await fetchViewerLikedPostIds(postIds);
 
       console.log(
@@ -513,7 +609,7 @@ export const postsApi = {
         "authors",
       );
 
-      return unique.map((p: any) => {
+      return hydratedPosts.map((p: any) => {
         const pid = String(p[DB.posts.id]);
         return transformPost(p, likedSet.has(pid));
       });
@@ -551,6 +647,17 @@ export const postsApi = {
               typeof content === "string" ? content.trim() : "",
             )
           : [];
+      const textPresentation =
+        postKind === "text"
+          ? resolveTextPostPresentation(
+              normalizedSlides.map((content, order) => ({
+                id: `draft-${order}`,
+                order,
+                content,
+              })),
+              data.content,
+            )
+          : { textSlides: [], caption: "", previewText: "" };
 
       if (postKind === "media" && (!data.media || data.media.length === 0)) {
         throw new Error("Post must include at least one photo or video");
@@ -603,19 +710,11 @@ export const postsApi = {
         })) as import("@/lib/types").PostMediaItem[],
         kind: postKind,
         textTheme: normalizeTextPostTheme(data.textTheme),
-        caption: normalizedSlides[0] || data.content || "",
+        caption: postKind === "text" ? textPresentation.caption : data.content || "",
         textSlides:
-          postKind === "text"
-            ? normalizeTextPostSlides(
-                normalizedSlides.map((content, order) => ({
-                  id: `${post.id}-${order}`,
-                  order,
-                  content,
-                })),
-              )
-            : undefined,
+          postKind === "text" ? textPresentation.textSlides : undefined,
         textSlideCount:
-          postKind === "text" ? normalizedSlides.length : undefined,
+          postKind === "text" ? textPresentation.textSlides.length : undefined,
         likes: 0,
         comments: [],
         timeAgo: "Just now",

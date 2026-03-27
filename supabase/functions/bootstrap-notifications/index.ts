@@ -82,12 +82,9 @@ Deno.serve(async (req: Request) => {
         .select(
           `
           id, type, created_at, read_at, content,
-          entity_type, entity_id,
+          entity_type, entity_id, actor_id,
           sender:users!notifications_sender_id_fkey(
             id, username, avatar:avatar_id(url)
-          ),
-          post:posts!notifications_entity_id_fkey(
-            id, media:posts_media(url, "order")
           )
         `,
         )
@@ -104,6 +101,143 @@ Deno.serve(async (req: Request) => {
     ]);
 
     const notifications = notificationsResult.data || [];
+    const isCommentActivity = (notification: any) =>
+      notification.type === "comment" || notification.type === "mention";
+    const commentContextByNotificationId = new Map<
+      string,
+      { commentId: string; postId: string; content?: string }
+    >();
+    const directCommentContextById = new Map<
+      string,
+      { commentId: string; postId: string; content?: string }
+    >();
+
+    const directCommentIds = [
+      ...new Set(
+        notifications
+          .filter(
+            (n: any) =>
+              isCommentActivity(n) &&
+              n.entity_type === "comment" &&
+              n.entity_id,
+          )
+          .map((n: any) => parseInt(String(n.entity_id), 10))
+          .filter((id: number) => !isNaN(id)),
+      ),
+    ];
+
+    if (directCommentIds.length > 0) {
+      const { data: commentRows } = await supabase
+        .from("comments")
+        .select("id, post_id, content")
+        .in("id", directCommentIds);
+
+      for (const row of commentRows || []) {
+        const context = {
+          commentId: String((row as any).id),
+          postId: String((row as any).post_id),
+          content: (row as any).content || undefined,
+        };
+        directCommentContextById.set(context.commentId, context);
+      }
+    }
+
+    for (const notification of notifications) {
+      if (
+        isCommentActivity(notification) &&
+        notification.entity_type === "comment" &&
+        notification.entity_id
+      ) {
+        const context = directCommentContextById.get(
+          String(notification.entity_id),
+        );
+        if (context) {
+          commentContextByNotificationId.set(String(notification.id), context);
+        }
+      }
+    }
+
+    const legacyCommentLookup = new Map<
+      string,
+      { commentId: string; postId: string; content?: string }
+    >();
+
+    for (const notification of notifications) {
+      if (
+        !isCommentActivity(notification) ||
+        notification.entity_type === "comment" ||
+        !notification.entity_id ||
+        !notification.actor_id
+      ) {
+        continue;
+      }
+
+      const lookupKey = `${notification.actor_id}:${notification.entity_id}`;
+      const cached = legacyCommentLookup.get(lookupKey);
+      if (cached) {
+        commentContextByNotificationId.set(String(notification.id), cached);
+        continue;
+      }
+
+      const { data: latestComment } = await supabase
+        .from("comments")
+        .select("id, post_id, content")
+        .eq("post_id", parseInt(String(notification.entity_id), 10))
+        .eq("author_id", notification.actor_id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .single();
+
+      if (!latestComment) continue;
+
+      const context = {
+        commentId: String((latestComment as any).id),
+        postId: String((latestComment as any).post_id),
+        content: (latestComment as any).content || undefined,
+      };
+      legacyCommentLookup.set(lookupKey, context);
+      commentContextByNotificationId.set(String(notification.id), context);
+    }
+
+    const resolvedPostIds = [
+      ...new Set(
+        notifications
+          .map((n: any) => {
+            if (n.entity_type === "post" && n.entity_id) {
+              return parseInt(String(n.entity_id), 10);
+            }
+
+            const context = commentContextByNotificationId.get(String(n.id));
+            if (context?.postId) {
+              return parseInt(context.postId, 10);
+            }
+
+            return NaN;
+          })
+          .filter((id: number) => !isNaN(id)),
+      ),
+    ];
+
+    const postThumbnailById: Record<string, string> = {};
+    if (resolvedPostIds.length > 0) {
+      const { data: mediaRows } = await supabase
+        .from("posts_media")
+        .select("_parent_id, type, url, _order")
+        .in("_parent_id", resolvedPostIds)
+        .order("_order", { ascending: true });
+
+      for (const row of mediaRows || []) {
+        const postId = String((row as any)._parent_id);
+        if ((row as any).type === "thumbnail") {
+          postThumbnailById[postId] = (row as any).url || "";
+          continue;
+        }
+
+        if (!postThumbnailById[postId]) {
+          postThumbnailById[postId] = (row as any).url || "";
+        }
+      }
+    }
 
     // 3. Get unique sender IDs to batch-check follow state
     const senderIds = [
@@ -146,16 +280,11 @@ Deno.serve(async (req: Request) => {
       const sender = n.sender;
       const senderAvatarUrl =
         typeof sender?.avatar === "object" ? sender?.avatar?.url : null;
-
-      // Get post thumbnail (first media item)
-      let postThumbnail = "";
-      if (n.post?.media?.length) {
-        const sorted = [...n.post.media].sort(
-          (a: any, b: any) => (a.order || 0) - (b.order || 0),
-        );
-        postThumbnail = sorted[0]?.url || "";
-      }
-
+      const commentContext = commentContextByNotificationId.get(String(n.id));
+      const resolvedPostId =
+        n.entity_type === "post" && n.entity_id
+          ? String(n.entity_id)
+          : commentContext?.postId || null;
       const senderUsername = sender?.username || "user";
       return {
         id: String(n.id),
@@ -171,10 +300,19 @@ Deno.serve(async (req: Request) => {
         },
         entityType: n.entity_type || null,
         entityId: n.entity_id ? String(n.entity_id) : null,
-        post: n.post
-          ? { id: String(n.post.id), thumbnailUrl: postThumbnail }
-          : undefined,
-        commentText: n.content || undefined,
+        post:
+          resolvedPostId !== null
+            ? {
+                id: resolvedPostId,
+                thumbnailUrl: postThumbnailById[resolvedPostId] || "",
+              }
+            : undefined,
+        postId: resolvedPostId || undefined,
+        commentId:
+          n.entity_type === "comment" && n.entity_id
+            ? String(n.entity_id)
+            : commentContext?.commentId,
+        commentText: commentContext?.content || n.content || undefined,
       };
     });
 

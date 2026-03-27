@@ -81,6 +81,7 @@ function CommentsScreenContent() {
   const showToast = useUIStore((state) => state.showToast);
   const inputRef = useRef<TextInput>(null);
   const redirectedReplyRef = useRef(false);
+  const listRef = useRef<FlatList<Comment> | null>(null);
 
   const [commentText, setCommentText] = useState("");
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
@@ -247,6 +248,25 @@ function CommentsScreenContent() {
     }
   }, [commentId, comments, postId, router]);
 
+  useEffect(() => {
+    if (!commentId || comments.length === 0) {
+      return;
+    }
+
+    const targetIndex = comments.findIndex((comment) => comment.id === commentId);
+    if (targetIndex < 0) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToIndex({
+        index: targetIndex,
+        animated: true,
+        viewPosition: 0.15,
+      });
+    });
+  }, [commentId, comments]);
+
   useSafeHeader(
     {
       header: () => (
@@ -300,11 +320,20 @@ function CommentsScreenContent() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={comments}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16, gap: 12 }}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
+          onScrollToIndexFailed={({ index }) => {
+            requestAnimationFrame(() => {
+              listRef.current?.scrollToOffset({
+                offset: Math.max(index, 0) * 180,
+                animated: true,
+              });
+            });
+          }}
           renderItem={({ item }) => (
             <ThreadedComment
               postId={postId || ""}

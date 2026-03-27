@@ -41,6 +41,7 @@ import {
 } from "@/src/features/likes/LikesSheetController";
 import { PostActionSheet } from "@/components/post-action-sheet";
 import { ShareToInboxSheet } from "@/components/share-to-inbox-sheet";
+import { resolveTextPostPresentation } from "@/lib/posts/text-post";
 import { useRouter } from "expo-router";
 import { Alert } from "react-native";
 import { useDeletePost } from "@/lib/hooks/use-posts";
@@ -82,6 +83,7 @@ const AnimatedFeedPost = memo(function AnimatedFeedPost({
         textTheme={item.textTheme}
         caption={item.caption || ""}
         textSlides={item.textSlides}
+        textSlideCount={item.textSlideCount}
         likes={item.likes || 0}
         viewerHasLiked={item.viewerHasLiked || false}
         comments={item.comments || 0}
@@ -555,7 +557,14 @@ export function Feed() {
   const handleActionShare = useCallback(async () => {
     if (actionPost) {
       try {
-        await sharePost(actionPost.id, actionPost.caption);
+        const sharedCaption =
+          actionPost.kind === "text"
+            ? resolveTextPostPresentation(
+                actionPost.textSlides,
+                actionPost.caption,
+              ).previewText
+            : actionPost.caption;
+        await sharePost(actionPost.id, sharedCaption);
       } catch {}
     }
     setActionSheetPostId(null);
@@ -657,7 +666,13 @@ export function Feed() {
                 id: sharePost_.id,
                 authorUsername: sharePost_.author?.username || "",
                 authorAvatar: sharePost_.author?.avatar || "",
-                caption: sharePost_.caption,
+                caption:
+                  sharePost_.kind === "text"
+                    ? resolveTextPostPresentation(
+                        sharePost_.textSlides,
+                        sharePost_.caption,
+                      ).previewText
+                    : sharePost_.caption,
                 mediaUrl: sharePost_.media?.[0]?.url,
                 mediaType: sharePost_.media?.[0]?.type,
               }

@@ -3,7 +3,7 @@
  * Shown when user is kicked or banned from a room
  */
 
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useRef } from "react";
 import { View, Text, Pressable } from "react-native";
 import { ShieldX, Ban } from "lucide-react-native";
 import BottomSheet, {
@@ -20,17 +20,13 @@ interface EjectModalProps {
 }
 
 export function EjectModal({ visible, payload, onDismiss }: EjectModalProps) {
+  if (!visible || !payload) {
+    return null;
+  }
+
   const sheetRef = useRef<BottomSheet>(null);
   const isKick = payload?.action === "kick";
   const isBan = payload?.action === "ban";
-
-  useEffect(() => {
-    if (visible) {
-      sheetRef.current?.expand();
-    } else {
-      sheetRef.current?.close();
-    }
-  }, [visible]);
 
   const handleSheetChange = useCallback(
     (index: number) => {
@@ -55,7 +51,8 @@ export function EjectModal({ visible, payload, onDismiss }: EjectModalProps) {
   return (
     <BottomSheet
       ref={sheetRef}
-      index={-1}
+      index={0}
+      animateOnMount
       enableDynamicSizing
       enablePanDownToClose={false}
       backdropComponent={renderBackdrop}

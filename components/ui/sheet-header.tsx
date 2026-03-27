@@ -1,15 +1,23 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
-import { X } from "lucide-react-native";
+import { ChevronLeft, X } from "lucide-react-native";
 
 interface SheetHeaderProps {
   title: string;
   onClose: () => void;
+  onBack?: () => void;
 }
 
-export function SheetHeader({ title, onClose }: SheetHeaderProps) {
+export function SheetHeader({ title, onClose, onBack }: SheetHeaderProps) {
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>{title}</Text>
+      <View style={styles.leading}>
+        {onBack ? (
+          <Pressable onPress={onBack} hitSlop={12} style={styles.backButton}>
+            <ChevronLeft size={22} color="#fff" />
+          </Pressable>
+        ) : null}
+        <Text style={styles.title}>{title}</Text>
+      </View>
       <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
         <X size={22} color="#fff" />
       </Pressable>
@@ -27,10 +35,24 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.06)",
   },
+  leading: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 1,
+  },
   title: {
     fontSize: 18,
     fontWeight: "700",
     color: "#34A2DF",
+  },
+  backButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: "rgba(255,255,255,0.1)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   closeButton: {
     width: 32,

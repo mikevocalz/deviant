@@ -50,6 +50,7 @@ import type { Post } from "@/lib/types";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import * as Haptics from "expo-haptics";
 import { TextPostSurface } from "@/components/post/TextPostSurface";
+import { resolveTextPostPresentation } from "@/lib/posts/text-post";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -167,6 +168,10 @@ const MasonryCell = memo(function MasonryCell({
 
   const media = post.media?.[0];
   const isTextPost = post.kind === "text";
+  const textPostPreview = resolveTextPostPresentation(
+    post.textSlides,
+    post.caption,
+  );
   const isVideo = media?.type === "video";
   const isCarousel = (post.media?.length || 0) > 1;
   const isGif = media?.type === "gif";
@@ -180,7 +185,7 @@ const MasonryCell = memo(function MasonryCell({
       <View style={[styles.cell, { width, height, borderRadius: CELL_RADIUS }]}>
         {isTextPost ? (
           <TextPostSurface
-            text={post.caption}
+            text={textPostPreview.previewText}
             theme={post.textTheme}
             variant="grid"
             style={{ minHeight: height, height }}

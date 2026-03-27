@@ -16,10 +16,15 @@ import {
   bootstrapApi,
   type BootstrapProfileResponse,
 } from "@/lib/api/bootstrap";
+import { postsApi } from "@/lib/api/posts";
 import { profileKeys } from "@/lib/hooks/use-profile";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
-import { normalizeTextPostTheme } from "@/lib/posts/text-post";
+import {
+  normalizeTextPostTheme,
+  resolveTextPostPresentation,
+} from "@/lib/posts/text-post";
+import type { Post } from "@/lib/types";
 
 function hydrateFromProfileBootstrap(
   queryClient: ReturnType<typeof useQueryClient>,
@@ -57,6 +62,19 @@ function hydrateFromProfileBootstrap(
           : post.thumbnailUrl
             ? [{ type: post.type || "image", url: post.thumbnailUrl }]
             : [];
+      const textPresentation =
+        isTextPost
+          ? resolveTextPostPresentation(
+              [
+                {
+                  id: `${post.id}-slide-0`,
+                  order: 0,
+                  content: post.caption || "",
+                },
+              ],
+              post.caption,
+            )
+          : { textSlides: [], caption: "", previewText: "" };
 
       return {
         id: post.id,
@@ -72,12 +90,15 @@ function hydrateFromProfileBootstrap(
         textTheme: isTextPost
           ? normalizeTextPostTheme(post.textTheme)
           : undefined,
-        caption: post.caption || "",
-        textSlides:
-          isTextPost && post.caption
-            ? [{ id: `${post.id}-0`, order: 0, content: post.caption }]
-            : undefined,
-        textSlideCount: isTextPost ? Math.max(post.textSlideCount || 0, 1) : 0,
+        caption: isTextPost ? textPresentation.caption : post.caption || "",
+        textSlides: isTextPost ? textPresentation.textSlides : undefined,
+        textSlideCount:
+          isTextPost
+            ? Math.max(
+                post.textSlideCount || 0,
+                textPresentation.textSlides.length,
+              )
+            : 0,
         likes: post.likesCount || 0,
         viewerHasLiked: false,
         comments: 0,
@@ -93,6 +114,39 @@ function hydrateFromProfileBootstrap(
 
   console.log(
     `[BootstrapProfile] Hydrated cache: profile + ${data.posts.length} posts`,
+  );
+}
+
+async function hydrateBootstrapProfileTextPosts(
+  queryClient: ReturnType<typeof useQueryClient>,
+  userId: string,
+  posts: BootstrapProfileResponse["posts"],
+) {
+  const textPostIds = posts
+    .filter((post) => post.kind === "text")
+    .map((post) => post.id)
+    .filter(Boolean);
+
+  if (textPostIds.length === 0) return;
+
+  const resolvedPosts = await Promise.allSettled(
+    textPostIds.map((postId) => postsApi.getPostById(postId)),
+  );
+
+  const hydratedPosts = new Map<string, Post>();
+  for (const result of resolvedPosts) {
+    if (result.status !== "fulfilled" || !result.value) continue;
+    hydratedPosts.set(result.value.id, result.value);
+  }
+
+  if (hydratedPosts.size === 0) return;
+
+  hydratedPosts.forEach((post, postId) => {
+    queryClient.setQueryData(postKeys.detail(postId), post);
+  });
+
+  queryClient.setQueryData(postKeys.profilePosts(userId), (current: Post[] = []) =>
+    current.map((post) => hydratedPosts.get(post.id) ?? post),
   );
 }
 
@@ -140,6 +194,7 @@ export function useBootstrapProfile() {
     bootstrapApi.profile({ userId }).then((data) => {
       if (!data) return;
       hydrateFromProfileBootstrap(queryClient, userId, data);
+      void hydrateBootstrapProfileTextPosts(queryClient, userId, data.posts);
       trace.markUsable();
     });
   }, [enabled, userId, queryClient, trace]);

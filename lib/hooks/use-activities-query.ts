@@ -10,7 +10,10 @@
  */
 
 import { useQuery } from "@tanstack/react-query";
-import { getPostDetailRoute } from "@/lib/routes/post-routes";
+import {
+  getPostDetailCommentsRoute,
+  getPostDetailRoute,
+} from "@/lib/routes/post-routes";
 import {
   notificationsApiClient,
   type Notification,
@@ -49,6 +52,8 @@ export interface Activity {
     title?: string;
   };
   comment?: string;
+  commentId?: string;
+  postId?: string;
   timeAgo: string;
   isRead: boolean;
   createdAt?: string;
@@ -85,6 +90,10 @@ function notificationToActivity(notif: Notification): Activity | null {
     if (!notif || !notif.id) return null;
 
     const senderUsername = notif.sender?.username || "user";
+    const resolvedPostId = notif.postId || notif.post?.id || undefined;
+    const shouldRouteToComments =
+      (notif.type === "comment" || notif.type === "mention") &&
+      !!resolvedPostId;
 
     return {
       id: String(notif.id),
@@ -101,12 +110,17 @@ function notificationToActivity(notif: Notification): Activity | null {
         | "user"
         | "event"
         | undefined,
-      entityId: notif.entityId,
+      entityId:
+        shouldRouteToComments && notif.commentId
+          ? notif.commentId
+          : notif.entityId,
       post: notif.post
         ? {
-            id: String(notif.post.id || ""),
+            id: String(notif.post.id || resolvedPostId || ""),
             thumbnail: notif.post.thumbnail || "",
           }
+        : resolvedPostId
+          ? { id: resolvedPostId, thumbnail: "" }
         : undefined,
       event: notif.event
         ? {
@@ -115,6 +129,8 @@ function notificationToActivity(notif: Notification): Activity | null {
           }
         : undefined,
       comment: notif.content,
+      commentId: notif.commentId || undefined,
+      postId: resolvedPostId,
       timeAgo: notificationsApiClient.formatTimeAgo(
         notif.createdAt || new Date().toISOString(),
       ),
@@ -207,7 +223,16 @@ export function useLikedActivitiesQuery() {
  * Pure function — no store dependency.
  */
 export function getRouteForActivity(activity: Activity): string {
-  const { type, entityType, entityId, post, event, user } = activity;
+  const { type, entityType, entityId, post, postId, event, user, commentId } =
+    activity;
+  const commentsPostId =
+    post?.id ||
+    postId ||
+    (entityType === "post" && entityId ? entityId : undefined);
+
+  if ((type === "comment" || type === "mention") && commentsPostId) {
+    return getPostDetailCommentsRoute(commentsPostId, commentId);
+  }
 
   // Use entityType/entityId if available (preferred routing)
   if (entityType && entityId) {
@@ -215,7 +240,10 @@ export function getRouteForActivity(activity: Activity): string {
       case "post":
         return getPostDetailRoute(entityId);
       case "comment":
-        return getPostDetailRoute(entityId);
+        if (commentsPostId) {
+          return getPostDetailCommentsRoute(commentsPostId, commentId);
+        }
+        break;
       case "user":
         return `/(protected)/profile/${user.username}`;
       case "event":
@@ -226,11 +254,15 @@ export function getRouteForActivity(activity: Activity): string {
   // Fallback to type-based routing
   switch (type) {
     case "like":
-    case "comment":
-    case "mention":
     case "tag":
       if (post?.id) {
         return getPostDetailRoute(post.id);
+      }
+      return `/(protected)/profile/${user.username}`;
+    case "comment":
+    case "mention":
+      if (commentsPostId) {
+        return getPostDetailCommentsRoute(commentsPostId, commentId);
       }
       return `/(protected)/profile/${user.username}`;
     case "follow":

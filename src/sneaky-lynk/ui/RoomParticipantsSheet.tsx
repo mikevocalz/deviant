@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useMemo, useRef } from "react";
 import { View, Text, Pressable } from "react-native";
 import {
   BottomSheetBackdrop,
@@ -87,14 +87,9 @@ export function RoomParticipantsSheet({
   const modalRef = useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ["78%"], []);
 
-  useEffect(() => {
-    if (visible) {
-      modalRef.current?.present();
-      return;
-    }
-
-    modalRef.current?.dismiss();
-  }, [visible]);
+  if (!visible) {
+    return null;
+  }
 
   const sortedParticipants = useMemo(
     () =>
@@ -367,9 +362,11 @@ export function RoomParticipantsSheet({
   return (
     <BottomSheetModal
       ref={modalRef}
+      index={0}
       snapPoints={snapPoints}
       detached={true}
       bottomInset={20}
+      animateOnMount
       enablePanDownToClose
       onDismiss={onDismiss}
       backdropComponent={renderBackdrop}

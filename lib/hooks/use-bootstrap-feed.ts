@@ -20,11 +20,16 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { bootstrapApi, type BootstrapFeedResponse } from "@/lib/api/bootstrap";
+import { postsApi } from "@/lib/api/posts";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { messageKeys } from "@/lib/hooks/use-messages";
 import { seedLikeState } from "@/lib/hooks/usePostLikeState";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
-import { normalizeTextPostTheme } from "@/lib/posts/text-post";
+import {
+  normalizeTextPostTheme,
+  resolveTextPostPresentation,
+} from "@/lib/posts/text-post";
+import type { Post } from "@/lib/types";
 
 /**
  * Hydrate TanStack Query cache from bootstrap response.
@@ -47,13 +52,23 @@ function hydrateFromBootstrap(
           ? ("text" as const)
           : ("media" as const);
       const primaryMedia = media[0];
+      const textPresentation =
+        kind === "text"
+          ? resolveTextPostPresentation(
+              [{ id: `${p.id}-slide-0`, order: 0, content: p.caption || "" }],
+              p.caption,
+            )
+          : { textSlides: [], caption: "", previewText: "" };
 
       return {
         id: p.id,
         kind,
         textTheme:
           kind === "text" ? normalizeTextPostTheme(p.textTheme) : undefined,
-        caption: p.caption,
+        caption: kind === "text" ? textPresentation.caption : p.caption,
+        textSlides: kind === "text" ? textPresentation.textSlides : undefined,
+        textSlideCount:
+          kind === "text" ? textPresentation.textSlides.length : undefined,
         createdAt: p.createdAt,
         isNSFW: p.isNSFW,
         location: p.location,
@@ -110,6 +125,48 @@ function hydrateFromBootstrap(
       `${data.stories.length} stories, ` +
       `unread=${data.viewer.unreadMessages}`,
   );
+}
+
+async function hydrateBootstrapTextPosts(
+  queryClient: ReturnType<typeof useQueryClient>,
+  posts: BootstrapFeedResponse["posts"],
+) {
+  const textPostIds = posts
+    .filter((post) => post.kind === "text")
+    .map((post) => post.id)
+    .filter(Boolean);
+
+  if (textPostIds.length === 0) return;
+
+  const resolvedPosts = await Promise.allSettled(
+    textPostIds.map((postId) => postsApi.getPostById(postId)),
+  );
+
+  const hydratedPosts = new Map<string, Post>();
+  for (const result of resolvedPosts) {
+    if (result.status !== "fulfilled" || !result.value) continue;
+    hydratedPosts.set(result.value.id, result.value);
+  }
+
+  if (hydratedPosts.size === 0) return;
+
+  hydratedPosts.forEach((post, postId) => {
+    queryClient.setQueryData(postKeys.detail(postId), post);
+  });
+
+  queryClient.setQueryData(postKeys.feedInfinite(), (current: any) => {
+    if (!current?.pages) return current;
+
+    return {
+      ...current,
+      pages: current.pages.map((page: any) => ({
+        ...page,
+        data: Array.isArray(page?.data)
+          ? page.data.map((post: Post) => hydratedPosts.get(post.id) ?? post)
+          : page?.data,
+      })),
+    };
+  });
 }
 
 /**
@@ -182,6 +239,7 @@ export function useBootstrapFeed() {
         }
 
         hydrateFromBootstrap(queryClient, userId, data);
+        void hydrateBootstrapTextPosts(queryClient, data.posts);
         trace.markUsable();
       })
       .catch((error) => {
