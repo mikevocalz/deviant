@@ -73,10 +73,12 @@ export const SpotifyShareSheet: React.FC = () => {
       hideSheet();
       clear();
       router.push({
-        pathname: "/(protected)/story/editor",
+        pathname: "/(protected)/story/create",
         params: {
-          uri: encodeURIComponent(thumbUrl),
-          type: "image",
+          sharedUri: encodeURIComponent(thumbUrl),
+          sharedType: "image",
+          openEditor: "0",
+          sharedAt: String(Date.now()),
         },
       });
     }

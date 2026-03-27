@@ -6,7 +6,10 @@
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRouter } from "expo-router";
-import { getPostDetailRoute } from "@/lib/routes/post-routes";
+import {
+  getPostDetailCommentsRoute,
+  getPostDetailRoute,
+} from "@/lib/routes/post-routes";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import {
   useActivityStore,
@@ -201,7 +204,18 @@ export function useNotifications() {
                 case "comment":
                 case "mention":
                 case "tag":
-                  if (data.postId) {
+                  if (
+                    (data.type === "comment" || data.type === "mention") &&
+                    data.postId
+                  ) {
+                    const route = getPostDetailCommentsRoute(
+                      String(data.postId),
+                      typeof data.commentId === "string"
+                        ? data.commentId
+                        : undefined,
+                    );
+                    router.push(route as any);
+                  } else if (data.postId) {
                     router.push(getPostDetailRoute(String(data.postId)) as any);
                   }
                   break;

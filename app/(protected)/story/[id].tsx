@@ -1179,7 +1179,7 @@ function StoryViewerScreenContent() {
               <Image
                 source={{ uri: currentItem.url }}
                 style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
+                contentFit="contain"
                 transition={150}
                 cachePolicy="memory-disk"
               />

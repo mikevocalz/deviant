@@ -48,6 +48,12 @@ export interface Notification {
   commentId: string | null;
 }
 
+interface NotificationCommentContext {
+  commentId: string;
+  postId: string;
+  content?: string;
+}
+
 export interface LikedActivityRecord {
   id: string;
   entityType: "post" | "event";
@@ -433,13 +439,117 @@ export const notificationsApi = {
         );
       }
 
-      // Collect post IDs for thumbnail lookup
-      const postIds = (data || [])
-        .filter((n: any) => n.entity_type === "post" && n.entity_id)
-        .map((n: any) => parseInt(n.entity_id))
+      const rawNotifications = data || [];
+      const isCommentActivity = (notification: any) =>
+        notification.type === "comment" || notification.type === "mention";
+      const commentContextByNotificationId: Record<
+        string,
+        NotificationCommentContext
+      > = {};
+      const directCommentContextById = new Map<
+        string,
+        NotificationCommentContext
+      >();
+
+      const directCommentIds = [
+        ...new Set(
+          rawNotifications
+            .filter(
+              (n: any) =>
+                isCommentActivity(n) &&
+                n.entity_type === "comment" &&
+                n.entity_id,
+            )
+            .map((n: any) => parseInt(n.entity_id, 10))
+            .filter((id: number) => !isNaN(id)),
+        ),
+      ];
+
+      if (directCommentIds.length > 0) {
+        const { data: commentRows } = await supabase
+          .from("comments")
+          .select("id, post_id, content")
+          .in("id", directCommentIds);
+
+        for (const row of commentRows || []) {
+          const context = {
+            commentId: String((row as any).id),
+            postId: String((row as any).post_id),
+            content: (row as any).content || undefined,
+          } satisfies NotificationCommentContext;
+          directCommentContextById.set(context.commentId, context);
+        }
+      }
+
+      for (const notification of rawNotifications) {
+        if (
+          isCommentActivity(notification) &&
+          notification.entity_type === "comment" &&
+          notification.entity_id
+        ) {
+          const context = directCommentContextById.get(
+            String(notification.entity_id),
+          );
+          if (context) {
+            commentContextByNotificationId[String(notification.id)] = context;
+          }
+        }
+      }
+
+      // Legacy notifications only store the post id. Resolve them back to the
+      // latest comment thread target so activity can open the routed comments UI.
+      const commentNotifs = rawNotifications.filter(
+        (n: any) =>
+          isCommentActivity(n) &&
+          n.entity_type !== "comment" &&
+          n.entity_id &&
+          n.actor_id,
+      );
+      const legacyCommentLookup: Record<string, NotificationCommentContext> = {};
+      if (commentNotifs.length > 0) {
+        for (const n of commentNotifs) {
+          const key = `${n.actor_id}:${n.entity_id}`;
+          if (legacyCommentLookup[key]) {
+            commentContextByNotificationId[String(n.id)] = legacyCommentLookup[key];
+            continue;
+          }
+
+          const { data: commentData } = await supabase
+            .from("comments")
+            .select("id, post_id, content")
+            .eq("post_id", parseInt(n.entity_id, 10))
+            .eq("author_id", n.actor_id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .single();
+
+          if (!commentData) continue;
+
+          const context = {
+            commentId: String((commentData as any).id),
+            postId: String((commentData as any).post_id),
+            content: (commentData as any).content || undefined,
+          } satisfies NotificationCommentContext;
+          legacyCommentLookup[key] = context;
+          commentContextByNotificationId[String(n.id)] = context;
+        }
+      }
+
+      const postIds = rawNotifications
+        .map((notification: any) => {
+          if (notification.entity_type === "post" && notification.entity_id) {
+            return parseInt(notification.entity_id, 10);
+          }
+
+          const context = commentContextByNotificationId[String(notification.id)];
+          if (context?.postId) {
+            return parseInt(context.postId, 10);
+          }
+
+          return NaN;
+        })
         .filter((id: number) => !isNaN(id));
 
-      // Fetch post thumbnails in batch from posts_media
       let postMap: Record<string, { thumbnail: string }> = {};
       if (postIds.length > 0) {
         const uniquePostIds = [...new Set(postIds)];
@@ -452,41 +562,10 @@ export const notificationsApi = {
           for (const m of mediaRows as any[]) {
             const pid = String(m._parent_id);
             if (m.type === "thumbnail") {
-              // Thumbnail entry always wins (video cover image)
               postMap[pid] = { thumbnail: m.url };
             } else if (!postMap[pid] && m.type !== "thumbnail") {
-              // First non-thumbnail media as fallback
               postMap[pid] = { thumbnail: m.url };
             }
-          }
-        }
-      }
-
-      // Collect comment IDs to fetch content for comment/mention notifications
-      // For comment/mention types where entity_type is 'post', we need the latest comment
-      // by the actor on that post to show the comment text
-      const commentNotifs = (data || []).filter(
-        (n: any) =>
-          (n.type === "comment" || n.type === "mention") &&
-          n.entity_id &&
-          n.actor_id,
-      );
-      let commentContentMap: Record<string, string> = {};
-      if (commentNotifs.length > 0) {
-        // Fetch latest comment by each actor on each post
-        for (const n of commentNotifs) {
-          const key = `${n.actor_id}:${n.entity_id}`;
-          if (commentContentMap[key]) continue;
-          const { data: commentData } = await supabase
-            .from("comments")
-            .select("content")
-            .eq("post_id", parseInt(n.entity_id))
-            .eq("author_id", n.actor_id)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .single();
-          if (commentData) {
-            commentContentMap[key] = commentData.content || "";
           }
         }
       }
@@ -524,14 +603,22 @@ export const notificationsApi = {
           : null;
 
         const entityId = n.entity_id || undefined;
-        const postData =
-          entityId && postMap[entityId]
-            ? { id: entityId, thumbnail: postMap[entityId].thumbnail }
-            : null;
-
-        // Get comment content for comment/mention notifications
-        const commentKey = `${n.actor_id}:${n.entity_id}`;
-        const commentContent = commentContentMap[commentKey] || undefined;
+        const commentContext = commentContextByNotificationId[String(n.id)];
+        const resolvedPostId =
+          n.entity_type === "post" && entityId
+            ? entityId
+            : commentContext?.postId || null;
+        const postData = resolvedPostId
+          ? {
+              id: resolvedPostId,
+              thumbnail: postMap[resolvedPostId]?.thumbnail || "",
+            }
+          : null;
+        const commentContent = commentContext?.content || undefined;
+        const commentId =
+          n.entity_type === "comment" && entityId
+            ? entityId
+            : commentContext?.commentId || null;
 
         return {
           id: String(n.id),
@@ -546,8 +633,8 @@ export const notificationsApi = {
           sender: actorInfo,
           actor: actorInfo,
           post: postData,
-          postId: n.entity_type === "post" ? entityId : null,
-          commentId: n.entity_type === "comment" ? entityId : null,
+          postId: resolvedPostId,
+          commentId,
         };
       });
 

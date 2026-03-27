@@ -86,7 +86,7 @@ Deno.serve(async (req) => {
     // Verify ownership — author_id stores the Better Auth UUID (authUserId)
     const { data: story } = await supabaseAdmin
       .from("stories")
-      .select("author_id")
+      .select("author_id, media_id, thumbnail_id")
       .eq("id", storyId)
       .single();
     if (!story || String(story.author_id) !== String(authUserId))
@@ -96,11 +96,46 @@ Deno.serve(async (req) => {
         403,
       );
 
+    const dependencyDeletes = await Promise.all([
+      supabaseAdmin.from("story_views").delete().eq("story_id", storyId),
+      supabaseAdmin.from("story_tags").delete().eq("story_id", storyId),
+      supabaseAdmin.from("story_replies").delete().eq("story_id", storyId),
+      supabaseAdmin.from("stories_stickers").delete().eq("_parent_id", storyId),
+    ]);
+
+    const dependencyError = dependencyDeletes.find((result) => result.error);
+    if (dependencyError?.error) {
+      console.error(
+        "[Edge:delete-story] Dependency delete error:",
+        dependencyError.error,
+      );
+      return errorResponse(
+        "internal_error",
+        "Failed to delete story dependencies",
+      );
+    }
+
     const { error } = await supabaseAdmin
       .from("stories")
       .delete()
       .eq("id", storyId);
     if (error) return errorResponse("internal_error", "Failed to delete story");
+
+    const mediaIds = [story.media_id, story.thumbnail_id].filter(
+      (value): value is number => typeof value === "number",
+    );
+    if (mediaIds.length > 0) {
+      const { error: mediaDeleteError } = await supabaseAdmin
+        .from("media")
+        .delete()
+        .in("id", mediaIds);
+      if (mediaDeleteError) {
+        console.error(
+          "[Edge:delete-story] Media cleanup error:",
+          mediaDeleteError,
+        );
+      }
+    }
 
     return jsonResponse({ ok: true, data: { success: true } });
   } catch (err) {

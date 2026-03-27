@@ -3,24 +3,15 @@
  * posh.vip-style VIP ticket with glassmorphism, tier accents, and animated QR
  */
 
-import React, { useCallback, useState } from "react";
+import React from "react";
 import {
   View,
   Text,
   Pressable,
   ScrollView,
-  ActivityIndicator,
   StyleSheet,
-  Platform,
 } from "react-native";
-import {
-  ArrowLeft,
-  RefreshCw,
-  TicketX,
-  Shield,
-  Wallet,
-  Check,
-} from "lucide-react-native";
+import { ArrowLeft, RefreshCw, TicketX, Shield } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -35,9 +26,6 @@ import {
   TicketAccessDetails,
   TicketActionsBar,
 } from "@/src/ticket/ui";
-import * as Haptics from "expo-haptics";
-import { useUIStore } from "@/lib/stores/ui-store";
-import { addToAppleWallet } from "@/src/ticket/helpers/add-to-wallet";
 import { ScreenSkeleton } from "@/components/ui/screen-skeleton";
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
@@ -139,39 +127,6 @@ function ViewTicketScreenContent() {
   const isExpired = ticket.status === "expired";
   const isRevoked = ticket.status === "revoked";
   const isTransferPending = ticket.status === "transfer_pending";
-  const showToast = useUIStore((s) => s.showToast);
-
-  // ── Apple Wallet banner state ──
-  const [walletBannerState, setWalletBannerState] = useState<
-    "idle" | "loading" | "success" | "dismissed"
-  >("idle");
-  const showWalletBanner =
-    Platform.OS === "ios" &&
-    ticket.status === "valid" &&
-    walletBannerState !== "dismissed" &&
-    walletBannerState !== "success";
-
-  const handleWalletBanner = useCallback(async () => {
-    if (walletBannerState === "loading") return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setWalletBannerState("loading");
-    const result = await addToAppleWallet(ticket);
-    if (result.success) {
-      setWalletBannerState("success");
-      showToast("success", "Added", "Ticket saved to Apple Wallet");
-    } else {
-      setWalletBannerState("idle");
-      if (
-        result.error === "not_configured" ||
-        result.error === "not_implemented"
-      ) {
-        showToast("info", "Coming Soon", "Apple Wallet passes coming soon");
-        setWalletBannerState("dismissed");
-      } else {
-        showToast("error", "Wallet", "Could not add to wallet");
-      }
-    }
-  }, [ticket, walletBannerState, showToast]);
 
   return (
     <View style={styles.screen}>
@@ -194,38 +149,6 @@ function ViewTicketScreenContent() {
         <View style={styles.heroWrap}>
           <TicketHeroCard ticket={ticket} />
         </View>
-
-        {/* ── Apple Wallet banner (iOS only, active tickets) ── */}
-        {showWalletBanner && (
-          <Motion.View
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", damping: 20, stiffness: 300 }}
-          >
-            <Pressable
-              onPress={handleWalletBanner}
-              disabled={walletBannerState === "loading"}
-              style={styles.walletBanner}
-            >
-              {walletBannerState === "loading" ? (
-                <ActivityIndicator size="small" color="#fff" />
-              ) : (
-                <Wallet size={18} color="#fff" />
-              )}
-              <View style={styles.walletBannerTextWrap}>
-                <Text style={styles.walletBannerTitle}>
-                  Add to Apple Wallet
-                </Text>
-                <Text style={styles.walletBannerSubtitle}>
-                  Quick access at the door
-                </Text>
-              </View>
-              <View style={styles.walletBannerArrow}>
-                <Text style={styles.walletBannerArrowText}>+</Text>
-              </View>
-            </Pressable>
-          </Motion.View>
-        )}
 
         {/* ── Transfer Pending banner ── */}
         {isTransferPending && (

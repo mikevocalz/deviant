@@ -45,6 +45,17 @@ export function getPostDetailRoute(
   return `/(protected)/post/${postId}` as const;
 }
 
+export function getPostDetailCommentsRoute(
+  postId: string,
+  commentId?: string,
+): string {
+  const query = ["openComments=1"];
+  if (commentId) {
+    query.push(`commentId=${encodeURIComponent(commentId)}`);
+  }
+  return `${getPostDetailRoute(postId)}?${query.join("&")}`;
+}
+
 /**
  * Navigates to post detail screen with validation and prefetch.
  *

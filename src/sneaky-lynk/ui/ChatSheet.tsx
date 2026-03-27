@@ -558,29 +558,6 @@ export function ChatSheet({
   const inputRef = useRef<any>(null);
   const authorDirectoryRef = useRef<Record<string, RoomCommentAuthor>>({});
 
-  // Delayed unmount: keep sheet mounted briefly after close so animation plays
-  const [shouldRender, setShouldRender] = useState(false);
-  useEffect(() => {
-    if (isOpen) {
-      setShouldRender(true);
-    } else {
-      const timer = setTimeout(() => setShouldRender(false), 400);
-      return () => clearTimeout(timer);
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (!shouldRender) return;
-
-    if (isOpen) {
-      requestAnimationFrame(() => {
-        bottomSheetRef.current?.snapToIndex(0);
-      });
-    } else {
-      bottomSheetRef.current?.close();
-    }
-  }, [isOpen, shouldRender]);
-
   const authorDirectory = useMemo(() => {
     const entries: Array<[string, RoomCommentAuthor]> = [];
 
@@ -678,6 +655,11 @@ export function ChatSheet({
     },
     [onClose],
   );
+
+  const handleRequestClose = useCallback(() => {
+    setReplyingTo(null);
+    bottomSheetRef.current?.close();
+  }, []);
 
   // Detect @mention in input
   const handleTextChange = useCallback((text: string) => {
@@ -844,14 +826,13 @@ export function ChatSheet({
     [],
   );
 
-  if (!shouldRender) return null;
-
   return (
     <BottomSheet
       ref={bottomSheetRef}
-      index={-1}
+      index={isOpen ? 0 : -1}
       snapPoints={snapPoints}
       onChange={handleSheetChanges}
+      animateOnMount
       enablePanDownToClose
       enableOverDrag={false}
       enableDynamicSizing={false}
@@ -916,7 +897,7 @@ export function ChatSheet({
             </View>
           </View>
           <Pressable
-            onPress={() => bottomSheetRef.current?.close()}
+            onPress={handleRequestClose}
             hitSlop={12}
             style={{
               width: 40,

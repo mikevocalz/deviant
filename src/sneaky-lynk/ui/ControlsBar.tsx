@@ -18,6 +18,10 @@ import {
   DVNTLiquidGlass,
   DVNTLiquidGlassIconButton,
 } from "@/components/media/DVNTLiquidGlass";
+import Reanimated, {
+  FadeInRight,
+  FadeOutRight,
+} from "react-native-reanimated";
 import type { RoomReaction } from "../hooks/useRoomReactions";
 
 const REACTION_EMOJIS = ["😂", "😢", "😊", "😈", "🥵", "💝"];
@@ -28,6 +32,7 @@ interface ControlsBarProps {
   handRaised: boolean;
   hasVideo: boolean;
   localRole: "host" | "co-host" | "participant" | "listener";
+  overlayOpen?: boolean;
   floatingReactions?: RoomReaction[];
   onLeave: () => void;
   onToggleMute: () => void;
@@ -178,43 +183,76 @@ function ControlButton({
     >
       <Animated.View style={{ transform: [{ scale }] }}>
         <Pressable
+          collapsable={false}
           onPress={() => {
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
             onPress();
           }}
           onPressIn={handlePressIn}
           onPressOut={handlePressOut}
+          hitSlop={compact ? 12 : 10}
           accessibilityRole="button"
           accessibilityLabel={label}
+          style={{ zIndex: 2, elevation: 2 }}
+          onStartShouldSetResponder={() => true}
         >
-          <DVNTLiquidGlassIconButton
-            size={size}
-            interactive={false}
-            style={{
-              borderWidth: 1,
-              borderColor: danger
-                ? "rgba(248, 113, 113, 0.34)"
-                : active
-                  ? "rgba(104, 198, 255, 0.38)"
-                  : "rgba(255,255,255,0.16)",
-            }}
-          >
+          {compact ? (
             <View
               style={{
-                width: "100%",
-                height: "100%",
-                alignItems: "center",
-                justifyContent: "center",
+                width: size,
+                height: size,
+                borderRadius: 14,
+                borderWidth: 1,
+                borderColor: danger
+                  ? "rgba(248, 113, 113, 0.34)"
+                  : active
+                    ? "rgba(104, 198, 255, 0.38)"
+                    : "rgba(255,255,255,0.16)",
                 backgroundColor: danger
                   ? "rgba(127, 29, 29, 0.28)"
                   : active
                     ? "rgba(46, 157, 255, 0.26)"
-                    : "rgba(255,255,255,0.04)",
+                    : "rgba(12,16,24,0.88)",
+                alignItems: "center",
+                justifyContent: "center",
+                shadowColor: "#000",
+                shadowOpacity: 0.24,
+                shadowRadius: 14,
+                shadowOffset: { width: 0, height: 8 },
               }}
             >
               {icon}
             </View>
-          </DVNTLiquidGlassIconButton>
+          ) : (
+            <DVNTLiquidGlassIconButton
+              size={size}
+              interactive={false}
+              style={{
+                borderWidth: 1,
+                borderColor: danger
+                  ? "rgba(248, 113, 113, 0.34)"
+                  : active
+                    ? "rgba(104, 198, 255, 0.38)"
+                    : "rgba(255,255,255,0.16)",
+              }}
+            >
+              <View
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  backgroundColor: danger
+                    ? "rgba(127, 29, 29, 0.28)"
+                    : active
+                      ? "rgba(46, 157, 255, 0.26)"
+                      : "rgba(255,255,255,0.04)",
+                }}
+              >
+                {icon}
+              </View>
+            </DVNTLiquidGlassIconButton>
+          )}
         </Pressable>
       </Animated.View>
       {showLabel ? (
@@ -238,6 +276,7 @@ export function ControlsBar({
   handRaised,
   hasVideo,
   localRole,
+  overlayOpen = false,
   floatingReactions = [],
   onLeave,
   onToggleMute,
@@ -292,7 +331,7 @@ export function ControlsBar({
 
   return (
     <View
-      pointerEvents="box-none"
+      pointerEvents={overlayOpen ? "none" : "box-none"}
       style={{
         position: "absolute",
         left: 0,
@@ -300,6 +339,8 @@ export function ControlsBar({
         bottom: 0,
         paddingBottom: insets.bottom + 10,
         paddingHorizontal: 14,
+        zIndex: 60,
+        elevation: 60,
       }}
     >
       {floatingReactions.map((reaction) => (
@@ -311,7 +352,16 @@ export function ControlsBar({
       ))}
 
       {showEmojiPicker && (
-        <View style={{ alignItems: "center", marginBottom: 10 }}>
+        <Reanimated.View
+          pointerEvents="box-none"
+          entering={FadeInRight.springify().damping(18).stiffness(220)}
+          exiting={FadeOutRight.duration(180)}
+          style={{
+            alignSelf: "flex-end",
+            marginBottom: 12,
+            marginRight: 2,
+          }}
+        >
           <DVNTLiquidGlass
             radius={18}
             paddingH={8}
@@ -323,37 +373,43 @@ export function ControlsBar({
               backgroundColor: "rgba(3, 7, 18, 0.18)",
             }}
           >
-            {REACTION_EMOJIS.map((emoji) => (
-              <Pressable
-                key={emoji}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  onSendReaction?.(emoji);
-                  setShowEmojiPicker(false);
-                }}
-                style={{
-                  width: 38,
-                  height: 38,
-                  borderRadius: 12,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                }}
-              >
-                <Text style={{ fontSize: 21 }}>{emoji}</Text>
-              </Pressable>
-            ))}
+            <View style={{ flexDirection: "column", gap: 8 }}>
+              {REACTION_EMOJIS.map((emoji) => (
+                <Pressable
+                  key={emoji}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                    onSendReaction?.(emoji);
+                    setShowEmojiPicker(false);
+                  }}
+                  hitSlop={8}
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 12,
+                    alignItems: "center",
+                    justifyContent: "center",
+                    backgroundColor: "rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <Text style={{ fontSize: 21 }}>{emoji}</Text>
+                </Pressable>
+              ))}
+            </View>
           </DVNTLiquidGlass>
-        </View>
+        </Reanimated.View>
       )}
 
       {quickActions.length > 0 && (
         <View
+          pointerEvents="auto"
           style={{
             flexDirection: "row",
             justifyContent: "center",
             gap: 10,
-            marginBottom: 8,
+            marginBottom: 10,
+            zIndex: 4,
+            elevation: 4,
           }}
         >
           {quickActions.map((action) => (
@@ -374,7 +430,6 @@ export function ControlsBar({
         radius={22}
         paddingH={10}
         paddingV={10}
-        interactive={false}
         style={{
           alignSelf: "center",
           borderWidth: 1,

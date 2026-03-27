@@ -108,6 +108,8 @@ export interface BootstrapNotificationsResponse {
     post?: { id: string; thumbnailUrl: string };
     event?: { id: string; title: string };
     commentText?: string;
+    postId?: string;
+    commentId?: string;
   }[];
   unreadCount: number;
   viewerFollowing: Record<string, boolean>;

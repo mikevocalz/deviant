@@ -227,8 +227,8 @@ Deno.serve(async (req) => {
             recipient_id: recipientId,
             actor_id: userId,
             type: "comment",
-            entity_type: "post",
-            entity_id: String(postId),
+            entity_type: "comment",
+            entity_id: String(comment.id),
           })),
         );
         console.log(
@@ -265,8 +265,8 @@ Deno.serve(async (req) => {
               recipient_id: u.id,
               actor_id: userId,
               type: "mention",
-              entity_type: "post",
-              entity_id: String(postId),
+              entity_type: "comment",
+              entity_id: String(comment.id),
             }));
 
           if (notifications.length > 0) {

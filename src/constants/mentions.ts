@@ -5,8 +5,8 @@
  * across all comment screens, chat, captions, and previews.
  */
 
-/** Color for @mention highlights — brand cyan */
-export const MENTION_COLOR = "#3fdcff";
+/** Color for @mention highlights — DVNT purple */
+export const MENTION_COLOR = "#8A40CF";
 
-/** Color for #hashtag highlights — same as mentions for consistency */
+/** Color for #hashtag highlights */
 export const HASHTAG_COLOR = "#3fdcff";

@@ -2,6 +2,7 @@ import type { TextPostSlide, TextPostThemeKey } from "@/lib/types";
 
 export const TEXT_POST_MAX_SLIDES = 6;
 export const TEXT_POST_MAX_LENGTH = 2000;
+const TRAILING_HASHTAG_BLOCK_RE = /\n+(#[^\s#]+(?:\s+#[^\s#]+)*)\s*$/;
 
 export interface TextPostTheme {
   key: TextPostThemeKey;
@@ -139,6 +140,30 @@ export function normalizeTextPostSlides(
   return [createTextPostSlide(fallbackContent || "", 0)];
 }
 
+function splitTrailingHashtagCaption(
+  content: string | null | undefined,
+): { content: string; caption: string } {
+  const value = typeof content === "string" ? content.trimEnd() : "";
+  if (!value) {
+    return { content: "", caption: "" };
+  }
+
+  const match = value.match(TRAILING_HASHTAG_BLOCK_RE);
+  if (!match || typeof match.index !== "number") {
+    return { content: value, caption: "" };
+  }
+
+  const nextContent = value.slice(0, match.index).trimEnd();
+  if (!nextContent) {
+    return { content: value, caption: "" };
+  }
+
+  return {
+    content: nextContent,
+    caption: match[1]?.trim() || "",
+  };
+}
+
 export function getPrimaryTextPostContent(
   slides: Array<Pick<TextPostSlide, "content">> | null | undefined,
   fallbackContent?: string | null,
@@ -148,6 +173,84 @@ export function getPrimaryTextPostContent(
     : null;
   const content = firstSlide?.content ?? fallbackContent ?? "";
   return typeof content === "string" ? content : "";
+}
+
+export interface TextPostPresentation {
+  textSlides: TextPostSlide[];
+  caption: string;
+  previewText: string;
+}
+
+export function resolveRenderableTextPostPresentation(
+  input: Array<Partial<TextPostSlide>> | null | undefined,
+  caption?: string | null,
+): TextPostPresentation {
+  const parsedFromSlides = resolveTextPostPresentation(input, undefined);
+  const explicitCaption = typeof caption === "string" ? caption.trim() : "";
+  const previewText = getPrimaryTextPostContent(
+    parsedFromSlides.textSlides,
+    undefined,
+  );
+  const hasSeparateCaption =
+    explicitCaption.length > 0 && explicitCaption !== previewText;
+
+  if (parsedFromSlides.textSlides.length > 1 || hasSeparateCaption) {
+    return {
+      textSlides: parsedFromSlides.textSlides,
+      caption: hasSeparateCaption ? explicitCaption : parsedFromSlides.caption,
+      previewText,
+    };
+  }
+
+  return resolveTextPostPresentation(input, caption);
+}
+
+export function resolveTextPostPresentation(
+  input: Array<Partial<TextPostSlide>> | null | undefined,
+  fallbackContent?: string | null,
+): TextPostPresentation {
+  const hasInputSlides =
+    Array.isArray(input) &&
+    input.some(
+      (slide) =>
+        typeof slide?.content === "string" && slide.content.trim().length > 0,
+    );
+  const hasFallbackContent =
+    typeof fallbackContent === "string" && fallbackContent.trim().length > 0;
+
+  if (!hasInputSlides && !hasFallbackContent) {
+    return {
+      textSlides: [],
+      caption: "",
+      previewText: "",
+    };
+  }
+
+  const normalizedSlides = normalizeTextPostSlides(input, fallbackContent);
+  if (normalizedSlides.length === 0) {
+    return {
+      textSlides: [],
+      caption: "",
+      previewText: "",
+    };
+  }
+
+  const lastSlideIndex = normalizedSlides.length - 1;
+  const lastSlide = normalizedSlides[lastSlideIndex];
+  const splitLastSlide = splitTrailingHashtagCaption(lastSlide?.content);
+  const textSlides = splitLastSlide.caption
+    ? normalizedSlides.map((slide, index) =>
+        index === lastSlideIndex
+          ? { ...slide, content: splitLastSlide.content }
+          : slide,
+      )
+    : normalizedSlides;
+
+  return {
+    textSlides,
+    caption: splitLastSlide.caption,
+    previewText: getPrimaryTextPostContent(textSlides, fallbackContent),
+  };
 }
 
 export function serializeTextSlidesForMutation(

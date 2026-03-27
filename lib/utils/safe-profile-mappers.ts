@@ -5,7 +5,8 @@
  * These ensure Profile screen cannot crash from malformed data
  */
 
-import type { Post } from "@/lib/types";
+import type { Post, TextPostSlide } from "@/lib/types";
+import { resolveTextPostPresentation } from "@/lib/posts/text-post";
 
 /**
  * Safe profile data with guaranteed non-null values
@@ -37,6 +38,8 @@ export interface SafeGridTile {
   videoUrl: string | null;
   mediaCount: number;
   text?: string;
+  textSlides?: TextPostSlide[];
+  textSlideCount?: number;
   textTheme?: import("@/lib/types").TextPostThemeKey;
   // Flag for invalid tiles that should not be rendered
   _isValid: boolean;
@@ -118,6 +121,8 @@ export function safeGridTile(post: any): SafeGridTile {
         videoUrl: null,
         mediaCount: 0,
         text: "",
+        textSlides: [],
+        textSlideCount: 0,
         textTheme: "graphite",
         _isValid: false,
       };
@@ -132,6 +137,8 @@ export function safeGridTile(post: any): SafeGridTile {
         videoUrl: null,
         mediaCount: 0,
         text: "",
+        textSlides: [],
+        textSlideCount: 0,
         textTheme: "graphite",
         _isValid: false,
       };
@@ -179,6 +186,21 @@ export function safeGridTile(post: any): SafeGridTile {
     // For video posts, preserve the video URL for client-side thumbnail generation
     const videoUrl =
       kind === "video" && media[0]?.url ? String(media[0].url) : null;
+    const rawTextSlides = Array.isArray(post.textSlides) ? post.textSlides : [];
+    const textPresentation = resolveTextPostPresentation(
+      rawTextSlides,
+      typeof post.caption === "string" ? post.caption : "",
+    );
+    const textSlides = textPresentation.textSlides;
+    const primaryText = textPresentation.previewText;
+    const textSlideCount =
+      kind === "text"
+        ? Math.max(
+            typeof post.textSlideCount === "number" ? post.textSlideCount : 0,
+            textSlides.length,
+            primaryText ? 1 : 0,
+          )
+        : 0;
 
     return {
       id: String(postId),
@@ -186,7 +208,9 @@ export function safeGridTile(post: any): SafeGridTile {
       coverUrl,
       videoUrl,
       mediaCount,
-      text: typeof post.caption === "string" ? post.caption : "",
+      text: primaryText,
+      textSlides: kind === "text" ? textSlides : undefined,
+      textSlideCount,
       textTheme: post.textTheme || "graphite",
       _isValid: true,
     };
@@ -199,6 +223,8 @@ export function safeGridTile(post: any): SafeGridTile {
       videoUrl: null,
       mediaCount: 0,
       text: "",
+      textSlides: [],
+      textSlideCount: 0,
       textTheme: "graphite",
       _isValid: false,
     };

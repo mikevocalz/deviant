@@ -29,6 +29,8 @@ export interface ShareOptions {
   message?: string;
 }
 
+export type ShareResult = "shared" | "dismissed" | "error";
+
 /**
  * Share a profile link via the native share sheet.
  * Instagram-style: "Check out @username on DVNT"
@@ -36,7 +38,7 @@ export interface ShareOptions {
 export async function shareProfile(
   username: string,
   displayName?: string,
-): Promise<boolean> {
+): Promise<ShareResult> {
   const url = shareUrls.profile(username);
   const name = displayName || username;
   return shareUrl(url, {
@@ -51,7 +53,7 @@ export async function shareProfile(
 export async function sharePost(
   postId: string,
   caption?: string,
-): Promise<boolean> {
+): Promise<ShareResult> {
   const url = shareUrls.post(postId);
   return shareUrl(url, {
     title: "Post on DVNT",
@@ -65,7 +67,7 @@ export async function sharePost(
 export async function shareEvent(
   eventId: string,
   eventName?: string,
-): Promise<boolean> {
+): Promise<ShareResult> {
   const url = shareUrls.event(eventId);
   return shareUrl(url, {
     title: eventName || "Event on DVNT",
@@ -76,7 +78,7 @@ export async function shareEvent(
 /**
  * Share a story link via the native share sheet.
  */
-export async function shareStory(storyId: string): Promise<boolean> {
+export async function shareStory(storyId: string): Promise<ShareResult> {
   const url = shareUrls.story(storyId);
   return shareUrl(url, {
     title: "Story on DVNT",
@@ -86,12 +88,13 @@ export async function shareStory(storyId: string): Promise<boolean> {
 
 /**
  * Core share function — opens the native share sheet.
- * Returns true if shared successfully, false if dismissed/errored.
+ * Returns a result classification so callers can distinguish
+ * cancellation from a real native share failure.
  */
 export async function shareUrl(
   url: string,
   options?: ShareOptions,
-): Promise<boolean> {
+): Promise<ShareResult> {
   try {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
@@ -110,10 +113,10 @@ export async function shareUrl(
       },
     );
 
-    return result.action === Share.sharedAction;
+    return result.action === Share.sharedAction ? "shared" : "dismissed";
   } catch (error) {
     console.error("[ShareLink] Share failed:", error);
-    return false;
+    return "error";
   }
 }
 

@@ -75,19 +75,23 @@ import { TextPostSurface } from "@/components/post/TextPostSurface";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { routeToProfile } from "@/lib/utils/route-to-profile";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { navigateToPost } from "@/lib/routes/post-routes";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
 import { usePostTags } from "@/lib/hooks/use-post-tags";
 import { usePostTagsUIStore } from "@/lib/stores/post-tags-store";
+import { postsApi } from "@/lib/api/posts";
 import {
   useSharedValue,
   withSpring,
   withTiming,
 } from "react-native-reanimated";
 import { Volume2, VolumeX } from "lucide-react-native";
+import {
+  resolveRenderableTextPostPresentation,
+} from "@/lib/posts/text-post";
 
 const CARD_HORIZONTAL_MARGIN = 4;
 const CARD_BORDER_WIDTH = 1;
@@ -105,6 +109,7 @@ interface FeedPostProps {
   textTheme?: import("@/lib/types").TextPostThemeKey;
   caption?: string;
   textSlides?: import("@/lib/types").TextPostSlide[];
+  textSlideCount?: number;
   likes: number;
   viewerHasLiked?: boolean;
   comments: Comment[] | number;
@@ -151,6 +156,7 @@ function FeedPostComponent({
   textTheme,
   caption,
   textSlides,
+  textSlideCount,
   likes,
   viewerHasLiked = false,
   comments,
@@ -214,8 +220,43 @@ function FeedPostComponent({
   const videoViewRef = useRef<ElementRef<typeof VideoView>>(null);
 
   const isTextPost = kind === "text";
+  const initialTextPresentation = useMemo(
+    () => resolveRenderableTextPostPresentation(textSlides, caption),
+    [caption, textSlides],
+  );
+  const initialTextSlides = initialTextPresentation.textSlides;
+  const shouldHydrateTextSlides =
+    isTextPost &&
+    !!id &&
+    ((typeof textSlideCount === "number" &&
+      textSlideCount > initialTextSlides.length) ||
+      initialTextSlides.length <= 1);
+  const { data: hydratedTextPost } = useQuery({
+    queryKey: ["feedTextPostSlides", id],
+    queryFn: () => postsApi.getPostById(id),
+    enabled: shouldHydrateTextSlides,
+    staleTime: 60_000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const hydratedTextPresentation = useMemo(
+    () =>
+      resolveRenderableTextPostPresentation(
+        hydratedTextPost?.textSlides,
+        hydratedTextPost?.caption,
+      ),
+    [hydratedTextPost?.caption, hydratedTextPost?.textSlides],
+  );
+  const resolvedTextSlides = useMemo(() => {
+    const hydratedSlides = hydratedTextPresentation.textSlides;
+
+    return hydratedSlides.length > initialTextSlides.length
+      ? hydratedSlides
+      : initialTextSlides;
+  }, [hydratedTextPresentation.textSlides, initialTextSlides]);
+  const textPostCaption =
+    hydratedTextPresentation.caption || initialTextPresentation.caption;
   const hasMultipleTextSlides =
-    isTextPost && Array.isArray(textSlides) && textSlides.length > 1;
+    isTextPost && resolvedTextSlides.length > 1;
   const hasMedia = media && media.length > 0;
   const isVideo = !isTextPost && hasMedia && media[0]?.type === "video";
   const hasMultipleMedia =
@@ -519,7 +560,7 @@ function FeedPostComponent({
                   scrollEventThrottle={16}
                   contentContainerStyle={{ gap: 0 }}
                 >
-                  {textSlides!.map((slide, index) => (
+                  {resolvedTextSlides.map((slide, index) => (
                     <Pressable
                       key={slide.id || index}
                       onPress={handlePostPress}
@@ -541,7 +582,7 @@ function FeedPostComponent({
                   pointerEvents="none"
                 >
                   <CarouselDots
-                    count={textSlides!.length}
+                    count={resolvedTextSlides.length}
                     current={currentSlide}
                   />
                 </View>
@@ -549,7 +590,7 @@ function FeedPostComponent({
             ) : (
               <Pressable onPress={handlePostPress}>
                 <TextPostSurface
-                  text={caption}
+                  text={resolvedTextSlides[0]?.content || ""}
                   theme={textTheme}
                   variant="feed"
                 />
@@ -624,6 +665,32 @@ function FeedPostComponent({
                 {timeAgo}
               </Text>
             </View>
+            {textPostCaption ? (
+              <View style={{ marginTop: 14 }}>
+                <Text
+                  style={{
+                    fontSize: 14,
+                    lineHeight: 20,
+                    color: "rgba(248,250,252,0.92)",
+                  }}
+                >
+                  <Text
+                    style={{ fontWeight: "700", color: "#fff" }}
+                    onPress={handleProfilePress}
+                  >
+                    {author?.username || "Unknown User"}{" "}
+                  </Text>
+                  <HashtagText
+                    text={textPostCaption}
+                    textStyle={{
+                      fontSize: 14,
+                      lineHeight: 20,
+                      color: "rgba(226,232,240,0.82)",
+                    }}
+                  />
+                </Text>
+              </View>
+            ) : null}
           </View>
         ) : hasMedia ? (
           <View

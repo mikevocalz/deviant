@@ -76,6 +76,7 @@ function RepliesScreenContent() {
   const user = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
   const inputRef = useRef<TextInput>(null);
+  const listRef = useRef<FlatList<Comment> | null>(null);
 
   const [replyText, setReplyText] = useState("");
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
@@ -87,6 +88,10 @@ function RepliesScreenContent() {
   const parentComment = thread?.parentComment || null;
   const replies = thread?.replies || [];
 
+  const handleBackToComments = useCallback(() => {
+    router.back();
+  }, [router]);
+
   useEffect(() => {
     if (!parentComment || !postId) return;
     if (commentId === parentComment.id) return;
@@ -94,6 +99,25 @@ function RepliesScreenContent() {
       `/(protected)/comments/replies/${parentComment.id}?postId=${postId}&focusCommentId=${focusCommentId || commentId}`,
     );
   }, [commentId, focusCommentId, parentComment, postId, router]);
+
+  useEffect(() => {
+    if (!focusCommentId || focusCommentId === parentComment?.id || replies.length === 0) {
+      return;
+    }
+
+    const targetIndex = replies.findIndex((reply) => reply.id === focusCommentId);
+    if (targetIndex < 0) {
+      return;
+    }
+
+    requestAnimationFrame(() => {
+      listRef.current?.scrollToIndex({
+        index: targetIndex,
+        animated: true,
+        viewPosition: 0.2,
+      });
+    });
+  }, [focusCommentId, parentComment?.id, replies]);
 
   const commenters = useMemo(
     () =>
@@ -235,7 +259,13 @@ function RepliesScreenContent() {
 
   useSafeHeader(
     {
-      header: () => <SheetHeader title="Replies" onClose={() => router.back()} />,
+      header: () => (
+        <SheetHeader
+          title="Replies"
+          onBack={handleBackToComments}
+          onClose={() => router.dismiss()}
+        />
+      ),
       footer: (
         <CommentComposerFooter
           value={replyText}
@@ -253,6 +283,7 @@ function RepliesScreenContent() {
       ),
     },
     [
+      handleBackToComments,
       router,
       replyText,
       createComment.isPending,
@@ -284,11 +315,20 @@ function RepliesScreenContent() {
         </View>
       ) : (
         <FlatList
+          ref={listRef}
           data={replies}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16, gap: 12 }}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
+          onScrollToIndexFailed={({ index }) => {
+            requestAnimationFrame(() => {
+              listRef.current?.scrollToOffset({
+                offset: Math.max(index, 0) * 180,
+                animated: true,
+              });
+            });
+          }}
           ListHeaderComponent={
             <View style={{ marginBottom: 12, gap: 12 }}>
               <Text

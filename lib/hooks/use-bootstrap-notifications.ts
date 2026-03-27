@@ -50,6 +50,8 @@ function hydrateFromNotificationsBootstrap(
         ? { id: a.post.id, thumbnail: a.post.thumbnailUrl }
         : undefined,
       comment: a.commentText,
+      postId: a.postId,
+      commentId: a.commentId,
       timeAgo: "",
       isRead: a.isRead,
       createdAt: a.createdAt,

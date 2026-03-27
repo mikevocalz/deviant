@@ -1,6 +1,6 @@
 /**
  * TicketActionsBar — Sticky bottom actions
- * Wallet (platform-aware), Calendar, Share — respects ticket rules
+ * Calendar, Share, Transfer — respects ticket rules
  * Loading, success, error states for each action.
  */
 
@@ -17,11 +17,10 @@ import {
   Text,
   Pressable,
   StyleSheet,
-  Platform,
   ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Wallet, CalendarPlus, Share2, Check, Send } from "lucide-react-native";
+import { CalendarPlus, Share2, Check, Send } from "lucide-react-native";
 import BottomSheet, {
   BottomSheetBackdrop,
   BottomSheetTextInput,
@@ -30,7 +29,6 @@ import BottomSheet, {
 import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import * as Haptics from "expo-haptics";
 import { useUIStore } from "@/lib/stores/ui-store";
-import { addToWallet } from "@/src/ticket/helpers/add-to-wallet";
 import { addTicketToCalendar } from "@/src/ticket/helpers/add-to-calendar";
 import { shareTicket } from "@/src/ticket/helpers/share-ticket";
 import { ticketsApi } from "@/lib/api/tickets";
@@ -58,44 +56,10 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   const accent = TIER_ACCENT[tier];
 
   const isActive = ticket.status === "valid";
-  const walletLabel = Platform.OS === "ios" ? "Apple Wallet" : "Google Wallet";
 
-  const [walletState, setWalletState] = useState<ActionState>("idle");
   const [calendarState, setCalendarState] = useState<ActionState>("idle");
   const [shareState, setShareState] = useState<ActionState>("idle");
   const [transferState, setTransferState] = useState<ActionState>("idle");
-
-  // ── Wallet ──
-  const handleWallet = useCallback(async () => {
-    if (walletState === "loading") return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setWalletState("loading");
-
-    const result = await addToWallet(ticket);
-
-    if (result.success) {
-      setWalletState("success");
-      showToast("success", "Added", `Ticket saved to ${walletLabel}`);
-      setTimeout(() => setWalletState("idle"), 3000);
-    } else {
-      setWalletState("error");
-      let msg = "Could not add to wallet";
-      if (
-        result.error === "not_configured" ||
-        result.error === "not_implemented"
-      ) {
-        msg = "Wallet passes coming soon";
-      } else if (result.error === "not_authenticated") {
-        msg = "Please sign in to add to wallet";
-      } else if (result.error === "invalid_ticket") {
-        msg = "This ticket cannot be added to wallet";
-      } else if (result.error === "forbidden") {
-        msg = "You don't own this ticket";
-      }
-      showToast("error", "Wallet", msg);
-      setTimeout(() => setWalletState("idle"), 3000);
-    }
-  }, [ticket, walletState, walletLabel, showToast]);
 
   // ── Calendar ──
   const handleCalendar = useCallback(async () => {
@@ -208,34 +172,6 @@ export const TicketActionsBar = memo(function TicketActionsBar({
 
   return (
     <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
-      {/* Wallet */}
-      <Pressable
-        onPress={handleWallet}
-        style={[
-          styles.actionButton,
-          Platform.OS === "ios" && styles.walletButton,
-          walletState === "success" && styles.successButton,
-        ]}
-        disabled={walletState === "loading"}
-      >
-        {walletState === "loading" ? (
-          <ActivityIndicator size="small" color="#fff" />
-        ) : walletState === "success" ? (
-          <Check size={16} color="#3FDCFF" />
-        ) : (
-          <Wallet size={16} color="#fff" />
-        )}
-        <Text
-          style={[
-            styles.actionLabel,
-            walletState === "success" && styles.successLabel,
-          ]}
-          numberOfLines={1}
-        >
-          {walletState === "success" ? "Added" : walletLabel}
-        </Text>
-      </Pressable>
-
       {/* Calendar */}
       <Pressable
         onPress={handleCalendar}
@@ -381,9 +317,6 @@ const styles = StyleSheet.create({
   },
   successButton: {
     backgroundColor: "rgba(63,220,255,0.1)",
-  },
-  walletButton: {
-    backgroundColor: "rgba(138,64,207,0.15)",
   },
   actionLabel: {
     color: "#fff",

@@ -5,9 +5,16 @@ import {
   Pressable,
   StyleSheet,
   useWindowDimensions,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { ArrowLeft, Grid, MoreHorizontal, Share2 } from "lucide-react-native";
+import {
+  ArrowLeft,
+  Grid,
+  MoreHorizontal,
+  Share2,
+  X,
+} from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -28,7 +35,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { navigateToChat } from "@/lib/navigation/chat-routes";
 import { Avatar, AvatarSizes } from "@/components/ui/avatar";
 import { resolveAvatarUrl } from "@/lib/media/resolveAvatarUrl";
-import { Galeria } from "@nandorojo/galeria";
+import { Image } from "expo-image";
 import { Debouncer } from "@tanstack/react-pacer";
 import { ProfileMasonryGrid } from "@/components/profile/ProfileMasonryGrid";
 import { ProfilePronounsPill } from "@/components/profile/ProfilePronounsPill";
@@ -557,6 +564,7 @@ function UserProfileScreenComponent() {
   // State for message button loading
   const [isCreatingConversation, setIsCreatingConversation] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
+  const [isAvatarViewerOpen, setIsAvatarViewerOpen] = useState(false);
   const showToast = useUIStore((s) => s.showToast);
   const creatingConvRef = useRef(false);
 
@@ -585,11 +593,12 @@ function UserProfileScreenComponent() {
       if (!Array.isArray(data)) continue;
       const match = data.find(
         (c: any) =>
-          c?.user?.id === String(user.id) ||
-          c?.user?.authId ===
-            String((user as any).authId || previewAuthId || "") ||
-          c?.user?.authId === messageTargetId ||
-          c?.user?.username === username,
+          !c?.isGroup &&
+          (c?.user?.id === String(user.id) ||
+            c?.user?.authId ===
+              String((user as any).authId || previewAuthId || "") ||
+            c?.user?.authId === messageTargetId ||
+            c?.user?.username === username),
       );
       if (match?.id) {
         console.log("[Profile] Cache hit — navigating to chat:", match.id);
@@ -801,16 +810,17 @@ function UserProfileScreenComponent() {
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
               {profileAvatarUrl ? (
-                <Galeria urls={[profileAvatarUrl]}>
-                  <Galeria.Image index={0}>
-                    <Avatar
-                      uri={profileAvatarUrl}
-                      username={user.username}
-                      size={80}
-                      variant="roundedSquare"
-                    />
-                  </Galeria.Image>
-                </Galeria>
+                <Pressable
+                  onPress={() => setIsAvatarViewerOpen(true)}
+                  hitSlop={10}
+                >
+                  <Avatar
+                    uri={profileAvatarUrl}
+                    username={user.username}
+                    size={80}
+                    variant="roundedSquare"
+                  />
+                </Pressable>
               ) : (
                 <Avatar
                   uri={undefined}
@@ -1067,6 +1077,57 @@ function UserProfileScreenComponent() {
           />
         )}
       </ScrollView>
+
+      <Modal
+        visible={isAvatarViewerOpen && !!profileAvatarUrl}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsAvatarViewerOpen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.96)" }}>
+          <Pressable
+            onPress={() => setIsAvatarViewerOpen(false)}
+            style={{ position: "absolute", inset: 0 }}
+          />
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingHorizontal: 20,
+              paddingVertical: 40,
+            }}
+          >
+            {profileAvatarUrl ? (
+              <Image
+                source={{ uri: profileAvatarUrl }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+              />
+            ) : null}
+          </View>
+          <Pressable
+            onPress={() => setIsAvatarViewerOpen(false)}
+            hitSlop={12}
+            style={{
+              position: "absolute",
+              top: 52,
+              right: 20,
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(255,255,255,0.12)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.18)",
+            }}
+          >
+            <X size={20} color="#fff" />
+          </Pressable>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

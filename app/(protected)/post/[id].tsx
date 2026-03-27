@@ -71,7 +71,7 @@ import {
 import { postsApi } from "@/lib/api/posts";
 import { Avatar } from "@/components/ui/avatar";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
@@ -91,10 +91,58 @@ import {
 } from "@/src/features/likes/LikesSheetController";
 import { normalizePost } from "@/lib/normalization/safe-entity";
 import { validatePostParams } from "@/lib/validation/post-params";
+import { resolveRenderableTextPostPresentation } from "@/lib/posts/text-post";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // CRITICAL: Match FeedItem's 4:5 aspect ratio for consistent display
 const PORTRAIT_HEIGHT = Math.round(SCREEN_WIDTH * (5 / 4));
+
+function resolveDetailTextSlides(
+  postId: string,
+  fallbackText: string | undefined,
+  slides: import("@/lib/types").TextPostSlide[] | undefined,
+) {
+  const normalizedSlides = Array.isArray(slides)
+    ? [...slides]
+        .filter((slide) => slide?.content?.trim?.().length > 0)
+        .sort((a, b) => a.order - b.order)
+    : [];
+
+  if (normalizedSlides.length > 0) {
+    return normalizedSlides;
+  }
+
+  if (fallbackText?.trim()) {
+    return [{ id: `${postId}-slide-0`, order: 0, content: fallbackText }];
+  }
+
+  return [];
+}
+
+function resolveCommentSheetRoute(
+  postId: string,
+  commentId: string | undefined,
+  comments: import("@/lib/types").Comment[],
+) {
+  if (!commentId) {
+    return `/(protected)/comments/${postId}`;
+  }
+
+  for (const comment of comments) {
+    if (comment.id === commentId) {
+      return `/(protected)/comments/${postId}?commentId=${commentId}`;
+    }
+
+    const matchingReply = (comment.replies || []).find(
+      (reply) => reply.id === commentId,
+    );
+    if (matchingReply) {
+      return `/(protected)/comments/replies/${comment.id}?postId=${postId}&focusCommentId=${commentId}`;
+    }
+  }
+
+  return `/(protected)/comments/${postId}?commentId=${commentId}`;
+}
 
 /**
  * Mini error boundary for media section — if video or Galeria crashes,
@@ -646,7 +694,7 @@ function PostDetailScreenContent() {
   // FIX: Normalize params once to prevent string|string[] instability loops
   const normalizedParams = useMemo(
     () => normalizeRouteParams(rawParams),
-    [rawParams.id],
+    [rawParams.commentId, rawParams.id, rawParams.openComments],
   );
 
   loopDetection.log("PostDetail", "mount", { id: normalizedParams.id });
@@ -655,6 +703,10 @@ function PostDetailScreenContent() {
   // Compute validation result, use for conditional rendering AFTER all hooks
   const paramsResult = validatePostParams(normalizedParams);
   const postId = paramsResult.valid ? paramsResult.postId : "";
+  const targetCommentId = normalizedParams.commentId;
+  const shouldOpenCommentsFromRoute =
+    normalizedParams.openComments === "1" ||
+    normalizedParams.openComments === "true";
 
   // CRITICAL: ALL HOOKS MUST BE CALLED UNCONDITIONALLY
   // Pass empty string if invalid - hooks will handle gracefully
@@ -790,6 +842,52 @@ function PostDetailScreenContent() {
   // NORMALIZATION: Create safePost with guaranteed non-null values
   // This prevents crashes if TanStack Query updates post to null during render
   const safePost = useMemo(() => normalizePost(post, postId), [post, postId]);
+  const baseTextPresentation = useMemo(
+    () =>
+      resolveRenderableTextPostPresentation(
+        safePost.textSlides,
+        safePost.caption,
+      ),
+    [safePost.caption, safePost.textSlides],
+  );
+  const baseTextSlides = useMemo(
+    () => resolveDetailTextSlides(postId, undefined, baseTextPresentation.textSlides),
+    [baseTextPresentation.textSlides, postId],
+  );
+  const shouldHydrateDetailTextSlides =
+    safePost.kind === "text" &&
+    !!postId &&
+    ((typeof safePost.textSlideCount === "number" &&
+      safePost.textSlideCount > baseTextSlides.length) ||
+      baseTextSlides.length <= 1);
+  const { data: hydratedTextPost } = useQuery({
+    queryKey: ["postDetailTextSlides", postId],
+    queryFn: () => postsApi.getPostById(postId),
+    enabled: shouldHydrateDetailTextSlides,
+    staleTime: 60_000,
+    gcTime: 10 * 60 * 1000,
+  });
+  const hydratedTextPresentation = useMemo(
+    () =>
+      resolveRenderableTextPostPresentation(
+        hydratedTextPost?.textSlides,
+        hydratedTextPost?.caption,
+      ),
+    [hydratedTextPost?.caption, hydratedTextPost?.textSlides],
+  );
+  const resolvedTextSlides = useMemo(() => {
+    const hydratedSlides = resolveDetailTextSlides(
+      postId,
+      undefined,
+      hydratedTextPresentation.textSlides,
+    );
+
+    return hydratedSlides.length > baseTextSlides.length
+      ? hydratedSlides
+      : baseTextSlides;
+  }, [baseTextSlides, hydratedTextPresentation.textSlides, postId]);
+  const textPostCaption =
+    hydratedTextPresentation.caption || baseTextPresentation.caption;
 
   // Navigate to user profile
   const handleProfilePress = useCallback(() => {
@@ -815,11 +913,15 @@ function PostDetailScreenContent() {
   const handleShare = useCallback(async () => {
     if (!postId || !safePost) return;
     try {
-      await sharePost(postId, safePost.caption || "");
+      const shareCaption =
+        safePost.kind === "text"
+          ? resolvedTextSlides[0]?.content || ""
+          : safePost.caption || "";
+      await sharePost(postId, shareCaption);
     } catch (error) {
       console.error("[PostDetail] Share error:", error);
     }
-  }, [postId, safePost]);
+  }, [postId, resolvedTextSlides, safePost]);
 
   const handleActionEdit = useCallback(() => {
     if (postId) {
@@ -864,6 +966,44 @@ function PostDetailScreenContent() {
     if (!postIdString) return;
     router.push(`/(protected)/comments/${postIdString}`);
   }, [postIdString, router]);
+  const notificationCommentRouteRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (
+      !shouldOpenCommentsFromRoute ||
+      !postIdString ||
+      isLoading ||
+      (!!targetCommentId && commentsLoading)
+    ) {
+      return;
+    }
+
+    const routeKey = `${postIdString}:${targetCommentId || ""}`;
+    if (notificationCommentRouteRef.current === routeKey) {
+      return;
+    }
+
+    notificationCommentRouteRef.current = routeKey;
+    screenPrefetch.comments(queryClient, postIdString);
+
+    requestAnimationFrame(() => {
+      const route = resolveCommentSheetRoute(
+        postIdString,
+        targetCommentId,
+        comments,
+      );
+      router.push(route as any);
+    });
+  }, [
+    isLoading,
+    postIdString,
+    comments,
+    commentsLoading,
+    queryClient,
+    router,
+    shouldOpenCommentsFromRoute,
+    targetCommentId,
+  ]);
 
   // Collect valid image URLs for Galeria full-screen viewer
   const imageUrls = useMemo(() => {
@@ -1319,8 +1459,7 @@ function PostDetailScreenContent() {
                 paddingVertical: 18,
               }}
             >
-              {Array.isArray(safePost.textSlides) &&
-              safePost.textSlides.length > 1 ? (
+              {resolvedTextSlides.length > 1 ? (
                 <View>
                   <ScrollView
                     horizontal
@@ -1335,7 +1474,7 @@ function PostDetailScreenContent() {
                     }}
                     scrollEventThrottle={16}
                   >
-                    {safePost.textSlides.map(
+                    {resolvedTextSlides.map(
                       (
                         slide: { id: string; content: string },
                         index: number,
@@ -1363,7 +1502,7 @@ function PostDetailScreenContent() {
                     }}
                     pointerEvents="none"
                   >
-                    {safePost.textSlides.map((_: unknown, index: number) => (
+                    {resolvedTextSlides.map((_: unknown, index: number) => (
                       <View
                         key={index}
                         style={{
@@ -1382,7 +1521,7 @@ function PostDetailScreenContent() {
                 </View>
               ) : (
                 <TextPostSurface
-                  text={safePost?.caption || ""}
+                  text={resolvedTextSlides[0]?.content || ""}
                   theme={safePost.textTheme}
                   variant="detail"
                 />
@@ -1407,6 +1546,32 @@ function PostDetailScreenContent() {
                 onShare={handleShare}
                 onBookmark={handleBookmarkPress}
               />
+              {textPostCaption ? (
+                <View className="pt-4">
+                  <Text
+                    style={{
+                      fontSize: 15,
+                      color: colors.foreground,
+                      lineHeight: 22,
+                    }}
+                  >
+                    <Text
+                      style={{ fontWeight: "700" }}
+                      onPress={() =>
+                        router.push(
+                          `/(protected)/profile/${safePost.author?.username}` as any,
+                        )
+                      }
+                    >
+                      {safePost.author?.username || "Unknown User"}{" "}
+                    </Text>
+                    <HashtagText
+                      text={textPostCaption}
+                      textStyle={{ fontSize: 15, color: colors.foreground }}
+                    />
+                  </Text>
+                </View>
+              ) : null}
             </View>
           )}
 

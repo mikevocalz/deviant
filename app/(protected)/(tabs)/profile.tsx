@@ -6,6 +6,7 @@ import {
   ActivityIndicator,
   useWindowDimensions,
   Linking,
+  Modal,
 } from "react-native";
 import { Avatar } from "@/components/ui/avatar";
 import { Image } from "expo-image";
@@ -18,6 +19,7 @@ import {
   Camera,
   CalendarDays,
   Heart,
+  X,
 } from "lucide-react-native";
 import { useRouter, useNavigation, Link } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
@@ -111,6 +113,7 @@ function ProfileScreenContent() {
   // Avatar update state
   const [isUpdatingAvatar, setIsUpdatingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [isAvatarViewerOpen, setIsAvatarViewerOpen] = useState(false);
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
 
@@ -595,25 +598,42 @@ function ProfileScreenContent() {
           {/* Centered Profile Header */}
           <View className="items-center">
             <View className="flex-row items-center justify-center gap-8 mb-6">
-              <Pressable
-                onPress={handleAvatarPress}
-                disabled={isUpdatingAvatar}
-              >
-                <View className="relative">
-                  {avatarUri && !avatarError ? (
-                    <Image
-                      source={{ uri: avatarUri }}
+              <View className="relative">
+                {avatarUri && !avatarError ? (
+                  <Pressable
+                    onPress={() => setIsAvatarViewerOpen(true)}
+                    hitSlop={10}
+                  >
+                    <View
                       style={{
                         width: 88,
                         height: 88,
                         borderRadius: 20,
+                        overflow: "hidden",
+                        borderWidth: 1.5,
+                        borderColor: "#34A2DF",
                         backgroundColor: "#1a1a1a",
                       }}
-                      contentFit="cover"
-                      cachePolicy="memory-disk"
-                      onError={() => setAvatarError(true)}
-                    />
-                  ) : (
+                    >
+                      <Image
+                        source={{ uri: avatarUri }}
+                        style={{
+                          width: 88,
+                          height: 88,
+                          borderRadius: 20,
+                          backgroundColor: "#1a1a1a",
+                        }}
+                        contentFit="cover"
+                        cachePolicy="memory-disk"
+                        onError={() => setAvatarError(true)}
+                      />
+                    </View>
+                  </Pressable>
+                ) : (
+                  <Pressable
+                    onPress={handleAvatarPress}
+                    disabled={isUpdatingAvatar}
+                  >
                     <View
                       style={{
                         width: 88,
@@ -636,24 +656,26 @@ function ProfileScreenContent() {
                           .toUpperCase()}
                       </Text>
                     </View>
-                  )}
-                  {isUpdatingAvatar ? (
-                    <View className="absolute inset-0 items-center justify-center rounded-[20px] bg-black/50">
-                      <ActivityIndicator size="small" color="#fff" />
-                    </View>
-                  ) : (
-                    <View
-                      className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-[8px] bg-primary border-2"
-                      style={{
-                        borderColor: colors.background,
-                        transform: [{ translateX: -14 }],
-                      }}
-                    >
-                      <Camera size={14} color="#fff" />
-                    </View>
-                  )}
-                </View>
-              </Pressable>
+                  </Pressable>
+                )}
+                {isUpdatingAvatar ? (
+                  <View className="absolute inset-0 items-center justify-center rounded-[20px] bg-black/50">
+                    <ActivityIndicator size="small" color="#fff" />
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={handleAvatarPress}
+                    hitSlop={12}
+                    className="absolute -bottom-1 left-1/2 h-7 w-7 items-center justify-center rounded-[8px] bg-primary border-2"
+                    style={{
+                      borderColor: colors.background,
+                      transform: [{ translateX: -14 }],
+                    }}
+                  >
+                    <Camera size={14} color="#fff" />
+                  </Pressable>
+                )}
+              </View>
               <View className="flex-row gap-8">
                 <View
                   className="items-center"
@@ -1175,6 +1197,57 @@ function ProfileScreenContent() {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={isAvatarViewerOpen && !!avatarUri}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setIsAvatarViewerOpen(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.96)" }}>
+          <Pressable
+            onPress={() => setIsAvatarViewerOpen(false)}
+            style={{ position: "absolute", inset: 0 }}
+          />
+          <View
+            style={{
+              flex: 1,
+              alignItems: "center",
+              justifyContent: "center",
+              paddingHorizontal: 20,
+              paddingVertical: 40,
+            }}
+          >
+            {avatarUri ? (
+              <Image
+                source={{ uri: avatarUri }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="contain"
+                cachePolicy="memory-disk"
+              />
+            ) : null}
+          </View>
+          <Pressable
+            onPress={() => setIsAvatarViewerOpen(false)}
+            hitSlop={12}
+            style={{
+              position: "absolute",
+              top: 52,
+              right: 20,
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(255,255,255,0.12)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.18)",
+            }}
+          >
+            <X size={20} color="#fff" />
+          </Pressable>
+        </View>
+      </Modal>
     </View>
   );
 }

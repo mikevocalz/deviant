@@ -26,6 +26,7 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { resolveTextPostPresentation } from "@/lib/posts/text-post";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -107,8 +108,12 @@ function EditPostScreenContent() {
   // Initialize form from post data
   useEffect(() => {
     if (post) {
-      setCaption(post.caption || "");
-      setOriginalCaption(post.caption || "");
+      const nextCaption =
+        post.kind === "text"
+          ? resolveTextPostPresentation(post.textSlides, post.caption).previewText
+          : post.caption || "";
+      setCaption(nextCaption);
+      setOriginalCaption(nextCaption);
       setLocation(post.location ? { name: post.location } : null);
       setOriginalLocation(post.location ? { name: post.location } : null);
       setIsNSFW(post.isNSFW || false);
