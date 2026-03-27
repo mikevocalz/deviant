@@ -114,6 +114,7 @@ interface ChatState {
   ) => Promise<void>;
   addSystemMessage: (chatId: string, text: string) => void;
   retryMessage: (conversationId: string, messageId: string) => Promise<void>;
+  mergeRealtimeMessage: (conversationId: string, message: Message) => void;
   clearConversation: (conversationId: string) => void;
 }
 
@@ -872,6 +873,25 @@ export const useChatStore = create<ChatState>((set, get) => ({
       cursorPosition: newCursorPosition,
       mentionQuery: "",
       showMentions: false,
+    });
+  },
+
+  // Merge a single incoming Realtime message into the cache.
+  // DEDUP: Skip if a message with the same server ID already exists
+  // (covers both confirmed optimistic messages and duplicate Realtime events).
+  mergeRealtimeMessage: (conversationId, message) => {
+    set((state) => {
+      const existing = state.messages[conversationId] || [];
+      // Dedup by server ID — skip if already present
+      if (existing.some((m) => m.id === message.id)) {
+        return state; // no-op, no new object created
+      }
+      return {
+        messages: {
+          ...state.messages,
+          [conversationId]: [...existing, message],
+        },
+      };
     });
   },
 

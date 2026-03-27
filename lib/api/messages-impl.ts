@@ -634,45 +634,44 @@ export const messagesApi = {
    * Spam messages should NOT inflate this count.
    */
   async getUnreadCount() {
-    try {
-      const [authId, conversations, followingIds] = await Promise.all([
-        getCurrentUserAuthId(),
-        this.getConversations(),
-        this.getFollowingIds(),
-      ]);
-      if (!authId) return 0;
-
-      const { primary } = partitionConversationsByFollowState(
-        conversations,
-        followingIds,
-      );
-      return primary.filter((conversation: any) => conversation.unread).length;
-    } catch (error) {
-      console.error("[Messages] getUnreadCount error:", error);
-      return 0;
-    }
+    const { inbox } = await this.getUnreadCounts();
+    return inbox;
   },
 
   /**
    * Get spam unread message count (from users you don't follow back)
    */
   async getSpamUnreadCount() {
+    const { spam } = await this.getUnreadCounts();
+    return spam;
+  },
+
+  /**
+   * PERF: Combined unread counts — fetches conversations + followingIds ONCE
+   * and computes both inbox and spam counts in a single pass.
+   * Old pattern: 4 heavy queries (2× getConversations + 2× getFollowingIds).
+   * New pattern: 2 queries total (1× getConversations + 1× getFollowingIds).
+   */
+  async getUnreadCounts(): Promise<{ inbox: number; spam: number }> {
     try {
       const [authId, conversations, followingIds] = await Promise.all([
         getCurrentUserAuthId(),
         this.getConversations(),
         this.getFollowingIds(),
       ]);
-      if (!authId) return 0;
+      if (!authId) return { inbox: 0, spam: 0 };
 
-      const { requests } = partitionConversationsByFollowState(
+      const { primary, requests } = partitionConversationsByFollowState(
         conversations,
         followingIds,
       );
-      return requests.filter((conversation: any) => conversation.unread).length;
+      return {
+        inbox: primary.filter((c: any) => c.unread).length,
+        spam: requests.filter((c: any) => c.unread).length,
+      };
     } catch (error) {
-      console.error("[Messages] getSpamUnreadCount error:", error);
-      return 0;
+      console.error("[Messages] getUnreadCounts error:", error);
+      return { inbox: 0, spam: 0 };
     }
   },
 

@@ -523,7 +523,10 @@ function ChatScreenContent() {
 
   // Realtime subscription — listen for new incoming messages so the chat
   // updates live without needing to close and reopen the screen.
-  // FIX: Stabilized dependencies and added throttle guard
+  // PERF: Merges single message into Zustand cache in O(1) instead of
+  // refetching ALL messages from DB. Dedup handled by mergeRealtimeMessage.
+  const { mergeRealtimeMessage } = useChatStore();
+
   useEffect(() => {
     const convId = resolvedConvIdRef.current;
     if (!convId || !/^\d+$/.test(convId)) return;
@@ -534,10 +537,6 @@ function ChatScreenContent() {
     // Cancellation guard: prevents stale callbacks from executing after cleanup
     let cancelled = false;
     const userId = useAuthStore.getState().user?.id;
-
-    // Throttle guard: prevent rapid-fire reloads
-    let lastReloadTime = 0;
-    const RELOAD_THROTTLE_MS = 1000;
 
     // Unique channel ID prevents collisions on rapid navigation
     const channelId = `chat-${convId}-${Date.now()}`;
@@ -554,24 +553,96 @@ function ChatScreenContent() {
           filter: `conversation_id=eq.${convId}`,
         },
         (payload) => {
-          if (cancelled) {
-            console.log("[Chat] Ignoring message - subscription cancelled");
-            return;
-          }
+          if (cancelled) return;
           const newMsg = payload.new as any;
           // Skip own messages — already handled by optimistic update
           if (String(newMsg.sender_id) === String(userId)) return;
 
-          // Throttle: prevent rapid reloads that can cause loops
-          const now = Date.now();
-          if (now - lastReloadTime < RELOAD_THROTTLE_MS) {
-            console.log("[Chat] Throttling realtime reload");
-            return;
-          }
-          lastReloadTime = now;
+          const content = newMsg.content || "";
+          const meta = newMsg.metadata;
 
-          // Refresh messages to pick up the new incoming message
-          loadMessages(convId);
+          // Parse story reply
+          let storyReply:
+            | import("@/lib/stores/chat-store").StoryReplyContext
+            | undefined;
+          if (
+            meta &&
+            (meta.type === "story_reply" || meta.type === "story_reaction")
+          ) {
+            storyReply = {
+              storyId: meta.storyId || "",
+              storyMediaUrl: meta.storyMediaUrl || undefined,
+              storyUsername: meta.storyUsername || "",
+              storyAvatar: meta.storyAvatar || undefined,
+              isExpired: meta.storyExpiresAt
+                ? new Date(meta.storyExpiresAt) < new Date()
+                : false,
+            };
+          }
+
+          // Parse shared post
+          let sharedPost:
+            | import("@/lib/stores/chat-store").SharedPostContext
+            | undefined;
+          if (meta && meta.type === "shared_post") {
+            sharedPost = {
+              postId: meta.postId || "",
+              authorUsername: meta.authorUsername || "",
+              authorAvatar: meta.authorAvatar || "",
+              caption: meta.caption || undefined,
+              mediaUrl: meta.mediaUrl || undefined,
+              mediaType: meta.mediaType || undefined,
+            };
+          }
+
+          // Parse media
+          const mediaItems:
+            | import("@/lib/stores/chat-store").MediaAttachment[]
+            | undefined =
+            Array.isArray(meta?.mediaItems) && meta.mediaItems.length > 0
+              ? meta.mediaItems.map((m: any) => ({
+                  type: (m.type as "image" | "video") || "image",
+                  uri: m.uri || m.url,
+                }))
+              : meta?.mediaUrl &&
+                  meta.type !== "shared_post" &&
+                  meta.type !== "story_reply"
+                ? [
+                    {
+                      type: (meta.mediaType as "image" | "video") || "image",
+                      uri: meta.mediaUrl as string,
+                    },
+                  ]
+                : undefined;
+
+          let timeStr: string;
+          try {
+            const d = new Date(newMsg.created_at);
+            timeStr = isNaN(d.getTime())
+              ? ""
+              : d.toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                });
+          } catch {
+            timeStr = "";
+          }
+
+          const localMessage: Message = {
+            id: String(newMsg.id),
+            text: content,
+            sender: "them",
+            senderId: String(newMsg.sender_id),
+            time: timeStr,
+            readAt: newMsg.read_at || null,
+            storyReply,
+            sharedPost,
+            media: mediaItems,
+            reactions: Array.isArray(meta?.reactions) ? meta.reactions : [],
+          };
+
+          // Merge into cache with dedup (O(1) — no DB round-trip)
+          mergeRealtimeMessage(convId, localMessage);
           // Auto-mark as read since the user is actively viewing the chat
           messagesApiClient.markAsRead(convId).catch(() => {});
         },
@@ -589,7 +660,7 @@ function ChatScreenContent() {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [activeConvId, loadMessages]);
+  }, [activeConvId, mergeRealtimeMessage]);
   // FIX: Replaced ALL useState with Zustand to comply with project mandate
   // and eliminate render loop triggers from state updates
   const currentUser = useAuthStore((s) => s.user);

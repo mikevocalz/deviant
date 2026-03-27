@@ -1,10 +1,10 @@
 /**
  * Unified Unread Counts Store
- * 
+ *
  * Manages two SEPARATE unread counters:
  * 1. notificationsUnread - Activity feed (likes, follows, comments, mentions, event updates)
  * 2. messagesUnread - Inbox messages ONLY (from followed users, NOT spam)
- * 
+ *
  * CRITICAL: These counters must NEVER be mixed or double-counted.
  * - Messages should NOT inflate Activity unread count
  * - Spam messages should NOT inflate Messages unread count
@@ -67,25 +67,45 @@ export const useUnreadCountsStore = create<UnreadCountsState>((set, get) => ({
 
   incrementNotifications: (by = 1) => {
     const current = get().notificationsUnread;
-    console.log("[UnreadCounts] incrementNotifications:", current, "->", current + by);
+    console.log(
+      "[UnreadCounts] incrementNotifications:",
+      current,
+      "->",
+      current + by,
+    );
     set({ notificationsUnread: current + by });
   },
 
   decrementNotifications: (by = 1) => {
     const current = get().notificationsUnread;
-    console.log("[UnreadCounts] decrementNotifications:", current, "->", Math.max(0, current - by));
+    console.log(
+      "[UnreadCounts] decrementNotifications:",
+      current,
+      "->",
+      Math.max(0, current - by),
+    );
     set({ notificationsUnread: Math.max(0, current - by) });
   },
 
   incrementMessages: (by = 1) => {
     const current = get().messagesUnread;
-    console.log("[UnreadCounts] incrementMessages (Inbox only):", current, "->", current + by);
+    console.log(
+      "[UnreadCounts] incrementMessages (Inbox only):",
+      current,
+      "->",
+      current + by,
+    );
     set({ messagesUnread: current + by });
   },
 
   decrementMessages: (by = 1) => {
     const current = get().messagesUnread;
-    console.log("[UnreadCounts] decrementMessages:", current, "->", Math.max(0, current - by));
+    console.log(
+      "[UnreadCounts] decrementMessages:",
+      current,
+      "->",
+      Math.max(0, current - by),
+    );
     set({ messagesUnread: Math.max(0, current - by) });
   },
 
@@ -103,18 +123,17 @@ export const useUnreadCountsStore = create<UnreadCountsState>((set, get) => ({
   refreshMessagesUnread: async () => {
     set({ isLoadingMessages: true });
     try {
-      // This now only counts Inbox messages (from followed users)
-      const count = await messagesApiClient.getUnreadCount();
-      const spamCount = await messagesApiClient.getSpamUnreadCount();
-      
+      // PERF: Single combined call instead of 2 separate calls
+      const { inbox, spam } = await messagesApiClient.getUnreadCounts();
+
       console.log("[UnreadCounts] refreshMessagesUnread:", {
-        inboxUnread: count,
-        spamUnread: spamCount,
+        inboxUnread: inbox,
+        spamUnread: spam,
       });
-      
-      set({ 
-        messagesUnread: count,
-        spamUnread: spamCount,
+
+      set({
+        messagesUnread: inbox,
+        spamUnread: spam,
         lastMessagesRefresh: Date.now(),
       });
     } catch (error) {
@@ -127,10 +146,10 @@ export const useUnreadCountsStore = create<UnreadCountsState>((set, get) => ({
   // Refresh all unread counts
   refreshAllCounts: async () => {
     const { refreshMessagesUnread } = get();
-    
+
     // Refresh messages count
     await refreshMessagesUnread();
-    
+
     // TODO: Add notifications refresh when backend API is available
     // For now, notifications are managed locally via activity-store
     set({ lastNotificationsRefresh: Date.now() });
