@@ -22,7 +22,7 @@ export function isValidAppUser(user: any): user is AppUser {
 
 /**
  * Safely get user display name without accessing non-existent properties.
- * NEVER use user.fullName - it doesn't exist on AppUser.
+ * NEVER use a nonexistent full-name field here; AppUser only exposes `name`.
  */
 export function getUserDisplayName(user: Partial<AppUser> | null | undefined): string {
   if (!user) return "Unknown User";
