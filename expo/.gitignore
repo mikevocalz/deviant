@@ -1,0 +1,97 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native builds
+ios/
+android/
+*.orig.*
+*.aab
+*.apks
+
+# Signing keys & certificates
+*.jks
+*.p8
+*.p12
+*.key
+*.keystore
+*.mobileprovision
+*.cer
+*.certSigningRequest
+
+# Metro bundler
+.metro-health-check*
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.log*
+android-build.log
+android-run.log
+
+# Device log dumps (they capture env secrets)
+android-logcat*.txt
+android-crash-logs.txt
+live-logs.txt
+metro-sev0*.txt
+recent-logs.txt
+
+# macOS
+.DS_Store
+**/.DS_Store
+*.pem
+
+# Environment files
+.env
+.env.*
+.env*.local
+!.env.example
+
+# TypeScript
+*.tsbuildinfo
+
+# Build outputs
+build/
+out/
+
+# IDE & editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+
+# Caches
+.cache/
+*.log
+logs/
+
+# EAS
+.easignore
+
+# AI tools
+.windsurf/
+.cursor/
+.copilot/
+.qodo/
+
+
+# Misc
+.vercel
+Thumbs.db
+selfIdentity.plist
+
+core
+node_modules
+.expo
