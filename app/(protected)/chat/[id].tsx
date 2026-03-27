@@ -559,6 +559,13 @@ function ChatScreenContent() {
         (payload) => {
           if (cancelled) return;
           const newMsg = payload.new as any;
+          console.log("[Chat RT] Received message:", {
+            id: newMsg.id,
+            sender_id: newMsg.sender_id,
+            userId,
+            senderMatch: String(newMsg.sender_id) === String(userId),
+            convId,
+          });
           // Skip own messages — already handled by optimistic update
           if (
             userIntId != null &&
@@ -568,7 +575,15 @@ function ChatScreenContent() {
           }
 
           const content = newMsg.content || "";
-          const meta = newMsg.metadata;
+          // Supabase Realtime may deliver JSONB columns as a raw string
+          let meta = newMsg.metadata;
+          if (typeof meta === "string") {
+            try {
+              meta = JSON.parse(meta);
+            } catch {
+              meta = null;
+            }
+          }
 
           // Parse story reply
           let storyReply:
