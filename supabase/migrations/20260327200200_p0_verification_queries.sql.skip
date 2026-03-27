@@ -1,0 +1,119 @@
+-- ============================================================
+-- P0 INCIDENT VERIFICATION QUERIES
+-- Run AFTER applying recovery + hardening migrations.
+-- All queries should return 0 rows if everything is correct.
+-- This file is NOT a migration — it's a verification script.
+-- Rename to .sql.skip to exclude from db push.
+-- ============================================================
+
+-- ── V1: No orphaned likes (post_id NULL or pointing to missing post) ──
+SELECT l.id AS like_id, l.post_id, l.user_id, l.created_at
+FROM likes l
+LEFT JOIN posts p ON p.id = l.post_id
+WHERE p.id IS NULL OR l.post_id IS NULL
+ORDER BY l.created_at DESC;
+-- EXPECTED: 0 rows (orphaned null-ref likes cleaned in recovery migration)
+
+-- ── V2: No orphaned comments (pointing to missing post) ──
+SELECT c.id AS comment_id, c.post_id, c.author_id, c.created_at
+FROM comments c
+LEFT JOIN posts p ON p.id = c.post_id
+WHERE p.id IS NULL
+ORDER BY c.created_at DESC;
+-- EXPECTED: 0 rows
+
+-- ── V3: No orphaned bookmarks ──
+SELECT b.id AS bookmark_id, b.post_id
+FROM bookmarks b
+LEFT JOIN posts p ON p.id = b.post_id
+WHERE p.id IS NULL;
+-- EXPECTED: 0 rows
+
+-- ── V4: No orphaned posts_media ──
+SELECT pm.id, pm._parent_id
+FROM posts_media pm
+LEFT JOIN posts p ON p.id = pm._parent_id
+WHERE p.id IS NULL;
+-- EXPECTED: 0 rows
+
+-- ── V5: No orphaned post_text_slides ──
+SELECT s.id, s.post_id
+FROM post_text_slides s
+LEFT JOIN posts p ON p.id = s.post_id
+WHERE p.id IS NULL;
+-- EXPECTED: 0 rows
+
+-- ── V6: users.posts_count matches actual posts ──
+SELECT u.id, u.username, u.posts_count AS cached, COALESCE(actual.cnt, 0) AS actual,
+       u.posts_count - COALESCE(actual.cnt, 0) AS delta
+FROM users u
+LEFT JOIN (
+  SELECT author_id, COUNT(*)::INTEGER AS cnt
+  FROM posts GROUP BY author_id
+) actual ON actual.author_id = u.id
+WHERE COALESCE(u.posts_count, 0) IS DISTINCT FROM COALESCE(actual.cnt, 0);
+-- EXPECTED: 0 rows
+
+-- ── V7: posts.likes_count matches actual likes ──
+SELECT p.id, p.likes_count AS cached, COALESCE(actual.cnt, 0) AS actual,
+       p.likes_count - COALESCE(actual.cnt, 0) AS delta
+FROM posts p
+LEFT JOIN (
+  SELECT post_id, COUNT(*)::INTEGER AS cnt
+  FROM likes GROUP BY post_id
+) actual ON actual.post_id = p.id
+WHERE COALESCE(p.likes_count, 0) IS DISTINCT FROM COALESCE(actual.cnt, 0);
+-- EXPECTED: 0 rows
+
+-- ── V8: posts.comments_count matches actual comments ──
+SELECT p.id, p.comments_count AS cached, COALESCE(actual.cnt, 0) AS actual,
+       p.comments_count - COALESCE(actual.cnt, 0) AS delta
+FROM posts p
+LEFT JOIN (
+  SELECT post_id, COUNT(*)::INTEGER AS cnt
+  FROM comments GROUP BY post_id
+) actual ON actual.post_id = p.id
+WHERE COALESCE(p.comments_count, 0) IS DISTINCT FROM COALESCE(actual.cnt, 0);
+-- EXPECTED: 0 rows
+
+-- ── V9: No posts missing author linkage ──
+SELECT p.id, p.author_id
+FROM posts p
+LEFT JOIN users u ON u.id = p.author_id
+WHERE u.id IS NULL;
+-- EXPECTED: 0 rows
+
+-- ── V10: No comments missing author linkage ──
+SELECT c.id, c.author_id
+FROM comments c
+LEFT JOIN users u ON u.id = c.author_id
+WHERE u.id IS NULL;
+-- EXPECTED: 0 rows
+
+-- ── V11: Posts by day (last 7 days) — verify no sudden drops ──
+SELECT date_trunc('day', created_at)::date AS day, COUNT(*) AS posts
+FROM posts
+WHERE created_at > now() - interval '7 days'
+GROUP BY 1 ORDER BY 1;
+
+-- ── V12: Audit log table exists and is empty (no deletes since hardening) ──
+SELECT COUNT(*) AS audit_entries FROM content_audit_log;
+-- EXPECTED: 0 (or very few — only legitimate user-initiated deletes)
+
+-- ── V13: Bulk delete guard is active ──
+SELECT tgname, tgenabled
+FROM pg_trigger
+WHERE tgname LIKE 'trg_guard_bulk_%';
+-- EXPECTED: 3 rows (posts, comments, likes), all enabled ('O')
+
+-- ── V14: Audit triggers are active ──
+SELECT tgname, tgenabled
+FROM pg_trigger
+WHERE tgname LIKE 'trg_audit_%_delete';
+-- EXPECTED: 3 rows (posts, comments, likes), all enabled ('O')
+
+-- ── V15: Counter reconciliation triggers are active ──
+SELECT tgname, tgenabled
+FROM pg_trigger
+WHERE tgname IN ('trg_reconcile_posts_count', 'trg_reconcile_comments_count', 'trg_maintain_likes_count');
+-- EXPECTED: 3 rows, all enabled ('O')

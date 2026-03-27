@@ -100,10 +100,10 @@ Deno.serve(async (req) => {
 
     // Delete all dependent rows first (foreign keys may not have ON DELETE CASCADE)
     await Promise.all([
-      supabaseAdmin.from("posts_media").delete().eq("parent_id", postId),
+      supabaseAdmin.from("posts_media").delete().eq("_parent_id", postId),
       supabaseAdmin.from("post_text_slides").delete().eq("post_id", postId),
       supabaseAdmin.from("comments").delete().eq("post_id", postId),
-      supabaseAdmin.from("post_likes").delete().eq("post_id", postId),
+      supabaseAdmin.from("likes").delete().eq("post_id", postId),
       supabaseAdmin.from("bookmarks").delete().eq("post_id", postId),
       supabaseAdmin.from("post_tags").delete().eq("post_id", postId),
       supabaseAdmin.from("notifications").delete().eq("post_id", postId),
