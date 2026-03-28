@@ -48,6 +48,10 @@ function generateJti(): string {
   return crypto.randomUUID();
 }
 
+function shouldRecreateRoomForPeerFailure(status: number): boolean {
+  return status === 401 || status === 404 || status >= 500;
+}
+
 function normalizeAnonLabel(label?: string | null): string | null {
   if (!label) return null;
   const match = label.match(/anon(?:\s+lynk)?\s+(\d+)/i);
@@ -328,30 +332,8 @@ Deno.serve(async (req) => {
     const jti = generateJti();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    let addPeerRes = await fetch(
-      `${fishjamBaseUrl}/room/${fishjamRoomId}/peer`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${fishjamApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ type: "webrtc" }),
-      },
-    );
-
-    // If 404 or 401, the Fishjam room is stale (deleted or key rotated). Create a fresh one and retry.
-    if (addPeerRes.status === 404 || addPeerRes.status === 401) {
-      console.warn(
-        `[video_join_room] Fishjam peer returned ${addPeerRes.status} — room stale, recreating`,
-      );
-      try {
-        fishjamRoomId = await createFishjamRoom();
-      } catch (e: any) {
-        return errorResponse("internal_error", e.message);
-      }
-
-      addPeerRes = await fetch(`${fishjamBaseUrl}/room/${fishjamRoomId}/peer`, {
+    const createFishjamPeer = (targetRoomId: string) =>
+      fetch(`${fishjamBaseUrl}/room/${targetRoomId}/peer`, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${fishjamApiKey}`,
@@ -359,6 +341,36 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({ type: "webrtc" }),
       });
+
+    let addPeerRes = await createFishjamPeer(fishjamRoomId);
+
+    // 401/404 means the persisted Fishjam room is stale. 5xx is treated the
+    // same way because we've seen peer creation fail against a corrupt room
+    // while room creation still succeeds; recreating the room lets new joins recover.
+    if (shouldRecreateRoomForPeerFailure(addPeerRes.status)) {
+      console.warn(
+        `[video_join_room] Fishjam peer returned ${addPeerRes.status} — recreating room and retrying`,
+      );
+      if (fishjamRoomId) {
+        try {
+          await fetch(`${fishjamBaseUrl}/room/${fishjamRoomId}`, {
+            method: "DELETE",
+            headers: { Authorization: `Bearer ${fishjamApiKey}` },
+          });
+        } catch (deleteErr) {
+          console.warn(
+            "[video_join_room] Failed to delete stale Fishjam room before recreate:",
+            deleteErr,
+          );
+        }
+      }
+      try {
+        fishjamRoomId = await createFishjamRoom();
+      } catch (e: any) {
+        return errorResponse("internal_error", e.message);
+      }
+
+      addPeerRes = await createFishjamPeer(fishjamRoomId);
     }
 
     if (!addPeerRes.ok) {

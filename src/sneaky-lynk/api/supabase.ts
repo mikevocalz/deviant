@@ -6,6 +6,10 @@
 import { supabase } from "@/lib/supabase/client";
 import { requireBetterAuthToken } from "@/lib/auth/identity";
 import type { CreateRoomParams, JoinRoomResponse, SneakyRoom } from "../types";
+import {
+  buildRoomParticipantStats,
+  resolveRoomAudience,
+} from "./room-stats";
 
 type ErrorCode =
   | "unauthorized"
@@ -204,6 +208,7 @@ export const sneakyLynkApi = {
       const twentyFourHoursAgo = new Date(
         Date.now() - 24 * 60 * 60 * 1000,
       ).toISOString();
+      const nowMs = Date.now();
 
       // No FK on created_by → fetch rooms first, then batch-lookup creators
       const { data, error } = await supabase
@@ -241,31 +246,20 @@ export const sneakyLynkApi = {
         }
       }
 
-      // For open rooms, cross-check actual active member counts
-      // to prevent stale participant_count from showing dead rooms as LIVE.
-      // Only count members who joined within the last 12 hours — older
-      // "active" rows are stale (user disconnected before the leaveRoom
-      // fix existed, or app crashed without calling leave).
-      const openRoomIds = (data || [])
-        .filter((r: any) => r.status === "open")
-        .map((r: any) => r.id);
-
-      const twelveHoursAgo = new Date(
-        Date.now() - 12 * 60 * 60 * 1000,
-      ).toISOString();
-
-      let activeCounts: Record<number, number> = {};
-      if (openRoomIds.length > 0) {
+      // Derive audience counts from room-membership rows so ended Lynks can
+      // still show who was actually there after participant_count is zeroed.
+      const roomIds = (data || []).map((r: any) => r.id).filter(Boolean);
+      let roomStats: Record<
+        number,
+        { activeCount: number; historicalCount: number }
+      > = {};
+      if (roomIds.length > 0) {
         const { data: members } = await supabase
           .from("video_room_members")
-          .select("room_id")
-          .in("room_id", openRoomIds)
-          .eq("status", "active")
-          .gte("joined_at", twelveHoursAgo);
+          .select("room_id, user_id, status, joined_at, left_at")
+          .in("room_id", roomIds);
         if (members) {
-          for (const m of members) {
-            activeCounts[m.room_id] = (activeCounts[m.room_id] || 0) + 1;
-          }
+          roomStats = buildRoomParticipantStats(members, nowMs);
         }
       }
 
@@ -273,11 +267,16 @@ export const sneakyLynkApi = {
         .filter((r: any) => r.is_public === true) // SAFETY NET: Exclude private rooms
         .map((r: any) => {
           const creator = creatorsMap[r.created_by] || null;
-          // Use real active member count for open rooms, not stale participant_count
-          const realCount =
-            r.status === "open"
-              ? (activeCounts[r.id] ?? 0)
-              : r.participant_count || 0;
+          const audience = resolveRoomAudience(
+            {
+              id: r.id,
+              status: r.status as "open" | "ended",
+              participant_count: r.participant_count,
+              created_at: r.created_at,
+            },
+            roomStats[r.id],
+            nowMs,
+          );
           return {
             id: r.uuid || String(r.id),
             createdBy: r.created_by || "",
@@ -285,7 +284,7 @@ export const sneakyLynkApi = {
             topic: r.topic || "",
             description: r.description || "",
             sweetSpicyMode: r.sweet_spicy_mode || "sweet",
-            isLive: r.status === "open" && realCount > 0,
+            isLive: audience.isLive,
             hasVideo: r.has_video ?? false,
             isPublic: r.is_public ?? true,
             status: r.status as "open" | "ended",
@@ -300,7 +299,7 @@ export const sneakyLynkApi = {
               isVerified: creator?.verified || false,
             },
             speakers: [],
-            listeners: realCount,
+            listeners: audience.listeners,
             maxParticipants: r.max_participants || 50,
             fishjamRoomId: r.fishjam_room_id || undefined,
           };
@@ -343,6 +342,23 @@ export const sneakyLynkApi = {
         creator = creatorData;
       }
 
+      const { data: members } = await supabase
+        .from("video_room_members")
+        .select("room_id, user_id, status, joined_at, left_at")
+        .eq("room_id", data.id);
+
+      const roomStats = buildRoomParticipantStats(members || [], Date.now());
+      const audience = resolveRoomAudience(
+        {
+          id: data.id,
+          status: data.status as "open" | "ended",
+          participant_count: data.participant_count,
+          created_at: data.created_at,
+        },
+        roomStats[data.id],
+        Date.now(),
+      );
+
       return {
         id: data.uuid || String(data.id),
         createdBy: data.created_by || "",
@@ -350,7 +366,7 @@ export const sneakyLynkApi = {
         topic: data.topic || "",
         description: data.description || "",
         sweetSpicyMode: data.sweet_spicy_mode || "sweet",
-        isLive: data.status === "open",
+        isLive: audience.isLive,
         hasVideo: data.has_video ?? false,
         isPublic: data.is_public ?? true,
         status: data.status as "open" | "ended",
@@ -364,7 +380,7 @@ export const sneakyLynkApi = {
           isVerified: creator?.verified || false,
         },
         speakers: [],
-        listeners: data.participant_count || 0,
+        listeners: audience.listeners,
         fishjamRoomId: data.fishjam_room_id || undefined,
       };
     } catch (error) {
