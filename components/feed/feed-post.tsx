@@ -514,10 +514,6 @@ function FeedPostComponent({
                   style={{
                     width: 118,
                     height: 32,
-                    borderRadius: 999,
-                    backgroundColor: "rgba(255,255,255,0.06)",
-                    borderWidth: 1,
-                    borderColor: "rgba(255,255,255,0.08)",
                     alignItems: "center",
                     justifyContent: "center",
                   }}

@@ -137,10 +137,6 @@ function TextPostSurfaceComponent({
                 marginBottom: variant === "grid" ? 12 : 18,
                 width: variant === "grid" ? 118 : 132,
                 height: variant === "grid" ? 28 : 32,
-                borderRadius: 999,
-                backgroundColor: "rgba(255,255,255,0.08)",
-                borderWidth: 1,
-                borderColor: "rgba(255,255,255,0.08)",
                 alignItems: "center",
                 justifyContent: "center",
               }}
