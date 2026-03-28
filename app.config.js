@@ -224,7 +224,6 @@ export default {
             "Allow $(PRODUCT_NAME) to access your location to show nearby events and venues.",
         },
       ],
-      "@maplibre/maplibre-react-native",
       "@config-plugins/react-native-callkeep",
       "./plugins/with-voip-push",
       "./plugins/with-custom-ringtone",
@@ -290,8 +289,7 @@ export default {
       },
       fishjamAppId:
         process.env.EXPO_PUBLIC_FISHJAM_APP_ID ||
-        process.env.FISHJAM_APP_ID ||
-        "e921bfe88b244ced97fdd1d8d9a2c6f0",
+        process.env.FISHJAM_APP_ID,
       eas: {
         projectId: "5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
         build: {
