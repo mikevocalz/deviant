@@ -1,5 +1,5 @@
 /**
- * Instagram-Level Location Autocomplete Component
+ * DVNT Location Autocomplete Component
  *
  * Features:
  * - Real Google Places API integration
@@ -7,7 +7,7 @@
  * - Current location detection
  * - Popular nearby places
  * - Business listings (restaurants, venues, etc.)
- * - Instagram-style UI with categories
+ * - Category-led place discovery UI
  */
 
 import { useRef, useEffect, useCallback } from "react";

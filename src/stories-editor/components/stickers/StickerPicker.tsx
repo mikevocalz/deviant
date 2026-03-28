@@ -1,5 +1,5 @@
 // ============================================================
-// Instagram Stories Editor - Sticker Picker
+// Stories Editor - Sticker Picker
 // ============================================================
 
 import React, { useMemo } from "react";

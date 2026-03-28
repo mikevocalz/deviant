@@ -106,7 +106,7 @@ export function LocationAutocompleteV3({
     setShowDropdown(true);
 
     try {
-      // Use the Google Places API with the correct parameters for Instagram-like results
+      // Use Google Places parameters tuned for rich venue and address results
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/autocomplete/json?key=${GOOGLE_PLACES_API_KEY}&input=${encodeURIComponent(text)}&language=en&components=country:us&types=establishment|geocode|address&radius=50000&strictbounds=false`,
       );

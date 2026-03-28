@@ -1,6 +1,6 @@
 /**
- * Location Autocomplete — Instagram-Level UX
- * 
+ * Location Autocomplete — Premium mobile UX
+ *
  * Features:
  * - Smooth autocomplete with debouncing
  * - Recent places (local storage)
