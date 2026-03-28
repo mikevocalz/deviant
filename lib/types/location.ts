@@ -117,7 +117,7 @@ export function toLocationSummary(
 
 /**
  * Format location for display (compact)
- * "Madison Square Garden, New York"
+ * "Convention Center, Downtown"
  */
 export function formatLocationCompact(location: NormalizedLocation): string {
   const parts = [location.name];

@@ -1,11 +1,11 @@
 export const events = [
   {
-    id: "lower-east-side-winter-bar-fest",
-    title: "Lower East Side Winter Bar Fest",
+    id: "downtown-winter-bar-fest",
+    title: "Downtown Winter Bar Fest",
     date: "17",
     month: "JAN",
     time: "6:00 PM",
-    location: "Lower East Side, NY",
+    location: "Downtown District",
     price: 35,
     image:
       "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=1000&fit=crop",
@@ -21,12 +21,12 @@ export const events = [
     category: "Nightlife",
   },
   {
-    id: "brooklyn-jazz-night",
-    title: "Brooklyn Jazz Night",
+    id: "warehouse-jazz-night",
+    title: "Warehouse Jazz Night",
     date: "18",
     month: "JAN",
     time: "8:00 PM",
-    location: "Brooklyn, NY",
+    location: "Warehouse District",
     price: 45,
     image:
       "https://images.unsplash.com/photo-1415201364774-f6f0bb35f28f?w=800&h=1000&fit=crop",
@@ -47,7 +47,7 @@ export const events = [
     date: "19",
     month: "JAN",
     time: "11:00 AM",
-    location: "Manhattan, NY",
+    location: "Skyline Terrace",
     price: 55,
     image:
       "https://images.unsplash.com/photo-1551632436-cbf8dd35adfa?w=800&h=1000&fit=crop",
@@ -68,7 +68,7 @@ export const events = [
     date: "23",
     month: "JAN",
     time: "6:30 PM",
-    location: "SoHo, NY",
+    location: "Creative District",
     price: 25,
     image:
       "https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800&h=1000&fit=crop",
@@ -89,7 +89,7 @@ export const events = [
     date: "24",
     month: "JAN",
     time: "7:00 PM",
-    location: "Greenwich Village, NY",
+    location: "Old Town",
     price: 30,
     image:
       "https://images.unsplash.com/photo-1585699324551-f6c309eedeca?w=800&h=1000&fit=crop",
@@ -110,7 +110,7 @@ export const events = [
     date: "25",
     month: "JAN",
     time: "5:00 PM",
-    location: "Chelsea, NY",
+    location: "Gallery Row",
     price: 20,
     image:
       "https://images.unsplash.com/photo-1531243269054-5ebf6f34081e?w=800&h=1000&fit=crop",

@@ -261,9 +261,9 @@ export function parseLooseLocation(location: string): {
   }
 
   // Common patterns:
-  // "Madison Square Garden, New York, NY"
-  // "Brooklyn Bridge Park"
-  // "Times Square"
+  // "Convention Center, Downtown"
+  // "Riverwalk"
+  // "City Center"
 
   const parts = location
     .split(",")

@@ -47,9 +47,9 @@ import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import { Motion } from "@legendapp/motion";
 import * as Haptics from "expo-haptics";
 import {
-  LocationAutocompleteInstagram,
+  LocationAutocomplete,
   type LocationData,
-} from "@/components/ui/location-autocomplete-instagram";
+} from "@/components/ui/location-autocomplete";
 import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
 import { ImageTagger } from "@/components/post/image-tagger";
 import { usePost, postKeys } from "@/lib/hooks/use-posts";
@@ -709,7 +709,7 @@ function EditPostScreenContent() {
           }}
           className="px-4 pb-3"
         >
-          <LocationAutocompleteInstagram
+          <LocationAutocomplete
             value={location?.name || ""}
             placeholder="Add a location..."
             onLocationSelect={(data: LocationData) => setLocation(data)}

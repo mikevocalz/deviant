@@ -51,7 +51,7 @@ const QR_SVG =
 
 const TEST_TICKET: Ticket = {
   id: "tkt_2025011300001",
-  eventId: "lower-east-side-winter-bar-fest",
+  eventId: "downtown-winter-bar-fest",
   userId: "user_current",
   paid: true,
   status: "valid",
@@ -61,10 +61,10 @@ const TEST_TICKET: Ticket = {
   tier: "vip",
   tierName: "VIP Access",
   transferable: true,
-  eventTitle: "Lower East Side Winter Bar Fest",
+  eventTitle: "Downtown Winter Bar Fest",
   eventDate: "2025-02-14T22:00:00.000Z",
   eventEndDate: "2025-02-15T04:00:00.000Z",
-  eventLocation: "The Box, 189 Chrystie St, New York",
+  eventLocation: "Warehouse Row, Downtown District",
   eventImage:
     "https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=800&h=1000&fit=crop",
   dressCode: "Smart casual — No sneakers, no sportswear",

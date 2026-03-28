@@ -10,9 +10,9 @@ import {
   Text,
   TextInput,
   Pressable,
-  FlatList,
   TouchableOpacity,
 } from "react-native";
+import { LegendList } from "@/components/list";
 import { MapPin, AlertCircle, X, Loader2 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useDebounce } from "@/lib/hooks/use-debounce";
@@ -185,67 +185,67 @@ export function LocationAutocompleteV3({
   const getPopularLocations = (searchText: string): GooglePlace[] => {
     const popularPlaces = [
       {
-        place_id: "chIJrTLr-GyuEmsRBfyf1GDuE7U",
-        description: "Madison Square Garden, New York, NY, USA",
+        place_id: "fallback-downtown",
+        description: "Downtown",
         structured_formatting: {
-          main_text: "Madison Square Garden",
-          secondary_text: "New York, NY, USA",
+          main_text: "Downtown",
+          secondary_text: "Popular area",
         },
       },
       {
-        place_id: "chIJvUwsRj5ZwokR-9v8Ch2w_mWQ",
-        description: "Times Square, New York, NY, USA",
+        place_id: "fallback-city-center",
+        description: "City Center",
         structured_formatting: {
-          main_text: "Times Square",
-          secondary_text: "New York, NY, USA",
+          main_text: "City Center",
+          secondary_text: "Popular area",
         },
       },
       {
-        place_id: "chIJQ3S6Gh6ZwokR4jA_p_kd_hvw",
-        description: "Central Park, New York, NY, USA",
+        place_id: "fallback-waterfront",
+        description: "Waterfront",
         structured_formatting: {
-          main_text: "Central Park",
-          secondary_text: "New York, NY, USA",
+          main_text: "Waterfront",
+          secondary_text: "Popular area",
         },
       },
       {
-        place_id: "chIJdRlClxZawokR7_p3d5i9SQhY",
-        description: "Brooklyn Bridge, New York, NY, USA",
+        place_id: "fallback-arts-district",
+        description: "Arts District",
         structured_formatting: {
-          main_text: "Brooklyn Bridge",
-          secondary_text: "New York, NY, USA",
+          main_text: "Arts District",
+          secondary_text: "Popular area",
         },
       },
       {
-        place_id: "chIJN8h6Cc6ZwokR2Mj_hQyGdRYY",
-        description: "Statue of Liberty, New York, NY, USA",
+        place_id: "fallback-market-square",
+        description: "Market Square",
         structured_formatting: {
-          main_text: "Statue of Liberty",
-          secondary_text: "New York, NY, USA",
+          main_text: "Market Square",
+          secondary_text: "Popular area",
         },
       },
       {
-        place_id: "chIJc3RyCQ-ZwokR6jE3d_dk32Ks",
-        description: "Empire State Building, New York, NY, USA",
+        place_id: "fallback-main-street",
+        description: "Main Street",
         structured_formatting: {
-          main_text: "Empire State Building",
-          secondary_text: "New York, NY, USA",
+          main_text: "Main Street",
+          secondary_text: "Popular area",
         },
       },
       {
-        place_id: "chIJt9uV8l6ZwokRj3d_dk32Ks",
-        description: "One World Trade Center, New York, NY, USA",
+        place_id: "fallback-riverwalk",
+        description: "Riverwalk",
         structured_formatting: {
-          main_text: "One World Trade Center",
-          secondary_text: "New York, NY, USA",
+          main_text: "Riverwalk",
+          secondary_text: "Popular area",
         },
       },
       {
-        place_id: "chIJr9LdDh6ZwokR2Mj_hQyGdRYY",
-        description: "High Line, New York, NY, USA",
+        place_id: "fallback-convention-center",
+        description: "Convention Center",
         structured_formatting: {
-          main_text: "High Line",
-          secondary_text: "New York, NY, USA",
+          main_text: "Convention Center",
+          secondary_text: "Popular area",
         },
       },
     ];
@@ -294,93 +294,45 @@ export function LocationAutocompleteV3({
   // Fallback location details for popular places
   const getFallbackLocationDetails = (placeId: string) => {
     const fallbackDetails: Record<string, any> = {
-      "chIJrTLr-GyuEmsRBfyf1GDuE7U": {
-        place_id: "chIJrTLr-GyuEmsRBfyf1GDuE7U",
-        name: "Madison Square Garden",
-        formatted_address: "Madison Square Garden, New York, NY, USA",
-        geometry: {
-          location: {
-            lat: 40.7505,
-            lng: -73.9934,
-          },
-        },
+      "fallback-downtown": {
+        place_id: "fallback-downtown",
+        name: "Downtown",
+        formatted_address: "Downtown",
       },
-      "chIJvUwsRj5ZwokR-9v8Ch2w_mWQ": {
-        place_id: "chIJvUwsRj5ZwokR-9v8Ch2w_mWQ",
-        name: "Times Square",
-        formatted_address: "Times Square, New York, NY, USA",
-        geometry: {
-          location: {
-            lat: 40.758,
-            lng: -73.9855,
-          },
-        },
+      "fallback-city-center": {
+        place_id: "fallback-city-center",
+        name: "City Center",
+        formatted_address: "City Center",
       },
-      chIJQ3S6Gh6ZwokR4jA_p_kd_hvw: {
-        place_id: "chIJQ3S6Gh6ZwokR4jA_p_kd_hvw",
-        name: "Central Park",
-        formatted_address: "Central Park, New York, NY, USA",
-        geometry: {
-          location: {
-            lat: 40.7829,
-            lng: -73.9654,
-          },
-        },
+      "fallback-waterfront": {
+        place_id: "fallback-waterfront",
+        name: "Waterfront",
+        formatted_address: "Waterfront",
       },
-      chIJdRlClxZawokR7_p3d5i9SQhY: {
-        place_id: "chIJdRlClxZawokR7_p3d5i9SQhY",
-        name: "Brooklyn Bridge",
-        formatted_address: "Brooklyn Bridge, New York, NY, USA",
-        geometry: {
-          location: {
-            lat: 40.7061,
-            lng: -73.9969,
-          },
-        },
+      "fallback-arts-district": {
+        place_id: "fallback-arts-district",
+        name: "Arts District",
+        formatted_address: "Arts District",
       },
-      chIJN8h6Cc6ZwokR2Mj_hQyGdRYY: {
-        place_id: "chIJN8h6Cc6ZwokR2Mj_hQyGdRYY",
-        name: "Statue of Liberty",
-        formatted_address: "Statue of Liberty, New York, NY, USA",
-        geometry: {
-          location: {
-            lat: 40.6892,
-            lng: -74.0445,
-          },
-        },
+      "fallback-market-square": {
+        place_id: "fallback-market-square",
+        name: "Market Square",
+        formatted_address: "Market Square",
       },
-      "chIJc3RyCQ-ZwokR6jE3d_dk32Ks": {
-        place_id: "chIJc3RyCQ-ZwokR6jE3d_dk32Ks",
-        name: "Empire State Building",
-        formatted_address: "Empire State Building, New York, NY, USA",
-        geometry: {
-          location: {
-            lat: 40.7484,
-            lng: -73.9857,
-          },
-        },
+      "fallback-main-street": {
+        place_id: "fallback-main-street",
+        name: "Main Street",
+        formatted_address: "Main Street",
       },
-      chIJt9uV8l6ZwokRj3d_dk32Ks: {
-        place_id: "chIJt9uV8l6ZwokRj3d_dk32Ks",
-        name: "One World Trade Center",
-        formatted_address: "One World Trade Center, New York, NY, USA",
-        geometry: {
-          location: {
-            lat: 40.7127,
-            lng: -74.0134,
-          },
-        },
+      "fallback-riverwalk": {
+        place_id: "fallback-riverwalk",
+        name: "Riverwalk",
+        formatted_address: "Riverwalk",
       },
-      chIJr9LdDh6ZwokR2Mj_hQyGdRYY: {
-        place_id: "chIJr9LdDh6ZwokR2Mj_hQyGdRYY",
-        name: "High Line",
-        formatted_address: "High Line, New York, NY, USA",
-        geometry: {
-          location: {
-            lat: 40.748,
-            lng: -74.0048,
-          },
-        },
+      "fallback-convention-center": {
+        place_id: "fallback-convention-center",
+        name: "Convention Center",
+        formatted_address: "Convention Center",
       },
     };
 
@@ -531,7 +483,7 @@ export function LocationAutocompleteV3({
             zIndex: 1000,
           }}
         >
-          <FlatList
+          <LegendList
             data={predictions}
             keyExtractor={(item) => item.place_id}
             renderItem={({ item }) => (
@@ -571,6 +523,8 @@ export function LocationAutocompleteV3({
               </TouchableOpacity>
             )}
             showsVerticalScrollIndicator={false}
+            recycleItems
+            estimatedItemSize={64}
           />
         </View>
       )}

@@ -107,7 +107,7 @@ function MapLoading() {
 // ---------- Main Component ----------
 
 function DvntMapInner({
-  center = [-73.9857, 40.7484], // NYC default [lng, lat]
+  center = [-98.5795, 39.8283], // Default U.S. center [lng, lat]
   zoom = 12,
   markers = [],
   onMarkerPress,

@@ -29,9 +29,9 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Motion } from "@legendapp/motion";
 import { Progress } from "@/components/ui/progress";
 import {
-  LocationAutocompleteInstagram,
+  LocationAutocomplete,
   type LocationData,
-} from "@/components/ui/location-autocomplete-instagram";
+} from "@/components/ui/location-autocomplete";
 import { useColorScheme } from "@/lib/hooks";
 import { useMediaPicker } from "@/lib/hooks";
 import type { MediaAsset } from "@/lib/hooks/use-media-picker";
@@ -881,7 +881,7 @@ function CreateScreenContent() {
         )}
 
         <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-          <LocationAutocompleteInstagram
+          <LocationAutocomplete
             value={location}
             placeholder="Add location"
             onLocationSelect={(data: LocationData) => setLocationData(data)}

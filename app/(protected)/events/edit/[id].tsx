@@ -10,9 +10,9 @@ import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import {
-  LocationAutocompleteInstagram,
+  LocationAutocomplete,
   type LocationData,
-} from "@/components/ui/location-autocomplete-instagram";
+} from "@/components/ui/location-autocomplete";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { DvntMap } from "@/src/components/map";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -243,7 +243,7 @@ function EditEventScreenContent() {
             Location
           </Text>
           <View style={{ zIndex: 1000, position: "relative" }}>
-            <LocationAutocompleteInstagram
+            <LocationAutocomplete
               value={locationData?.name || ""}
               placeholder="Enter event location"
               onLocationSelect={(data: LocationData) => {
