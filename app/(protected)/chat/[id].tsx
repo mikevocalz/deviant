@@ -4,11 +4,16 @@ import {
   TextInput,
   Pressable,
   Animated,
-  Modal,
   Alert,
   StyleSheet,
   InteractionManager,
 } from "react-native";
+import {
+  BottomSheetModal,
+  BottomSheetBackdrop,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
+import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Reanimated, {
   SharedValue,
@@ -85,6 +90,7 @@ import { Galeria } from "@nandorojo/galeria";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { PasteInput } from "@/components/ui/paste-input";
+import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import { supabase } from "@/lib/supabase/client";
 import { copyTextToClipboard } from "@/lib/utils/clipboard";
 
@@ -878,6 +884,7 @@ function ChatScreenContent() {
 
   const inputRef = useRef<TextInput>(null);
   const listRef = useRef<LegendListRef>(null);
+  const messageActionsRef = useRef<BottomSheetModal>(null);
   const sendButtonScale = useRef(new Animated.Value(1)).current;
 
   const {
@@ -1145,6 +1152,7 @@ function ChatScreenContent() {
     !!activeConvId;
 
   const { deleteMessage, editMessage, reactToMessage } = useChatStore();
+  const messageActionSnapPoints = useMemo(() => ["42%"], []);
 
   // Reaction emojis (Instagram-style)
   const REACTION_EMOJIS = ["😂", "😢", "😊", "😈", "🥵", "💝"];
@@ -1156,6 +1164,33 @@ function ChatScreenContent() {
     setSelectedMessage(message);
     setShowMessageActions(true);
   }, []);
+
+  const dismissMessageActions = useCallback(() => {
+    setShowMessageActions(false);
+    setSelectedMessage(null);
+  }, [setSelectedMessage, setShowMessageActions]);
+
+  useEffect(() => {
+    if (showMessageActions && selectedMessage) {
+      messageActionsRef.current?.present();
+      return;
+    }
+
+    messageActionsRef.current?.dismiss();
+  }, [selectedMessage, showMessageActions]);
+
+  const renderMessageActionsBackdrop = useCallback(
+    (props: BottomSheetBackdropProps) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.5}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
 
   const handleDoubleTap = useCallback(
     (message: Message) => {
@@ -1177,10 +1212,9 @@ function ChatScreenContent() {
     (emoji: string) => {
       if (!selectedMessage || !conversationActionId) return;
       reactToMessage(conversationActionId, selectedMessage.id, emoji);
-      setShowMessageActions(false);
-      setSelectedMessage(null);
+      dismissMessageActions();
     },
-    [selectedMessage, conversationActionId, reactToMessage],
+    [selectedMessage, conversationActionId, reactToMessage, dismissMessageActions],
   );
 
   const handleUnsendMessage = useCallback(() => {
@@ -1246,9 +1280,8 @@ function ChatScreenContent() {
         showToast("error", "Copy failed", "Couldn't copy that message.");
       });
 
-    setShowMessageActions(false);
-    setSelectedMessage(null);
-  }, [selectedMessage, showToast]);
+    dismissMessageActions();
+  }, [selectedMessage, showToast, dismissMessageActions]);
 
   const handlePasteImages = useCallback(
     (uris: string[]) => {
@@ -2028,184 +2061,151 @@ function ChatScreenContent() {
           </View>
         )}
 
-        {/* Message Action Sheet */}
-        <Modal
-          visible={showMessageActions}
-          transparent
-          animationType="fade"
-          onRequestClose={() => {
-            setShowMessageActions(false);
-            setSelectedMessage(null);
+        <BottomSheetModal
+          ref={messageActionsRef}
+          index={0}
+          snapPoints={messageActionSnapPoints}
+          detached
+          bottomInset={12}
+          enablePanDownToClose
+          enableOverDrag={false}
+          enableDynamicSizing={false}
+          onDismiss={dismissMessageActions}
+          backdropComponent={renderMessageActionsBackdrop}
+          backgroundComponent={GlassSheetBackground}
+          handleIndicatorStyle={{
+            backgroundColor: "rgba(255,255,255,0.35)",
+            width: 40,
           }}
+          style={{ marginHorizontal: 12, zIndex: 9999, elevation: 9999 }}
         >
-          <Pressable
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0,0,0,0.5)",
-              justifyContent: "flex-end",
-            }}
-            onPress={() => {
-              setShowMessageActions(false);
-              setSelectedMessage(null);
-            }}
-          >
-            <Pressable onPress={(e) => e.stopPropagation()}>
+          <BottomSheetView style={{ paddingBottom: 28 }}>
+            <SheetHeader title="Message" onClose={dismissMessageActions} />
+
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-evenly",
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: "rgba(255,255,255,0.08)",
+              }}
+            >
+              {REACTION_EMOJIS.map((emoji) => (
+                <Pressable
+                  key={emoji}
+                  onPress={() => handleReaction(emoji)}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    backgroundColor: selectedMessage?.reactions?.some(
+                      (r) => r.emoji === emoji && r.userId === currentUser?.id,
+                    )
+                      ? "rgba(62,164,229,0.2)"
+                      : "rgba(255,255,255,0.08)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.08)",
+                  }}
+                >
+                  <Text style={{ fontSize: 24 }}>{emoji}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {selectedMessage && (
               <View
                 style={{
-                  backgroundColor: "#1a1a1a",
-                  borderTopLeftRadius: 20,
-                  borderTopRightRadius: 20,
-                  paddingBottom: 40,
+                  paddingHorizontal: 20,
+                  paddingVertical: 12,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "rgba(255,255,255,0.08)",
                 }}
               >
-                {/* Handle */}
-                <View
-                  style={{
-                    alignItems: "center",
-                    paddingVertical: 10,
-                  }}
+                <Text
+                  style={{ color: "#999", fontSize: 13 }}
+                  numberOfLines={2}
                 >
-                  <View
-                    style={{
-                      width: 36,
-                      height: 4,
-                      borderRadius: 2,
-                      backgroundColor: "#555",
-                    }}
-                  />
-                </View>
+                  {selectedMessage.text || "(media)"}
+                </Text>
+              </View>
+            )}
 
-                {/* Emoji Reaction Bar */}
-                <View
+            <View style={{ paddingTop: 4 }}>
+              {selectedMessage?.text ? (
+                <Pressable
+                  onPress={handleCopyMessage}
                   style={{
                     flexDirection: "row",
-                    justifyContent: "space-evenly",
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: "#333",
+                    alignItems: "center",
+                    paddingHorizontal: 20,
+                    paddingVertical: 16,
                   }}
                 >
-                  {REACTION_EMOJIS.map((emoji) => (
-                    <Pressable
-                      key={emoji}
-                      onPress={() => handleReaction(emoji)}
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                        backgroundColor: selectedMessage?.reactions?.some(
-                          (r) =>
-                            r.emoji === emoji && r.userId === currentUser?.id,
-                        )
-                          ? "rgba(62,164,229,0.2)"
-                          : "rgba(255,255,255,0.08)",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Text style={{ fontSize: 24 }}>{emoji}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                {/* Message preview */}
-                {selectedMessage && (
-                  <View
+                  <Copy size={22} color="#fff" />
+                  <Text
                     style={{
-                      paddingHorizontal: 20,
-                      paddingVertical: 8,
-                      borderBottomWidth: 1,
-                      borderBottomColor: "#333",
+                      fontSize: 16,
+                      color: "#fff",
+                      marginLeft: 16,
                     }}
                   >
-                    <Text
-                      style={{ color: "#999", fontSize: 13 }}
-                      numberOfLines={2}
-                    >
-                      {selectedMessage.text || "(media)"}
-                    </Text>
-                  </View>
-                )}
+                    Copy
+                  </Text>
+                </Pressable>
+              ) : null}
 
-                {/* Actions */}
-                <View style={{ paddingTop: 4 }}>
-                  {/* Copy — available for all messages */}
-                  {selectedMessage?.text ? (
-                    <Pressable
-                      onPress={handleCopyMessage}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingHorizontal: 20,
-                        paddingVertical: 16,
-                      }}
-                    >
-                      <Copy size={22} color="#fff" />
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          color: "#fff",
-                          marginLeft: 16,
-                        }}
-                      >
-                        Copy
-                      </Text>
-                    </Pressable>
-                  ) : null}
+              {selectedMessage?.sender === "me" && selectedMessage?.text ? (
+                <Pressable
+                  onPress={handleStartEdit}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 20,
+                    paddingVertical: 16,
+                  }}
+                >
+                  <Pencil size={22} color="#fff" />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: "#fff",
+                      marginLeft: 16,
+                    }}
+                  >
+                    Edit
+                  </Text>
+                </Pressable>
+              ) : null}
 
-                  {/* Edit — only for own messages with text */}
-                  {selectedMessage?.sender === "me" && selectedMessage?.text ? (
-                    <Pressable
-                      onPress={handleStartEdit}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingHorizontal: 20,
-                        paddingVertical: 16,
-                      }}
-                    >
-                      <Pencil size={22} color="#fff" />
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          color: "#fff",
-                          marginLeft: 16,
-                        }}
-                      >
-                        Edit
-                      </Text>
-                    </Pressable>
-                  ) : null}
-
-                  {/* Unsend — only for own messages */}
-                  {selectedMessage?.sender === "me" ? (
-                    <Pressable
-                      onPress={handleUnsendMessage}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingHorizontal: 20,
-                        paddingVertical: 16,
-                      }}
-                    >
-                      <Trash2 size={22} color="#ef4444" />
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          color: "#ef4444",
-                          marginLeft: 16,
-                        }}
-                      >
-                        Unsend
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
+              {selectedMessage?.sender === "me" ? (
+                <Pressable
+                  onPress={handleUnsendMessage}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 20,
+                    paddingVertical: 16,
+                  }}
+                >
+                  <Trash2 size={22} color="#ef4444" />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: "#ef4444",
+                      marginLeft: 16,
+                    }}
+                  >
+                    Unsend
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </BottomSheetView>
+        </BottomSheetModal>
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
