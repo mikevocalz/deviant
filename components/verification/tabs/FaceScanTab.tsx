@@ -32,15 +32,18 @@ function FaceFrameOverlay({
   containerWidth: number;
   containerHeight: number;
 }) {
-  const frameWidth = 200;
-  const frameHeight = 280;
+  const frameWidth = Math.min(containerWidth * 0.68, 260);
+  const frameHeight = Math.min(frameWidth * 1.28, containerHeight * 0.78);
   const cornerLength = 40;
   const strokeWidth = 4;
   const borderRadius = 12;
 
-  // Center the frame within the container
+  // Shift slightly upward so users naturally center their face instead of their chin.
   const offsetX = (containerWidth - frameWidth) / 2;
-  const offsetY = (containerHeight - frameHeight) / 2;
+  const offsetY = Math.max(
+    (containerHeight - frameHeight) / 2 - containerHeight * 0.04,
+    20,
+  );
 
   const color = isScanning ? PURPLE : WHITE;
 
@@ -320,7 +323,7 @@ export default function FaceScanTab() {
       >
         <Camera
           ref={camRef}
-          style={{ flex: 1, aspectRatio: 16 / 9 }}
+          style={{ flex: 1 }}
           device={device}
           isActive
           photo
@@ -348,6 +351,7 @@ export default function FaceScanTab() {
           <View className="absolute left-0 right-0 bottom-3 px-6 items-center">
             <View className="rounded-xl px-4 py-3 bg-black/40">
               <Text className="text-white text-base text-center">
+                Center your face inside the frame, then hold still.{" "}
                 {currentPhrase}
               </Text>
             </View>

@@ -4,7 +4,6 @@ import {
   Text,
   Linking,
   Platform,
-  PermissionsAndroid,
   ScrollView,
   InteractionManager,
 } from "react-native";
@@ -36,11 +35,13 @@ import { signUp } from "@/lib/auth-client";
 import { auth } from "@/lib/api/auth";
 import { syncAuthUser } from "@/lib/api/privileged";
 import { toast } from "sonner-native";
-import {
-  validateDateOfBirth,
-  UNDERAGE_ERROR_MESSAGE,
-  AGE_VERIFICATION_FAILED_MESSAGE,
-} from "@/lib/utils/age-verification";
+import { validateDateOfBirth } from "@/lib/utils/age-verification";
+
+const VERIFICATION_EXPLANATION = [
+  "We verify age and authenticity so events, DMs, and spicy spaces stay adult-only and safer.",
+  "Your legal identity is never shown on your public profile.",
+  "If auto-match fails, your documents can still move to manual review instead of dead-ending signup.",
+];
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -127,6 +128,7 @@ export function SignUpStep2() {
 
   // Create account after verification succeeds
   const createAccount = async () => {
+    if (isSubmitting) return;
     setIsSubmitting(true);
 
     console.log("[SignUp] Creating account with Better Auth...");
@@ -369,50 +371,6 @@ export function SignUpStep2() {
         );
       }
 
-      // Mic is optional for ID verification - only camera is truly required
-      let micGranted = true; // Default to true, mic not strictly needed
-      if (Platform.OS === "android") {
-        try {
-          const micPermission = await PermissionsAndroid.check(
-            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-          );
-          console.log("[SignUpStep2] Android mic check:", micPermission);
-
-          if (!micPermission) {
-            const result = await PermissionsAndroid.request(
-              PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-              {
-                title: "Microphone Permission",
-                message:
-                  "This app needs access to your microphone for verification.",
-                buttonNeutral: "Ask Me Later",
-                buttonNegative: "Cancel",
-                buttonPositive: "OK",
-              },
-            );
-            console.log("[SignUpStep2] Android mic request result:", result);
-            // Don't block on mic permission
-          }
-        } catch (micError) {
-          console.log(
-            "[SignUpStep2] Android mic error (non-blocking):",
-            micError,
-          );
-        }
-      } else {
-        // iOS - try to get mic but don't block on it
-        try {
-          let micStatus = await VisionCamera.getMicrophonePermissionStatus();
-          console.log("[SignUpStep2] iOS mic status:", micStatus);
-          if (micStatus !== "granted") {
-            micStatus = await VisionCamera.requestMicrophonePermission();
-            console.log("[SignUpStep2] iOS mic after request:", micStatus);
-          }
-        } catch (micError) {
-          console.log("[SignUpStep2] iOS mic error (non-blocking):", micError);
-        }
-      }
-
       // Only camera is strictly required
       console.log("[SignUpStep2] Final camera status:", cameraStatus);
       if (cameraStatus === "granted") {
@@ -435,21 +393,19 @@ export function SignUpStep2() {
   const requestPermissions = async () => {
     try {
       const cameraPermission = await VisionCamera.requestCameraPermission();
-      const microphonePermission =
-        await VisionCamera.requestMicrophonePermission();
 
-      console.log("Requested permissions:", {
+      console.log("Requested verification permissions:", {
         camera: cameraPermission,
-        mic: microphonePermission,
       });
 
-      if (
-        cameraPermission === "granted" &&
-        microphonePermission === "granted"
-      ) {
+      if (cameraPermission === "granted") {
         setPermissionsGranted(true);
       } else {
-        showToast("error", "Please grant permissions in Settings");
+        showToast(
+          "error",
+          "Camera Required",
+          "Please grant camera access in Settings to continue verification.",
+        );
       }
     } catch (error) {
       console.error("Permission request error:", error);
@@ -465,6 +421,7 @@ export function SignUpStep2() {
 
   const handleVerify = async () => {
     console.log("[SignUpStep2] handleVerify called");
+    if (isVerifying) return;
 
     if (!idVerification.idImage || !idVerification.faceImage) {
       console.log("[SignUpStep2] Missing images");
@@ -610,10 +567,10 @@ export function SignUpStep2() {
             </Text>
           </View>
           <Text className="text-sm text-muted mb-4">
-            Camera and microphone access are required to scan your ID and
-            capture a selfie for verification.
+            Camera access is required to scan your ID and capture a selfie.
+            Microphone access is optional and will never block signup.
           </Text>
-          <Button onPress={requestPermissions}>Grant Permissions</Button>
+          <Button onPress={requestPermissions}>Enable Camera</Button>
           <Button
             variant="secondary"
             onPress={() => Linking.openSettings()}
@@ -645,9 +602,20 @@ export function SignUpStep2() {
         <Text className="text-xl font-semibold text-foreground">
           Identity Verification
         </Text>
-        <Text className="text-sm text-zinc-500w text-center">
+        <Text className="text-sm text-zinc-500 text-center">
           Scan your ID document and capture a selfie for verification
         </Text>
+      </View>
+
+      <View className="rounded-2xl border border-white/10 bg-card/70 p-4 gap-3">
+        <Text className="text-sm font-semibold text-foreground">
+          Why we ask for ID
+        </Text>
+        {VERIFICATION_EXPLANATION.map((line) => (
+          <Text key={line} className="text-sm leading-5 text-muted">
+            {line}
+          </Text>
+        ))}
       </View>
 
       {idVerification.isOver18 === false && (
