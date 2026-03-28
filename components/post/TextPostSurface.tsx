@@ -2,6 +2,7 @@ import { memo } from "react";
 import { View, Text, type StyleProp, type ViewStyle } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { HashtagText } from "@/components/ui/hashtag-text";
+import { TextPostBadgeLogo } from "@/components/post/TextPostBadgeLogo";
 import { resolveTextPostTheme, truncateTextPost } from "@/lib/posts/text-post";
 import type { TextPostThemeKey } from "@/lib/types";
 
@@ -142,17 +143,10 @@ function TextPostSurfaceComponent({
                 borderColor: "rgba(255,255,255,0.08)",
               }}
             >
-              <Text
-                style={{
-                  color: palette.textSecondary,
-                  fontSize: 11,
-                  fontWeight: "700",
-                  letterSpacing: 0.8,
-                  textTransform: "uppercase",
-                }}
-              >
-                Text Post
-              </Text>
+              <TextPostBadgeLogo
+                width={variant === "grid" ? 46 : 50}
+                height={variant === "grid" ? 11 : 12}
+              />
             </View>
           )}
 

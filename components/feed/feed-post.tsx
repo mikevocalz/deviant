@@ -71,6 +71,7 @@ import {
 import { DVNTMediaRenderer } from "@/components/media/DVNTMediaRenderer";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
+import { TextPostBadgeLogo } from "@/components/post/TextPostBadgeLogo";
 import { TextPostSurface } from "@/components/post/TextPostSurface";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
@@ -519,17 +520,7 @@ function FeedPostComponent({
                     borderColor: "rgba(255,255,255,0.08)",
                   }}
                 >
-                  <Text
-                    style={{
-                      color: "rgba(226,232,240,0.68)",
-                      fontSize: 10,
-                      fontWeight: "700",
-                      letterSpacing: 0.6,
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    Text Post
-                  </Text>
+                  <TextPostBadgeLogo width={44} height={10} />
                 </View>
                 <Pressable
                   onPress={() => setActionSheetPostId(id)}
