@@ -234,6 +234,13 @@ export function useCommentLikeState(
             data.liked,
           ),
       );
+
+      void queryClient.invalidateQueries({
+        queryKey: commentKeys.byPost(postId),
+      });
+      void queryClient.invalidateQueries({
+        queryKey: [...commentKeys.all, "thread", postId],
+      });
     },
   });
 

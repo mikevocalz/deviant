@@ -1224,7 +1224,7 @@ function PostDetailScreenContent() {
         </Pressable>
       </View>
 
-      <ScrollView>
+      <ScrollView keyboardShouldPersistTaps="handled">
         <View className="border-b border-border">
           {/* Header */}
           <View className="flex-row items-center justify-between p-4 bg-card">

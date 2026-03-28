@@ -71,7 +71,15 @@ export function CommentLikeButton({
   );
 
   return (
-    <Pressable onPress={toggle} disabled={isPending} style={styles.likeButton}>
+    <Pressable
+      onPress={(event) => {
+        event.stopPropagation();
+        toggle();
+      }}
+      disabled={isPending}
+      hitSlop={12}
+      style={styles.likeButton}
+    >
       <Heart
         size={15}
         color={hasLiked ? "#FF5BFC" : "#7C8798"}
