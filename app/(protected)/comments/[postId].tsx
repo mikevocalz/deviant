@@ -2,13 +2,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
-  FlatList,
   ActivityIndicator,
   TextInput,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useQuery } from "@tanstack/react-query";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { LegendList } from "@/components/list";
+import type { LegendListRef } from "@/components/list";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { ThreadedComment, type CommentData } from "@/components/comments/threaded-comment";
 import { CommentComposerFooter } from "@/components/comments/comment-composer-footer";
@@ -81,7 +82,7 @@ function CommentsScreenContent() {
   const showToast = useUIStore((state) => state.showToast);
   const inputRef = useRef<TextInput>(null);
   const redirectedReplyRef = useRef(false);
-  const listRef = useRef<FlatList<Comment> | null>(null);
+  const listRef = useRef<LegendListRef | null>(null);
 
   const [commentText, setCommentText] = useState("");
   const [replyTarget, setReplyTarget] = useState<ReplyTarget | null>(null);
@@ -259,11 +260,18 @@ function CommentsScreenContent() {
     }
 
     requestAnimationFrame(() => {
-      listRef.current?.scrollToIndex({
-        index: targetIndex,
-        animated: true,
-        viewPosition: 0.15,
-      });
+      void listRef.current
+        ?.scrollToIndex({
+          index: targetIndex,
+          animated: true,
+          viewPosition: 0.15,
+        })
+        .catch(() => {
+          void listRef.current?.scrollToOffset({
+            offset: Math.max(targetIndex, 0) * 180,
+            animated: true,
+          });
+        });
     });
   }, [commentId, comments]);
 
@@ -319,21 +327,15 @@ function CommentsScreenContent() {
           </Text>
         </View>
       ) : (
-        <FlatList
+        <LegendList
           ref={listRef}
           data={comments}
           keyExtractor={(item) => item.id}
           contentContainerStyle={{ padding: 16, gap: 12 }}
           keyboardDismissMode="interactive"
           keyboardShouldPersistTaps="handled"
-          onScrollToIndexFailed={({ index }) => {
-            requestAnimationFrame(() => {
-              listRef.current?.scrollToOffset({
-                offset: Math.max(index, 0) * 180,
-                animated: true,
-              });
-            });
-          }}
+          recycleItems
+          estimatedItemSize={180}
           renderItem={({ item }) => (
             <ThreadedComment
               postId={postId || ""}
