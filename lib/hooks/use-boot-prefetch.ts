@@ -171,13 +171,7 @@ export function useBootPrefetch() {
       Promise.allSettled([
         queryClient.prefetchQuery({
           queryKey: messageKeys.unreadCount(userId),
-          queryFn: async () => {
-            const [inbox, spam] = await Promise.all([
-              messagesApiClient.getUnreadCount(),
-              messagesApiClient.getSpamUnreadCount(),
-            ]);
-            return { inbox, spam };
-          },
+          queryFn: () => messagesApiClient.getUnreadCounts(),
         }),
         queryClient.prefetchQuery({
           queryKey: notificationKeys.badges(userId),

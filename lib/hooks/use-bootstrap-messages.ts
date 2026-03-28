@@ -21,14 +21,17 @@ function hydrateFromMessagesBootstrap(
   userId: string,
   data: BootstrapMessagesResponse,
 ) {
-  // 1. Seed the filtered conversations cache (primary inbox)
-  queryClient.setQueryData(
-    [...messageKeys.all(userId), "filtered", "primary"],
-    data.conversations,
-  );
-
-  // 2. Seed unread counts only when backend confirms they are authoritative.
+  // Only trust bootstrap data when unread-sensitive message state is
+  // authoritative. Otherwise let the direct conversations/unread queries own
+  // the initial load so we don't hydrate stale thread unread flags.
   if (data.unreadAuthoritative) {
+    // 1. Seed the filtered conversations cache (primary inbox)
+    queryClient.setQueryData(
+      [...messageKeys.all(userId), "filtered", "primary"],
+      data.conversations,
+    );
+
+    // 2. Seed unread counts
     queryClient.setQueryData(messageKeys.unreadCount(userId), {
       inbox: data.unreadInbox,
       spam: data.unreadSpam,

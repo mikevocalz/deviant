@@ -39,6 +39,8 @@ export function useUnreadMessageCount() {
     enabled: !!viewerId,
     staleTime: STALE_TIMES.unreadCounts,
     gcTime: GC_TIMES.short,
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
     refetchInterval: 30000, // Background refresh every 30s
   });
 
@@ -68,6 +70,8 @@ export function useConversations() {
     queryFn: messagesApiClient.getConversations,
     enabled: !!viewerId,
     staleTime: STALE_TIMES.conversations,
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
   });
 }
 
@@ -81,6 +85,8 @@ export function useFilteredConversations(filter: "primary" | "requests") {
     queryFn: () => messagesApiClient.getFilteredConversations(filter),
     enabled: !!viewerId,
     staleTime: STALE_TIMES.conversations,
+    refetchOnMount: "always",
+    refetchOnReconnect: "always",
   });
 }
 

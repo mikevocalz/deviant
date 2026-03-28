@@ -76,6 +76,13 @@ describe("Messages unread source invariants", () => {
     const source = read("lib/hooks/use-bootstrap-messages.ts");
     expect(source).toContain("if (data.unreadAuthoritative)");
     expect(source).toContain("authoritative=${data.unreadAuthoritative === true}");
+    expect(source).toContain('queryClient.setQueryData(\n      [...messageKeys.all(userId), "filtered", "primary"],');
+  });
+
+  it("unread-sensitive message queries always revalidate on mount and reconnect", () => {
+    const source = read("lib/hooks/use-messages.ts");
+    expect(source).toContain('refetchOnMount: "always"');
+    expect(source).toContain('refetchOnReconnect: "always"');
   });
 
   it("bootstrap-feed derives unread counts from message read state, not legacy conversation counters", () => {
@@ -102,8 +109,15 @@ describe("Messages unread source invariants", () => {
 
   it("query persistence buster is bumped so stale unread cache is cleared after OTA", () => {
     const source = read("lib/query-persistence.ts");
-    expect(source).toContain('buster: "v8"');
-    expect(source).toContain('const currentVersion = "v8"');
+    expect(source).toContain('buster: "v9"');
+    expect(source).toContain('const currentVersion = "v9"');
+  });
+
+  it("boot prefetch loads unread counts from the combined unread source of truth", () => {
+    const source = read("lib/hooks/use-boot-prefetch.ts");
+    expect(source).toContain("queryFn: () => messagesApiClient.getUnreadCounts()");
+    expect(source).not.toContain("messagesApiClient.getUnreadCount()");
+    expect(source).not.toContain("messagesApiClient.getSpamUnreadCount()");
   });
 
   it("adds a production migration for the authoritative conversation_reads table", () => {
@@ -113,6 +127,16 @@ describe("Messages unread source invariants", () => {
     expect(source).toContain("CREATE TABLE IF NOT EXISTS public.conversation_reads");
     expect(source).toContain("INSERT INTO public.conversation_reads");
     expect(source).toContain("UPDATE public.messages m");
+  });
+
+  it("adds a one-time group unread cutover for historical group chats", () => {
+    const source = read(
+      "supabase/migrations/20260401005000_group_unread_cutover.sql",
+    );
+    expect(source).toContain("latest_group_message");
+    expect(source).toContain("WHERE c.is_group = true");
+    expect(source).toContain("INSERT INTO public.conversation_reads");
+    expect(source).toContain("ON CONFLICT (conversation_id, user_id) DO UPDATE");
   });
 
   it("realtime message patches compare sender_id against the integer viewer id, not auth-store raw ids", () => {
