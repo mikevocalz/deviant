@@ -16,6 +16,10 @@ import { useForYouEvents } from "@/lib/hooks/use-events";
 import type { Event } from "@/lib/hooks/use-events";
 import { FeedSkeleton } from "@/components/skeletons";
 import { useAppStore } from "@/lib/stores/app-store";
+import {
+  filterEntitiesByBoundary,
+  getContentBoundaryMode,
+} from "@/lib/content/spicy-boundary";
 import { useMemo, useEffect, useRef, useCallback, memo } from "react";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { StoriesBar } from "@/components/stories/stories-bar";
@@ -269,6 +273,7 @@ export function Feed() {
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
   const nsfwLoaded = useAppStore((s) => s.nsfwLoaded);
   const loadNsfwSetting = useAppStore((s) => s.loadNsfwSetting);
+  const contentBoundary = getContentBoundaryMode(nsfwEnabled);
   const { setActivePostId } = useFeedPostUIStore();
   const prevNsfwEnabled = useRef(nsfwEnabled);
   const listRef = useRef<LegendListRef>(null);
@@ -370,9 +375,8 @@ export function Feed() {
   }, [allPosts, viewerId, queryClient]);
 
   const filteredPosts = useMemo(() => {
-    if (nsfwEnabled) return allPosts;
-    return allPosts.filter((post) => !post.isNSFW);
-  }, [allPosts, nsfwEnabled]);
+    return filterEntitiesByBoundary(allPosts, contentBoundary);
+  }, [allPosts, contentBoundary]);
 
   // Fetch events for inline feed cards
   const { data: forYouEvents } = useForYouEvents();

@@ -1,6 +1,7 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { transformPost } from "@/lib/api/posts";
+import type { Post } from "@/lib/types";
 
 const SEARCH_POST_SELECT = `
   ${DB.posts.id},
@@ -34,16 +35,25 @@ const SEARCH_POST_SELECT = `
   )
 `;
 
-async function fetchSearchPostsByIds(postIds: string[]) {
+function applySearchBoundary(query: any, includeNsfw: boolean) {
+  if (includeNsfw) return query;
+  return query.eq(DB.posts.isNsfw, false);
+}
+
+async function fetchSearchPostsByIds(postIds: string[], includeNsfw: boolean) {
   if (postIds.length === 0) return [];
 
-  const { data, error } = await supabase
-    .from(DB.posts.table)
-    .select(SEARCH_POST_SELECT)
-    .in(DB.posts.id, postIds)
-    .eq(DB.posts.visibility, "public")
-    .eq(DB.posts.isNsfw, false)
-    .order(DB.posts.createdAt, { ascending: false });
+  const query = applySearchBoundary(
+    supabase
+      .from(DB.posts.table)
+      .select(SEARCH_POST_SELECT)
+      .in(DB.posts.id, postIds)
+      .eq(DB.posts.visibility, "public")
+      .order(DB.posts.createdAt, { ascending: false }),
+    includeNsfw,
+  );
+
+  const { data, error } = await query;
 
   if (error) throw error;
 
@@ -54,9 +64,14 @@ export const searchApi = {
   /**
    * Search posts by content
    */
-  async searchPosts(query: string, limit: number = 50) {
+  async searchPosts(
+    query: string,
+    limit: number = 50,
+    options?: { includeNsfw?: boolean },
+  ) {
     try {
       console.log("[Search] searchPosts, query:", query);
+      const includeNsfw = options?.includeNsfw === true;
 
       const normalizedQuery = query.trim();
 
@@ -66,20 +81,21 @@ export const searchApi = {
 
       const searchPattern = `%${normalizedQuery}%`;
 
-      const [{ data: contentMatches, error: contentError }, { data: slideRows, error: slideError }] =
-        await Promise.all([
-          supabase
-            .from(DB.posts.table)
-            .select(SEARCH_POST_SELECT)
-            .ilike(DB.posts.content, searchPattern)
-            .eq(DB.posts.visibility, "public")
-            .eq(DB.posts.isNsfw, false)
-            .order(DB.posts.createdAt, { ascending: false })
-            .limit(limit * 2),
-          supabase
-            .from(DB.postTextSlides.table)
-            .select(
-              `
+      const contentQuery = applySearchBoundary(
+        supabase
+          .from(DB.posts.table)
+          .select(SEARCH_POST_SELECT)
+          .ilike(DB.posts.content, searchPattern)
+          .eq(DB.posts.visibility, "public")
+          .order(DB.posts.createdAt, { ascending: false })
+          .limit(limit * 2),
+        includeNsfw,
+      );
+
+      let slideQuery = supabase
+        .from(DB.postTextSlides.table)
+        .select(
+          `
               ${DB.postTextSlides.postId},
               post:posts!inner(
                 ${DB.posts.id},
@@ -87,17 +103,24 @@ export const searchApi = {
                 ${DB.posts.isNsfw}
               )
             `,
-            )
-            .ilike(DB.postTextSlides.content, searchPattern)
-            .eq("post.visibility", "public")
-            .eq("post.is_nsfw", false)
-            .limit(limit * 4),
-        ]);
+        )
+        .ilike(DB.postTextSlides.content, searchPattern)
+        .eq("post.visibility", "public")
+        .limit(limit * 4);
+
+      if (!includeNsfw) {
+        slideQuery = slideQuery.eq("post.is_nsfw", false);
+      }
+
+      const [
+        { data: contentMatches, error: contentError },
+        { data: slideRows, error: slideError },
+      ] = await Promise.all([contentQuery, slideQuery]);
 
       if (contentError) throw contentError;
       if (slideError) throw slideError;
 
-      const contentPosts = (contentMatches || []).map((post: any) =>
+      const contentPosts: Post[] = (contentMatches || []).map((post: any) =>
         transformPost(post, false),
       );
       const seenPostIds = new Set(contentPosts.map((post) => post.id));
@@ -115,6 +138,7 @@ export const searchApi = {
 
       const extraSlidePosts = await fetchSearchPostsByIds(
         extraSlidePostIds.slice(0, limit * 2),
+        includeNsfw,
       );
 
       const docs = [...contentPosts, ...extraSlidePosts]

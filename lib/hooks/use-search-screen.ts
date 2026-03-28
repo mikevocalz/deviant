@@ -16,12 +16,13 @@ import { usersApi } from "@/lib/api/users";
 import { postsApi } from "@/lib/api/posts";
 import { searchApi } from "@/lib/api/search";
 import type { Post } from "@/lib/types";
+import { useAppStore } from "@/lib/stores/app-store";
+import {
+  filterEntitiesByBoundary,
+  getContentBoundaryMode,
+} from "@/lib/content/spicy-boundary";
 
 const SEARCH_QUERY_VERSION = "v2";
-
-function filterSafePosts(posts: Post[]) {
-  return posts.filter((post) => !post.isNSFW);
-}
 
 // ── Discover mode (empty query) — single batch ─────────────────────
 export interface DiscoverDTO {
@@ -38,14 +39,17 @@ export interface DiscoverDTO {
 }
 
 export function useDiscoverData() {
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
+  const contentBoundary = getContentBoundaryMode(nsfwEnabled);
+
   return useQuery<DiscoverDTO>({
-    queryKey: ["search", SEARCH_QUERY_VERSION, "discover"],
+    queryKey: ["search", SEARCH_QUERY_VERSION, "discover", contentBoundary],
     queryFn: async () => {
       const [users, posts] = await Promise.all([
         usersApi.getNewestUsers(15),
         postsApi.getExplorePosts(40),
       ]);
-      return { users, posts: filterSafePosts(posts) };
+      return { users, posts: filterEntitiesByBoundary(posts, contentBoundary) };
     },
     staleTime: 5 * 60 * 1000,
   });
@@ -59,22 +63,36 @@ export interface SearchResultsDTO {
 }
 
 export function useSearchResults(debouncedQuery: string) {
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
+  const contentBoundary = getContentBoundaryMode(nsfwEnabled);
+
   return useQuery<SearchResultsDTO>({
-    queryKey: ["search", SEARCH_QUERY_VERSION, "results", debouncedQuery],
+    queryKey: [
+      "search",
+      SEARCH_QUERY_VERSION,
+      "results",
+      contentBoundary,
+      debouncedQuery,
+    ],
     queryFn: async () => {
       const isHashtag = debouncedQuery.startsWith("#");
       const [posts, users] = await Promise.all([
-        searchApi.searchPosts(debouncedQuery),
+        searchApi.searchPosts(debouncedQuery, 50, {
+          includeNsfw: contentBoundary === "spicy",
+        }),
         isHashtag
           ? Promise.resolve({ docs: [], totalDocs: 0 })
           : searchApi.searchUsers(debouncedQuery, 20),
       ]);
-      const safePosts = filterSafePosts(posts.docs);
+      const visiblePosts = filterEntitiesByBoundary(
+        posts.docs as Post[],
+        contentBoundary,
+      );
       return {
         posts: {
           ...posts,
-          docs: safePosts,
-          totalDocs: safePosts.length,
+          docs: visiblePosts,
+          totalDocs: visiblePosts.length,
         },
         users,
         isHashtag,

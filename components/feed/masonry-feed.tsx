@@ -30,6 +30,10 @@ import { useBookmarks, useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { storyKeys } from "@/lib/hooks/use-stories";
 import { useAppStore } from "@/lib/stores/app-store";
+import {
+  filterEntitiesByBoundary,
+  getContentBoundaryMode,
+} from "@/lib/content/spicy-boundary";
 
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
@@ -422,6 +426,7 @@ export function MasonryFeed() {
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
   const nsfwLoaded = useAppStore((s) => s.nsfwLoaded);
   const loadNsfwSetting = useAppStore((s) => s.loadNsfwSetting);
+  const contentBoundary = getContentBoundaryMode(nsfwEnabled);
 
   useEffect(() => {
     loadNsfwSetting();
@@ -455,9 +460,8 @@ export function MasonryFeed() {
   }, [allPosts, viewerId, queryClient]);
 
   const filteredPosts = useMemo(() => {
-    if (nsfwEnabled) return allPosts;
-    return allPosts.filter((post) => !post.isNSFW);
-  }, [allPosts, nsfwEnabled]);
+    return filterEntitiesByBoundary(allPosts, contentBoundary);
+  }, [allPosts, contentBoundary]);
 
   // Fetch events for inline cards (same as classic feed)
   const { data: forYouEvents } = useForYouEvents();
