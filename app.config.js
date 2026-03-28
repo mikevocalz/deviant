@@ -13,6 +13,8 @@ const routerOrigin =
   process.env.EXPO_PUBLIC_SUPABASE_URL ||
   "https://npfjanxturvmjyevoyfo.supabase.co";
 
+const fishjamAppIdFallback = "28026441819941d78c40584fb830f851";
+
 export default {
   expo: {
     name: "DVNT",
@@ -289,7 +291,8 @@ export default {
       },
       fishjamAppId:
         process.env.EXPO_PUBLIC_FISHJAM_APP_ID ||
-        process.env.FISHJAM_APP_ID,
+        process.env.FISHJAM_APP_ID ||
+        fishjamAppIdFallback,
       eas: {
         projectId: "5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
         build: {

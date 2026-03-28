@@ -69,6 +69,7 @@ import {
 } from "@/src/video/stores/video-room-store";
 import type { Participant } from "@/src/video/types";
 import { CT } from "@/src/services/calls/callTrace";
+import { resolveFishjamAppId } from "@/lib/video/fishjam-config";
 
 // Re-export for consumers
 export type { CallType, CallPhase, CallRole, CallDirection, RecipientInfo };
@@ -664,7 +665,7 @@ export function useVideoCall() {
       }
 
       // ── WebSocket diagnostic: test raw connectivity before SDK joinRoom ──
-      const wsUrl = `wss://fishjam.io/api/v1/connect/${process.env.EXPO_PUBLIC_FISHJAM_APP_ID || "28026441819941d78c40584fb830f851"}/socket/peer/websocket`;
+      const wsUrl = `wss://fishjam.io/api/v1/connect/${resolveFishjamAppId()}/socket/peer/websocket`;
       log(`[WS_DIAG] Testing WebSocket to: ${wsUrl}`);
       try {
         await new Promise<void>((resolve, reject) => {

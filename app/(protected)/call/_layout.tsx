@@ -1,16 +1,13 @@
 import { Stack, useRouter } from "expo-router";
 import { FishjamProvider } from "@fishjam-cloud/react-native-client";
-import Constants from "expo-constants";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useVideoRoomStore } from "@/src/video/stores/video-room-store";
+import { resolveFishjamAppId } from "@/lib/video/fishjam-config";
 
-const FISHJAM_APP_ID =
-  Constants.expoConfig?.extra?.fishjamAppId ??
-  process.env.EXPO_PUBLIC_FISHJAM_APP_ID ??
-  "";
+const FISHJAM_APP_ID = resolveFishjamAppId();
 
 if (__DEV__) {
-  console.log("[CallLayout] FISHJAM_APP_ID:", FISHJAM_APP_ID || "EMPTY!");
+  console.log("[CallLayout] FISHJAM_APP_ID:", FISHJAM_APP_ID);
 }
 
 export default function CallLayout() {

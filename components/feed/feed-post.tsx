@@ -512,8 +512,8 @@ function FeedPostComponent({
               >
                 <View
                   style={{
-                    width: 104,
-                    height: 18,
+                    width: 118,
+                    height: 32,
                     borderRadius: 999,
                     backgroundColor: "rgba(255,255,255,0.06)",
                     borderWidth: 1,
@@ -522,7 +522,7 @@ function FeedPostComponent({
                     justifyContent: "center",
                   }}
                 >
-                  <TextPostBadgeLogo width={100} height={12} />
+                  <TextPostBadgeLogo width={102} height={22} />
                 </View>
                 <Pressable
                   onPress={() => setActionSheetPostId(id)}

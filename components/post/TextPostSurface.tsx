@@ -135,8 +135,8 @@ function TextPostSurfaceComponent({
               style={{
                 alignSelf: "flex-end",
                 marginBottom: variant === "grid" ? 12 : 18,
-                width: variant === "grid" ? 112 : 120,
-                height: variant === "grid" ? 21 : 22,
+                width: variant === "grid" ? 118 : 132,
+                height: variant === "grid" ? 28 : 32,
                 borderRadius: 999,
                 backgroundColor: "rgba(255,255,255,0.08)",
                 borderWidth: 1,
@@ -146,8 +146,8 @@ function TextPostSurfaceComponent({
               }}
             >
               <TextPostBadgeLogo
-                width={variant === "grid" ? 106 : 114}
-                height={variant === "grid" ? 13 : 14}
+                width={variant === "grid" ? 102 : 116}
+                height={variant === "grid" ? 20 : 24}
               />
             </View>
           )}
