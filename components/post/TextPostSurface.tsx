@@ -136,8 +136,8 @@ function TextPostSurfaceComponent({
             <View
               style={{
                 position: "absolute",
-                top: metrics.padding,
-                right: metrics.padding,
+                top: 4,
+                right: 4,
                 width: variant === "grid" ? 118 : 132,
                 height: variant === "grid" ? 28 : 32,
                 alignItems: "center",
