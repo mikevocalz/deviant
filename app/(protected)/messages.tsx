@@ -1,0 +1,921 @@
+import {
+  View,
+  Text,
+  Pressable,
+  ScrollView,
+  TouchableOpacity,
+  RefreshControl,
+  StyleSheet,
+} from "react-native";
+import { Avatar } from "@/components/ui/avatar";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { ErrorBoundary } from "@/components/error-boundary";
+import {
+  ArrowLeft,
+  Edit,
+  MessageSquare,
+  Inbox,
+  ShieldAlert,
+  Users,
+  Radio,
+  Plus,
+} from "lucide-react-native";
+import { Image } from "expo-image";
+import { useCallback, useState, useRef, useMemo, useEffect } from "react";
+import { MessagesSkeleton } from "@/components/skeletons";
+import { EmptyState } from "@/components/ui/empty-state";
+import { Button } from "@/components/ui/button";
+import { type Conversation } from "@/lib/api/messages";
+import { messagesApiClient } from "@/lib/api/messages";
+import { useAuthStore } from "@/lib/stores/auth-store";
+import {
+  useUnreadMessageCount,
+  useFilteredConversations,
+  messageKeys,
+} from "@/lib/hooks/use-messages";
+import { useQueryClient } from "@tanstack/react-query";
+import { navigateToChat } from "@/lib/navigation/chat-routes";
+import { usePresenceStore } from "@/lib/stores/presence-store";
+import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
+import PagerView from "react-native-pager-view";
+import {
+  useLynkHistoryStore,
+  type LynkRecord,
+} from "@/src/sneaky-lynk/stores/lynk-history-store";
+import { LiveRoomCard } from "@/src/sneaky-lynk/ui/LiveRoomCard";
+import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
+import { useFocusEffect } from "expo-router";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { useScreenTrace } from "@/lib/perf/screen-trace";
+import { useBootstrapMessages } from "@/lib/hooks/use-bootstrap-messages";
+import { screenPrefetch } from "@/lib/prefetch";
+import { useChatStore } from "@/lib/stores/chat-store";
+import { supabase } from "@/lib/supabase/client";
+
+interface ConversationItem {
+  id: string;
+  oderpantId: string;
+  user: { username: string; name: string; avatar: string };
+  lastMessage: string;
+  timeAgo: string;
+  unread: boolean;
+  isGroup?: boolean;
+  groupName?: string;
+  members?: Array<{ id: string; username: string; avatar: string }>;
+}
+
+function PresenceDot({ oderpantId }: { oderpantId: string }) {
+  const { isOnline } = useUserPresence(oderpantId);
+  if (!isOnline) return null;
+  return (
+    <View
+      style={{
+        position: "absolute",
+        top: 0,
+        right: 0,
+        width: 14,
+        height: 14,
+        borderRadius: 7,
+        backgroundColor: "#22C55E",
+        borderWidth: 2,
+        borderColor: "#000",
+      }}
+    />
+  );
+}
+
+function formatTimeAgo(dateString?: string): string {
+  if (!dateString) return "";
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffMins = Math.floor(diffMs / 60000);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffMins < 1) return "Just now";
+  if (diffMins < 60) return `${diffMins}m`;
+  if (diffHours < 24) return `${diffHours}h`;
+  if (diffDays < 7) return `${diffDays}d`;
+  return date.toLocaleDateString();
+}
+
+// Shared conversation list component
+function ConversationList({
+  conversations,
+  isRefreshing,
+  onRefresh,
+  onChatPress,
+  onProfilePress,
+  onMarkAsRead,
+  emptyTitle,
+  emptyDescription,
+  emptyIcon,
+  router,
+}: {
+  conversations: ConversationItem[];
+  isRefreshing: boolean;
+  onRefresh: () => void;
+  onChatPress: (id: string, item?: ConversationItem) => void;
+  onProfilePress: (username: string) => void;
+  onMarkAsRead?: (id: string) => void;
+  emptyTitle: string;
+  emptyDescription: string;
+  emptyIcon: typeof MessageSquare;
+  router: ReturnType<typeof useRouter>;
+}) {
+  return (
+    <ScrollView
+      className="flex-1"
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor="#3EA4E5"
+        />
+      }
+    >
+      {conversations.map((item) => (
+        <View
+          key={item.id}
+          className="flex-row items-center gap-3 border-b border-border px-4 py-3"
+        >
+          {item.isGroup && item.members && item.members.length > 1 ? (
+            <Pressable
+              onPress={() => onChatPress(item.id, item)}
+              style={{ width: 56, height: 56 }}
+            >
+              <View style={{ width: 56, height: 56 }}>
+                {item.members.slice(0, 3).map((member, idx) => (
+                  <View
+                    key={member.id || idx}
+                    style={{
+                      position: "absolute",
+                      top: idx === 0 ? 0 : idx === 1 ? 4 : 20,
+                      left: idx === 0 ? 0 : idx === 1 ? 22 : 11,
+                      zIndex: 3 - idx,
+                    }}
+                  >
+                    <Avatar
+                      uri={member.avatar}
+                      username={member.username}
+                      size={32}
+                      variant="roundedSquare"
+                    />
+                  </View>
+                ))}
+              </View>
+            </Pressable>
+          ) : (
+            <Pressable onPress={() => onProfilePress(item.user.username)}>
+              <View className="relative">
+                <Avatar
+                  uri={item.user.avatar}
+                  username={item.user.username}
+                  size={56}
+                  variant="roundedSquare"
+                />
+                <PresenceDot oderpantId={item.oderpantId} />
+              </View>
+            </Pressable>
+          )}
+
+          <TouchableOpacity
+            onPress={() => onChatPress(item.id, item)}
+            onLongPress={() => {
+              if (item.unread && onMarkAsRead) onMarkAsRead(item.id);
+            }}
+            delayLongPress={400}
+            activeOpacity={0.7}
+            className="flex-1"
+          >
+            <View className="flex-row items-center justify-between">
+              {item.isGroup ? (
+                <View className="flex-row items-center gap-1.5">
+                  <Users size={14} color="#8A40CF" />
+                  <Text
+                    className={`text-base text-foreground ${item.unread ? "font-bold" : "font-medium"}`}
+                  >
+                    {item.groupName || item.user.username}
+                  </Text>
+                </View>
+              ) : (
+                <Pressable onPress={() => onProfilePress(item.user.username)}>
+                  <Text
+                    className={`text-base text-foreground ${item.unread ? "font-bold" : "font-medium"}`}
+                  >
+                    {item.user.username}
+                  </Text>
+                </Pressable>
+              )}
+              <Text
+                className={`text-xs ${item.unread ? "text-primary font-semibold" : "text-muted-foreground"}`}
+              >
+                {item.timeAgo}
+              </Text>
+            </View>
+            {item.isGroup && item.members && item.members.length > 0 && (
+              <Text className="text-xs text-muted-foreground" numberOfLines={1}>
+                {item.members.map((m) => m.username).join(", ")}
+              </Text>
+            )}
+            <Text
+              className={`text-sm mt-0.5 ${item.unread ? "text-foreground" : "text-muted-foreground"}`}
+              numberOfLines={1}
+            >
+              {item.lastMessage}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ))}
+
+      {conversations.length === 0 && (
+        <EmptyState
+          icon={emptyIcon}
+          title={emptyTitle}
+          description={emptyDescription}
+          action={
+            <Button
+              onPress={() => router.push("/(protected)/messages/new" as any)}
+            >
+              Start a Conversation
+            </Button>
+          }
+        />
+      )}
+    </ScrollView>
+  );
+}
+
+// Sneaky Lynk tab content
+function SneakyLynkContent({
+  router,
+  isActive,
+}: {
+  router: ReturnType<typeof useRouter>;
+  isActive: boolean;
+}) {
+  const localRooms = useLynkHistoryStore((s) => s.rooms);
+  const endRoom = useLynkHistoryStore((s) => s.endRoom);
+  const [dbRooms, setDbRooms] = useState<LynkRecord[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const fetchRooms = useCallback(async () => {
+    try {
+      const liveRooms = await sneakyLynkApi.getLiveRooms();
+      const mapped: LynkRecord[] = liveRooms.map((r) => ({
+        id: r.id,
+        title: r.title,
+        topic: r.topic,
+        description: r.description,
+        isLive: r.isLive,
+        hasVideo: r.hasVideo,
+        isPublic: r.isPublic,
+        status: r.status,
+        host: r.host,
+        speakers: r.speakers || [],
+        listeners: r.listeners || 0,
+        maxParticipants: r.maxParticipants || 50,
+        createdAt: r.createdAt,
+        endedAt: r.endedAt,
+      }));
+      setDbRooms(mapped);
+
+      // Sync: mark local rooms as ended if they're not actually live in DB
+      const actuallyLiveIds = new Set(
+        liveRooms.filter((r) => r.isLive).map((r) => r.id),
+      );
+      for (const local of localRooms) {
+        if (local.isLive && !actuallyLiveIds.has(local.id)) {
+          endRoom(local.id);
+        }
+      }
+    } catch (err) {
+      console.error("[SneakyLynk] Failed to fetch live rooms:", err);
+    }
+  }, [localRooms, endRoom]);
+
+  // Fetch live rooms on focus
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      (async () => {
+        await fetchRooms();
+      })();
+      return () => {
+        cancelled = true;
+      };
+    }, [fetchRooms]),
+  );
+
+  useEffect(() => {
+    if (!isActive) return;
+
+    void fetchRooms();
+
+    const interval = setInterval(() => {
+      void fetchRooms();
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [isActive, fetchRooms]);
+
+  // Pull-to-refresh
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchRooms();
+    setRefreshing(false);
+  }, [fetchRooms]);
+
+  // Merge: DB rooms take priority, then any local-only rooms for immediate
+  // host visibility before the live room fetch catches up.
+  // Lynks should surface in this tab only, so this tab must include the
+  // public DB rooms that other users rely on to see who's live.
+  const allRooms = useCallback(() => {
+    const dbIds = new Set(dbRooms.map((r) => r.id));
+    const localOnly = localRooms.filter(
+      (r) => !dbIds.has(r.id) && r.source === "sneaky_lynk",
+    );
+    return [...dbRooms, ...localOnly];
+  }, [dbRooms, localRooms])();
+
+  const handleCreateLynk = useCallback(() => {
+    router.push("/(protected)/sneaky-lynk/create" as any);
+  }, [router]);
+
+  const showToast = useUIStore((s) => s.showToast);
+
+  const handleRoomPress = useCallback(
+    (room: LynkRecord) => {
+      if (!room.isLive || room.status === "ended") {
+        showToast(
+          "info",
+          "Lynk Ended",
+          "This Lynk has ended and can't be rejoined",
+        );
+        return;
+      }
+      // Check capacity — toast if full
+      const max = room.maxParticipants || 50;
+      if (room.listeners >= max) {
+        showToast(
+          "error",
+          "Room Full",
+          "This Lynk is at max capacity. Pull to refresh when a slot opens.",
+        );
+        return;
+      }
+      router.push({
+        pathname: "/(protected)/sneaky-lynk/room/[id]",
+        params: {
+          id: room.id,
+          title: room.title,
+          hasVideo: room.hasVideo ? "1" : "0",
+        },
+      } as any);
+    },
+    [router, showToast],
+  );
+
+  return (
+    <View style={lynkStyles.container}>
+      {/* Header */}
+      <View style={lynkStyles.header}>
+        <View style={lynkStyles.headerLeft}>
+          <Radio size={28} color="#FC253A" />
+          <Text style={lynkStyles.headerTitle}>Lynks</Text>
+        </View>
+        <TouchableOpacity
+          style={lynkStyles.createButton}
+          onPress={handleCreateLynk}
+        >
+          <Plus size={20} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {allRooms.length > 0 ? (
+        <ScrollView
+          contentContainerStyle={lynkStyles.liveList}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#FC253A"
+              colors={["#FC253A"]}
+            />
+          }
+        >
+          {allRooms.map((room) => (
+            <LiveRoomCard
+              key={room.id}
+              space={room}
+              onPress={() => handleRoomPress(room)}
+            />
+          ))}
+        </ScrollView>
+      ) : (
+        <ScrollView
+          contentContainerStyle={lynkStyles.emptyStateContainer}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={handleRefresh}
+              tintColor="#FC253A"
+              colors={["#FC253A"]}
+            />
+          }
+        >
+          <View style={lynkStyles.emptyState}>
+            <Radio size={48} color="#6B7280" />
+            <Text style={lynkStyles.emptyTitle}>No Lynks Yet</Text>
+            <Text style={lynkStyles.emptyText}>
+              Start a live conversation with friends
+            </Text>
+            <TouchableOpacity
+              style={lynkStyles.createLynkButton}
+              onPress={handleCreateLynk}
+            >
+              <Plus size={18} color="#fff" />
+              <Text style={lynkStyles.createLynkText}>Start a Lynk</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      )}
+    </View>
+  );
+}
+
+const lynkStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#262626",
+  },
+  headerLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  headerTitle: {
+    fontSize: 28,
+    fontWeight: "800",
+    color: "#fff",
+    letterSpacing: -0.5,
+  },
+  createButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FC253A",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  liveList: {
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 20,
+    gap: 16,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyState: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 80,
+    gap: 12,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  emptyText: {
+    fontSize: 14,
+    color: "#6B7280",
+    textAlign: "center",
+  },
+  createLynkButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#FC253A",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+    marginTop: 8,
+  },
+  createLynkText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#fff",
+  },
+});
+
+function MessagesScreenContent() {
+  const router = useRouter();
+  const { tab } = useLocalSearchParams<{ tab?: string }>();
+  const insets = useSafeAreaInsets();
+  const currentUser = useAuthStore((s) => s.user);
+  const queryClient = useQueryClient();
+  const trace = useScreenTrace("Messages");
+  useBootstrapMessages();
+
+  const { data: inboxUnreadCount = 0, spamCount: spamUnreadCount = 0 } =
+    useUnreadMessageCount();
+
+  // Realtime subscription for conversation list — listen for new messages
+  // so last-message preview and unread status update automatically.
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    let cancelled = false;
+
+    const channelId = `conv-list-${currentUser.id}-${Date.now()}`;
+    const channel = supabase
+      .channel(channelId)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+        },
+        (payload) => {
+          if (cancelled) return;
+          const newMsg = payload.new as any;
+          const convId = String(newMsg.conversation_id);
+          const content = newMsg.content || "";
+          const isMine = String(newMsg.sender_id) === String(currentUser.id);
+
+          // Optimistically patch conversation list cache
+          queryClient.setQueriesData<any[]>(
+            { queryKey: ["messages", "filtered"] },
+            (old) => {
+              if (!Array.isArray(old)) return old;
+              return old.map((conv: any) => {
+                if (String(conv.id) !== convId) return conv;
+                return {
+                  ...conv,
+                  lastMessage: content,
+                  timestamp: "Just now",
+                  unread: !isMine ? true : conv.unread,
+                };
+              });
+            },
+          );
+
+          // Refresh unread counts badge
+          if (!isMine) {
+            queryClient.invalidateQueries({
+              queryKey: messageKeys.unreadCount(currentUser.id),
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id, queryClient]);
+
+  // Soft refetch on focus — only if data is stale (> 30s old)
+  // Replaces aggressive invalidateQueries which forced refetch on EVERY screen focus
+  useFocusEffect(
+    useCallback(() => {
+      const state = queryClient.getQueryState([
+        "messages",
+        "filtered",
+        "primary",
+        currentUser?.id || "__no_user__",
+      ]);
+      const dataAge = state?.dataUpdatedAt
+        ? Date.now() - state.dataUpdatedAt
+        : Infinity;
+      if (dataAge > 30_000) {
+        queryClient.invalidateQueries({
+          queryKey: [...messageKeys.all(currentUser?.id), "filtered"],
+        });
+      }
+      // Always refresh unread counts on focus — clears phantom badge after markAsRead
+      queryClient.invalidateQueries({
+        queryKey: messageKeys.unreadCount(currentUser?.id),
+      });
+    }, [queryClient, currentUser?.id]),
+  );
+
+  // TanStack Query — renders from cache instantly (primed by boot prefetch)
+  const {
+    data: inboxRaw = [],
+    isLoading: inboxLoading,
+    isRefetching: inboxRefetching,
+  } = useFilteredConversations("primary");
+  const { data: spamRaw = [] } = useFilteredConversations("requests");
+
+  const initialTab = useMemo(() => {
+    if (tab === "requests") return 1;
+    if (tab === "lynk") return 2;
+    return 0;
+  }, [tab]);
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const pagerRef = useRef<PagerView>(null);
+
+  const transformConversation = useCallback(
+    (conv: Conversation): ConversationItem | null => {
+      const otherUser = conv.user;
+      if (!otherUser) return null;
+
+      return {
+        id: conv.id,
+        oderpantId: otherUser.id || conv.id,
+        user: {
+          username:
+            conv.isGroup && conv.groupName
+              ? conv.groupName
+              : otherUser.username,
+          name:
+            conv.isGroup && conv.groupName
+              ? conv.groupName
+              : otherUser.name || otherUser.username,
+          avatar: otherUser.avatar || "",
+        },
+        lastMessage: conv.lastMessage || "",
+        timeAgo: conv.timestamp || "",
+        unread: conv.unread || false,
+        isGroup: conv.isGroup,
+        groupName: conv.groupName,
+        members: conv.members?.map((m) => ({
+          id: m.id,
+          username: m.username,
+          avatar: m.avatar,
+        })),
+      };
+    },
+    [currentUser?.username],
+  );
+
+  const inboxConversations = useMemo(
+    () =>
+      (inboxRaw as Conversation[])
+        .map(transformConversation)
+        .filter((c): c is ConversationItem => c !== null),
+    [inboxRaw, transformConversation],
+  );
+
+  const spamConversations = useMemo(
+    () =>
+      (spamRaw as Conversation[])
+        .map(transformConversation)
+        .filter((c): c is ConversationItem => c !== null),
+    [spamRaw, transformConversation],
+  );
+
+  const isLoading = inboxLoading && inboxConversations.length === 0;
+
+  // Track user-initiated pull-to-refresh so background refetches don't show spinner
+  const isManualRefresh = useRef(false);
+  if (!inboxRefetching) isManualRefresh.current = false;
+
+  const handleRefresh = useCallback(() => {
+    isManualRefresh.current = true;
+    // refetchQueries triggers an immediate fetch and resolves when done —
+    // the RefreshControl spinner dismisses as soon as data arrives.
+    // invalidateQueries only marks stale and re-fetches lazily on next render.
+    queryClient.refetchQueries({ queryKey: ["messages", "filtered"] });
+  }, [queryClient]);
+
+  const handleChatPress = useCallback(
+    (id: string, item?: ConversationItem) => {
+      // Prefetch chat messages before navigation
+      try {
+        useChatStore.getState().loadMessages(id);
+      } catch {}
+      navigateToChat(router, {
+        identifier: id,
+        peerAvatar: item?.user?.avatar,
+        peerUsername: item?.user?.username,
+        peerName: item?.user?.name,
+      });
+    },
+    [router],
+  );
+
+  const handleProfilePress = useCallback(
+    (username: string) => {
+      screenPrefetch.profile(queryClient, username);
+      router.push(`/(protected)/profile/${username}`);
+    },
+    [router, queryClient],
+  );
+
+  const showToast = useUIStore((s) => s.showToast);
+
+  const handleMarkAsRead = useCallback(
+    async (conversationId: string) => {
+      try {
+        await messagesApiClient.markAsRead(conversationId);
+        queryClient.invalidateQueries({
+          queryKey: [...messageKeys.all(currentUser?.id), "filtered"],
+        });
+        queryClient.invalidateQueries({
+          queryKey: messageKeys.unreadCount(currentUser?.id),
+        });
+        showToast("success", "Done", "Marked as read");
+      } catch (err) {
+        console.error("[Messages] markAsRead error:", err);
+      }
+    },
+    [queryClient, showToast],
+  );
+
+  const handleTabPress = useCallback((index: number) => {
+    setActiveTab(index);
+    pagerRef.current?.setPage(index);
+  }, []);
+
+  const handlePageSelected = useCallback(
+    (e: { nativeEvent: { position: number } }) => {
+      setActiveTab(e.nativeEvent.position);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+    pagerRef.current?.setPageWithoutAnimation(initialTab);
+  }, [initialTab]);
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+        <MessagesSkeleton />
+      </View>
+    );
+  }
+
+  return (
+    <View
+      className="flex-1 bg-background max-w-3xl w-full self-center"
+      style={{ paddingTop: insets.top }}
+    >
+      {/* Header */}
+      <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
+        <Pressable onPress={() => router.back()} hitSlop={12}>
+          <ArrowLeft size={24} color="#fff" />
+        </Pressable>
+        <Text className="text-lg font-bold text-foreground">Messages</Text>
+        <View className="flex-row items-center gap-4">
+          <Pressable
+            onPress={() =>
+              router.push("/(protected)/messages/new-group" as any)
+            }
+            hitSlop={12}
+          >
+            <Users size={24} color="#fff" />
+          </Pressable>
+          <Pressable
+            onPress={() => router.push("/(protected)/messages/new" as any)}
+            hitSlop={12}
+          >
+            <Edit size={24} color="#fff" />
+          </Pressable>
+        </View>
+      </View>
+
+      {/* Tab Bar - 3 tabs */}
+      <View className="flex-row border-b border-border">
+        {/* Inbox Tab */}
+        <Pressable
+          onPress={() => handleTabPress(0)}
+          className={`flex-1 flex-row items-center justify-center gap-1.5 py-3 ${
+            activeTab === 0 ? "border-b-2 border-primary" : ""
+          }`}
+        >
+          <Inbox size={16} color={activeTab === 0 ? "#3EA4E5" : "#6B7280"} />
+          <Text
+            className={`font-semibold text-sm ${
+              activeTab === 0 ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            Inbox
+          </Text>
+          {inboxUnreadCount > 0 && (
+            <View className="bg-primary rounded-full px-1.5 py-0.5 min-w-[18px] items-center">
+              <Text className="text-[10px] text-white font-bold">
+                {inboxUnreadCount}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+
+        {/* Requests Tab */}
+        <Pressable
+          onPress={() => handleTabPress(1)}
+          className={`flex-1 flex-row items-center justify-center gap-1.5 py-3 ${
+            activeTab === 1 ? "border-b-2 border-primary" : ""
+          }`}
+        >
+          <ShieldAlert
+            size={16}
+            color={activeTab === 1 ? "#3EA4E5" : "#6B7280"}
+          />
+          <Text
+            className={`font-semibold text-sm ${
+              activeTab === 1 ? "text-primary" : "text-muted-foreground"
+            }`}
+          >
+            Requests
+          </Text>
+          {spamUnreadCount > 0 && (
+            <View className="bg-muted-foreground rounded-full px-1.5 py-0.5 min-w-[18px] items-center">
+              <Text className="text-[10px] text-white font-bold">
+                {spamUnreadCount}
+              </Text>
+            </View>
+          )}
+        </Pressable>
+
+        {/* Sneaky Lynk Tab */}
+        <Pressable
+          onPress={() => handleTabPress(2)}
+          className={`flex-1 flex-row items-center justify-center gap-1.5 py-3 ${
+            activeTab === 2 ? "border-b-2" : ""
+          }`}
+          style={activeTab === 2 ? { borderBottomColor: "#FC253A" } : undefined}
+        >
+          <Radio size={16} color={activeTab === 2 ? "#FC253A" : "#6B7280"} />
+          <Text
+            className={`font-semibold text-sm ${
+              activeTab === 2 ? "" : "text-muted-foreground"
+            }`}
+            style={activeTab === 2 ? { color: "#FC253A" } : undefined}
+          >
+            Sneaky Lynk
+          </Text>
+        </Pressable>
+      </View>
+
+      {/* Swipeable Tab Content */}
+      <PagerView
+        ref={pagerRef}
+        style={{ flex: 1 }}
+        initialPage={initialTab}
+        onPageSelected={handlePageSelected}
+        scrollEnabled={false}
+      >
+        <View key="inbox" style={{ flex: 1 }}>
+          <ConversationList
+            conversations={inboxConversations}
+            isRefreshing={isManualRefresh.current && inboxRefetching}
+            onRefresh={handleRefresh}
+            onChatPress={handleChatPress}
+            onProfilePress={handleProfilePress}
+            onMarkAsRead={handleMarkAsRead}
+            emptyTitle="No Messages"
+            emptyDescription="Messages from people you follow will appear here"
+            emptyIcon={Inbox}
+            router={router}
+          />
+        </View>
+        <View key="requests" style={{ flex: 1 }}>
+          <ConversationList
+            conversations={spamConversations}
+            isRefreshing={isManualRefresh.current && inboxRefetching}
+            onRefresh={handleRefresh}
+            onChatPress={handleChatPress}
+            onProfilePress={handleProfilePress}
+            onMarkAsRead={handleMarkAsRead}
+            emptyTitle="No Message Requests"
+            emptyDescription="Messages from people you don't follow will appear here"
+            emptyIcon={ShieldAlert}
+            router={router}
+          />
+        </View>
+        <View key="lynks" style={{ flex: 1 }}>
+          <SneakyLynkContent router={router} isActive={activeTab === 2} />
+        </View>
+      </PagerView>
+    </View>
+  );
+}
+
+export default function MessagesScreen() {
+  const router = useRouter();
+  return (
+    <ErrorBoundary screenName="Messages" onGoBack={() => router.back()}>
+      <MessagesScreenContent />
+    </ErrorBoundary>
+  );
+}
