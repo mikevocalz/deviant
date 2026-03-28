@@ -439,6 +439,8 @@ function ChatScreenContent() {
 
   // Hook to refresh message counts after marking as read
   const refreshMessageCounts = useRefreshMessageCounts();
+  const currentUser = useAuthStore((s) => s.user);
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   // CRITICAL: Declare queryClient early so it can be passed to async functions
   // This prevents illegal hook calls inside async/nested functions
@@ -502,9 +504,10 @@ function ChatScreenContent() {
     if (isConversationValid) {
       messagesApiClient
         .markAsRead(activeConvId)
-        .then(async () => {
-          await refreshMessageCounts();
-          console.log("[Chat] Marked as read + badge refreshed");
+        .then(async (result) => {
+          if (!result.ok) return;
+          await refreshMessageCounts(activeConvId, result.unread);
+          console.log("[Chat] Marked as read + badge reconciled");
         })
         .catch((error) => {
           console.error("[Chat] markAsRead error:", error);
@@ -650,7 +653,13 @@ function ChatScreenContent() {
           // Merge into cache with dedup (O(1) — no DB round-trip)
           mergeRealtimeMessage(convId, localMessage);
           // Auto-mark as read since the user is actively viewing the chat
-          messagesApiClient.markAsRead(convId).catch(() => {});
+          messagesApiClient
+            .markAsRead(convId)
+            .then((result) => {
+              if (!result.ok) return;
+              void refreshMessageCounts(convId, result.unread);
+            })
+            .catch(() => {});
         },
       )
       .subscribe((status, err) => {
@@ -667,11 +676,6 @@ function ChatScreenContent() {
       supabase.removeChannel(channel);
     };
   }, [activeConvId, mergeRealtimeMessage]);
-  // FIX: Replaced ALL useState with Zustand to comply with project mandate
-  // and eliminate render loop triggers from state updates
-  const currentUser = useAuthStore((s) => s.user);
-  const currentUserId = useAuthStore((s) => s.user?.id);
-
   const {
     recipient,
     isLoadingRecipient,

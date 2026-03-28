@@ -33,6 +33,7 @@ import {
   useUnreadMessageCount,
   useFilteredConversations,
   messageKeys,
+  useRefreshMessageCounts,
 } from "@/lib/hooks/use-messages";
 import { useQueryClient } from "@tanstack/react-query";
 import { navigateToChat } from "@/lib/navigation/chat-routes";
@@ -532,6 +533,7 @@ function MessagesScreenContent() {
   const queryClient = useQueryClient();
   const trace = useScreenTrace("Messages");
   useBootstrapMessages();
+  const refreshMessageCounts = useRefreshMessageCounts();
 
   const { data: inboxUnreadCount = 0, spamCount: spamUnreadCount = 0 } =
     useUnreadMessageCount();
@@ -730,19 +732,15 @@ function MessagesScreenContent() {
   const handleMarkAsRead = useCallback(
     async (conversationId: string) => {
       try {
-        await messagesApiClient.markAsRead(conversationId);
-        queryClient.invalidateQueries({
-          queryKey: [...messageKeys.all(currentUser?.id), "filtered"],
-        });
-        queryClient.invalidateQueries({
-          queryKey: messageKeys.unreadCount(currentUser?.id),
-        });
+        const result = await messagesApiClient.markAsRead(conversationId);
+        if (!result.ok) return;
+        await refreshMessageCounts(conversationId, result.unread);
         showToast("success", "Done", "Marked as read");
       } catch (err) {
         console.error("[Messages] markAsRead error:", err);
       }
     },
-    [queryClient, showToast],
+    [refreshMessageCounts, showToast],
   );
 
   const handleTabPress = useCallback((index: number) => {

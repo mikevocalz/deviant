@@ -4,18 +4,13 @@ import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
+import { messageKeys } from "@/lib/messages/query-keys";
+import {
+  reconcileConversationReadState,
+  type UnreadSnapshot,
+} from "@/lib/messages/read-reconciliation";
 
-// Query keys - scoped by viewerId for cache isolation
-// CRITICAL: viewerId MUST be first parameter to prevent cross-user cache pollution
-export const messageKeys = {
-  all: (viewerId?: string) => ["messages", viewerId || "__no_user__"] as const,
-  unreadCount: (viewerId?: string) =>
-    [...messageKeys.all(viewerId), "unreadCount"] as const,
-  spamUnreadCount: (viewerId?: string) =>
-    [...messageKeys.all(viewerId), "spamUnreadCount"] as const,
-  conversations: (viewerId?: string) =>
-    [...messageKeys.all(viewerId), "conversations"] as const,
-};
+export { messageKeys } from "@/lib/messages/query-keys";
 
 /**
  * Hook to get unread message count for INBOX ONLY
@@ -110,24 +105,37 @@ export function useFilteredConversations(filter: "primary" | "requests") {
  */
 export function useRefreshMessageCounts() {
   const queryClient = useQueryClient();
-  const refreshMessagesUnread = useUnreadCountsStore(
-    (s) => s.refreshMessagesUnread,
-  );
   const user = useAuthStore((s) => s.user);
   const viewerId = user?.id;
 
-  return async () => {
-    // Invalidate query cache - use scoped key
-    if (viewerId) {
-      await queryClient.invalidateQueries({
-        queryKey: messageKeys.unreadCount(viewerId),
-      });
+  return async (
+    conversationId?: string,
+    serverUnread?: UnreadSnapshot | null,
+  ) => {
+    if (!viewerId) return;
+
+    if (conversationId) {
+      reconcileConversationReadState(
+        queryClient,
+        viewerId,
+        conversationId,
+        serverUnread,
+      );
     }
-    // Also invalidate conversations list so unread flags update
-    await queryClient.invalidateQueries({
-      queryKey: [...messageKeys.all(viewerId), "filtered"],
-    });
-    // Also refresh store
-    await refreshMessagesUnread();
+
+    await Promise.allSettled([
+      queryClient.invalidateQueries({
+        queryKey: messageKeys.unreadCount(viewerId),
+        refetchType: "active",
+      }),
+      queryClient.invalidateQueries({
+        queryKey: messageKeys.conversations(viewerId),
+        refetchType: "active",
+      }),
+      queryClient.invalidateQueries({
+        queryKey: [...messageKeys.all(viewerId), "filtered"],
+        refetchType: "active",
+      }),
+    ]);
   };
 }

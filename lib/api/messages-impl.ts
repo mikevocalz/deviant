@@ -37,6 +37,19 @@ interface FollowingState {
   isAuthoritative: boolean;
 }
 
+interface MarkAsReadResponse {
+  ok: boolean;
+  data?: {
+    markedRead: number;
+    unread?: {
+      inbox: number;
+      spam: number;
+      authoritative?: boolean;
+    };
+  };
+  error?: { code?: string; message?: string } | string;
+}
+
 export const messagesApi = {
   /**
    * Get conversations list — BATCHED (O(4) round-trips regardless of N conversations)
@@ -770,19 +783,30 @@ export const messagesApi = {
       const token = await requireBetterAuthToken();
 
       // Use edge function to bypass RLS — anon key cannot update messages table
-      const { data, error } = await supabase.functions.invoke("mark-read", {
-        body: { conversationId: parseInt(conversationId) },
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const { data, error } = await supabase.functions.invoke<MarkAsReadResponse>(
+        "mark-read",
+        {
+          body: { conversationId: parseInt(conversationId) },
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
 
       if (error) {
         console.error("[Messages] markAsRead edge function error:", error);
-        return;
+        return {
+          ok: false,
+          markedRead: 0,
+          unread: null,
+        };
       }
 
       if (!data?.ok) {
         console.error("[Messages] markAsRead failed:", data?.error);
-        return;
+        return {
+          ok: false,
+          markedRead: 0,
+          unread: null,
+        };
       }
 
       console.log(
@@ -790,8 +814,21 @@ export const messagesApi = {
         data.data?.markedRead,
         "messages marked",
       );
+      if (data.data?.unread) {
+        console.log("[Messages] markAsRead unread snapshot:", data.data.unread);
+      }
+      return {
+        ok: true,
+        markedRead: data.data?.markedRead ?? 0,
+        unread: data.data?.unread ?? null,
+      };
     } catch (error) {
       console.error("[Messages] markAsRead error:", error);
+      return {
+        ok: false,
+        markedRead: 0,
+        unread: null,
+      };
     }
   },
 

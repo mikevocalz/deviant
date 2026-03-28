@@ -154,6 +154,15 @@ describe("Messages unread source invariants", () => {
     expect(source).toContain("ON CONFLICT (conversation_id, user_id) DO UPDATE");
   });
 
+  it("grants service-role write access to conversation_reads for unread reconciliation", () => {
+    const source = read(
+      "supabase/migrations/20260401006000_conversation_reads_service_role_grants.sql",
+    );
+    expect(source).toContain("GRANT SELECT, INSERT, UPDATE, DELETE");
+    expect(source).toContain("public.conversation_reads");
+    expect(source).toContain("TO service_role");
+  });
+
   it("realtime message patches compare sender_id against the integer viewer id, not auth-store raw ids", () => {
     const messagesScreen = read("app/(protected)/messages.tsx");
     const chatScreen = read("app/(protected)/chat/[id].tsx");
@@ -177,5 +186,35 @@ describe("Messages unread source invariants", () => {
     expect(messagesScreen).not.toContain('queryKey: ["messages", "filtered"]');
     expect(chatScreen).not.toContain('queryKey: ["messages", "filtered"]');
     expect(bootstrapHook).not.toContain('["messages", "filtered", "primary", userId]');
+  });
+
+  it("mark-read returns an unread snapshot so the badge can reconcile immediately", () => {
+    const source = read("supabase/functions/mark-read/index.ts");
+    expect(source).toContain("getUnreadCountsSnapshot");
+    expect(source).toContain("data: { markedRead: count, unread }");
+    expect(source).toContain("authoritative");
+  });
+
+  it("read reconciliation patches the conversation row and unread counts together", () => {
+    const source = read("lib/messages/read-reconciliation.ts");
+    expect(source).toContain('"filtered", "primary"');
+    expect(source).toContain('"filtered", "requests"');
+    expect(source).toContain("setMessagesUnread(nextUnread.inbox)");
+    expect(source).toContain("setSpamUnread(nextUnread.spam)");
+  });
+
+  it("chat and messages flows apply the shared read reconciler after mark-as-read succeeds", () => {
+    const messagesScreen = read("app/(protected)/messages.tsx");
+    const chatScreen = read("app/(protected)/chat/[id].tsx");
+    const messagesHook = read("lib/hooks/use-messages.ts");
+
+    expect(messagesScreen).toContain("if (!result.ok) return");
+    expect(messagesScreen).toContain("refreshMessageCounts(conversationId, result.unread)");
+
+    expect(chatScreen).toContain("if (!result.ok) return");
+    expect(chatScreen).toContain("refreshMessageCounts(activeConvId, result.unread)");
+    expect(chatScreen).toContain("refreshMessageCounts(convId, result.unread)");
+
+    expect(messagesHook).toContain("reconcileConversationReadState");
   });
 });
