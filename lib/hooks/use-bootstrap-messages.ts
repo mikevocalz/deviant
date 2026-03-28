@@ -23,7 +23,7 @@ function hydrateFromMessagesBootstrap(
 ) {
   // 1. Seed the filtered conversations cache (primary inbox)
   queryClient.setQueryData(
-    ["messages", "filtered", "primary", userId],
+    [...messageKeys.all(userId), "filtered", "primary"],
     data.conversations,
   );
 
@@ -58,10 +58,9 @@ export function useBootstrapMessages() {
 
     // Check if we already have fresh conversation data
     const existing = queryClient.getQueryData([
-      "messages",
+      ...messageKeys.all(userId),
       "filtered",
       "primary",
-      userId,
     ]);
     if (existing) {
       trace.markCacheHit();

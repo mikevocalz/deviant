@@ -1,5 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
+import { partitionConversationsByFollowState } from "@/lib/messages/conversation-buckets";
 import {
   getCurrentUserIdInt,
   getCurrentUserAuthId,
@@ -23,29 +24,6 @@ async function resolveVisitorIdInt(): Promise<number | null> {
   if (asyncId) return asyncId;
   console.warn("[Messages] resolveVisitorIdInt: could not resolve visitor ID");
   return null;
-}
-
-function partitionConversationsByFollowState<
-  T extends { user?: { id?: string } },
->(conversations: T[], followingIds: string[]): { primary: T[]; requests: T[] } {
-  if (followingIds.length === 0) {
-    return { primary: conversations, requests: [] };
-  }
-
-  const followedIds = new Set(followingIds.map(String));
-  const primary: T[] = [];
-  const requests: T[] = [];
-
-  for (const conversation of conversations) {
-    const otherUserId = conversation.user?.id;
-    if (otherUserId && followedIds.has(String(otherUserId))) {
-      primary.push(conversation);
-    } else {
-      requests.push(conversation);
-    }
-  }
-
-  return { primary, requests };
 }
 
 interface SendMessageResponse {

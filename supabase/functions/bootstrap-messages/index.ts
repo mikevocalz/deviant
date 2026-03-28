@@ -76,11 +76,6 @@ Deno.serve(async (req: Request) => {
       (followingRows || []).map((f: any) => String(f.following_id)),
     );
 
-    // CRITICAL GUARD: If followingIds is empty (query failed or new user),
-    // treat ALL conversations as primary to prevent misrouting to Requests.
-    // This matches the client-side guard in getFilteredConversations.
-    const followingIdsEmpty = followingIds.size === 0;
-
     // ── 3. Get conversations where user is a participant ──────────────
     const { data: convRels } = await supabase
       .from("conversations_rels")
@@ -157,7 +152,7 @@ Deno.serve(async (req: Request) => {
           .select("id", { count: "exact", head: true })
           .eq("conversation_id", convId)
           .is("read_at", null)
-          .neq("sender_id", authId);
+          .neq("sender_id", userIntId);
 
         const hasUnread = (unreadCount ?? 0) > 0;
 
@@ -178,9 +173,7 @@ Deno.serve(async (req: Request) => {
           timestamp: conv.last_message_at || lastMsg?.created_at || "",
           unread: hasUnread,
           isGroup: !!conv.is_group,
-          // If followingIds is empty (query failed), treat ALL as primary
-          // to prevent misrouting all conversations to Requests.
-          isPrimary: followingIdsEmpty || isFollowed || !!conv.is_group,
+          isPrimary: isFollowed || !!conv.is_group,
         };
       }),
     );

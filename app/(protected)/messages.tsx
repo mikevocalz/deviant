@@ -560,7 +560,7 @@ function MessagesScreenContent() {
 
           // Optimistically patch conversation list cache
           queryClient.setQueriesData<any[]>(
-            { queryKey: ["messages", "filtered"] },
+            { queryKey: [...messageKeys.all(currentUser.id), "filtered"] },
             (old) => {
               if (!Array.isArray(old)) return old;
               return old.map((conv: any) => {
@@ -596,10 +596,9 @@ function MessagesScreenContent() {
   useFocusEffect(
     useCallback(() => {
       const state = queryClient.getQueryState([
-        "messages",
+        ...messageKeys.all(currentUser?.id),
         "filtered",
         "primary",
-        currentUser?.id || "__no_user__",
       ]);
       const dataAge = state?.dataUpdatedAt
         ? Date.now() - state.dataUpdatedAt
@@ -693,8 +692,10 @@ function MessagesScreenContent() {
     // refetchQueries triggers an immediate fetch and resolves when done —
     // the RefreshControl spinner dismisses as soon as data arrives.
     // invalidateQueries only marks stale and re-fetches lazily on next render.
-    queryClient.refetchQueries({ queryKey: ["messages", "filtered"] });
-  }, [queryClient]);
+    queryClient.refetchQueries({
+      queryKey: [...messageKeys.all(currentUser?.id), "filtered"],
+    });
+  }, [queryClient, currentUser?.id]);
 
   const handleChatPress = useCallback(
     (id: string, item?: ConversationItem) => {

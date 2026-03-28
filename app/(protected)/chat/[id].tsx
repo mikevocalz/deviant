@@ -58,7 +58,7 @@ import { normalizeChatParams } from "@/lib/navigation/chat-routes";
 import { messagesApiClient } from "@/lib/api/messages";
 import { useConversationResolution } from "@/lib/hooks/use-conversation-resolution";
 import { MENTION_COLOR } from "@/src/constants/mentions";
-import { useRefreshMessageCounts } from "@/lib/hooks/use-messages";
+import { messageKeys, useRefreshMessageCounts } from "@/lib/hooks/use-messages";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import {
@@ -953,7 +953,7 @@ function ChatScreenContent() {
         minute: "2-digit",
       });
       queryClient.setQueriesData<any[]>(
-        { queryKey: ["messages", "filtered"] },
+        { queryKey: [...messageKeys.all(currentUserId), "filtered"] },
         (old) => {
           if (!Array.isArray(old)) return old;
           return old.map((conv: any) =>

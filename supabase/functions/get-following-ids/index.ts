@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
     const userData = await resolveOrProvisionUser(
       supabaseAdmin,
       sessionData.userId,
-      "auth_id",
+      "id",
     );
     if (!userData) {
       return new Response(JSON.stringify({ followingIds: [] }), {
