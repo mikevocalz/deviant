@@ -5,11 +5,12 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
+import { verifySession } from "../_shared/verify-session.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-auth-token",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -24,26 +25,17 @@ Deno.serve(async (req) => {
     });
   }
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      console.error("[Edge:get-following-ids] No authorization header");
-      // Return empty array instead of 401 - prevents breaking messages UI
-      return new Response(JSON.stringify({ followingIds: [] }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const token = authHeader.replace("Bearer ", "");
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
     if (!supabaseUrl || !supabaseServiceKey) {
       console.error("[Edge:get-following-ids] Missing server config");
-      // Return empty array instead of 500 - prevents breaking messages UI
-      return new Response(JSON.stringify({ followingIds: [] }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ followingIds: [], authoritative: false }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
@@ -51,42 +43,28 @@ Deno.serve(async (req) => {
       global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
     });
 
-    const { data: sessionData, error: sessionError } = await supabaseAdmin
-      .from("session")
-      .select("userId, expiresAt")
-      .eq("token", token)
-      .single();
-
-    if (sessionError || !sessionData) {
-      console.error(
-        "[Edge:get-following-ids] Session lookup failed:",
-        sessionError,
+    const authUserId = await verifySession(supabaseAdmin, req);
+    if (!authUserId) {
+      console.error("[Edge:get-following-ids] Session unavailable");
+      // Return empty array instead of 401 - prevents breaking messages UI
+      return new Response(
+        JSON.stringify({ followingIds: [], authoritative: false }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
       );
-      // Return empty array instead of 401 - prevents breaking messages UI
-      return new Response(JSON.stringify({ followingIds: [] }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (new Date(sessionData.expiresAt) < new Date()) {
-      console.warn("[Edge:get-following-ids] Session expired");
-      // Return empty array instead of 401 - prevents breaking messages UI
-      return new Response(JSON.stringify({ followingIds: [] }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
     }
 
-    const userData = await resolveOrProvisionUser(
-      supabaseAdmin,
-      sessionData.userId,
-      "id",
-    );
+    const userData = await resolveOrProvisionUser(supabaseAdmin, authUserId, "id");
     if (!userData) {
-      return new Response(JSON.stringify({ followingIds: [] }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ followingIds: [], authoritative: false }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     // Query follows table - follower_id should be the integer user.id
@@ -103,10 +81,13 @@ Deno.serve(async (req) => {
     if (error) {
       console.error("[Edge:get-following-ids] Supabase error:", error);
       // Return empty array instead of 500 - prevents breaking messages UI
-      return new Response(JSON.stringify({ followingIds: [] }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ followingIds: [], authoritative: false }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
     }
 
     console.log("[Edge:get-following-ids] Found follows:", data?.length || 0);
@@ -114,16 +95,22 @@ Deno.serve(async (req) => {
     // Convert to string array (following_id is integer in DB)
     const followingIds = (data || []).map((f: any) => String(f.following_id));
 
-    return new Response(JSON.stringify({ followingIds }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ followingIds, authoritative: true }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (err) {
     console.error("[Edge:get-following-ids] Unexpected error:", err);
     // Return empty array instead of 500 - prevents breaking messages UI
-    return new Response(JSON.stringify({ followingIds: [] }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return new Response(
+      JSON.stringify({ followingIds: [], authoritative: false }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 });

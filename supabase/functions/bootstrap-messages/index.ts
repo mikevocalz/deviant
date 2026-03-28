@@ -67,10 +67,18 @@ Deno.serve(async (req: Request) => {
     const userIntId = userRow.id;
 
     // ── 2. Get user's following list (for primary/requests split) ─────
-    const { data: followingRows } = await supabase
+    const { data: followingRows, error: followingError } = await supabase
       .from("follows")
       .select("following_id")
       .eq("follower_id", userIntId);
+
+    const followingIdsKnown = !followingError;
+    if (followingError) {
+      console.error(
+        "[bootstrap-messages] following lookup failed; keeping directs in Inbox",
+        followingError,
+      );
+    }
 
     const followingIds = new Set(
       (followingRows || []).map((f: any) => String(f.following_id)),
@@ -173,7 +181,7 @@ Deno.serve(async (req: Request) => {
           timestamp: conv.last_message_at || lastMsg?.created_at || "",
           unread: hasUnread,
           isGroup: !!conv.is_group,
-          isPrimary: isFollowed || !!conv.is_group,
+          isPrimary: !followingIdsKnown || isFollowed || !!conv.is_group,
         };
       }),
     );

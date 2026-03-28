@@ -15,6 +15,20 @@ describe("Messages unread routing", () => {
     expect(buckets.requests.map((c) => c.id)).toEqual(["request"]);
   });
 
+  it("keeps directs in Inbox when follow state is unavailable", () => {
+    const conversations = [
+      { id: "followed", user: { id: "2" }, isGroup: false },
+      { id: "unknown", user: { id: "3" }, isGroup: false },
+    ];
+
+    const buckets = partitionConversationsByFollowState(conversations, [], {
+      isAuthoritative: false,
+    });
+
+    expect(buckets.primary.map((c) => c.id)).toEqual(["followed", "unknown"]);
+    expect(buckets.requests).toEqual([]);
+  });
+
   it("always keeps group chats in Inbox", () => {
     const conversations = [
       { id: "group", user: { id: "999" }, isGroup: true },
@@ -36,12 +50,20 @@ describe("Messages unread source invariants", () => {
     const source = read("supabase/functions/get-following-ids/index.ts");
     expect(source).toContain('"id"');
     expect(source).toContain('.eq("follower_id", userData.id)');
+    expect(source).toContain("authoritative: true");
+    expect(source).toContain("authoritative: false");
   });
 
   it("bootstrap-messages excludes the viewer's own integer sender_id from unread counts", () => {
     const source = read("supabase/functions/bootstrap-messages/index.ts");
     expect(source).toContain('.neq("sender_id", userIntId)');
     expect(source).not.toContain('.neq("sender_id", authId)');
+  });
+
+  it("bootstrap-messages fails open when follow-state lookup is unavailable", () => {
+    const source = read("supabase/functions/bootstrap-messages/index.ts");
+    expect(source).toContain("const followingIdsKnown = !followingError");
+    expect(source).toContain("!followingIdsKnown || isFollowed || !!conv.is_group");
   });
 
   it("messages caches use viewer-scoped filtered keys instead of raw unscoped prefixes", () => {

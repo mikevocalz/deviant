@@ -32,6 +32,11 @@ interface SendMessageResponse {
   error?: { code: string; message: string };
 }
 
+interface FollowingState {
+  ids: string[];
+  isAuthoritative: boolean;
+}
+
 export const messagesApi = {
   /**
    * Get conversations list — BATCHED (O(4) round-trips regardless of N conversations)
@@ -632,16 +637,17 @@ export const messagesApi = {
    */
   async getUnreadCounts(): Promise<{ inbox: number; spam: number }> {
     try {
-      const [authId, conversations, followingIds] = await Promise.all([
+      const [authId, conversations, followingState] = await Promise.all([
         getCurrentUserAuthId(),
         this.getConversations(),
-        this.getFollowingIds(),
+        this.getFollowingState(),
       ]);
       if (!authId) return { inbox: 0, spam: 0 };
 
       const { primary, requests } = partitionConversationsByFollowState(
         conversations,
-        followingIds,
+        followingState.ids,
+        { isAuthoritative: followingState.isAuthoritative },
       );
       return {
         inbox: primary.filter((c: any) => c.unread).length,
@@ -841,13 +847,14 @@ export const messagesApi = {
   async getFilteredConversations(filter: "primary" | "requests") {
     try {
       // Parallel — conversations and followingIds are independent
-      const [conversations, followingIds] = await Promise.all([
+      const [conversations, followingState] = await Promise.all([
         this.getConversations(),
-        this.getFollowingIds(),
+        this.getFollowingState(),
       ]);
       const buckets = partitionConversationsByFollowState(
         conversations,
-        followingIds,
+        followingState.ids,
+        { isAuthoritative: followingState.isAuthoritative },
       );
       return filter === "primary" ? buckets.primary : buckets.requests;
     } catch (error) {
@@ -857,13 +864,17 @@ export const messagesApi = {
   },
 
   /**
-   * Get IDs of users the current user is following (Edge Function — bypasses RLS)
+   * Get IDs of users the current user is following plus lookup fidelity.
+   *
+   * `isAuthoritative=false` means the follow-state lookup failed, so callers
+   * should avoid routing conversations into Requests based on an empty list.
    */
-  async getFollowingIds(): Promise<string[]> {
+  async getFollowingState(): Promise<FollowingState> {
     try {
       const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke<{
         followingIds?: string[];
+        authoritative?: boolean;
         error?: string;
       }>("get-following-ids", {
         body: {},
@@ -872,18 +883,32 @@ export const messagesApi = {
 
       if (error) {
         console.error("[Messages] getFollowingIds Edge Function error:", error);
-        return [];
+        return { ids: [], isAuthoritative: false };
       }
       if (!data?.followingIds) {
         if (data?.error)
           console.error("[Messages] get-following-ids:", data.error);
-        return [];
+        return {
+          ids: [],
+          isAuthoritative: data?.authoritative === true,
+        };
       }
-      return data.followingIds;
+      return {
+        ids: data.followingIds,
+        isAuthoritative: data.authoritative !== false,
+      };
     } catch (error) {
       console.error("[Messages] getFollowingIds error:", error);
-      return [];
+      return { ids: [], isAuthoritative: false };
     }
+  },
+
+  /**
+   * Legacy helper for callers that only need the raw followed-user IDs.
+   */
+  async getFollowingIds(): Promise<string[]> {
+    const { ids } = await this.getFollowingState();
+    return ids;
   },
 };
 

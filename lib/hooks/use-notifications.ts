@@ -96,8 +96,11 @@ export function useNotifications() {
               // Check if sender is followed (Inbox) or not (Spam)
               const senderId = data.senderId as string;
               if (senderId) {
-                const followingIds = await messagesApiClient.getFollowingIds();
-                const isInbox = followingIds.includes(senderId);
+                const followingState =
+                  await messagesApiClient.getFollowingState();
+                const isInbox =
+                  !followingState.isAuthoritative ||
+                  followingState.ids.includes(senderId);
 
                 if (isInbox) {
                   // Only increment Messages badge for Inbox messages
