@@ -127,14 +127,17 @@ function TextPostSurfaceComponent({
           style={{
             flex: 1,
             padding: metrics.padding,
+            paddingTop:
+              variant === "grid" ? metrics.padding + 18 : metrics.padding,
             justifyContent: variant === "grid" ? "space-between" : "center",
           }}
         >
           {variant !== "feed" && (
             <View
               style={{
-                alignSelf: "flex-end",
-                marginBottom: variant === "grid" ? 12 : 18,
+                position: "absolute",
+                top: metrics.padding,
+                right: metrics.padding,
                 width: variant === "grid" ? 118 : 132,
                 height: variant === "grid" ? 28 : 32,
                 alignItems: "center",
