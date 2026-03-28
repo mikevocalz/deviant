@@ -62,13 +62,7 @@ export function useAppResume() {
         // Refresh badge counts (most important for perceived freshness)
         queryClient.prefetchQuery({
           queryKey: messageKeys.unreadCount(userId),
-          queryFn: async () => {
-            const [inbox, spam] = await Promise.all([
-              messagesApiClient.getUnreadCount(),
-              messagesApiClient.getSpamUnreadCount(),
-            ]);
-            return { inbox, spam };
-          },
+          queryFn: () => messagesApiClient.getUnreadCounts(),
         }),
 
         // Refresh notification badges

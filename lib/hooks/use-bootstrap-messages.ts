@@ -27,20 +27,23 @@ function hydrateFromMessagesBootstrap(
     data.conversations,
   );
 
-  // 2. Seed unread counts
-  queryClient.setQueryData(messageKeys.unreadCount(userId), {
-    inbox: data.unreadInbox,
-    spam: data.unreadSpam,
-  });
+  // 2. Seed unread counts only when backend confirms they are authoritative.
+  if (data.unreadAuthoritative) {
+    queryClient.setQueryData(messageKeys.unreadCount(userId), {
+      inbox: data.unreadInbox,
+      spam: data.unreadSpam,
+    });
 
-  // 3. Sync with unread counts store for badge rendering
-  const store = useUnreadCountsStore.getState();
-  store.setMessagesUnread(data.unreadInbox);
-  store.setSpamUnread(data.unreadSpam);
+    // 3. Sync with unread counts store for badge rendering
+    const store = useUnreadCountsStore.getState();
+    store.setMessagesUnread(data.unreadInbox);
+    store.setSpamUnread(data.unreadSpam);
+  }
 
   console.log(
     `[BootstrapMessages] Hydrated cache: ${data.conversations.length} conversations, ` +
-      `${data.unreadInbox} inbox unread, ${data.unreadSpam} spam unread`,
+      `${data.unreadInbox} inbox unread, ${data.unreadSpam} spam unread, ` +
+      `authoritative=${data.unreadAuthoritative === true}`,
   );
 }
 

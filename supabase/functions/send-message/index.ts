@@ -129,6 +129,7 @@ Deno.serve(async (req) => {
 
     const userId = userData.id;
     const senderUsername = userData.username || "Someone";
+    const sentAt = new Date().toISOString();
 
     // Verify user is a member of the conversation
     // conversations_rels.users_id is TEXT (auth_id), not integer
@@ -153,6 +154,31 @@ Deno.serve(async (req) => {
       "Conversation:",
       conversationId,
     );
+
+    const { data: conversation } = await supabaseAdmin
+      .from("conversations")
+      .select("is_group")
+      .eq("id", conversationId)
+      .single();
+
+    const { error: readCursorError } = await supabaseAdmin
+      .from("conversation_reads")
+      .upsert(
+        {
+          conversation_id: conversationId,
+          user_id: userId,
+          last_read_at: sentAt,
+          updated_at: sentAt,
+        },
+        { onConflict: "conversation_id,user_id" },
+      );
+
+    if (readCursorError) {
+      console.error(
+        "[Edge:send-message] Failed to update conversation read cursor:",
+        readCursorError,
+      );
+    }
 
     // Insert message with optional metadata (e.g. story reply context, media)
     const mergedMetadata: Record<string, unknown> = {
@@ -179,6 +205,25 @@ Deno.serve(async (req) => {
         : "📷 Photo"
       : "";
 
+    // Replying implies the sender has seen any older inbound messages in this
+    // conversation. Clear those unread rows here so unread truth stays correct
+    // even if the client missed a separate mark-read call.
+    if (!conversation?.is_group) {
+      const { error: markReadOnReplyError } = await supabaseAdmin
+        .from("messages")
+        .update({ read_at: sentAt })
+        .eq("conversation_id", conversationId)
+        .is("read_at", null)
+        .neq("sender_id", userId);
+
+      if (markReadOnReplyError) {
+        console.error(
+          "[Edge:send-message] Failed to reconcile unread state on reply:",
+          markReadOnReplyError,
+        );
+      }
+    }
+
     const insertPayload: Record<string, unknown> = {
       conversation_id: conversationId,
       sender_id: userId,
@@ -202,7 +247,7 @@ Deno.serve(async (req) => {
     // Update conversation's last_message_at
     await supabaseAdmin
       .from("conversations")
-      .update({ last_message_at: new Date().toISOString() })
+      .update({ last_message_at: sentAt })
       .eq("id", conversationId);
 
     console.log("[Edge:send-message] Message sent:", message.id);

@@ -49,12 +49,25 @@ Deno.serve(async (req: Request) => {
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
 
-    // ── 1. Get user's auth_id from users table ────────────────────────
-    const { data: userRow } = await supabase
-      .from("users")
-      .select("id, auth_id, username")
-      .eq("id", user_id)
-      .single();
+    // ── 1. Resolve both integer users.id and auth_id ──────────────────
+    let userRow: { id: number; auth_id: string; username?: string } | null =
+      null;
+    const asInt = parseInt(String(user_id), 10);
+    if (!Number.isNaN(asInt) && String(asInt) === String(user_id)) {
+      const { data } = await supabase
+        .from("users")
+        .select("id, auth_id, username")
+        .eq("id", asInt)
+        .single();
+      userRow = data;
+    } else {
+      const { data } = await supabase
+        .from("users")
+        .select("id, auth_id, username")
+        .eq("auth_id", user_id)
+        .single();
+      userRow = data;
+    }
 
     if (!userRow) {
       return new Response(JSON.stringify({ error: "user not found" }), {
@@ -98,10 +111,56 @@ Deno.serve(async (req: Request) => {
           conversations: [],
           unreadInbox: 0,
           unreadSpam: 0,
+          unreadAuthoritative: true,
           _meta: { elapsed: Date.now() - t0, count: 0 },
         }),
         { headers: { "Content-Type": "application/json" } },
       );
+    }
+
+    const [
+      { data: incomingRows, error: incomingError },
+      { data: readRows, error: readError },
+    ] = await Promise.all([
+        supabase
+          .from("messages")
+          .select("conversation_id, created_at")
+          .in("conversation_id", convIds)
+          .neq("sender_id", userIntId)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("conversation_reads")
+          .select("conversation_id, last_read_at")
+          .in("conversation_id", convIds)
+          .eq("user_id", userIntId),
+      ]);
+
+    const readStateKnown = !incomingError && !readError;
+    if (incomingError || readError) {
+      console.error("[bootstrap-messages] read-state lookup failed:", {
+        incomingError,
+        readError,
+      });
+    }
+
+    const lastReadAtByConv = new Map<number, string>();
+    for (const row of readRows || []) {
+      if (row?.conversation_id != null && row?.last_read_at) {
+        lastReadAtByConv.set(Number(row.conversation_id), row.last_read_at);
+      }
+    }
+
+    const unreadConvIds = new Set<number>();
+    for (const row of incomingRows || []) {
+      const convId = Number(row.conversation_id);
+      if (!convId || unreadConvIds.has(convId)) continue;
+      const lastReadAt = lastReadAtByConv.get(convId);
+      if (
+        !lastReadAt ||
+        new Date(row.created_at).getTime() > new Date(lastReadAt).getTime()
+      ) {
+        unreadConvIds.add(convId);
+      }
     }
 
     // ── 4. Fetch conversation details + last message + other user ─────
@@ -154,15 +213,16 @@ Deno.serve(async (req: Request) => {
           }
         }
 
-        // Check unread
-        const { count: unreadCount } = await supabase
-          .from("messages")
-          .select("id", { count: "exact", head: true })
-          .eq("conversation_id", convId)
-          .is("read_at", null)
-          .neq("sender_id", userIntId);
-
-        const hasUnread = (unreadCount ?? 0) > 0;
+        let hasUnread = unreadConvIds.has(convId);
+        if (!readStateKnown) {
+          const { count: unreadCount } = await supabase
+            .from("messages")
+            .select("id", { count: "exact", head: true })
+            .eq("conversation_id", convId)
+            .is("read_at", null)
+            .neq("sender_id", userIntId);
+          hasUnread = (unreadCount ?? 0) > 0;
+        }
 
         // Determine if this is primary or request
         const otherIntId = otherUser?.id ? String(otherUser.id) : "";
@@ -200,6 +260,7 @@ Deno.serve(async (req: Request) => {
     const filteredConvs = filter === "primary" ? primary : requests;
     const unreadInbox = primary.filter((c: any) => c.unread).length;
     const unreadSpam = requests.filter((c: any) => c.unread).length;
+    const unreadAuthoritative = readStateKnown && followingIdsKnown;
 
     // Strip isPrimary from response
     const cleanConvs = filteredConvs
@@ -213,6 +274,7 @@ Deno.serve(async (req: Request) => {
         conversations: cleanConvs,
         unreadInbox,
         unreadSpam,
+        unreadAuthoritative,
         _meta: { elapsed, count: cleanConvs.length },
       }),
       { headers: { "Content-Type": "application/json" } },

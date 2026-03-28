@@ -60,10 +60,74 @@ describe("Messages unread source invariants", () => {
     expect(source).not.toContain('.neq("sender_id", authId)');
   });
 
+  it("bootstrap-messages resolves either users.id or users.auth_id before loading conversations", () => {
+    const source = read("supabase/functions/bootstrap-messages/index.ts");
+    expect(source).toContain('String(asInt) === String(user_id)');
+    expect(source).toContain('.eq("auth_id", user_id)');
+  });
+
   it("bootstrap-messages fails open when follow-state lookup is unavailable", () => {
     const source = read("supabase/functions/bootstrap-messages/index.ts");
     expect(source).toContain("const followingIdsKnown = !followingError");
     expect(source).toContain("!followingIdsKnown || isFollowed || !!conv.is_group");
+  });
+
+  it("bootstrap-messages only seeds unread counts when the backend marks them authoritative", () => {
+    const source = read("lib/hooks/use-bootstrap-messages.ts");
+    expect(source).toContain("if (data.unreadAuthoritative)");
+    expect(source).toContain("authoritative=${data.unreadAuthoritative === true}");
+  });
+
+  it("bootstrap-feed derives unread counts from message read state, not legacy conversation counters", () => {
+    const source = read("supabase/functions/bootstrap-feed/index.ts");
+    expect(source).toContain('from("conversations_rels")');
+    expect(source).toContain('.is("read_at", null)');
+    expect(source).not.toContain('.gt("unread_count", 0)');
+    expect(source).toContain("unreadMessagesAuthoritative");
+  });
+
+  it("bootstrap-feed only seeds unread cache when backend confirms the count is authoritative", () => {
+    const source = read("lib/hooks/use-bootstrap-feed.ts");
+    expect(source).toContain("data.viewer?.unreadMessagesAuthoritative");
+    expect(source).toContain("store.setMessagesUnread(data.viewer.unreadMessages)");
+  });
+
+  it("send-message reconciles older inbound unread rows when the viewer replies", () => {
+    const source = read("supabase/functions/send-message/index.ts");
+    expect(source).toContain("Failed to reconcile unread state on reply");
+    expect(source).toContain('.update({ read_at: sentAt })');
+    expect(source).toContain('.eq("conversation_id", conversationId)');
+    expect(source).toContain('.neq("sender_id", userId)');
+  });
+
+  it("query persistence buster is bumped so stale unread cache is cleared after OTA", () => {
+    const source = read("lib/query-persistence.ts");
+    expect(source).toContain('buster: "v8"');
+    expect(source).toContain('const currentVersion = "v8"');
+  });
+
+  it("adds a production migration for the authoritative conversation_reads table", () => {
+    const source = read(
+      "supabase/migrations/20260401004000_conversation_reads.sql",
+    );
+    expect(source).toContain("CREATE TABLE IF NOT EXISTS public.conversation_reads");
+    expect(source).toContain("INSERT INTO public.conversation_reads");
+    expect(source).toContain("UPDATE public.messages m");
+  });
+
+  it("realtime message patches compare sender_id against the integer viewer id, not auth-store raw ids", () => {
+    const messagesScreen = read("app/(protected)/messages.tsx");
+    const chatScreen = read("app/(protected)/chat/[id].tsx");
+
+    expect(messagesScreen).toContain("const currentUserIntId = getCurrentUserIdInt()");
+    expect(messagesScreen).not.toContain(
+      'String(newMsg.sender_id) === String(currentUser.id)',
+    );
+
+    expect(chatScreen).toContain("const userIntId = getCurrentUserIdInt()");
+    expect(chatScreen).not.toContain(
+      'String(newMsg.sender_id) === String(userId)',
+    );
   });
 
   it("messages caches use viewer-scoped filtered keys instead of raw unscoped prefixes", () => {

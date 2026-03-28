@@ -18,6 +18,163 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const PAGE_SIZE = 20;
 
+async function getAuthoritativeUnreadInboxCount(
+  supabase: any,
+  user: { intUserId: number | null; authUserId: string | null },
+): Promise<{ count: number; authoritative: boolean }> {
+  const { intUserId, authUserId } = user;
+  if (!intUserId || !authUserId) {
+    return { count: 0, authoritative: false };
+  }
+
+  const [{ data: followingRows, error: followingError }, { data: convRels, error: convRelsError }] =
+    await Promise.all([
+      supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", intUserId),
+      supabase
+        .from("conversations_rels")
+        .select("parent_id, conversation:parent_id(id, is_group)")
+        .eq("users_id", authUserId),
+    ]);
+
+  if (followingError || convRelsError) {
+    console.error("[bootstrap-feed] unread lookup failed:", {
+      followingError,
+      convRelsError,
+    });
+    return { count: 0, authoritative: false };
+  }
+
+  const conversationRows = (convRels || []).filter((row: any) => row.conversation);
+  if (conversationRows.length === 0) {
+    return { count: 0, authoritative: true };
+  }
+
+  const convIds = conversationRows.map((row: any) => row.parent_id);
+  const [{ data: incomingRows, error: incomingError }, { data: readRows, error: readError }] =
+    await Promise.all([
+      supabase
+        .from("messages")
+        .select("conversation_id, created_at")
+        .in("conversation_id", convIds)
+        .neq("sender_id", intUserId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("conversation_reads")
+        .select("conversation_id, last_read_at")
+        .in("conversation_id", convIds)
+        .eq("user_id", intUserId),
+    ]);
+
+  if (incomingError || readError) {
+    console.error("[bootstrap-feed] unread messages query failed:", {
+      incomingError,
+      readError,
+    });
+    return { count: 0, authoritative: false };
+  }
+
+  const lastReadAtByConv = new Map<number, string>();
+  for (const row of readRows || []) {
+    if (row?.conversation_id != null && row?.last_read_at) {
+      lastReadAtByConv.set(Number(row.conversation_id), row.last_read_at);
+    }
+  }
+
+  const unreadConvIds = new Set(
+    (incomingRows || [])
+      .filter((row: any) => {
+        const convId = Number(row.conversation_id);
+        const lastReadAt = lastReadAtByConv.get(convId);
+        return (
+          !convId ||
+          !lastReadAt ||
+          new Date(row.created_at).getTime() > new Date(lastReadAt).getTime()
+        );
+      })
+      .map((row: any) => Number(row.conversation_id)),
+  );
+  if (unreadConvIds.size === 0) {
+    return { count: 0, authoritative: true };
+  }
+
+  const followedIds = new Set(
+    (followingRows || []).map((row: any) => String(row.following_id)),
+  );
+  const groupConvIds = new Set(
+    conversationRows
+      .filter((row: any) => row.conversation?.is_group)
+      .map((row: any) => Number(row.parent_id)),
+  );
+
+  let unreadInboxCount = 0;
+  const unreadDirectConvIds = [...unreadConvIds].filter(
+    (convId) => !groupConvIds.has(convId),
+  );
+
+  for (const convId of unreadConvIds) {
+    if (groupConvIds.has(convId)) {
+      unreadInboxCount += 1;
+    }
+  }
+
+  if (unreadDirectConvIds.length === 0) {
+    return { count: unreadInboxCount, authoritative: true };
+  }
+
+  const { data: otherParticipants, error: participantsError } = await supabase
+    .from("conversations_rels")
+    .select("parent_id, users_id")
+    .in("parent_id", unreadDirectConvIds)
+    .neq("users_id", authUserId);
+
+  if (participantsError) {
+    console.error(
+      "[bootstrap-feed] unread participants query failed:",
+      participantsError,
+    );
+    return { count: unreadInboxCount, authoritative: false };
+  }
+
+  const otherAuthIds = [
+    ...new Set((otherParticipants || []).map((row: any) => row.users_id).filter(Boolean)),
+  ];
+
+  const { data: otherUsers, error: otherUsersError } =
+    otherAuthIds.length > 0
+      ? await supabase
+          .from("users")
+          .select("id, auth_id")
+          .in("auth_id", otherAuthIds)
+      : { data: [], error: null };
+
+  if (otherUsersError) {
+    console.error(
+      "[bootstrap-feed] unread user resolution failed:",
+      otherUsersError,
+    );
+    return { count: unreadInboxCount, authoritative: false };
+  }
+
+  const userIdByAuthId = new Map<string, string>();
+  for (const user of otherUsers || []) {
+    if (user?.auth_id != null && user?.id != null) {
+      userIdByAuthId.set(String(user.auth_id), String(user.id));
+    }
+  }
+
+  for (const row of otherParticipants || []) {
+    const otherUserId = userIdByAuthId.get(String(row.users_id));
+    if (otherUserId && followedIds.has(otherUserId)) {
+      unreadInboxCount += 1;
+    }
+  }
+
+  return { count: unreadInboxCount, authoritative: true };
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, {
@@ -54,17 +211,30 @@ Deno.serve(async (req: Request) => {
     // ── Resolve integer users.id from auth_id UUID ────────────────
     // user_id from client is AppUser.id = Better Auth UUID, NOT integer
     let intUserId: number | null = null;
+    let authUserId: string | null = null;
     const asInt = parseInt(user_id, 10);
     if (!isNaN(asInt) && String(asInt) === String(user_id)) {
-      intUserId = asInt;
+      const { data: userRow } = await supabase
+        .from("users")
+        .select("id, auth_id")
+        .eq("id", asInt)
+        .single();
+      intUserId = userRow?.id ?? asInt;
+      authUserId = userRow?.auth_id ?? null;
     } else {
       const { data: userRow } = await supabase
         .from("users")
-        .select("id")
+        .select("id, auth_id")
         .eq("auth_id", user_id)
         .single();
       intUserId = userRow?.id ?? null;
+      authUserId = userRow?.auth_id ?? user_id;
     }
+
+    const unreadMessagesResult = await getAuthoritativeUnreadInboxCount(
+      supabase,
+      { intUserId, authUserId },
+    );
 
     // ── Fire ALL queries in parallel — never sequential ──────────
 
@@ -73,7 +243,6 @@ Deno.serve(async (req: Request) => {
       viewerLikesResult,
       viewerBookmarksResult,
       storiesResult,
-      unreadMessagesResult,
       unreadNotificationsResult,
       viewerProfileResult,
     ] = await Promise.all([
@@ -123,16 +292,7 @@ Deno.serve(async (req: Request) => {
         .order("created_at", { ascending: false })
         .limit(30),
 
-      // 5. Unread message count — use integer ID
-      intUserId
-        ? supabase
-            .from("conversations")
-            .select("id", { count: "exact", head: true })
-            .or(`user1_id.eq.${intUserId},user2_id.eq.${intUserId}`)
-            .gt("unread_count", 0)
-        : Promise.resolve({ count: 0 }),
-
-      // 6. Unread notification count — use integer ID
+      // 5. Unread notification count — use integer ID
       intUserId
         ? supabase
             .from("notifications")
@@ -141,12 +301,22 @@ Deno.serve(async (req: Request) => {
             .is("read_at", null)
         : Promise.resolve({ count: 0 }),
 
-      // 7. Viewer profile snippet (auth_id is UUID — this one is correct)
-      supabase
-        .from("users")
-        .select("id, username, first_name, avatar:avatar_id(url), verified")
-        .eq("auth_id", user_id)
-        .single(),
+      // 6. Viewer profile snippet
+      authUserId
+        ? supabase
+            .from("users")
+            .select("id, username, first_name, avatar:avatar_id(url), verified")
+            .eq("auth_id", authUserId)
+            .single()
+        : intUserId
+          ? supabase
+              .from("users")
+              .select(
+                "id, username, first_name, avatar:avatar_id(url), verified",
+              )
+              .eq("id", intUserId)
+              .single()
+          : Promise.resolve({ data: null }),
     ]);
 
     // ── Build response ─────────────────────────────────────────────
@@ -234,6 +404,7 @@ Deno.serve(async (req: Request) => {
         username: viewerProfile?.username || "",
         avatarUrl: viewerAvatarUrl || "",
         unreadMessages: unreadMessagesResult.count || 0,
+        unreadMessagesAuthoritative: unreadMessagesResult.authoritative,
         unreadNotifications: unreadNotificationsResult.count || 0,
       },
       nextCursor,

@@ -72,7 +72,12 @@ export const messagesApi = {
       const convIds = convRows.map((r) => r.conversation[DB.conversations.id]);
 
       // Step 3: Fire 3 batched queries in parallel across ALL conversations
-      const [lastMsgsResult, otherParticipantsResult, unreadResult] =
+      const [
+        lastMsgsResult,
+        otherParticipantsResult,
+        incomingMsgsResult,
+        readStatesResult,
+      ] =
         await Promise.all([
           // Last message per conversation — get all recent messages, dedupe by conv
           supabase
@@ -92,14 +97,27 @@ export const messagesApi = {
             .in(DB.conversationsRels.parentId, convIds)
             .neq(DB.conversationsRels.usersId, authId),
 
-          // Unread counts — all unread messages not sent by current user
+          // Incoming message timestamps for unread detection
           visitorIntId
             ? supabase
                 .from(DB.messages.table)
-                .select(`${DB.messages.conversationId}, ${DB.messages.id}`)
+                .select(
+                  `${DB.messages.conversationId}, ${DB.messages.createdAt}`,
+                )
                 .in(DB.messages.conversationId, convIds)
-                .is(DB.messages.readAt, null)
                 .neq(DB.messages.senderId, visitorIntId)
+                .order(DB.messages.createdAt, { ascending: false })
+            : Promise.resolve({ data: [] as any[] }),
+
+          // Per-viewer conversation read cursor
+          visitorIntId
+            ? supabase
+                .from(DB.conversationReads.table)
+                .select(
+                  `${DB.conversationReads.conversationId}, ${DB.conversationReads.lastReadAt}`,
+                )
+                .in(DB.conversationReads.conversationId, convIds)
+                .eq(DB.conversationReads.userId, visitorIntId)
             : Promise.resolve({ data: [] as any[] }),
         ]);
 
@@ -132,10 +150,29 @@ export const messagesApi = {
         allParticipantsMap.set(cid, existing);
       }
 
-      // Unread flag per conversation
+      const lastReadAtMap = new Map<number, string>();
+      for (const row of (readStatesResult as any).data || []) {
+        const convId = row[DB.conversationReads.conversationId];
+        const lastReadAt = row[DB.conversationReads.lastReadAt];
+        if (convId != null && lastReadAt) {
+          lastReadAtMap.set(convId, lastReadAt);
+        }
+      }
+
+      // Unread flag per conversation from per-viewer read cursor
       const unreadConvIds = new Set<number>();
-      for (const msg of (unreadResult as any).data || []) {
-        unreadConvIds.add(msg[DB.messages.conversationId]);
+      for (const msg of (incomingMsgsResult as any).data || []) {
+        const convId = msg[DB.messages.conversationId];
+        if (convId == null || unreadConvIds.has(convId)) continue;
+
+        const msgCreatedAt = msg[DB.messages.createdAt];
+        const lastReadAt = lastReadAtMap.get(convId);
+        if (
+          !lastReadAt ||
+          new Date(msgCreatedAt).getTime() > new Date(lastReadAt).getTime()
+        ) {
+          unreadConvIds.add(convId);
+        }
       }
 
       // Step 4: Batch-fetch all other users in ONE query

@@ -119,14 +119,52 @@ Deno.serve(async (req) => {
       );
     }
 
-    // 5. Mark all messages as read (except own messages)
-    const { data: updated, error: updateError } = await supabase
-      .from("messages")
-      .update({ read_at: new Date().toISOString() })
-      .eq("conversation_id", conversationId)
-      .is("read_at", null)
-      .neq("sender_id", userIntId)
-      .select("id");
+    const readAt = new Date().toISOString();
+    const { data: conversation } = await supabase
+      .from("conversations")
+      .select("is_group")
+      .eq("id", conversationId)
+      .single();
+
+    const { error: readCursorError } = await supabase
+      .from("conversation_reads")
+      .upsert(
+        {
+          conversation_id: conversationId,
+          user_id: userIntId,
+          last_read_at: readAt,
+          updated_at: readAt,
+        },
+        { onConflict: "conversation_id,user_id" },
+      );
+
+    if (readCursorError) {
+      console.error("[mark-read] conversation_reads upsert error:", readCursorError);
+      return new Response(
+        JSON.stringify({ ok: false, error: readCursorError.message }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    let updated: Array<{ id: number }> | null = [];
+    let updateError: { message?: string } | null = null;
+
+    // Direct chats still use message.read_at for the visible "Read" receipt UI.
+    if (!conversation?.is_group) {
+      const directReadResult = await supabase
+        .from("messages")
+        .update({ read_at: readAt })
+        .eq("conversation_id", conversationId)
+        .is("read_at", null)
+        .neq("sender_id", userIntId)
+        .select("id");
+
+      updated = directReadResult.data;
+      updateError = directReadResult.error;
+    }
 
     if (updateError) {
       console.error("[mark-read] Update error:", updateError);

@@ -25,6 +25,7 @@ import { postKeys } from "@/lib/hooks/use-posts";
 import { messageKeys } from "@/lib/hooks/use-messages";
 import { seedLikeState } from "@/lib/hooks/usePostLikeState";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
+import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 import {
   normalizeTextPostTheme,
   resolveTextPostPresentation,
@@ -101,12 +102,15 @@ function hydrateFromBootstrap(
     pageParams: [0],
   });
 
-  // 2. Seed unread counts
-  if (data.viewer) {
+  // 2. Seed unread counts only when backend confirms the source is authoritative.
+  if (data.viewer?.unreadMessagesAuthoritative) {
     queryClient.setQueryData(messageKeys.unreadCount(userId), {
       inbox: data.viewer.unreadMessages,
       spam: 0,
     });
+    const store = useUnreadCountsStore.getState();
+    store.setMessagesUnread(data.viewer.unreadMessages);
+    store.setSpamUnread(0);
   }
 
   // 3. Seed like state per post
@@ -123,7 +127,7 @@ function hydrateFromBootstrap(
   console.log(
     `[BootstrapFeed] Hydrated cache: ${data.posts.length} posts, ` +
       `${data.stories.length} stories, ` +
-      `unread=${data.viewer.unreadMessages}`,
+      `unread=${data.viewer.unreadMessages} authoritative=${data.viewer.unreadMessagesAuthoritative === true}`,
   );
 }
 

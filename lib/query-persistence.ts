@@ -140,7 +140,7 @@ export const queryPersister = createSyncStoragePersister({
 export const persistOptions = {
   persister: queryPersister,
   maxAge: 30 * 60 * 1000, // 30 min — matches gcTime
-  buster: "v6", // CRITICAL: Must increment on every OTA that changes query structures
+  buster: "v8", // Clear stale unread cache after conversation_reads source-of-truth rollout
 };
 
 /**
@@ -158,7 +158,7 @@ export function checkAndClearCacheOnOTAUpdate(): void {
     if (!queryMmkv) return;
 
     const previousVersion = queryMmkv.getString(OTA_VERSION_KEY);
-    const currentVersion = "v6"; // Must match buster version
+    const currentVersion = "v8"; // Must match buster version
 
     if (previousVersion !== currentVersion) {
       console.log(

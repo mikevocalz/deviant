@@ -59,6 +59,7 @@ import { messagesApiClient } from "@/lib/api/messages";
 import { useConversationResolution } from "@/lib/hooks/use-conversation-resolution";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 import { messageKeys, useRefreshMessageCounts } from "@/lib/hooks/use-messages";
+import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import {
@@ -536,7 +537,7 @@ function ChatScreenContent() {
 
     // Cancellation guard: prevents stale callbacks from executing after cleanup
     let cancelled = false;
-    const userId = useAuthStore.getState().user?.id;
+    const userIntId = getCurrentUserIdInt();
 
     // Unique channel ID prevents collisions on rapid navigation
     const channelId = `chat-${convId}-${Date.now()}`;
@@ -556,7 +557,12 @@ function ChatScreenContent() {
           if (cancelled) return;
           const newMsg = payload.new as any;
           // Skip own messages — already handled by optimistic update
-          if (String(newMsg.sender_id) === String(userId)) return;
+          if (
+            userIntId != null &&
+            String(newMsg.sender_id) === String(userIntId)
+          ) {
+            return;
+          }
 
           const content = newMsg.content || "";
           const meta = newMsg.metadata;
@@ -1471,6 +1477,7 @@ function ChatScreenContent() {
               const hasReactions = item.reactions && item.reactions.length > 0;
               // Show read receipt only on the last read message sent by me
               const isLastReadByMe =
+                !isGroupChat &&
                 isMe &&
                 item.readAt &&
                 (() => {

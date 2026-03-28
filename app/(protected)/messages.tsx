@@ -52,6 +52,7 @@ import { useBootstrapMessages } from "@/lib/hooks/use-bootstrap-messages";
 import { screenPrefetch } from "@/lib/prefetch";
 import { useChatStore } from "@/lib/stores/chat-store";
 import { supabase } from "@/lib/supabase/client";
+import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 
 interface ConversationItem {
   id: string;
@@ -556,7 +557,10 @@ function MessagesScreenContent() {
           const newMsg = payload.new as any;
           const convId = String(newMsg.conversation_id);
           const content = newMsg.content || "";
-          const isMine = String(newMsg.sender_id) === String(currentUser.id);
+          const currentUserIntId = getCurrentUserIdInt();
+          const isMine =
+            currentUserIntId != null &&
+            String(newMsg.sender_id) === String(currentUserIntId);
 
           // Optimistically patch conversation list cache
           queryClient.setQueriesData<any[]>(

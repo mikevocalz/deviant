@@ -55,6 +55,7 @@ export interface BootstrapViewer {
   username: string;
   avatarUrl: string;
   unreadMessages: number;
+  unreadMessagesAuthoritative?: boolean;
   unreadNotifications: number;
 }
 
@@ -132,6 +133,7 @@ export interface BootstrapMessagesResponse {
   }[];
   unreadInbox: number;
   unreadSpam: number;
+  unreadAuthoritative?: boolean;
   _meta?: { elapsed: number; count: number };
 }
 

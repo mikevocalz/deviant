@@ -114,13 +114,7 @@ registerPrefetch("profile", (qc, userId) => {
 registerPrefetch("badges", (qc, userId) => {
   qc.prefetchQuery({
     queryKey: messageKeys.unreadCount(userId),
-    queryFn: async () => {
-      const [inbox, spam] = await Promise.all([
-        messagesApiClient.getUnreadCount(),
-        messagesApiClient.getSpamUnreadCount(),
-      ]);
-      return { inbox, spam };
-    },
+    queryFn: () => messagesApiClient.getUnreadCounts(),
     staleTime: STALE_TIMES.unreadCounts,
   });
 });

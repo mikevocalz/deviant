@@ -207,6 +207,13 @@ export const DB = {
     parentId: "parent_id",
     usersId: "users_id",
   },
+  conversationReads: {
+    table: "conversation_reads",
+    conversationId: "conversation_id",
+    userId: "user_id",
+    lastReadAt: "last_read_at",
+    updatedAt: "updated_at",
+  },
   messages: {
     table: "messages",
     id: "id",
