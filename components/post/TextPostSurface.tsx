@@ -144,7 +144,7 @@ function TextPostSurfaceComponent({
               }}
             >
               <TextPostBadgeLogo
-                width={variant === "grid" ? 46 : 50}
+                width={variant === "grid" ? 92 : 100}
                 height={variant === "grid" ? 11 : 12}
               />
             </View>

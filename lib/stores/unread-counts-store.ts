@@ -35,6 +35,8 @@ interface UnreadCountsState {
   decrementNotifications: (by?: number) => void;
   incrementMessages: (by?: number) => void;
   decrementMessages: (by?: number) => void;
+  incrementSpam: (by?: number) => void;
+  decrementSpam: (by?: number) => void;
   clearNotifications: () => void;
   clearMessages: () => void;
   refreshMessagesUnread: () => Promise<void>;
@@ -58,11 +60,17 @@ export const useUnreadCountsStore = create<UnreadCountsState>((set, get) => ({
 
   setMessagesUnread: (count) => {
     console.log("[UnreadCounts] setMessagesUnread:", count);
-    set({ messagesUnread: Math.max(0, count) });
+    set({
+      messagesUnread: Math.max(0, count),
+      lastMessagesRefresh: Date.now(),
+    });
   },
 
   setSpamUnread: (count) => {
-    set({ spamUnread: Math.max(0, count) });
+    set({
+      spamUnread: Math.max(0, count),
+      lastMessagesRefresh: Date.now(),
+    });
   },
 
   incrementNotifications: (by = 1) => {
@@ -95,7 +103,10 @@ export const useUnreadCountsStore = create<UnreadCountsState>((set, get) => ({
       "->",
       current + by,
     );
-    set({ messagesUnread: current + by });
+    set({
+      messagesUnread: current + by,
+      lastMessagesRefresh: Date.now(),
+    });
   },
 
   decrementMessages: (by = 1) => {
@@ -106,7 +117,38 @@ export const useUnreadCountsStore = create<UnreadCountsState>((set, get) => ({
       "->",
       Math.max(0, current - by),
     );
-    set({ messagesUnread: Math.max(0, current - by) });
+    set({
+      messagesUnread: Math.max(0, current - by),
+      lastMessagesRefresh: Date.now(),
+    });
+  },
+
+  incrementSpam: (by = 1) => {
+    const current = get().spamUnread;
+    console.log(
+      "[UnreadCounts] incrementSpam:",
+      current,
+      "->",
+      current + by,
+    );
+    set({
+      spamUnread: current + by,
+      lastMessagesRefresh: Date.now(),
+    });
+  },
+
+  decrementSpam: (by = 1) => {
+    const current = get().spamUnread;
+    console.log(
+      "[UnreadCounts] decrementSpam:",
+      current,
+      "->",
+      Math.max(0, current - by),
+    );
+    set({
+      spamUnread: Math.max(0, current - by),
+      lastMessagesRefresh: Date.now(),
+    });
   },
 
   clearNotifications: () => {
@@ -116,7 +158,7 @@ export const useUnreadCountsStore = create<UnreadCountsState>((set, get) => ({
 
   clearMessages: () => {
     console.log("[UnreadCounts] clearMessages");
-    set({ messagesUnread: 0 });
+    set({ messagesUnread: 0, spamUnread: 0, lastMessagesRefresh: Date.now() });
   },
 
   // Refresh messages unread count from backend (Inbox only)

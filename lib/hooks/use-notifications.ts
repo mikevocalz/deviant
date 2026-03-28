@@ -109,9 +109,9 @@ export function useNotifications() {
                     "[Notifications] Inbox message - Messages badge incremented",
                   );
                 } else {
-                  // Spam message - do NOT increment badge
+                  useUnreadCountsStore.getState().incrementSpam();
                   console.log(
-                    "[Notifications] Spam message - badge NOT incremented",
+                    "[Notifications] Spam message - Requests count incremented",
                   );
                 }
               }

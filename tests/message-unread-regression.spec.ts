@@ -83,6 +83,8 @@ describe("Messages unread source invariants", () => {
     const source = read("lib/hooks/use-messages.ts");
     expect(source).toContain('refetchOnMount: "always"');
     expect(source).toContain('refetchOnReconnect: "always"');
+    expect(source).toContain("lastMessagesRefresh >= query.dataUpdatedAt");
+    expect(source).toContain("? realtimeInbox");
   });
 
   it("bootstrap-feed derives unread counts from message read state, not legacy conversation counters", () => {
@@ -118,6 +120,19 @@ describe("Messages unread source invariants", () => {
     expect(source).toContain("queryFn: () => messagesApiClient.getUnreadCounts()");
     expect(source).not.toContain("messagesApiClient.getUnreadCount()");
     expect(source).not.toContain("messagesApiClient.getSpamUnreadCount()");
+  });
+
+  it("foreground message notifications update inbox and requests counts immediately", () => {
+    const source = read("lib/hooks/use-notifications.ts");
+    expect(source).toContain("incrementMessages()");
+    expect(source).toContain("incrementSpam()");
+  });
+
+  it("unread store tracks real-time spam and inbox updates with a freshness timestamp", () => {
+    const source = read("lib/stores/unread-counts-store.ts");
+    expect(source).toContain("incrementSpam: (by = 1) =>");
+    expect(source).toContain("decrementSpam: (by = 1) =>");
+    expect(source).toContain("lastMessagesRefresh: Date.now()");
   });
 
   it("adds a production migration for the authoritative conversation_reads table", () => {

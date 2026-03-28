@@ -30,6 +30,11 @@ export const messageKeys = {
 export function useUnreadMessageCount() {
   const setMessagesUnread = useUnreadCountsStore((s) => s.setMessagesUnread);
   const setSpamUnread = useUnreadCountsStore((s) => s.setSpamUnread);
+  const realtimeInbox = useUnreadCountsStore((s) => s.messagesUnread);
+  const realtimeSpam = useUnreadCountsStore((s) => s.spamUnread);
+  const lastMessagesRefresh = useUnreadCountsStore(
+    (s) => s.lastMessagesRefresh,
+  );
   const user = useAuthStore((s) => s.user);
   const viewerId = user?.id;
 
@@ -52,11 +57,20 @@ export function useUnreadMessageCount() {
     }
   }, [query.data, setMessagesUnread, setSpamUnread]);
 
+  const cacheIsNewerThanQuery =
+    lastMessagesRefresh > 0 && lastMessagesRefresh >= query.dataUpdatedAt;
+  const inboxCount = cacheIsNewerThanQuery
+    ? realtimeInbox
+    : (query.data?.inbox ?? realtimeInbox ?? 0);
+  const spamCount = cacheIsNewerThanQuery
+    ? realtimeSpam
+    : (query.data?.spam ?? realtimeSpam ?? 0);
+
   // Return just the inbox count for backwards compatibility
   return {
     ...query,
-    data: query.data?.inbox ?? 0,
-    spamCount: query.data?.spam ?? 0,
+    data: inboxCount,
+    spamCount,
   };
 }
 
