@@ -16,6 +16,7 @@ import { LegendList } from "@/components/list";
 import { MapPin, AlertCircle, X, Loader2 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useDebounce } from "@/lib/hooks/use-debounce";
+import { appFetchJson } from "@/lib/http/client";
 
 export interface LocationData {
   name: string;
@@ -107,15 +108,13 @@ export function LocationAutocompleteV3({
 
     try {
       // Use Google Places parameters tuned for rich venue and address results
-      const response = await fetch(
+      const data = await appFetchJson<any>(
         `https://maps.googleapis.com/maps/api/place/autocomplete/json?key=${GOOGLE_PLACES_API_KEY}&input=${encodeURIComponent(text)}&language=en&components=country:us&types=establishment|geocode|address&radius=50000&strictbounds=false`,
+        {
+          timeoutMs: 8000,
+          traceName: "google-places-autocomplete-v3",
+        },
       );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
 
       if (data.status === "REQUEST_DENIED") {
         console.error(
@@ -145,33 +144,27 @@ export function LocationAutocompleteV3({
   const tryAlternativeAPI = async (text: string) => {
     try {
       // Try the newer Places API format
-      const response = await fetch(
+      const data = await appFetchJson<any>(
         `https://places.googleapis.com/v1/places:autocomplete?key=${GOOGLE_PLACES_API_KEY}&input=${encodeURIComponent(text)}&language=en&includedRegionCodes=us`,
+        {
+          timeoutMs: 8000,
+          traceName: "google-places-autocomplete-v3-new",
+        },
       );
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.suggestions) {
-          // Convert to our format
-          const convertedPredictions = data.suggestions.map(
-            (suggestion: any) => ({
-              place_id: suggestion.place?.id || "fallback-" + Math.random(),
-              description:
-                suggestion.place?.displayName?.text ||
-                suggestion.text?.text ||
-                "",
-              structured_formatting: {
-                main_text:
-                  suggestion.place?.displayName?.text ||
-                  suggestion.text?.text ||
-                  "",
-                secondary_text: suggestion.place?.formattedAddress || "",
-              },
-            }),
-          );
-          setPredictions(convertedPredictions);
-          return;
-        }
+      if (data.suggestions) {
+        const convertedPredictions = data.suggestions.map((suggestion: any) => ({
+          place_id: suggestion.place?.id || "fallback-" + Math.random(),
+          description:
+            suggestion.place?.displayName?.text || suggestion.text?.text || "",
+          structured_formatting: {
+            main_text:
+              suggestion.place?.displayName?.text || suggestion.text?.text || "",
+            secondary_text: suggestion.place?.formattedAddress || "",
+          },
+        }));
+        setPredictions(convertedPredictions);
+        return;
       }
     } catch (error) {
       console.error("[LocationAutocompleteV3] Alternative API error:", error);
@@ -264,15 +257,13 @@ export function LocationAutocompleteV3({
 
   const fetchPlaceDetails = async (placeId: string) => {
     try {
-      const response = await fetch(
+      const data = await appFetchJson<any>(
         `https://maps.googleapis.com/maps/api/place/details/json?key=${GOOGLE_PLACES_API_KEY}&place_id=${placeId}&fields=formatted_address,name,geometry,place_id,types`,
+        {
+          timeoutMs: 8000,
+          traceName: "google-place-details-v3",
+        },
       );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
 
       if (data.status === "REQUEST_DENIED") {
         console.error(

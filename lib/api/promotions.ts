@@ -5,6 +5,7 @@
 
 import { supabase } from "../supabase/client";
 import { getCurrentUserAuthId } from "./auth-helper";
+import { appFetchJson } from "@/lib/http/client";
 import type {
   SpotlightItem,
   SpotlightCampaign,
@@ -105,10 +106,16 @@ export const promotionsApi = {
       const token =
         sessionData?.session?.access_token || (await getCurrentUserAuthId());
 
-      const res = await fetch(
+      const result = await appFetchJson<{
+        url?: string;
+        error?: string;
+        campaign_id?: number;
+      }>(
         `${SUPABASE_URL}/functions/v1/promotion-checkout`,
         {
           method: "POST",
+          timeoutMs: 15_000,
+          traceName: "promotion-checkout",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
@@ -123,12 +130,6 @@ export const promotionsApi = {
           }),
         },
       );
-
-      const result = await res.json();
-
-      if (!res.ok) {
-        return { error: result.error || "Checkout failed" };
-      }
 
       return result;
     } catch (error: any) {
@@ -148,20 +149,19 @@ export const promotionsApi = {
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token || "";
 
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/promotion-cancel`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
+      await appFetchJson<{ success?: boolean }>(
+        `${SUPABASE_URL}/functions/v1/promotion-cancel`,
+        {
+          method: "POST",
+          timeoutMs: 15_000,
+          traceName: "promotion-cancel",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ campaign_id: campaignId }),
         },
-        body: JSON.stringify({ campaign_id: campaignId }),
-      });
-
-      const result = await res.json();
-      if (!res.ok) {
-        console.error("[Promotions] cancelCampaign error:", result.error);
-        return { success: false };
-      }
+      );
 
       return { success: true };
     } catch (error) {

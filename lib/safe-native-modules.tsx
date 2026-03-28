@@ -138,3 +138,34 @@ try {
 }
 
 export const SafeAnimatedGlow: React.ComponentType<any> = _AnimatedGlow ?? View;
+
+// ── @bam.tech/react-native-app-security ────────────────────────────
+type SafeKeyboardInfo = {
+  isInDefaultSafeList: boolean;
+  inputMethodId: string;
+};
+
+type SafeKeyboardDetectorLike = {
+  getCurrentInputMethodInfo: () => SafeKeyboardInfo;
+  showInputMethodPicker: () => void;
+};
+
+let _SafeAppSecurityKeyboardDetector: SafeKeyboardDetectorLike | null = null;
+
+try {
+  _SafeAppSecurityKeyboardDetector =
+    require("@bam.tech/react-native-app-security").SafeKeyboardDetector;
+} catch {
+  console.warn(
+    "[SafeModules] @bam.tech/react-native-app-security not available in this binary",
+  );
+}
+
+export const SafeAppSecurityKeyboardDetector: SafeKeyboardDetectorLike =
+  _SafeAppSecurityKeyboardDetector ?? {
+    getCurrentInputMethodInfo: () => ({
+      isInDefaultSafeList: true,
+      inputMethodId: "unavailable",
+    }),
+    showInputMethodPicker: () => {},
+  };

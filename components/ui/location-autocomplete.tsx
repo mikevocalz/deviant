@@ -35,6 +35,7 @@ import * as Location from "expo-location";
 import { createMMKV } from "react-native-mmkv";
 import { create } from "zustand";
 import { Debouncer } from "@tanstack/react-pacer";
+import { appFetchJson } from "@/lib/http/client";
 
 export type LocationData = {
   name: string;
@@ -352,24 +353,16 @@ export function LocationAutocomplete({
         includedPrimaryTypes: ["geocode", "establishment", "address"],
       };
 
-      const response = await fetch(url, {
+      const data = await appFetchJson<any>(url, {
         method: "POST",
+        timeoutMs: 8000,
+        traceName: "google-places-autocomplete-new",
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
         },
         body: JSON.stringify(requestBody),
       });
-
-      if (!response.ok) {
-        console.log(
-          "[LocationAutocomplete] NEW API failed, trying legacy API",
-        );
-        // Fall back to legacy API if NEW API fails
-        return await tryLegacyAPI(text);
-      }
-
-      const data = await response.json();
       console.log("[LocationAutocomplete] API response (NEW):", data);
 
       if (data.error) {
@@ -421,8 +414,10 @@ export function LocationAutocomplete({
         text,
       )}&language=en&components=country:us&types=establishment|geocode|address`;
 
-      const response = await fetch(url);
-      const data = await response.json();
+      const data = await appFetchJson<any>(url, {
+        timeoutMs: 8000,
+        traceName: "google-places-autocomplete-legacy",
+      });
 
       if (data.status === "REQUEST_DENIED") {
         console.error("[LocationAutocomplete] Legacy API also denied");
@@ -508,15 +503,13 @@ export function LocationAutocomplete({
 
   const fetchPlaceDetails = async (placeId: string) => {
     try {
-      const response = await fetch(
+      const data = await appFetchJson<any>(
         `https://maps.googleapis.com/maps/api/place/details/json?key=${GOOGLE_PLACES_API_KEY}&place_id=${placeId}&fields=formatted_address,name,geometry,place_id,types,rating,photos`,
+        {
+          timeoutMs: 8000,
+          traceName: "google-place-details",
+        },
       );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
 
       if (data.status === "REQUEST_DENIED") {
         console.error(

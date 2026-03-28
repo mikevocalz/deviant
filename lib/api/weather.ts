@@ -8,6 +8,8 @@
  * Free, no API key required. User-Agent header recommended.
  */
 
+import { appFetch } from "@/lib/http/client";
+
 export interface WeatherPeriod {
   number: number;
   name: string;
@@ -28,20 +30,14 @@ const USER_AGENT = "(DVNT App, contact@dvnt.app)";
 const TIMEOUT_MS = 8000;
 
 async function fetchWithTimeout(url: string, timeoutMs = TIMEOUT_MS): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "application/geo+json",
-      },
-      signal: controller.signal,
-    });
-    return res;
-  } finally {
-    clearTimeout(timer);
-  }
+  return appFetch(url, {
+    timeoutMs,
+    traceName: "weather-noaa",
+    headers: {
+      "User-Agent": USER_AGENT,
+      Accept: "application/geo+json",
+    },
+  });
 }
 
 export async function getWeatherForecast(

@@ -25,6 +25,7 @@
     "postinstall": "(patch-package || true) && bash scripts/patch-insta-story.sh && bash scripts/patch-callkeep.sh && bash scripts/patch-expo-updates.sh && bash scripts/patch-worklets.sh && bash scripts/patch-wgpu.sh && bash scripts/patch-expo-audio.sh && bash scripts/patch-expo-factory.sh && bash scripts/patch-expo-modules-core.sh && bash scripts/patch-expo-dev-launcher.sh && bash scripts/patch-expo-dev-menu.sh && bash scripts/patch-expo-paste-input.sh && bash scripts/patch-expo-root-view-factory.sh"
   },
   "dependencies": {
+    "@bam.tech/react-native-app-security": "^0.6.1",
     "@better-auth/expo": "^1.5.5",
     "@better-auth/passkey": "^1.5.5",
     "@blazejkustra/react-native-onboarding": "^1.0.0",
@@ -128,6 +129,7 @@
     "react-native-insta-story": "^2.0.2",
     "react-native-keyboard-controller": "^1.21.1",
     "react-native-mmkv": "^4.3.0",
+    "react-native-nitro-fetch": "^0.2.1",
     "react-native-nitro-modules": "^0.35.2",
     "react-native-pager-view": "^8.0.0",
     "react-native-progress-steps": "^2.0.3",

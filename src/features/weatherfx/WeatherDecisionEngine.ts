@@ -14,6 +14,7 @@ import {
   type WeatherMetrics,
 } from "./weatherTypes";
 import { useWeatherFXStore } from "./WeatherFXStore";
+import { appFetchJson } from "@/lib/http/client";
 
 // ── Open-Meteo response shape (subset) ──────────────────────────────
 interface OpenMeteoCurrentWeather {
@@ -63,13 +64,10 @@ export async function fetchCurrentWeather(
       `&current=weather_code,temperature_2m,wind_speed_10m,relative_humidity_2m,cloud_cover,precipitation` +
       `&timezone=auto`;
 
-    const res = await fetch(url);
-    if (!res.ok) {
-      console.warn("[WeatherDecision] Open-Meteo HTTP", res.status);
-      return null;
-    }
-
-    const data: OpenMeteoResponse = await res.json();
+    const data = await appFetchJson<OpenMeteoResponse>(url, {
+      timeoutMs: 8000,
+      traceName: "weather-current",
+    });
 
     if (data.current) {
       return {
@@ -121,10 +119,10 @@ export async function fetchEventForecast(
       `&start_date=${dateStr}&end_date=${dateStr}` +
       `&timezone=auto`;
 
-    const res = await fetch(url);
-    if (!res.ok) return null;
-
-    const data: OpenMeteoHourlyResponse = await res.json();
+    const data = await appFetchJson<OpenMeteoHourlyResponse>(url, {
+      timeoutMs: 8000,
+      traceName: "weather-forecast",
+    });
     if (!data.hourly?.time?.length) return null;
 
     // Find closest hour
