@@ -4,7 +4,6 @@ import {
   TextInput,
   Pressable,
   Animated,
-  Platform,
   Modal,
   Alert,
   StyleSheet,
@@ -85,7 +84,9 @@ import { SharedPostBubble } from "@/components/chat/shared-post-bubble";
 import { Galeria } from "@nandorojo/galeria";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { SheetHeader } from "@/components/ui/sheet-header";
+import { PasteInput } from "@/components/ui/paste-input";
 import { supabase } from "@/lib/supabase/client";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
 
 export const unstable_settings = {
   options: {
@@ -1227,12 +1228,50 @@ function ChatScreenContent() {
   }, []);
 
   const handleCopyMessage = useCallback(() => {
-    if (!selectedMessage?.text) return;
-    // Copy not available without expo-clipboard — show toast only
-    showToast("info", "Copy", selectedMessage.text.slice(0, 100));
+    const selectedText = selectedMessage?.text;
+    if (!selectedText) return;
+
+    void copyTextToClipboard(selectedText)
+      .then((didCopy) => {
+        showToast(
+          didCopy ? "success" : "error",
+          didCopy ? "Copied" : "Copy unavailable",
+          didCopy
+            ? "Message copied to clipboard."
+            : "Clipboard is unavailable on this build.",
+        );
+      })
+      .catch((error) => {
+        console.error("[Chat] Copy failed:", error);
+        showToast("error", "Copy failed", "Couldn't copy that message.");
+      });
+
     setShowMessageActions(false);
     setSelectedMessage(null);
   }, [selectedMessage, showToast]);
+
+  const handlePasteImages = useCallback(
+    (uris: string[]) => {
+      const nextMedia = uris.slice(0, 4).map(
+        (uri): MediaAttachment => ({
+          type: "image",
+          uri,
+        }),
+      );
+
+      if (nextMedia.length === 0) return;
+
+      setPendingMedia(nextMedia);
+      showToast(
+        "success",
+        nextMedia.length === 1 ? "Photo pasted" : "Photos pasted",
+        nextMedia.length === 1
+          ? "Ready to send from your clipboard."
+          : `${nextMedia.length} images are ready to send.`,
+      );
+    },
+    [setPendingMedia, showToast],
+  );
 
   // Show loading ONLY if truly loading, not if we have an error
   if ((isLoading || isLoadingRecipient) && !resolutionError) {
@@ -1881,12 +1920,13 @@ function ChatScreenContent() {
                     <ImageIcon size={22} color="#3EA4E5" />
                   </Pressable>
 
-                  <TextInput
+                  <PasteInput
                     ref={inputRef}
                     nativeID="chat-input"
                     value={currentMessage}
                     onChangeText={handleTextChange}
                     onSelectionChange={handleSelectionChange}
+                    onPasteImage={handlePasteImages}
                     placeholder="Message... (use @ to mention)"
                     placeholderTextColor="#666"
                     className="flex-1 min-h-[40px] max-h-[100px] bg-secondary rounded-full px-4 py-2.5 text-foreground"

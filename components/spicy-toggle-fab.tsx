@@ -1,7 +1,6 @@
 import { View, Text, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,7 +8,6 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useAppStore } from "@/lib/stores/app-store";
-import { postKeys } from "@/lib/hooks/use-posts";
 
 const TRACK_WIDTH = 84;
 const TRACK_HEIGHT = 42;
@@ -24,7 +22,6 @@ export function SpicyToggleFAB() {
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
   const toggleNsfwEnabled = useAppStore((s) => s.toggleNsfwEnabled);
   const insets = useSafeAreaInsets();
-  const queryClient = useQueryClient();
 
   // Reanimated shared value — survives OTA reloads correctly
   const thumbX = useSharedValue(nsfwEnabled ? THUMB_ON : THUMB_OFF);
@@ -45,25 +42,17 @@ export function SpicyToggleFAB() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const nextEnabled = toggleNsfwEnabled();
     console.log("[SpicyToggle] Toggling NSFW:", nextEnabled);
-
-    void queryClient.invalidateQueries({
-      queryKey: postKeys.feedInfinite(),
-      refetchType: "active",
-    });
-    void queryClient.invalidateQueries({
-      queryKey: postKeys.feed(),
-      refetchType: "active",
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ["search"],
-      refetchType: "active",
-    });
-  }, [queryClient, toggleNsfwEnabled]);
+    // Feed/search surfaces already enforce the boundary in render logic.
+    // Refetching here only adds latency to a trust-critical toggle.
+  }, [toggleNsfwEnabled]);
 
   return (
     <Pressable
       onPress={doToggle}
       hitSlop={12}
+      accessibilityRole="switch"
+      accessibilityLabel="Spicy content toggle"
+      accessibilityState={{ checked: nsfwEnabled }}
       style={{
         position: "absolute",
         bottom: insets.bottom + 14,

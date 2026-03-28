@@ -6,6 +6,7 @@
 
 import { Share, Platform } from "react-native";
 import * as Haptics from "expo-haptics";
+import { copyTextToClipboard } from "@/lib/utils/clipboard";
 
 const PRODUCTION_DOMAIN = "https://dvntlive.app";
 
@@ -125,14 +126,18 @@ export async function shareUrl(
  * Uses react-native's deprecated but universally available Clipboard.
  */
 export function copyShareUrl(url: string): void {
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const { Clipboard: RNClipboard } = require("react-native");
-    if (RNClipboard?.setString) {
-      RNClipboard.setString(url);
-    }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-  } catch (error) {
-    console.error("[ShareLink] Copy failed:", error);
-  }
+  void copyTextToClipboard(url)
+    .then((didCopy) => {
+      if (!didCopy) {
+        console.error("[ShareLink] Copy failed: clipboard API unavailable");
+        return;
+      }
+
+      return Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      );
+    })
+    .catch((error) => {
+      console.error("[ShareLink] Copy failed:", error);
+    });
 }
