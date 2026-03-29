@@ -10,8 +10,16 @@ import {
   Pressable,
   ScrollView,
   StyleSheet,
+  ActivityIndicator,
+  Platform,
 } from "react-native";
-import { ArrowLeft, RefreshCw, TicketX, Shield } from "lucide-react-native";
+import {
+  ArrowLeft,
+  RefreshCw,
+  TicketX,
+  Shield,
+  WalletCards,
+} from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -27,6 +35,8 @@ import {
   TicketActionsBar,
 } from "@/src/ticket/ui";
 import { ScreenSkeleton } from "@/components/ui/screen-skeleton";
+import { addToWallet } from "@/src/ticket/helpers";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
   free: "#3FDCFF",
@@ -85,6 +95,10 @@ function ViewTicketScreenContent() {
   const ticket: Ticket | undefined = dbTicket
     ? dbToTicket(dbTicket)
     : storeTicket;
+  const showToast = useUIStore((s) => s.showToast);
+  const [walletState, setWalletState] = React.useState<
+    "idle" | "loading" | "success"
+  >("idle");
 
   // ── Loading state ──
   if (isLoading && !ticket) {
@@ -127,6 +141,59 @@ function ViewTicketScreenContent() {
   const isExpired = ticket.status === "expired";
   const isRevoked = ticket.status === "revoked";
   const isTransferPending = ticket.status === "transfer_pending";
+  const canAddToWallet =
+    ticket.status === "valid" &&
+    (Platform.OS === "ios" || Platform.OS === "android");
+
+  const handleAddToWallet = React.useCallback(async () => {
+    if (!canAddToWallet || walletState === "loading") return;
+
+    setWalletState("loading");
+    const result = await addToWallet(ticket);
+
+    if (result.success) {
+      setWalletState("success");
+      showToast(
+        "success",
+        "Wallet",
+        Platform.OS === "ios"
+          ? "Apple Wallet opened"
+          : "Google Wallet opened",
+      );
+      setTimeout(() => setWalletState("idle"), 2500);
+      return;
+    }
+
+    setWalletState("idle");
+
+    const errorMessage =
+      result.error === "not_authenticated"
+        ? "Please sign in again"
+        : result.error === "not_configured" ||
+            result.error === "not_implemented"
+          ? "Wallet is not configured yet"
+          : result.error === "apple_wallet_ios_only" ||
+              result.error === "google_wallet_android_only" ||
+              result.error === "unsupported_platform"
+            ? "Wallet is not available on this device"
+            : "Could not open wallet pass";
+
+    showToast("error", "Wallet", errorMessage);
+  }, [canAddToWallet, showToast, ticket, walletState]);
+
+  const walletTitle =
+    walletState === "success"
+      ? Platform.OS === "ios"
+        ? "Apple Wallet Ready"
+        : "Google Wallet Ready"
+      : Platform.OS === "ios"
+        ? "Add to Apple Wallet"
+        : "Add to Google Wallet";
+
+  const walletSubtitle =
+    walletState === "success"
+      ? "Your ticket pass opened successfully"
+      : "Keep your ticket one tap away on this device";
 
   return (
     <View style={styles.screen}>
@@ -251,6 +318,43 @@ function ViewTicketScreenContent() {
 
         {/* ── 3. ACCESS DETAILS ── */}
         <TicketAccessDetails ticket={ticket} />
+
+        {/* ── 4. WALLET CTA ── */}
+        {canAddToWallet && (
+          <Pressable
+            onPress={handleAddToWallet}
+            disabled={walletState === "loading"}
+            style={({ pressed }) => [
+              styles.walletBanner,
+              pressed && walletState !== "loading" && styles.walletBannerPressed,
+              walletState === "success" && styles.walletBannerSuccess,
+            ]}
+          >
+            <View style={styles.walletIconWrap}>
+              {walletState === "loading" ? (
+                <ActivityIndicator size="small" color={accent} />
+              ) : (
+                <WalletCards size={22} color={accent} />
+              )}
+            </View>
+
+            <View style={styles.walletBannerTextWrap}>
+              <Text style={styles.walletBannerTitle}>{walletTitle}</Text>
+              <Text style={styles.walletBannerSubtitle}>{walletSubtitle}</Text>
+            </View>
+
+            <View
+              style={[
+                styles.walletBannerArrow,
+                walletState === "success" && styles.walletBannerArrowSuccess,
+              ]}
+            >
+              <Text style={styles.walletBannerArrowText}>
+                {walletState === "success" ? "✓" : "›"}
+              </Text>
+            </View>
+          </Pressable>
+        )}
       </ScrollView>
 
       {/* ── 5. ACTIONS BAR (sticky bottom) ── */}
@@ -391,6 +495,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(138,64,207,0.25)",
   },
+  walletBannerPressed: {
+    opacity: 0.88,
+  },
+  walletBannerSuccess: {
+    backgroundColor: "rgba(63,220,255,0.12)",
+    borderColor: "rgba(63,220,255,0.24)",
+  },
+  walletIconWrap: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
   walletBannerTextWrap: {
     flex: 1,
   },
@@ -412,6 +531,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(138,64,207,0.4)",
     alignItems: "center",
     justifyContent: "center",
+  },
+  walletBannerArrowSuccess: {
+    backgroundColor: "rgba(63,220,255,0.35)",
   },
   walletBannerArrowText: {
     color: "#fff",
