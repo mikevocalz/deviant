@@ -9,8 +9,9 @@ import { View, Text, Pressable, useWindowDimensions } from "react-native";
 import { memo, useCallback, useMemo } from "react";
 import { LegendList } from "@/components/list";
 import { Avatar } from "@/components/ui/avatar";
-import { Mic } from "lucide-react-native";
+import { EyeOff, Mic } from "lucide-react-native";
 import type { SneakyUser } from "../types";
+import { getSneakyUserShortLabel } from "./user-labels";
 
 const LARGE_SCREEN_BREAKPOINT = 768;
 const GRID_GAP = 12;
@@ -48,15 +49,31 @@ const ListenerCell = memo(function ListenerCell({
   onPromote?: (userId: string) => void;
 }) {
   const avatarSize = Math.min(cellSize - 8, 56);
+  const label = getSneakyUserShortLabel(listener.user);
   return (
     <View style={{ width: cellSize, alignItems: "center" }}>
       <View>
-        <Avatar
-          uri={listener.user.avatar}
-          username={listener.user.username}
-          size={avatarSize}
-          variant="roundedSquare"
-        />
+        {listener.user.isAnonymous ? (
+          <View
+            style={{
+              width: avatarSize,
+              height: avatarSize,
+              borderRadius: 18,
+              alignItems: "center",
+              justifyContent: "center",
+              backgroundColor: "rgba(255,255,255,0.08)",
+            }}
+          >
+            <EyeOff size={18} color="#94A3B8" />
+          </View>
+        ) : (
+          <Avatar
+            uri={listener.user.avatar}
+            username={listener.user.username}
+            size={avatarSize}
+            variant="roundedSquare"
+          />
+        )}
         {isHost && onPromote && (
           <Pressable
             onPress={() => onPromote(listener.user.id)}
@@ -89,7 +106,7 @@ const ListenerCell = memo(function ListenerCell({
         }}
         numberOfLines={1}
       >
-        {listener.user.displayName?.split(" ")[0] || listener.user.username}
+        {label}
       </Text>
     </View>
   );

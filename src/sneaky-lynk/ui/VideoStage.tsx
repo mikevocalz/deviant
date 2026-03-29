@@ -8,7 +8,7 @@
 import React, { useEffect } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { BadgeCheck, Video } from "lucide-react-native";
+import { BadgeCheck, EyeOff, Video } from "lucide-react-native";
 import { RTCView } from "@fishjam-cloud/react-native-client";
 import {
   Camera as VisionCamera,
@@ -25,6 +25,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { Avatar } from "@/components/ui/avatar";
 import type { SneakyUser } from "../types";
+import { getSneakyUserLabel } from "./user-labels";
 
 interface FeaturedSpeaker {
   id: string;
@@ -121,6 +122,7 @@ function SpeakerLabel({
   isSpeaking: boolean;
   role?: string;
 }) {
+  const label = getSneakyUserLabel(user);
   return (
     <>
       <LinearGradient
@@ -162,7 +164,7 @@ function SpeakerLabel({
           style={{ color: "#fff", fontSize: 12, fontWeight: "600" }}
           numberOfLines={1}
         >
-          {user.displayName}
+          {label}
         </Text>
         {user.isVerified && (
           <BadgeCheck size={12} color="#FF6DC1" fill="#FF6DC1" />
@@ -276,6 +278,7 @@ function AudioOnlyTile({
   speaker: FeaturedSpeaker;
   role?: string;
 }) {
+  const label = getSneakyUserLabel(speaker.user);
   return (
     <View
       style={{
@@ -308,17 +311,37 @@ function AudioOnlyTile({
           maxScale={1.05}
           color="#FC253A"
         />
-        <Avatar
-          uri={speaker.user.avatar}
-          username={speaker.user.username}
-          size={100}
-          variant="roundedSquare"
-          style={
-            speaker.isSpeaking
-              ? { borderColor: "#3FDCFF", borderWidth: 3 }
-              : undefined
-          }
-        />
+        {speaker.user.isAnonymous ? (
+          <View
+            style={[
+              {
+                width: 100,
+                height: 100,
+                borderRadius: 24,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: "rgba(255,255,255,0.08)",
+              },
+              speaker.isSpeaking
+                ? { borderColor: "#3FDCFF", borderWidth: 3 }
+                : null,
+            ]}
+          >
+            <EyeOff size={28} color="#94A3B8" />
+          </View>
+        ) : (
+          <Avatar
+            uri={speaker.user.avatar}
+            username={speaker.user.username}
+            size={100}
+            variant="roundedSquare"
+            style={
+              speaker.isSpeaking
+                ? { borderColor: "#3FDCFF", borderWidth: 3 }
+                : undefined
+            }
+          />
+        )}
       </View>
       <Text
         style={{
@@ -328,7 +351,7 @@ function AudioOnlyTile({
           marginTop: 10,
         }}
       >
-        {speaker.user.displayName}
+        {label}
       </Text>
       {role && (
         <View
@@ -620,7 +643,7 @@ export function VideoStage({
           </View>
           <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
             <Text style={{ fontSize: 14, fontWeight: "600", color: "#fff" }}>
-              {featuredSpeaker.user.displayName}
+              {getSneakyUserLabel(featuredSpeaker.user)}
             </Text>
             {featuredSpeaker.user.isVerified && (
               <BadgeCheck size={14} color="#FF6DC1" fill="#FF6DC1" />

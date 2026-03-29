@@ -60,6 +60,10 @@ import {
 } from "@/src/sneaky-lynk/ui";
 import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
 import type { SneakyRoom, SneakyUser } from "@/src/sneaky-lynk/types";
+import {
+  getSneakyUserLabel,
+  normalizeSneakyAnonLabel,
+} from "@/src/sneaky-lynk/ui/user-labels";
 import { videoApi } from "@/src/video/api";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
@@ -135,13 +139,6 @@ export function ErrorBoundary({
 }
 
 // ── Shared helpers ──────────────────────────────────────────────────
-
-function normalizeAnonLabel(label?: string | null): string | null {
-  if (!label) return null;
-  const match = label.match(/anon(?:\s+lynk)?\s+(\d+)/i);
-  if (match) return `Anon ${match[1]}`;
-  return label;
-}
 
 function buildLocalUser(authUser: any): SneakyUser {
   return {
@@ -972,7 +969,7 @@ function ServerRoom({
   videoRoomRef.current = videoRoom;
 
   // When anonymous, use the anon label from the server response instead of real profile
-  const localAnonLabel = normalizeAnonLabel(
+  const localAnonLabel = normalizeSneakyAnonLabel(
     videoRoom.localUser?.anonLabel || videoRoom.localUser?.username,
   );
   const localUser: SneakyUser = videoRoom.localUser
@@ -1230,8 +1227,12 @@ function ServerRoom({
 
       if (member.userId === videoRoom.localUser?.id) return;
 
-      const label =
-        member.anonLabel || member.displayName || member.username || "Someone";
+      const label = getSneakyUserLabel({
+        isAnonymous: !!member.isAnonymous,
+        anonLabel: member.anonLabel,
+        displayName: member.displayName,
+        username: member.username,
+      });
 
       if (eventType === "INSERT" && member.status === "active") {
         showPresenceEvent("join", `${label} joined`);
@@ -1655,7 +1656,7 @@ function ServerRoom({
 
   // Build SneakyUser from a Fishjam participant
   const peerToUser = (p: any): SneakyUser => {
-    const anonLabel = normalizeAnonLabel(p.anonLabel || p.username);
+    const anonLabel = normalizeSneakyAnonLabel(p.anonLabel || p.username);
     const name = anonLabel || p.username || p.displayName || "Guest";
     const isAnon = !!(p.isAnonymous || anonLabel);
     return {
@@ -1750,7 +1751,7 @@ function ServerRoom({
         onMuteAll={isHost ? handleToggleMuteAll : undefined}
         allMuted={allMuted}
         onShare={handleShare}
-        localRole={isHost ? "host" : "participant"}
+        localRole={isHost ? "host" : videoRoom.localUser?.role || "participant"}
         canOpenParticipants={isHost}
         onOpenParticipants={
           isHost ? () => setShowParticipantsSheet(true) : undefined
@@ -1831,7 +1832,13 @@ function RoomLayout({
   insets: any;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
   isHost: boolean;
-  localRole: "host" | "co-host" | "participant";
+  localRole:
+    | "host"
+    | "co-host"
+    | "moderator"
+    | "speaker"
+    | "participant"
+    | "listener";
   roomTitle: string;
   participantCount: number;
   allParticipants: VideoParticipant[];

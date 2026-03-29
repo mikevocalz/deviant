@@ -1,4 +1,11 @@
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { View, Text, Pressable, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -31,7 +38,13 @@ interface ControlsBarProps {
   isVideoEnabled: boolean;
   handRaised: boolean;
   hasVideo: boolean;
-  localRole: "host" | "co-host" | "participant" | "listener";
+  localRole:
+    | "host"
+    | "co-host"
+    | "moderator"
+    | "speaker"
+    | "participant"
+    | "listener";
   overlayOpen?: boolean;
   floatingReactions?: RoomReaction[];
   onLeave: () => void;
@@ -289,6 +302,27 @@ export function ControlsBar({
 }: ControlsBarProps) {
   const insets = useSafeAreaInsets();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const dockVisibility = useRef(new Animated.Value(overlayOpen ? 0 : 1)).current;
+
+  useEffect(() => {
+    if (overlayOpen) {
+      setShowEmojiPicker(false);
+    }
+
+    Animated.timing(dockVisibility, {
+      toValue: overlayOpen ? 0 : 1,
+      duration: overlayOpen ? 140 : 180,
+      easing: overlayOpen ? Easing.in(Easing.cubic) : Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [dockVisibility, overlayOpen]);
+
+  const controlsTranslateY = dockVisibility.interpolate({
+    inputRange: [0, 1],
+    outputRange: [28, 0],
+  });
+  const canRaiseHand =
+    localRole === "participant" || localRole === "listener";
 
   const quickActions = useMemo(
     () =>
@@ -301,16 +335,17 @@ export function ControlsBar({
               icon: <RotateCcw size={18} color="#E2F2FF" />,
             }
           : null,
-        {
-          key: "hand",
-          label:
-            localRole === "host" || localRole === "co-host"
-              ? "Attention"
-              : "Hand",
-          onPress: onToggleHand,
-          icon: <Hand size={18} color={handRaised ? "#FBBF24" : "#F8FAFC"} />,
-          active: handRaised,
-        },
+        canRaiseHand
+          ? {
+              key: "hand",
+              label: "Hand",
+              onPress: onToggleHand,
+              icon: (
+                <Hand size={18} color={handRaised ? "#FBBF24" : "#F8FAFC"} />
+              ),
+              active: handRaised,
+            }
+          : null,
         onShare
           ? {
               key: "share",
@@ -326,12 +361,21 @@ export function ControlsBar({
         icon: ReactNode;
         active?: boolean;
       }>,
-    [hasVideo, onSwitchCamera, onToggleHand, handRaised, onShare, localRole],
+    [
+      canRaiseHand,
+      hasVideo,
+      onSwitchCamera,
+      onToggleHand,
+      handRaised,
+      onShare,
+    ],
   );
 
   return (
-    <View
+    <Animated.View
       pointerEvents={overlayOpen ? "none" : "box-none"}
+      accessibilityElementsHidden={overlayOpen}
+      importantForAccessibility={overlayOpen ? "no-hide-descendants" : "yes"}
       style={{
         position: "absolute",
         left: 0,
@@ -339,8 +383,10 @@ export function ControlsBar({
         bottom: 0,
         paddingBottom: insets.bottom + 10,
         paddingHorizontal: 14,
-        zIndex: 60,
-        elevation: 60,
+        zIndex: overlayOpen ? 0 : 60,
+        elevation: overlayOpen ? 0 : 60,
+        opacity: dockVisibility,
+        transform: [{ translateY: controlsTranslateY }],
       }}
     >
       {floatingReactions.map((reaction) => (
@@ -511,6 +557,6 @@ export function ControlsBar({
           />
         </View>
       </DVNTLiquidGlass>
-    </View>
+    </Animated.View>
   );
 }

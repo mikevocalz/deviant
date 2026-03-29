@@ -27,6 +27,7 @@ import {
   Hand,
 } from "lucide-react-native";
 import { Avatar } from "@/components/ui/avatar";
+import { getSneakyUserLabel } from "./user-labels";
 import type { SneakyUser } from "../types";
 import Animated, {
   FadeIn,
@@ -112,12 +113,14 @@ const VideoTile = memo(function VideoTile({
   isSpeaking,
   tileWidth,
   tileHeight,
+  isHost,
   onPress,
 }: {
   participant: VideoParticipant;
   isSpeaking: boolean;
   tileWidth: number;
   tileHeight: number;
+  isHost: boolean;
   onPress?: () => void;
 }) {
   const {
@@ -140,8 +143,9 @@ const VideoTile = memo(function VideoTile({
       : null);
   const showVideo = isCameraOn && !!resolvedVideoStream;
   const isAnon = user.isAnonymous;
-  const label = user.anonLabel || user.username || user.displayName || "Guest";
+  const label = getSneakyUserLabel(user);
   const showHostIdentityPill = role === "host";
+  const showRaisedHandBadge = !!(isHost && isHandRaised);
 
   // Animated glow for speaking (Reanimated — runs on UI thread)
   const glowAnim = useSharedValue(0);
@@ -230,7 +234,7 @@ const VideoTile = memo(function VideoTile({
                   <Text style={styles.stateBadgeText}>Audio</Text>
                 </View>
               )}
-              {isHandRaised && (
+              {showRaisedHandBadge && (
                 <View style={styles.handBadge}>
                   <Hand size={11} color="#FCD34D" />
                   <Text style={styles.handBadgeText}>Hand</Text>
@@ -389,6 +393,7 @@ export function VideoGrid({
               isSpeaking={activeSpeakers.has(p.user.id)}
               tileWidth={tileWidth}
               tileHeight={tileHeight}
+              isHost={isHost}
               onPress={
                 isHost && !p.isLocal ? () => onParticipantPress?.(p) : undefined
               }

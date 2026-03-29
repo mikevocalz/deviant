@@ -5,9 +5,10 @@
 
 import { View, Text, Pressable, Animated, Easing } from "react-native";
 import { Image } from "expo-image";
-import { BadgeCheck, MicOff } from "lucide-react-native";
+import { BadgeCheck, EyeOff, MicOff } from "lucide-react-native";
 import { useEffect, useRef, useCallback } from "react";
 import type { SneakyUser, MemberRole } from "../types";
+import { getSneakyUserHandle, getSneakyUserLabel } from "./user-labels";
 
 interface Speaker {
   id: string;
@@ -40,6 +41,8 @@ function SpeakerCard({
 }: SpeakerCardProps) {
   const pulseAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const label = getSneakyUserLabel(speaker.user);
+  const handle = getSneakyUserHandle(speaker.user);
 
   const startAnimation = useCallback(() => {
     const pulseAnimation = Animated.loop(
@@ -154,12 +157,23 @@ function SpeakerCard({
           className="w-[72px] h-[72px] rounded-2xl"
           style={{ transform: [{ scale: isActive ? scaleAnim : 1 }] }}
         >
-          <Image
-            source={{ uri: speaker.user.avatar }}
-            className={`w-[72px] h-[72px] rounded-2xl border-[3px] ${
-              isActive ? "border-[#3FDCFF]" : "border-secondary"
-            }`}
-          />
+          {speaker.user.isAnonymous ? (
+            <View
+              className={`w-[72px] h-[72px] rounded-2xl border-[3px] items-center justify-center ${
+                isActive ? "border-[#3FDCFF]" : "border-secondary"
+              }`}
+              style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+            >
+              <EyeOff size={24} color="#94A3B8" />
+            </View>
+          ) : (
+            <Image
+              source={{ uri: speaker.user.avatar }}
+              className={`w-[72px] h-[72px] rounded-2xl border-[3px] ${
+                isActive ? "border-[#3FDCFF]" : "border-secondary"
+              }`}
+            />
+          )}
         </Animated.View>
 
         {/* Host badge */}
@@ -195,17 +209,16 @@ function SpeakerCard({
           className="text-sm font-semibold text-foreground max-w-[80px]"
           numberOfLines={1}
         >
-          {speaker.user.displayName}
+          {label}
         </Text>
         {speaker.user.isVerified && (
           <BadgeCheck size={12} color="#FF6DC1" fill="#FF6DC1" />
         )}
       </View>
 
-      {/* Username */}
-      <Text className="text-xs text-muted-foreground mt-0.5">
-        @{speaker.user.username}
-      </Text>
+      {handle ? (
+        <Text className="text-xs text-muted-foreground mt-0.5">@{handle}</Text>
+      ) : null}
     </View>
   );
 }

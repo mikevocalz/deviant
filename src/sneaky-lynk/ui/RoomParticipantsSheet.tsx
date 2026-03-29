@@ -22,6 +22,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import type { VideoParticipant } from "./VideoGrid";
+import { getSneakyUserLabel } from "./user-labels";
 
 interface RoomParticipantsSheetProps {
   visible: boolean;
@@ -102,8 +103,8 @@ export function RoomParticipantsSheet({
         }
         if (a.id === localUserId) return -1;
         if (b.id === localUserId) return 1;
-        return (a.user.displayName || a.user.username || "").localeCompare(
-          b.user.displayName || b.user.username || "",
+        return getSneakyUserLabel(a.user).localeCompare(
+          getSneakyUserLabel(b.user),
         );
       }),
     [participants, localUserId],
@@ -127,11 +128,7 @@ export function RoomParticipantsSheet({
       const roleMeta = getRoleMeta(item.role);
       const isSelf = item.id === localUserId;
       const canModerate = isHost && !isSelf && item.role !== "host";
-      const label =
-        item.user.anonLabel ||
-        item.user.displayName ||
-        item.user.username ||
-        "Guest";
+      const label = getSneakyUserLabel(item.user);
 
       return (
         <View

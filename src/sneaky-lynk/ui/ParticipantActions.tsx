@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Mic, MicOff, Crown, UserMinus, X, EyeOff } from "lucide-react-native";
 import { Avatar } from "@/components/ui/avatar";
 import type { SneakyUser } from "../types";
+import { getSneakyUserLabel } from "./user-labels";
 
 interface ParticipantActionsProps {
   visible: boolean;
@@ -44,6 +45,7 @@ export function ParticipantActions({
   const { userId, user, role, isMicOn } = participant;
   const isCoHost = role === "co-host";
   const isAnon = user.isAnonymous;
+  const label = getSneakyUserLabel(user);
 
   return (
     <Modal
@@ -74,7 +76,7 @@ export function ParticipantActions({
               )}
               <View style={styles.headerInfo}>
                 <Text style={styles.headerName} numberOfLines={1}>
-                  {user.displayName || user.username}
+                  {label}
                 </Text>
                 <Text style={styles.headerRole}>
                   {isCoHost ? "Co-Host" : "Participant"}

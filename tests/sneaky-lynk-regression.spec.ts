@@ -94,4 +94,42 @@ describe("Sneaky Lynk/video join safeguards", () => {
     expect(source).toContain("resolveRoomAudience");
     expect(source).not.toContain(": r.participant_count || 0");
   });
+
+  it("hides the bottom controls when the comments sheet overlay is open", () => {
+    const source = read("src/sneaky-lynk/ui/ControlsBar.tsx");
+    expect(source).toContain("if (overlayOpen) {");
+    expect(source).toContain("setShowEmojiPicker(false);");
+    expect(source).toContain('pointerEvents={overlayOpen ? "none" : "box-none"}');
+    expect(source).toContain("zIndex: overlayOpen ? 0 : 60");
+    expect(source).toContain("elevation: overlayOpen ? 0 : 60");
+    expect(source).toContain("opacity: dockVisibility");
+    expect(source).toContain("translateY: controlsTranslateY");
+  });
+
+  it("shows the raise-hand control only to audience roles", () => {
+    const controlsSource = read("src/sneaky-lynk/ui/ControlsBar.tsx");
+    const roomSource = read("app/(protected)/sneaky-lynk/room/[id].tsx");
+
+    expect(controlsSource).toContain(
+      'const canRaiseHand =\n    localRole === "participant" || localRole === "listener";',
+    );
+    expect(controlsSource).toContain("canRaiseHand");
+    expect(roomSource).toContain(
+      'localRole={isHost ? "host" : videoRoom.localUser?.role || "participant"}',
+    );
+  });
+
+  it("never falls back to a real screen name for anonymous room users", () => {
+    const labelsSource = read("src/sneaky-lynk/ui/user-labels.ts");
+    const gridSource = read("src/sneaky-lynk/ui/VideoGrid.tsx");
+    const stageSource = read("src/sneaky-lynk/ui/VideoStage.tsx");
+    const speakerSource = read("src/sneaky-lynk/ui/SpeakerGrid.tsx");
+
+    expect(labelsSource).toContain("if (user.isAnonymous)");
+    expect(labelsSource).toContain('return normalizeSneakyAnonLabel(user.anonLabel) || "Anonymous";');
+    expect(gridSource).toContain("const showRaisedHandBadge = !!(isHost && isHandRaised);");
+    expect(stageSource).toContain("getSneakyUserLabel");
+    expect(speakerSource).toContain("getSneakyUserHandle");
+    expect(speakerSource).not.toContain("@{speaker.user.username}");
+  });
 });
