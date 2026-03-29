@@ -95,9 +95,9 @@ export async function prefetchConversationResolution(
 }
 
 /**
- * Imperative helper for getting/creating conversation with caching.
- * Use this in non-React contexts (callbacks, event handlers, etc.)
- * where you can't use the useConversationResolution hook.
+ * Imperative helper for resolving a user identifier into a 1:1 conversation
+ * with caching. Use this in non-React contexts (callbacks, event handlers,
+ * etc.) where you can't use the useConversationResolution hook.
  *
  * CRITICAL: Pass the queryClient instance to enable caching.
  * Without it, this falls back to direct API call (no cache).
@@ -107,7 +107,7 @@ export async function prefetchConversationResolution(
  * const convId = await getOrCreateConversationCached(queryClient, userId);
  *
  * @param queryClient - TanStack Query client instance
- * @param identifier - Username, auth_id, or numeric conversation ID
+ * @param identifier - Username, auth_id, or numeric user.id
  * @returns Conversation ID
  */
 export async function getOrCreateConversationCached(
@@ -129,10 +129,8 @@ export async function getOrCreateConversationCached(
   console.log("[ConversationResolution] Cache miss, fetching:", identifier);
   const convId = await queryClient.fetchQuery({
     queryKey: conversationResolutionKeys.byIdentifier(identifier),
-    queryFn: async () => {
-      if (/^\d+$/.test(identifier)) return identifier;
-      return await messagesApiClient.getOrCreateConversation(identifier);
-    },
+    queryFn: async () =>
+      await messagesApiClient.getOrCreateConversation(identifier),
     staleTime: 5 * 60 * 1000,
   });
 

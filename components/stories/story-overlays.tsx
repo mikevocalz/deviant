@@ -186,6 +186,7 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item, ...rest }) => {
   const pause = (rest as any).pause as (() => void) | undefined;
   const resume = (rest as any).resume as (() => void) | undefined;
   const insets = useSafeAreaInsets();
+  const queryClient = useQueryClient();
   const currentUser = useAuthStore((s) => s.user);
   const showToast = useUIStore((s) => s.showToast);
   const [replyText, setReplyText] = useState("");
@@ -235,10 +236,7 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item, ...rest }) => {
         }
         if (!userId) return;
 
-        // Use cached conversation resolution to prevent duplicate edge function calls
-        const queryClient = (
-          await import("@tanstack/react-query")
-        ).useQueryClient();
+        // Use cached conversation resolution with the component-scoped query client.
         const conversationId = await getOrCreateConversationCached(
           queryClient,
           userId,
@@ -268,7 +266,7 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item, ...rest }) => {
         );
       }
     },
-    [customData, isOwnStory, item],
+    [customData, isOwnStory, item, queryClient],
   );
 
   const handleSendReply = useCallback(async () => {
@@ -295,10 +293,7 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item, ...rest }) => {
         return;
       }
 
-      // Use cached conversation resolution
-      const queryClient = (
-        await import("@tanstack/react-query")
-      ).useQueryClient();
+      // Use cached conversation resolution with the component-scoped query client.
       const conversationId = await getOrCreateConversationCached(
         queryClient,
         userId,
@@ -333,7 +328,15 @@ export const StoryFooter: RenderCustomButton = ({ onPress, item, ...rest }) => {
       setIsInputFocused(false);
       resume?.();
     }
-  }, [replyText, isSending, customData, isOwnStory, showToast, resume]);
+  }, [
+    replyText,
+    isSending,
+    customData,
+    isOwnStory,
+    showToast,
+    resume,
+    queryClient,
+  ]);
 
   return (
     <View
