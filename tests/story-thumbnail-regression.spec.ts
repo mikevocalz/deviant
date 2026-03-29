@@ -12,6 +12,9 @@
  * If you are changing stories-bar.tsx or story-ring.tsx, run this test.
  */
 
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
 // ── Mock story data ──────────────────────────────────────────────────
 
 const makeStory = (overrides: Partial<any> = {}) => ({
@@ -149,5 +152,28 @@ describe("Story Thumbnail — FORBIDDEN patterns", () => {
     const thumb = getStoryThumbnail(story);
     const firstThumb = story.items[0].thumbnail || story.items[0].url;
     expect(thumb).not.toBe(firstThumb);
+  });
+});
+
+describe("Story Thumbnail upload pipeline", () => {
+  const read = (relativePath: string) =>
+    readFileSync(join(process.cwd(), relativePath), "utf8");
+
+  it("generates and uploads a thumbnail for story videos before publish", () => {
+    const source = read("lib/hooks/use-media-upload.ts");
+
+    expect(source).toContain('const isStory = folder === "stories"');
+    expect(source).toContain("generateVideoThumbnail");
+    expect(source).toContain("getVideoThumbnail(uploadResult.url)");
+    expect(source).toContain("deleteFromServer([uploadResult.path])");
+    expect(source).toContain(
+      "Could not generate a preview image for this video story.",
+    );
+  });
+
+  it("still forwards thumbnail metadata into story creation", () => {
+    const source = read("app/(protected)/story/create.tsx");
+
+    expect(source).toContain("thumbnail: r.thumbnail");
   });
 });

@@ -18,6 +18,8 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CalendarPlus, Share2, Check, Send } from "lucide-react-native";
@@ -36,6 +38,8 @@ import type { Ticket, TicketTierLevel } from "@/lib/stores/ticket-store";
 
 interface TicketActionsBarProps {
   ticket: Ticket;
+  bottomInset?: number;
+  style?: StyleProp<ViewStyle>;
 }
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
@@ -49,6 +53,8 @@ type ActionState = "idle" | "loading" | "success" | "error";
 
 export const TicketActionsBar = memo(function TicketActionsBar({
   ticket,
+  bottomInset,
+  style,
 }: TicketActionsBarProps) {
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
@@ -171,7 +177,13 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   if (!isActive) return null;
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
+    <View
+      style={[
+        styles.container,
+        { paddingBottom: bottomInset ?? insets.bottom + 8 },
+        style,
+      ]}
+    >
       {/* Calendar */}
       <Pressable
         onPress={handleCalendar}

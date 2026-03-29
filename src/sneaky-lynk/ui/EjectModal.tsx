@@ -66,6 +66,7 @@ export function EjectModal({ visible, payload, onDismiss }: EjectModalProps) {
         backgroundColor: "rgba(255,255,255,0.3)",
         width: 36,
       }}
+      style={{ zIndex: 9999, elevation: 9999 }}
     >
       <BottomSheetView className="px-6 pb-10 pt-2 items-center">
         {/* Icon */}

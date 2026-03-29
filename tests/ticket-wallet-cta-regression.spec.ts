@@ -12,6 +12,8 @@ describe("Ticket wallet CTA regression", () => {
     expect(source).toContain("const canAddToWallet =");
     expect(source).toContain("handleAddToWallet");
     expect(source).toContain("styles.walletBanner");
+    expect(source).toContain("styles.bottomActionsWrap");
+    expect(source).toContain("bottomInset={0}");
     expect(source).toContain("walletState === \"loading\"");
   });
 
@@ -21,5 +23,7 @@ describe("Ticket wallet CTA regression", () => {
     expect(source).toContain("export async function addToWallet");
     expect(source).toContain('if (Platform.OS === "ios")');
     expect(source).toContain('if (Platform.OS === "android")');
+    expect(source).toContain("buildAppleWalletUrl");
+    expect(source).toContain("WebBrowser.openBrowserAsync");
   });
 });

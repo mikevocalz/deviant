@@ -12,6 +12,7 @@
 
 import { Platform } from "react-native";
 import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import * as LegacyFileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { Buffer } from "buffer";
@@ -22,6 +23,22 @@ import type { Ticket } from "@/lib/stores/ticket-store";
 export interface WalletResult {
   success: boolean;
   error?: string;
+}
+
+function getSupabaseUrl(): string {
+  const rawUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+  return typeof rawUrl === "string" && rawUrl.startsWith("https://")
+    ? rawUrl
+    : "https://npfjanxturvmjyevoyfo.supabase.co";
+}
+
+function buildAppleWalletUrl(ticket: Ticket, token: string): string {
+  const params = new URLSearchParams({
+    ticketId: String(ticket.id),
+    eventId: String(ticket.eventId),
+    token,
+  });
+  return `${getSupabaseUrl()}/functions/v1/ticket_wallet_apple?${params.toString()}`;
 }
 
 /**
@@ -91,12 +108,23 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
       return { success: false, error: "not_authenticated" };
     }
 
+    const directPassUrl = buildAppleWalletUrl(ticket, token);
+
+    try {
+      await WebBrowser.openBrowserAsync(directPassUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+        dismissButtonStyle: "close",
+      });
+      return { success: true };
+    } catch (browserError) {
+      console.warn(
+        "[addToAppleWallet] Direct Apple Wallet handoff failed, falling back:",
+        browserError,
+      );
+    }
+
     // Call edge function — returns binary .pkpass
-    const rawUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-    const supabaseUrl =
-      typeof rawUrl === "string" && rawUrl.startsWith("https://")
-        ? rawUrl
-        : "https://npfjanxturvmjyevoyfo.supabase.co";
+    const supabaseUrl = getSupabaseUrl();
     const response = await fetch(
       `${supabaseUrl}/functions/v1/ticket_wallet_apple`,
       {

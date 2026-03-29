@@ -18,6 +18,7 @@
 import { useState, useCallback } from "react";
 import {
   uploadToServer as serverUpload,
+  deleteFromServer,
   type ServerUploadResult,
   type UploadProgress,
 } from "@/lib/server-upload";
@@ -29,6 +30,11 @@ import {
   cleanupCompressedVideo,
   type CompressionProgress,
 } from "@/lib/video-compression";
+import {
+  generateVideoThumbnail,
+  cleanupThumbnail,
+} from "@/lib/video-thumbnail";
+import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 
 export type UploadResult = ServerUploadResult;
 
@@ -108,10 +114,9 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
       const results: MediaUploadResult[] = [];
       const videoCount = files.filter((f) => f.type === "video").length;
       const imageCount = files.length - videoCount;
-      // All uploads: validate + compress + upload = 3 steps per video
-      // Thumbnail generation disabled — expo-video-thumbnails hangs on iOS 26.3
       const isStory = folder === "stories";
-      const videoSteps = 3;
+      // Story videos add a thumbnail generation/reconciliation step before publish.
+      const videoSteps = isStory ? 4 : 3;
       const totalSteps = videoCount * videoSteps + imageCount;
       let completedSteps = 0;
 
@@ -196,10 +201,37 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           });
           updateProgress("Video compressed");
 
-          // Thumbnail generation DISABLED — expo-video-thumbnails hangs on iOS 26.3
-          // Video player renders first frame automatically. Can re-enable with
-          // react-native-compressor's createVideoThumbnail later.
-          const thumbnailUrl: string | undefined = undefined;
+          let thumbnailAssetUri: string | undefined;
+          let thumbnailUrl: string | undefined;
+          let thumbnailNeedsCleanup = false;
+
+          if (isStory) {
+            setStatusMessage("Generating video thumbnail...");
+            const localThumbnailSources = [
+              compressionResult.outputPath,
+              file.uri,
+            ].filter(Boolean) as string[];
+
+            for (const candidateUri of localThumbnailSources) {
+              const thumbnailResult = await generateVideoThumbnail(
+                candidateUri,
+                1000,
+                3500,
+              );
+
+              if (thumbnailResult.success && thumbnailResult.uri) {
+                thumbnailAssetUri = thumbnailResult.uri;
+                thumbnailNeedsCleanup = true;
+                break;
+              }
+            }
+
+            updateProgress(
+              thumbnailAssetUri
+                ? "Story thumbnail generated"
+                : "Continuing with story thumbnail fallback",
+            );
+          }
 
           // Step 4: Upload COMPRESSED video (never raw)
           setStatusMessage("Uploading video...");
@@ -223,6 +255,58 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
               error: uploadResult.error,
             });
           } else {
+            if (isStory) {
+              if (!thumbnailAssetUri) {
+                setStatusMessage("Recovering story thumbnail...");
+                thumbnailAssetUri =
+                  (await getVideoThumbnail(uploadResult.url)) || undefined;
+                thumbnailNeedsCleanup = false;
+              }
+
+              if (thumbnailAssetUri) {
+                setStatusMessage("Uploading story thumbnail...");
+                const thumbnailUploadResult = await serverUpload(
+                  thumbnailAssetUri,
+                  folder,
+                );
+
+                if (thumbnailUploadResult.success) {
+                  thumbnailUrl = thumbnailUploadResult.url;
+                } else {
+                  console.warn(
+                    "[useMediaUpload] Story thumbnail upload failed:",
+                    thumbnailUploadResult.error,
+                  );
+                }
+              }
+
+              if (thumbnailAssetUri && thumbnailNeedsCleanup) {
+                await cleanupThumbnail(thumbnailAssetUri);
+              }
+
+              if (!thumbnailUrl) {
+                if (uploadResult.path) {
+                  await deleteFromServer([uploadResult.path]);
+                }
+
+                results.push({
+                  type: "video",
+                  url: "",
+                  success: false,
+                  error:
+                    "Could not generate a preview image for this video story.",
+                });
+                updateProgress("Story thumbnail required");
+                console.error(
+                  "[useMediaUpload] Story video blocked: thumbnail generation failed",
+                );
+                console.log(
+                  "[useMediaUpload] ========== VIDEO PIPELINE COMPLETE ==========",
+                );
+                continue;
+              }
+            }
+
             results.push({
               type: "video",
               url: uploadResult.url,

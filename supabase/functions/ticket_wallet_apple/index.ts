@@ -409,7 +409,7 @@ Deno.serve(async (req) => {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
 
-  if (req.method !== "POST") {
+  if (req.method !== "POST" && req.method !== "GET") {
     return errResp("method_not_allowed", "Method not allowed", 405);
   }
 
@@ -448,22 +448,41 @@ Deno.serve(async (req) => {
     });
 
     // ── 1. Authenticate ──────────────────────────────────────
-    const authUserId = await verifySession(supabaseAdmin, req);
+    const url = new URL(req.url);
+    const queryToken = url.searchParams.get("token")?.trim();
+    const authRequest = queryToken
+      ? new Request(req, {
+          headers: new Headers([
+            ...req.headers.entries(),
+            ["x-auth-token", queryToken],
+          ]),
+        })
+      : req;
+    const authUserId = await verifySession(supabaseAdmin, authRequest);
     if (!authUserId) {
       return errResp("unauthorized", "Invalid or expired session", 401);
     }
 
     console.log("[ticket_wallet_apple] Auth user:", authUserId);
 
-    // ── 2. Parse body ────────────────────────────────────────
-    let body: { ticketId: string; eventId: string };
-    try {
-      body = await req.json();
-    } catch {
-      return errResp("validation_error", "Invalid JSON body");
+    // ── 2. Parse input ───────────────────────────────────────
+    let ticketId = "";
+    let eventId = "";
+
+    if (req.method === "GET") {
+      ticketId = url.searchParams.get("ticketId")?.trim() || "";
+      eventId = url.searchParams.get("eventId")?.trim() || "";
+    } else {
+      let body: { ticketId: string; eventId: string };
+      try {
+        body = await req.json();
+      } catch {
+        return errResp("validation_error", "Invalid JSON body");
+      }
+      ticketId = body.ticketId;
+      eventId = body.eventId;
     }
 
-    const { ticketId, eventId } = body;
     if (!ticketId || !eventId) {
       return errResp("validation_error", "ticketId and eventId are required");
     }
@@ -628,8 +647,9 @@ Deno.serve(async (req) => {
       headers: {
         ...CORS_HEADERS,
         "Content-Type": "application/vnd.apple.pkpass",
-        "Content-Disposition": `attachment; filename="${ticketId}.pkpass"`,
+        "Content-Disposition": `${req.method === "GET" ? "inline" : "attachment"}; filename="${ticketId}.pkpass"`,
         "Content-Length": String(pkpassData.length),
+        "Cache-Control": "no-store, private, max-age=0",
       },
     });
   } catch (err) {

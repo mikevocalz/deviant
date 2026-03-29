@@ -194,6 +194,7 @@ function ViewTicketScreenContent() {
     walletState === "success"
       ? "Your ticket pass opened successfully"
       : "Keep your ticket one tap away on this device";
+  const bottomActionsPadding = canAddToWallet ? insets.bottom + 210 : 116;
 
   return (
     <View style={styles.screen}>
@@ -209,7 +210,7 @@ function ViewTicketScreenContent() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + 100 },
+          { paddingBottom: bottomActionsPadding },
         ]}
       >
         {/* ── 1. TICKET HERO ── */}
@@ -318,16 +319,25 @@ function ViewTicketScreenContent() {
 
         {/* ── 3. ACCESS DETAILS ── */}
         <TicketAccessDetails ticket={ticket} />
+      </ScrollView>
 
-        {/* ── 4. WALLET CTA ── */}
+      <View style={styles.bottomActionsWrap}>
+        <TicketActionsBar
+          ticket={ticket}
+          bottomInset={0}
+          style={styles.ticketActionsBar}
+        />
+
         {canAddToWallet && (
           <Pressable
             onPress={handleAddToWallet}
             disabled={walletState === "loading"}
             style={({ pressed }) => [
               styles.walletBanner,
+              styles.walletBottomCta,
               pressed && walletState !== "loading" && styles.walletBannerPressed,
               walletState === "success" && styles.walletBannerSuccess,
+              { marginBottom: insets.bottom + 8 },
             ]}
           >
             <View style={styles.walletIconWrap}>
@@ -355,10 +365,7 @@ function ViewTicketScreenContent() {
             </View>
           </Pressable>
         )}
-      </ScrollView>
-
-      {/* ── 5. ACTIONS BAR (sticky bottom) ── */}
-      <TicketActionsBar ticket={ticket} />
+      </View>
     </View>
   );
 }
@@ -382,6 +389,17 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingTop: 0,
+  },
+  bottomActionsWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(10,10,10,0.96)",
+  },
+  ticketActionsBar: {
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.06)",
   },
   heroWrap: {
     paddingHorizontal: 16,
@@ -494,6 +512,9 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(138,64,207,0.15)",
     borderWidth: 1,
     borderColor: "rgba(138,64,207,0.25)",
+  },
+  walletBottomCta: {
+    marginTop: 10,
   },
   walletBannerPressed: {
     opacity: 0.88,
