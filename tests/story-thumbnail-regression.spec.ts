@@ -167,7 +167,7 @@ describe("Story Thumbnail upload pipeline", () => {
     expect(source).toContain("getVideoThumbnail(uploadResult.url)");
     expect(source).toContain("deleteFromServer([uploadResult.path])");
     expect(source).toContain(
-      "Could not generate a preview image for this video story.",
+      "Failed to generate a story thumbnail. Please try another video.",
     );
   });
 

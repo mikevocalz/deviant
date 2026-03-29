@@ -12,7 +12,7 @@ describe("Story video publish + delete regression", () => {
 
     expect(source).toContain('const isStory = folder === "stories"');
     expect(source).toContain("getVideoThumbnail");
-    expect(source).toContain("Story video missing thumbnail");
+    expect(source).toContain("Story video blocked: thumbnail generation failed");
     expect(source).toContain("deleteFromServer([uploadResult.path])");
   });
 
