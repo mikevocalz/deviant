@@ -22,19 +22,18 @@ import {
   type ServerUploadResult,
   type UploadProgress,
 } from "@/lib/server-upload";
+import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 
 import { manipulateAsync, SaveFormat } from "expo-image-manipulator";
 import {
   compressVideo,
   validateVideo,
   cleanupCompressedVideo,
-  type CompressionProgress,
 } from "@/lib/video-compression";
 import {
   generateVideoThumbnail,
   cleanupThumbnail,
 } from "@/lib/video-thumbnail";
-import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 
 export type UploadResult = ServerUploadResult;
 
@@ -57,7 +56,9 @@ export interface MediaUploadResult {
   type: "image" | "video";
   kind?: import("@/lib/media/types").MediaKind;
   url: string;
+  path?: string;
   thumbnail?: string;
+  thumbnailPath?: string;
   mimeType?: string;
   livePhotoVideoUrl?: string;
   success: boolean;
@@ -203,6 +204,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
 
           let thumbnailAssetUri: string | undefined;
           let thumbnailUrl: string | undefined;
+          let thumbnailPath: string | undefined;
           let thumbnailNeedsCleanup = false;
 
           if (isStory) {
@@ -272,6 +274,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
 
                 if (thumbnailUploadResult.success) {
                   thumbnailUrl = thumbnailUploadResult.url;
+                  thumbnailPath = thumbnailUploadResult.path;
                 } else {
                   console.warn(
                     "[useMediaUpload] Story thumbnail upload failed:",
@@ -286,7 +289,12 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
 
               if (!thumbnailUrl) {
                 if (uploadResult.path) {
-                  await deleteFromServer([uploadResult.path]);
+                  await deleteFromServer([uploadResult.path]).catch((cleanupErr) =>
+                    console.error(
+                      "[useMediaUpload] Failed to clean up rolled-back story video:",
+                      cleanupErr,
+                    ),
+                  );
                 }
 
                 results.push({
@@ -294,9 +302,9 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
                   url: "",
                   success: false,
                   error:
-                    "Could not generate a preview image for this video story.",
+                    "Failed to generate a story thumbnail. Please try another video.",
                 });
-                updateProgress("Story thumbnail required");
+                updateProgress("Upload blocked");
                 console.error(
                   "[useMediaUpload] Story video blocked: thumbnail generation failed",
                 );
@@ -306,11 +314,12 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
                 continue;
               }
             }
-
             results.push({
               type: "video",
               url: uploadResult.url,
+              path: uploadResult.path,
               thumbnail: thumbnailUrl,
+              thumbnailPath,
               success: true,
               compressionStats: {
                 originalSize: compressionResult.originalSize || 0,

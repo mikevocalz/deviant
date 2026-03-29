@@ -36,7 +36,9 @@ interface CreateStoryBody {
   mediaType: "image" | "video";
   visibility?: "public" | "followers" | "close_friends";
   duration?: number;
+  mediaKey?: string;
   thumbnailUrl?: string;
+  thumbnailKey?: string;
   animatedGifOverlays?: Array<{
     id?: string;
     url: string;
@@ -107,7 +109,9 @@ Deno.serve(async (req) => {
       mediaType,
       visibility,
       duration,
+      mediaKey,
       thumbnailUrl,
+      thumbnailKey,
       animatedGifOverlays,
     } = body;
 
@@ -139,6 +143,7 @@ Deno.serve(async (req) => {
       .from("media")
       .insert({
         url: mediaUrl,
+        ...(mediaKey ? { filename: mediaKey } : {}),
         mime_type: mediaType === "video" ? "video/mp4" : "image/jpeg",
       })
       .select()
@@ -164,6 +169,7 @@ Deno.serve(async (req) => {
         .from("media")
         .insert({
           url: thumbnailUrl,
+          ...(thumbnailKey ? { filename: thumbnailKey } : {}),
           mime_type: "image/jpeg",
         })
         .select()

@@ -217,6 +217,7 @@ function StoryViewerScreenContent() {
     setCurrentItemIndex,
   } = useStoryViewerStore();
   const insets = useSafeAreaInsets();
+  const [showVideoPoster, setShowVideoPoster] = useState(true);
 
   const progress = useSharedValue(0);
 
@@ -394,6 +395,14 @@ function StoryViewerScreenContent() {
     }
     return "";
   }, [isVideo, currentItem?.url]);
+
+  useEffect(() => {
+    if (!isVideo) {
+      setShowVideoPoster(false);
+      return;
+    }
+    setShowVideoPoster(true);
+  }, [isVideo, currentItem?.id, videoUrl]);
 
   // Debug logging for story items
   useEffect(() => {
@@ -1135,7 +1144,16 @@ function StoryViewerScreenContent() {
           >
             {isVideo && videoUrl && player ? (
               <>
-                {currentItem?.thumbnail ? (
+                <VideoView
+                  player={player}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                  nativeControls={false}
+                  fullscreenOptions={{ enable: false }}
+                  allowsPictureInPicture={false}
+                  onFirstFrameRender={() => setShowVideoPoster(false)}
+                />
+                {showVideoPoster && currentItem?.thumbnail ? (
                   <Image
                     source={{ uri: currentItem.thumbnail }}
                     style={{
@@ -1146,14 +1164,6 @@ function StoryViewerScreenContent() {
                     contentFit="cover"
                   />
                 ) : null}
-                <VideoView
-                  player={player}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="cover"
-                  nativeControls={false}
-                  fullscreenOptions={{ enable: false }}
-                  allowsPictureInPicture={false}
-                />
                 <VideoSeekBar
                   currentTime={videoCurrentTime}
                   duration={videoDuration}

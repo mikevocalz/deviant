@@ -619,7 +619,9 @@ function CreateStoryScreenContent() {
       const storyItems = uploadResults.map((r, index) => ({
         type: r.kind ?? r.type,
         url: r.url,
+        ...(r.path && { storageKey: r.path }),
         thumbnail: r.thumbnail,
+        ...(r.thumbnailPath && { thumbnailKey: r.thumbnailPath }),
         ...(r.mimeType && { mimeType: r.mimeType }),
         ...(r.livePhotoVideoUrl && { livePhotoVideoUrl: r.livePhotoVideoUrl }),
         animatedGifOverlays:

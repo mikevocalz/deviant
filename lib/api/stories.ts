@@ -212,7 +212,9 @@ export const storiesApi = {
     items: Array<{
       type: string;
       url?: string;
+      storageKey?: string;
       thumbnail?: string;
+      thumbnailKey?: string;
       text?: string;
       textColor?: string;
       backgroundColor?: string;
@@ -250,7 +252,9 @@ export const storiesApi = {
               mediaUrl,
               mediaType,
               visibility,
+              mediaKey: item.storageKey,
               thumbnailUrl,
+              thumbnailKey: item.thumbnailKey,
               animatedGifOverlays: item.animatedGifOverlays || [],
             },
             headers: { Authorization: `Bearer ${token}` },
