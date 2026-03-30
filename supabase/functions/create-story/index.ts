@@ -144,24 +144,37 @@ Deno.serve(async (req) => {
     const userId = userData.id;
     console.log("[Edge:create-story] User:", userId);
 
-    // Create media record first
-    const { data: mediaRecord, error: mediaError } = await supabaseAdmin
-      .from("media")
-      .insert({
-        url: mediaUrl,
-        type: mediaType,
-        ...(mediaKey ? { filename: mediaKey } : {}),
-        mime_type: mediaType === "video" ? "video/mp4" : "image/jpeg",
-      })
-      .select()
-      .single();
+    // Create media record first — upsert on filename to handle retries
+    // (previous attempt may have inserted the media row but failed on the story row,
+    // leaving an orphan that causes "duplicate key violates unique constraint media_filename_idx")
+    const mediaPayload = {
+      url: mediaUrl,
+      type: mediaType,
+      ...(mediaKey ? { filename: mediaKey } : {}),
+      mime_type: mediaType === "video" ? "video/mp4" : "image/jpeg",
+    };
+    const mediaQuery = mediaKey
+      ? supabaseAdmin
+          .from("media")
+          .upsert(mediaPayload, { onConflict: "filename" })
+          .select()
+          .single()
+      : supabaseAdmin.from("media").insert(mediaPayload).select().single();
+    const { data: mediaRecord, error: mediaError } = await mediaQuery;
 
     if (mediaError) {
-      console.error("[Edge:create-story] Media insert error:", mediaError);
+      console.error(
+        "[Edge:create-story] Media insert error:",
+        JSON.stringify({
+          message: mediaError.message,
+          code: mediaError.code,
+          details: mediaError.details,
+          hint: mediaError.hint,
+        }),
+      );
       return errorResponse(
         "internal_error",
-        "Failed to create media record",
-        500,
+        `Failed to create media record: ${mediaError.message} (code: ${mediaError.code})`,
       );
     }
 
@@ -172,16 +185,20 @@ Deno.serve(async (req) => {
     // Create thumbnail media record if provided (for video stories)
     let thumbnailMediaId: number | null = null;
     if (thumbnailUrl) {
-      const { data: thumbRecord, error: thumbError } = await supabaseAdmin
-        .from("media")
-        .insert({
-          url: thumbnailUrl,
-          type: "image",
-          ...(thumbnailKey ? { filename: thumbnailKey } : {}),
-          mime_type: "image/jpeg",
-        })
-        .select()
-        .single();
+      const thumbPayload = {
+        url: thumbnailUrl,
+        type: "image",
+        ...(thumbnailKey ? { filename: thumbnailKey } : {}),
+        mime_type: "image/jpeg",
+      };
+      const thumbQuery = thumbnailKey
+        ? supabaseAdmin
+            .from("media")
+            .upsert(thumbPayload, { onConflict: "filename" })
+            .select()
+            .single()
+        : supabaseAdmin.from("media").insert(thumbPayload).select().single();
+      const { data: thumbRecord, error: thumbError } = await thumbQuery;
 
       if (!thumbError && thumbRecord) {
         thumbnailMediaId = thumbRecord.id;
