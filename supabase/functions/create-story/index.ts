@@ -26,9 +26,9 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string): Response {
+function errorResponse(code: string, message: string, status = 200): Response {
   console.error(`[Edge:create-story] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, 200);
+  return jsonResponse({ ok: false, error: { code, message } }, status);
 }
 
 interface CreateStoryBody {
@@ -143,6 +143,7 @@ Deno.serve(async (req) => {
       .from("media")
       .insert({
         url: mediaUrl,
+        type: mediaType,
         ...(mediaKey ? { filename: mediaKey } : {}),
         mime_type: mediaType === "video" ? "video/mp4" : "image/jpeg",
       })
@@ -169,6 +170,7 @@ Deno.serve(async (req) => {
         .from("media")
         .insert({
           url: thumbnailUrl,
+          type: "image",
           ...(thumbnailKey ? { filename: thumbnailKey } : {}),
           mime_type: "image/jpeg",
         })

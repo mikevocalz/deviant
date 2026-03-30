@@ -1,7 +1,6 @@
 import { View, Text, Pressable } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect } from "react";
-import { useQueryClient } from "@tanstack/react-query";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,7 +8,6 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useAppStore } from "@/lib/stores/app-store";
-import { postKeys } from "@/lib/hooks/use-posts";
 
 const TRACK_WIDTH = 84;
 const TRACK_HEIGHT = 42;
@@ -24,7 +22,6 @@ export function SpicyToggleFAB() {
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
   const toggleNsfwEnabled = useAppStore((s) => s.toggleNsfwEnabled);
   const insets = useSafeAreaInsets();
-  const queryClient = useQueryClient();
 
   // Reanimated shared value — survives OTA reloads correctly
   const thumbX = useSharedValue(nsfwEnabled ? THUMB_ON : THUMB_OFF);
@@ -45,20 +42,10 @@ export function SpicyToggleFAB() {
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const nextEnabled = toggleNsfwEnabled();
     console.log("[SpicyToggle] Toggling NSFW:", nextEnabled);
-
-    void queryClient.invalidateQueries({
-      queryKey: postKeys.feedInfinite(),
-      refetchType: "active",
-    });
-    void queryClient.invalidateQueries({
-      queryKey: postKeys.feed(),
-      refetchType: "active",
-    });
-    void queryClient.invalidateQueries({
-      queryKey: ["search"],
-      refetchType: "active",
-    });
-  }, [queryClient, toggleNsfwEnabled]);
+    // No query invalidation needed — feed filtering is 100% client-side
+    // via useMemo on nsfwEnabled. Invalidation raced with initial feed load
+    // after OTA and caused feed reset/blank state.
+  }, [toggleNsfwEnabled]);
 
   return (
     <Pressable
@@ -94,6 +81,7 @@ export function SpicyToggleFAB() {
       >
         {/* Angel emoji (left side, visible when deviant mode ON) */}
         <View
+          pointerEvents="none"
           style={{
             position: "absolute",
             left: 10,
@@ -105,6 +93,7 @@ export function SpicyToggleFAB() {
 
         {/* Devil emoji (right side, visible when angel mode / OFF) */}
         <View
+          pointerEvents="none"
           style={{
             position: "absolute",
             right: 10,
@@ -116,6 +105,7 @@ export function SpicyToggleFAB() {
 
         {/* Animated thumb — reanimated survives OTA reloads */}
         <Animated.View
+          pointerEvents="none"
           style={[
             {
               width: THUMB_SIZE,

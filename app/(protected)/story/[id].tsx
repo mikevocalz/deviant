@@ -330,18 +330,19 @@ function StoryViewerScreenContent() {
   }, [id, currentStoryId, availableStories.length, currentStoryIndex, story]);
 
   // If story has username but no userId, look it up
+  // CRITICAL FIX: Clear resolvedUserId eagerly on every story change to prevent
+  // stale IDs from a previous story author being used for replies/reactions.
   useEffect(() => {
     if (story?.userId) {
-      // Already have userId, use it
+      // Sync path — userId available immediately, no stale window
       setResolvedUserId(story.userId);
     } else if (story?.username) {
-      // No userId but have username, look it up
-      console.log(
-        "[StoryViewer] Looking up userId for username:",
-        story.username,
-      );
+      // Async path — clear first so replies are blocked during lookup
+      setResolvedUserId(null);
+      const username = story.username;
+      console.log("[StoryViewer] Looking up userId for username:", username);
       usersApi
-        .getProfileByUsername(story.username)
+        .getProfileByUsername(username)
         .then((result: any) => {
           if (result?.id) {
             console.log("[StoryViewer] Found userId:", result.id);
@@ -349,14 +350,12 @@ function StoryViewerScreenContent() {
           } else {
             console.warn(
               "[StoryViewer] User not found for username:",
-              story.username,
+              username,
             );
-            setResolvedUserId(null);
           }
         })
         .catch((error: any) => {
           console.error("[StoryViewer] Error looking up userId:", error);
-          setResolvedUserId(null);
         });
     } else {
       setResolvedUserId(null);

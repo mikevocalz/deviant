@@ -498,32 +498,34 @@ function ChatScreenContent() {
 
     // Load messages FIRST — this is what the user sees
     loadMessages(activeConvId);
+    // markAsRead is handled by its own dedicated effect below
+    // to avoid being skipped by the duplicate-load guard
+  }, [activeConvId, isResolvingConversation, loadMessages]);
 
-    // CRITICAL FIX: Only mark as read if conversation is validated
-    // This prevents "Not a participant" errors for new conversations
-    if (isConversationValid) {
-      messagesApiClient
-        .markAsRead(activeConvId)
-        .then(async (result) => {
-          if (!result.ok) return;
-          await refreshMessageCounts(activeConvId, result.unread);
-          console.log("[Chat] Marked as read + badge reconciled");
-        })
-        .catch((error) => {
-          console.error("[Chat] markAsRead error:", error);
-        });
-    } else {
-      console.log(
-        "[Chat] Skipping markAsRead - conversation not validated yet",
-      );
-    }
-  }, [
-    activeConvId,
-    isResolvingConversation,
-    isConversationValid,
-    loadMessages,
-    refreshMessageCounts,
-  ]);
+  // CRITICAL FIX: Dedicated markAsRead effect — fires when conversation is
+  // validated, independent of the message-loading guard. Previously markAsRead
+  // was inside the message-load effect gated by isConversationValid, but that
+  // effect's duplicate-load guard prevented re-running when isConversationValid
+  // transitioned from false → true, so markAsRead never fired.
+  const hasMarkedReadRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeConvId || !isConversationValid) return;
+    // Only mark read once per conversation visit
+    if (hasMarkedReadRef.current === activeConvId) return;
+    hasMarkedReadRef.current = activeConvId;
+
+    console.log("[Chat] Marking conversation as read:", activeConvId);
+    messagesApiClient
+      .markAsRead(activeConvId)
+      .then(async (result) => {
+        if (!result.ok) return;
+        await refreshMessageCounts(activeConvId, result.unread);
+        console.log("[Chat] Marked as read + badge reconciled");
+      })
+      .catch((error) => {
+        console.error("[Chat] markAsRead error:", error);
+      });
+  }, [activeConvId, isConversationValid, refreshMessageCounts]);
 
   // Realtime subscription — listen for new incoming messages so the chat
   // updates live without needing to close and reopen the screen.
@@ -562,8 +564,8 @@ function ChatScreenContent() {
           console.log("[Chat RT] Received message:", {
             id: newMsg.id,
             sender_id: newMsg.sender_id,
-            userId,
-            senderMatch: String(newMsg.sender_id) === String(userId),
+            userIntId,
+            senderMatch: String(newMsg.sender_id) === String(userIntId),
             convId,
           });
           // Skip own messages — already handled by optimistic update
