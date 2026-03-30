@@ -13,7 +13,7 @@ import { syncAuthUser } from "@/lib/api/privileged";
 import { replayPendingLink } from "@/lib/deep-linking/link-engine";
 import { useDeepLinkStore } from "@/lib/stores/deep-link-store";
 import Logo from "@/components/logo";
-import { VideoView, useVideoPlayer } from "react-native-video";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
 
@@ -161,8 +161,8 @@ export default function LoginScreen() {
       <VideoView
         player={backgroundVideo}
         style={styles.backgroundVideo}
-        resizeMode="cover"
-        controls={false}
+        contentFit="cover"
+        nativeControls={false}
       />
 
       {/* Gradient overlay - transparent at top, black at bottom (starts at 47%) */}

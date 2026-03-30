@@ -7,7 +7,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
-import { VideoView, useVideoPlayer } from "react-native-video";
+import { VideoView, useVideoPlayer } from "expo-video";
 import {
   X,
   Image as ImageIcon,
@@ -80,8 +80,8 @@ function StoryVideoPreview({ uri }: { uri: string }) {
       <VideoView
         player={player}
         style={{ width: "100%", height: "100%" }}
-        resizeMode="cover"
-        controls={false}
+        contentFit="cover"
+        nativeControls={false}
       />
       {!isPlaying && (
         <View
@@ -624,7 +624,8 @@ function CreateStoryScreenContent() {
         ...(r.thumbnailPath && { thumbnailKey: r.thumbnailPath }),
         ...(r.mimeType && { mimeType: r.mimeType }),
         ...(r.livePhotoVideoUrl && { livePhotoVideoUrl: r.livePhotoVideoUrl }),
-        animatedGifOverlays: mediaAssets[index]?.storyAnimatedGifOverlays || [],
+        animatedGifOverlays:
+          mediaAssets[index]?.storyAnimatedGifOverlays || [],
       }));
       console.log("[Story] Creating story with", storyItems.length, "items");
 
@@ -704,43 +705,40 @@ function CreateStoryScreenContent() {
   const isValid = mediaAssets.length > 0;
 
   // FIX: Use safe header update to prevent loops
-  useSafeHeader(
-    {
-      headerShown: true,
-      headerTitle: "New Story",
-      headerTitleAlign: "left" as const,
-      headerStyle: { backgroundColor: colors.background },
-      headerTitleStyle: {
-        color: colors.foreground,
-        fontWeight: "600",
-        fontSize: 18,
-      },
-      headerLeft: () => (
-        <Pressable
-          onPress={handleClose}
-          hitSlop={12}
-          className="ml-2 w-11 h-11 items-center justify-center"
-        >
-          <X size={24} color={colors.foreground} strokeWidth={2.5} />
-        </Pressable>
-      ),
-      headerRight: () => (
-        <Pressable
-          onPress={handleShare}
-          disabled={isSharing || !isValid}
-          hitSlop={12}
-          className="mr-2"
-        >
-          <Text
-            className={`text-sm font-semibold ${isValid && !isSharing ? "text-primary" : "text-muted-foreground"}`}
-          >
-            {isSharing ? "Sharing..." : "Share"}
-          </Text>
-        </Pressable>
-      ),
+  useSafeHeader({
+    headerShown: true,
+    headerTitle: "New Story",
+    headerTitleAlign: "left" as const,
+    headerStyle: { backgroundColor: colors.background },
+    headerTitleStyle: {
+      color: colors.foreground,
+      fontWeight: "600",
+      fontSize: 18,
     },
-    [handleClose, handleShare, isSharing, isValid],
-  );
+    headerLeft: () => (
+      <Pressable
+        onPress={handleClose}
+        hitSlop={12}
+        className="ml-2 w-11 h-11 items-center justify-center"
+      >
+        <X size={24} color={colors.foreground} strokeWidth={2.5} />
+      </Pressable>
+    ),
+    headerRight: () => (
+      <Pressable
+        onPress={handleShare}
+        disabled={isSharing || !isValid}
+        hitSlop={12}
+        className="mr-2"
+      >
+        <Text
+          className={`text-sm font-semibold ${isValid && !isSharing ? "text-primary" : "text-muted-foreground"}`}
+        >
+          {isSharing ? "Sharing..." : "Share"}
+        </Text>
+      </Pressable>
+    ),
+  }, [handleClose, handleShare, isSharing, isValid]);
 
   return (
     <>

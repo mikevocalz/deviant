@@ -1,19 +1,20 @@
 /**
  * VideoLifecycleManager - Crash-proof video lifecycle utilities
  *
- * Adapted for react-native-video (v7) which uses a declarative <Video>
- * component with a ref-based API (VideoRef) instead of expo-video's
- * imperative useVideoPlayer + VideoView pattern.
+ * Root cause of EXC_BAD_ACCESS crashes:
+ * - AVPlayer replaceCurrentItemWithPlayerItem called after component unmount
+ * - expo-video's useVideoPlayer creates native AVPlayer that persists beyond React lifecycle
+ * - When component unmounts, player.replace() or player.play() on released object = SIGSEGV
  *
  * Solution:
  * - Track mount state with isMountedRef
- * - Guard ALL ref operations with mount check
+ * - Guard ALL player operations with mount check
  * - Cancel pending operations on unmount
  * - Log all lifecycle events for debugging
  */
 
 import { useRef, useEffect, useCallback } from "react";
-import type { VideoPlayer } from "react-native-video";
+import type { VideoPlayer } from "expo-video";
 
 // Global debug flag - set to true to see all video lifecycle logs
 const VIDEO_DEBUG = __DEV__;
@@ -73,6 +74,17 @@ export function safePlayerOp<T>(
     logVideoHealth(componentName, `OK ${opName}`);
     return result;
   } catch (error: unknown) {
+    // ERR_USING_RELEASED_SHARED_OBJECT is expected when player is released
+    if (
+      error &&
+      typeof error === "object" &&
+      "code" in error &&
+      (error as { code: string }).code === "ERR_USING_RELEASED_SHARED_OBJECT"
+    ) {
+      logVideoHealth(componentName, `EXPECTED ${opName} - player released`);
+      return fallback;
+    }
+
     logVideoHealth(componentName, `ERROR ${opName}`, {
       error: error instanceof Error ? error.message : String(error),
     });

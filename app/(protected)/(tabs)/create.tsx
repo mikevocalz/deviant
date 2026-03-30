@@ -8,7 +8,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
-import { VideoView, useVideoPlayer } from "react-native-video";
+import { VideoView, useVideoPlayer } from "expo-video";
 import {
   X,
   Image as ImageIcon,
@@ -85,8 +85,8 @@ function VideoPreview({ uri, duration }: { uri: string; duration?: number }) {
       <VideoView
         player={player}
         style={{ width: "100%", height: "100%" }}
-        resizeMode="cover"
-        controls={false}
+        contentFit="cover"
+        nativeControls={false}
       />
       {/* Play/Pause overlay */}
       {!isPlaying && (
@@ -427,12 +427,7 @@ function CreateScreenContent() {
     console.log("[Create] caption length:", trimmedCaption.length);
 
     // Prevent double submission — ref check is synchronous (survives rapid taps)
-    if (
-      isSubmittingRef.current ||
-      isSubmitLocked ||
-      isCreating ||
-      isUploading
-    ) {
+    if (isSubmittingRef.current || isSubmitLocked || isCreating || isUploading) {
       console.log("[Create] Already submitting, ignoring");
       return;
     }

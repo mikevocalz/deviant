@@ -41,7 +41,7 @@ import { usePostLikeState } from "@/lib/hooks/usePostLikeState";
 import { usePrefetchComments } from "@/lib/hooks/use-comments";
 import { useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import type { Comment } from "@/lib/types";
-import { VideoView, useVideoPlayer } from "react-native-video";
+import { VideoView, useVideoPlayer } from "expo-video";
 import {
   useCallback,
   useEffect,
@@ -90,7 +90,9 @@ import {
   withTiming,
 } from "react-native-reanimated";
 import { Volume2, VolumeX } from "lucide-react-native";
-import { resolveRenderableTextPostPresentation } from "@/lib/posts/text-post";
+import {
+  resolveRenderableTextPostPresentation,
+} from "@/lib/posts/text-post";
 
 const CARD_HORIZONTAL_MARGIN = 4;
 const CARD_BORDER_WIDTH = 1;
@@ -254,7 +256,8 @@ function FeedPostComponent({
   }, [hydratedTextPresentation.textSlides, initialTextSlides]);
   const textPostCaption =
     hydratedTextPresentation.caption || initialTextPresentation.caption;
-  const hasMultipleTextSlides = isTextPost && resolvedTextSlides.length > 1;
+  const hasMultipleTextSlides =
+    isTextPost && resolvedTextSlides.length > 1;
   const hasMedia = media && media.length > 0;
   const isVideo = !isTextPost && hasMedia && media[0]?.type === "video";
   const hasMultipleMedia =
@@ -708,8 +711,8 @@ function FeedPostComponent({
                     ref={videoViewRef}
                     player={player}
                     style={{ width: "100%", height: "100%" }}
-                    resizeMode="cover"
-                    controls={false}
+                    contentFit="cover"
+                    nativeControls={false}
                   />
                 </View>
               </Pressable>
@@ -1072,8 +1075,8 @@ function FeedPostComponent({
               <VideoView
                 player={player}
                 style={{ flex: 1 }}
-                resizeMode="cover"
-                controls={false}
+                contentFit="cover"
+                nativeControls={false}
               />
             </Pressable>
             {/* Seek bar — 20px from bottom */}
