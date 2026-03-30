@@ -26,9 +26,15 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: string, message: string, status = 200): Response {
+function errorResponse(
+  code: string,
+  message: string,
+  _status?: number,
+): Response {
   console.error(`[Edge:create-story] Error: ${code} - ${message}`);
-  return jsonResponse({ ok: false, error: { code, message } }, status);
+  // Always return 200 — supabase.functions.invoke throws on non-2xx
+  // before the client can read the JSON body. Errors are signaled via ok:false.
+  return jsonResponse({ ok: false, error: { code, message } }, 200);
 }
 
 interface CreateStoryBody {
