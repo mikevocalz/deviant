@@ -41,7 +41,7 @@ import { useVideoPlayerStore } from "@/lib/stores/video-player-store";
 // STABILIZED: Bookmark state comes from server via useBookmarks hook only
 import { useToggleBookmark, useBookmarks } from "@/lib/hooks/use-bookmarks";
 import { sharePost } from "@/lib/utils/sharing";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { VideoView, useVideoPlayer } from "react-native-video";
 import { Image } from "expo-image";
 import {
   useVideoLifecycle,
@@ -401,7 +401,7 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
     return "";
   }, [url]);
 
-  const player = useVideoPlayer(videoUrl || null, (p) => {
+  const player = useVideoPlayer(videoUrl || "", (p) => {
     if (p && videoUrl && isMountedRef.current) {
       try {
         p.loop = false;
@@ -496,8 +496,8 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
           <VideoView
             player={player}
             style={{ width: "100%", height: "100%" }}
-            contentFit="cover"
-            nativeControls={false}
+            resizeMode="cover"
+            controls={false}
           />
           {/* Play overlay when paused */}
           {!isPlaying && (
@@ -603,8 +603,8 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
             <VideoView
               player={player}
               style={{ flex: 1 }}
-              contentFit="contain"
-              nativeControls={false}
+              resizeMode="contain"
+              controls={false}
             />
             {!isPlaying && (
               <View
@@ -851,7 +851,12 @@ function PostDetailScreenContent() {
     [safePost.caption, safePost.textSlides],
   );
   const baseTextSlides = useMemo(
-    () => resolveDetailTextSlides(postId, undefined, baseTextPresentation.textSlides),
+    () =>
+      resolveDetailTextSlides(
+        postId,
+        undefined,
+        baseTextPresentation.textSlides,
+      ),
     [baseTextPresentation.textSlides, postId],
   );
   const shouldHydrateDetailTextSlides =

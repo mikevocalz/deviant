@@ -1,6 +1,6 @@
 import { View, Pressable, Dimensions, StyleSheet } from "react-native";
 import { Image } from "expo-image";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { VideoView, useVideoPlayer } from "react-native-video";
 import { X } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useEffect, useCallback, useRef, useMemo } from "react";
@@ -131,8 +131,8 @@ export function MediaPreviewModal({
             <VideoView
               player={player}
               style={styles.media}
-              contentFit="contain"
-              nativeControls
+              resizeMode="contain"
+              controls
             />
           )}
         </View>

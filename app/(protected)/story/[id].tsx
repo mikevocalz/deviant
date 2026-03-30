@@ -16,7 +16,7 @@ import {
 import { Animated as RNAnimated, Easing } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
-import { VideoView, useVideoPlayer } from "expo-video";
+import { VideoView, useVideoPlayer } from "react-native-video";
 import { X, Send, Eye, Heart, Trash2 } from "lucide-react-native";
 import { DVNTLiquidGlass } from "@/components/media/DVNTLiquidGlass";
 import { DVNTGifView } from "@/components/media/DVNTGifView";
@@ -425,6 +425,10 @@ function StoryViewerScreenContent() {
       try {
         player.loop = false;
         player.muted = false;
+        // Set up event listener for when video is ready to display
+        player.addEventListener("onLoad", () => {
+          setShowVideoPoster(false);
+        });
         // Don't play immediately in callback - wait for VideoView to mount
       } catch (error) {
         console.error("[StoryViewer] Error configuring player:", error);
@@ -1146,11 +1150,8 @@ function StoryViewerScreenContent() {
                 <VideoView
                   player={player}
                   style={{ width: "100%", height: "100%" }}
-                  contentFit="cover"
-                  nativeControls={false}
-                  fullscreenOptions={{ enable: false }}
-                  allowsPictureInPicture={false}
-                  onFirstFrameRender={() => setShowVideoPoster(false)}
+                  resizeMode="cover"
+                  controls={false}
                 />
                 {showVideoPoster && currentItem?.thumbnail ? (
                   <Image
