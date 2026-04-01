@@ -631,21 +631,10 @@ export function useVideoRoom({
       }
 
       if (targetCameraId && targetCameraId !== currentCameraId) {
+        // selectCamera internally: gets new stream → tsClient.replaceTrack → remote
+        // peers see new camera immediately. Do NOT call stopCamera+startCamera after —
+        // that would tear down the track that selectCamera just published.
         const selectError = await cameraRef.current.selectCamera(targetCameraId);
-        if (!selectError && cameraRef.current.isCameraOn) {
-          cameraRef.current.stopCamera();
-          const [, startError] =
-            await cameraRef.current.startCamera(targetCameraId);
-          if (!startError) {
-            getStore().setFrontCamera(nextFacing === "front");
-            return;
-          }
-          console.warn(
-            "[useVideoRoom] startCamera after selectCamera failed:",
-            startError,
-          );
-        }
-
         if (!selectError) {
           getStore().setFrontCamera(nextFacing === "front");
           return;

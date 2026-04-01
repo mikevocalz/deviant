@@ -165,8 +165,9 @@ interface PresenceEvent {
   tone: PresenceTone;
 }
 
-function buildLynkShareUrl(roomId: string) {
-  return `https://dvntlive.app/sneaky-lynk/room/${roomId}`;
+function buildLynkShareUrl(roomId: string, hasVideo = false) {
+  const base = `https://dvntlive.app/sneaky-lynk/room/${roomId}`;
+  return hasVideo ? `${base}?hasVideo=1` : base;
 }
 
 function PresenceToast({ event }: { event: PresenceEvent }) {
@@ -378,7 +379,9 @@ function SneakyLynkRoomScreenContent() {
   }>();
   const router = useRouter();
 
-  const roomHasVideo = hasVideoParam === "1";
+  // Default to true when param is absent (e.g. deep-link recipients who didn't
+  // pass hasVideo in the URL). Only force-off when the param is explicitly "0".
+  const roomHasVideo = hasVideoParam !== "0";
   const isServerRoom = !id?.startsWith("space-") && id !== "my-room";
 
   // Host (creator) skips the pre-join screen entirely
@@ -645,9 +648,10 @@ function LocalRoom({
     router.back();
   }, [router, id, endRoom, reset, storeListeners.length, showToast]);
   const handleShare = useCallback(async () => {
-    const shareResult = await shareUrl(buildLynkShareUrl(id), {
+    const shareTargetUrl = buildLynkShareUrl(id, roomHasVideo);
+    const shareResult = await shareUrl(shareTargetUrl, {
       title: roomTitle,
-      message: `Join "${roomTitle}" on DVNT\n${buildLynkShareUrl(id)}`,
+      message: `Join "${roomTitle}" on DVNT\n${shareTargetUrl}`,
     });
     if (shareResult === "shared") {
       showToast("success", "Invite Shared", "Your Lynk invite is ready.");
@@ -1490,7 +1494,7 @@ function ServerRoom({
     shareInFlightRef.current = true;
 
     try {
-      const shareTargetUrl = buildLynkShareUrl(id);
+      const shareTargetUrl = buildLynkShareUrl(id, roomHasVideo);
       const shareResult = await shareUrl(shareTargetUrl, {
         title: roomTitle,
         message: `Jump into "${roomTitle}" on DVNT\n${shareTargetUrl}`,
