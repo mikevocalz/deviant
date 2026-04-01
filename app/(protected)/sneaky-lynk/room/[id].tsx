@@ -728,27 +728,12 @@ function LocalRoom({
 
     if (nextCamera?.deviceId) {
       const error = await cameraRef.current.selectCamera(nextCamera.deviceId);
-      if (!error && wasCameraOn) {
-        cameraRef.current.stopCamera();
-        const [, startError] = await cameraRef.current.startCamera(
-          nextCamera.deviceId,
-        );
-        if (!startError) {
-          setIsFrontCamera((prev) => !prev);
-          return;
-        }
-        console.warn(
-          "[SneakyLynk:Local] startCamera after selectCamera failed:",
-          startError,
-        );
-      }
-
       if (!error) {
         setIsFrontCamera((prev) => !prev);
         return;
       }
       console.warn(
-        "[SneakyLynk:Local] selectCamera failed, falling back to track switch:",
+        "[SneakyLynk:Local] selectCamera failed:",
         error,
       );
     }
@@ -1017,6 +1002,10 @@ function ServerRoom({
           | "disconnected");
   const previousConnectionStateRef = useRef(connectionState);
   const appStateRef = useRef(AppState.currentState);
+  const isHostRef = useRef(isHost);
+  isHostRef.current = isHost;
+  const hostDisconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hostBackgroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const reconcileDesiredMedia = useCallback(
     async (reason: "join" | "reconnect" | "foreground") => {
@@ -1339,6 +1328,125 @@ function ServerRoom({
     // Removed: auto-setting localUser.id as active speaker when unmuted
     // This caused talk animation to show constantly even when not speaking
   }, [effectiveMuted, setActiveSpeakerId]);
+
+  // Host disconnect guard: if the host's connection drops for >30s, auto-end the
+  // room to prevent ghost "open" rooms that participants can't leave gracefully.
+  useEffect(() => {
+    if (!isHostRef.current) return;
+
+    if (connectionState === "disconnected") {
+      if (!hostDisconnectTimerRef.current) {
+        console.log("[SneakyLynk:Host] Disconnected — starting 30s grace period");
+        hostDisconnectTimerRef.current = setTimeout(() => {
+          hostDisconnectTimerRef.current = null;
+          if (!isHostRef.current) return;
+          console.log("[SneakyLynk:Host] Grace period expired — auto-ending room");
+          void sneakyLynkApi.endRoom(id);
+          reset();
+          router.back();
+        }, 30_000);
+      }
+    } else {
+      if (hostDisconnectTimerRef.current) {
+        console.log("[SneakyLynk:Host] Connection restored — cancelling grace timer");
+        clearTimeout(hostDisconnectTimerRef.current);
+        hostDisconnectTimerRef.current = null;
+      }
+    }
+
+    return () => {
+      if (hostDisconnectTimerRef.current) {
+        clearTimeout(hostDisconnectTimerRef.current);
+        hostDisconnectTimerRef.current = null;
+      }
+    };
+  }, [connectionState, id, reset, router]);
+
+  // Host background guard: if the host backgrounds the app for >120s, auto-end
+  // the room. Participants shouldn't be stranded in a hostless room.
+  useEffect(() => {
+    const subscription = AppState.addEventListener(
+      "change",
+      (nextAppState) => {
+        if (!isHostRef.current) return;
+
+        if (nextAppState === "background" || nextAppState === "inactive") {
+          if (!hostBackgroundTimerRef.current) {
+            console.log(
+              "[SneakyLynk:Host] App backgrounded — starting 120s grace period",
+            );
+            hostBackgroundTimerRef.current = setTimeout(() => {
+              hostBackgroundTimerRef.current = null;
+              if (!isHostRef.current) return;
+              console.log(
+                "[SneakyLynk:Host] Background grace expired — auto-ending room",
+              );
+              void sneakyLynkApi.endRoom(id);
+              reset();
+              router.back();
+            }, 120_000);
+          }
+        } else if (nextAppState === "active") {
+          if (hostBackgroundTimerRef.current) {
+            console.log(
+              "[SneakyLynk:Host] App foregrounded — cancelling background timer",
+            );
+            clearTimeout(hostBackgroundTimerRef.current);
+            hostBackgroundTimerRef.current = null;
+          }
+        }
+      },
+    );
+
+    return () => {
+      subscription.remove();
+      if (hostBackgroundTimerRef.current) {
+        clearTimeout(hostBackgroundTimerRef.current);
+        hostBackgroundTimerRef.current = null;
+      }
+    };
+  }, [id, reset, router]);
+
+  // Participant Realtime guard: watch for host-ended rooms so participants
+  // see the closed screen without having to leave and re-enter.
+  useEffect(() => {
+    if (isHostRef.current || !id) return;
+
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+        id,
+      );
+    if (!isUuid) return;
+
+    const channel = supabase
+      .channel(`room-closed:${id}`)
+      .on(
+        "postgres_changes" as any,
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "video_rooms",
+          filter: `uuid=eq.${id}`,
+        },
+        (payload: any) => {
+          const updated = payload.new as {
+            status?: string;
+            is_live?: boolean;
+          };
+          if (updated.status === "ended" || updated.is_live === false) {
+            markRoomClosed(
+              undefined,
+              "The host has left. This Lynk has ended.",
+            );
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [id, markRoomClosed]);
 
   const roomTitle =
     videoRoom.room?.title || roomSnapshot?.title || paramTitle || "Room";
@@ -2144,13 +2252,15 @@ function RoomLayout({
           />
         ) : null}
 
-        <ChatSheet
-          isOpen={isChatOpen}
-          onClose={onCloseChat}
-          roomId={roomId}
-          currentUser={localUser}
-          participants={allParticipants.map((p) => p.user)}
-        />
+        {isChatOpen && (
+          <ChatSheet
+            isOpen={isChatOpen}
+            onClose={onCloseChat}
+            roomId={roomId}
+            currentUser={localUser}
+            participants={allParticipants.map((p) => p.user)}
+          />
+        )}
       </View>
     </View>
   );
