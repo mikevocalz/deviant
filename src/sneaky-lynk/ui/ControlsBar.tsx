@@ -364,6 +364,7 @@ export function ControlsBar({
     [
       canRaiseHand,
       hasVideo,
+      isVideoEnabled,
       onSwitchCamera,
       onToggleHand,
       handRaised,
