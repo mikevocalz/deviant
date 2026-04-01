@@ -186,6 +186,7 @@ interface GridCellProps {
   height: number;
   borderRadius: number;
   userId?: string | number;
+  interactive?: boolean;
   onPress: (id: string) => void;
 }
 
@@ -195,13 +196,15 @@ const GridCell = memo(function GridCell({
   height,
   borderRadius,
   userId,
+  interactive = true,
   onPress,
 }: GridCellProps) {
   const handlePress = useCallback(() => onPress(tile.id), [tile.id, onPress]);
 
   return (
     <Pressable
-      onPress={handlePress}
+      onPress={interactive ? handlePress : undefined}
+      disabled={!interactive}
       testID={`profile.${userId}.gridTile.${tile.id}`}
     >
       <View style={[styles.cellInner, { width, height, borderRadius }]}>
@@ -253,6 +256,7 @@ const GridCell = memo(function GridCell({
 interface ProfileMasonryGridProps {
   data: SafeGridTile[];
   userId?: string | number;
+  interactive?: boolean;
   /** Set false when nested inside an outer ScrollView */
   scrollEnabled?: boolean;
   /** Rendered above the list */
@@ -269,6 +273,7 @@ const EMPTY: GridRow[] = [];
 export function ProfileMasonryGrid({
   data,
   userId,
+  interactive = true,
   scrollEnabled = true,
   ListHeaderComponent,
   ListEmptyComponent,
@@ -324,6 +329,7 @@ export function ProfileMasonryGrid({
                 height={largeH}
                 borderRadius={radius}
                 userId={userId}
+                interactive={interactive}
                 onPress={handlePress}
               />
             );
@@ -335,6 +341,7 @@ export function ProfileMasonryGrid({
                   height={smallH}
                   borderRadius={radius}
                   userId={userId}
+                  interactive={interactive}
                   onPress={handlePress}
                 />
                 <View style={{ height: CELL_GAP }} />
@@ -344,6 +351,7 @@ export function ProfileMasonryGrid({
                   height={smallH}
                   borderRadius={radius}
                   userId={userId}
+                  interactive={interactive}
                   onPress={handlePress}
                 />
               </View>
@@ -392,6 +400,7 @@ export function ProfileMasonryGrid({
                   height={smallH}
                   borderRadius={radius}
                   userId={userId}
+                  interactive={interactive}
                   onPress={handlePress}
                 />
                 <GridCell
@@ -400,23 +409,32 @@ export function ProfileMasonryGrid({
                   height={smallH}
                   borderRadius={radius}
                   userId={userId}
+                  interactive={interactive}
                   onPress={handlePress}
                 />
               </View>
             );
           }
 
+          // Single remainder tile — use half-width so it renders as a proper
+          // grid tile instead of a full-width banner (matches 2-item row sizing)
+          const halfW = Math.floor(available / 2);
           return (
             <View
               key={`g-${gIdx}`}
-              style={{ paddingHorizontal: pad, marginBottom: CELL_GAP }}
+              style={{
+                flexDirection: "row",
+                paddingHorizontal: pad,
+                marginBottom: CELL_GAP,
+              }}
             >
               <GridCell
                 tile={group[0]}
-                width={available + CELL_GAP}
+                width={halfW}
                 height={smallH}
                 borderRadius={radius}
                 userId={userId}
+                interactive={interactive}
                 onPress={handlePress}
               />
             </View>
@@ -433,6 +451,7 @@ export function ProfileMasonryGrid({
       radius,
       userId,
       handlePress,
+      interactive,
       pad,
       available,
     ],
