@@ -474,6 +474,7 @@ export function ControlsBar({
       )}
 
       <DVNTLiquidGlass
+        interactive={false}
         radius={22}
         paddingH={10}
         paddingV={10}
