@@ -55,6 +55,7 @@ function DVNTLiquidGlassComponent({
       <LiquidGlassView
         effect="regular"
         interactive={interactive}
+        pointerEvents={interactive ? "auto" : "box-none"}
         style={[createGlassOuterStyle(radius), style]}
       >
         <View style={createGlassScrimStyle("pill")}>{inner}</View>
@@ -66,6 +67,7 @@ function DVNTLiquidGlassComponent({
     <BlurView
       intensity={18}
       tint="dark"
+      pointerEvents={interactive ? "auto" : "box-none"}
       style={[createGlassOuterStyle(radius), style]}
     >
       <View style={createGlassScrimStyle("pill", true)}>{inner}</View>
@@ -97,6 +99,7 @@ function DVNTLiquidGlassIconButtonComponent({
       <LiquidGlassView
         effect="regular"
         interactive={interactive}
+        pointerEvents={interactive ? "auto" : "none"}
         style={[
           createGlassOuterStyle(radius),
           {
@@ -124,6 +127,7 @@ function DVNTLiquidGlassIconButtonComponent({
     <BlurView
       intensity={18}
       tint="dark"
+      pointerEvents={interactive ? "auto" : "none"}
       style={[
         createGlassOuterStyle(radius),
         {
