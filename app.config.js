@@ -249,7 +249,7 @@ export default {
       "expo-secure-store",
       "expo-sharing",
       [
-        "expo-share-intent",
+        "./plugins/with-share-intent-fixed",
         {
           iosActivationRules: {
             NSExtensionActivationSupportsWebURLWithMaxCount: 1,
