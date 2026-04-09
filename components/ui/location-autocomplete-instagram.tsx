@@ -78,6 +78,9 @@ type RecentLocation = {
 const GOOGLE_PLACES_API_KEY =
   process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || "";
 const recentLocationsStorage = createMMKV({ id: "dvnt-recent-locations" });
+const HAS_GOOGLE_PLACES_KEY =
+  !!GOOGLE_PLACES_API_KEY &&
+  GOOGLE_PLACES_API_KEY !== "your_google_places_api_key_here";
 
 function sanitizeRecentLocations(value: unknown): RecentLocation[] {
   if (!Array.isArray(value)) return [];
@@ -195,9 +198,8 @@ export function LocationAutocompleteInstagram({
   );
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
-  const [apiUnavailable, setApiUnavailable] = useState(
-    !GOOGLE_PLACES_API_KEY ||
-      GOOGLE_PLACES_API_KEY === "your_google_places_api_key_here",
+  const [googleApiUnavailable, setGoogleApiUnavailable] = useState(
+    !HAS_GOOGLE_PLACES_KEY,
   );
 
   const fetchDebouncerRef = useRef(
@@ -208,92 +210,16 @@ export function LocationAutocompleteInstagram({
           return;
         }
 
-        if (apiUnavailable) {
-          setPredictions([]);
-          return;
-        }
-
         setIsLoading(true);
         try {
-          const response = await fetch(
-            `https://places.googleapis.com/v1/places:autocomplete?key=${GOOGLE_PLACES_API_KEY}`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
-              },
-              body: JSON.stringify({
-                input: text,
-                languageCode: "en",
-                includedRegionCodes: ["us"],
-              }),
-            },
-          );
-
-          if (!response.ok) {
-            const legacyPredictions = await fetchLegacyPredictions(text);
-            if (legacyPredictions) {
-              setPredictions(legacyPredictions);
-              setApiUnavailable(false);
-            } else {
-              const photonPredictions = await fetchPhotonPredictions(text);
-              if (photonPredictions) {
-                setPredictions(photonPredictions);
-                setApiUnavailable(false);
-              } else {
-                setApiUnavailable(true);
-                setPredictions([]);
-              }
-            }
-            return;
-          }
-
-          const data = await response.json();
-          const nextPredictions = Array.isArray(data?.suggestions)
-            ? data.suggestions
-                .map(createPredictionFromSuggestion)
-                .filter(Boolean)
-            : [];
-
-          if (nextPredictions.length > 0) {
-            setPredictions(nextPredictions);
-            setApiUnavailable(false);
-            return;
-          }
-
-          const legacyPredictions = await fetchLegacyPredictions(text);
-          if (legacyPredictions) {
-            setPredictions(legacyPredictions);
-            setApiUnavailable(false);
-          } else {
-            const photonPredictions = await fetchPhotonPredictions(text);
-            if (photonPredictions) {
-              setPredictions(photonPredictions);
-              setApiUnavailable(false);
-            } else {
-              setPredictions([]);
-            }
-          }
+          const nextPredictions = await fetchPredictionsWithFallbacks(text);
+          setPredictions(nextPredictions);
         } catch (error) {
           console.warn(
             "[LocationAutocompleteInstagram] Autocomplete request failed:",
             error,
           );
-          const legacyPredictions = await fetchLegacyPredictions(text);
-          if (legacyPredictions) {
-            setPredictions(legacyPredictions);
-            setApiUnavailable(false);
-          } else {
-            const photonPredictions = await fetchPhotonPredictions(text);
-            if (photonPredictions) {
-              setPredictions(photonPredictions);
-              setApiUnavailable(false);
-            } else {
-              setApiUnavailable(true);
-              setPredictions([]);
-            }
-          }
+          setPredictions([]);
         } finally {
           setIsLoading(false);
         }
@@ -374,7 +300,7 @@ export function LocationAutocompleteInstagram({
     }
 
     fetchDebouncerRef.current.maybeExecute(query);
-  }, [query, apiUnavailable]);
+  }, [query]);
 
   const persistRecentLocation = useCallback((location: LocationData) => {
     try {
@@ -408,6 +334,8 @@ export function LocationAutocompleteInstagram({
   }, []);
 
   const fetchLegacyPredictions = useCallback(async (text: string) => {
+    if (!HAS_GOOGLE_PLACES_KEY) return null;
+
     try {
       const url =
         "https://maps.googleapis.com/maps/api/place/autocomplete/json" +
@@ -445,6 +373,70 @@ export function LocationAutocompleteInstagram({
       return null;
     }
   }, []);
+
+  const fetchPredictionsWithFallbacks = useCallback(
+    async (text: string): Promise<GooglePlace[]> => {
+      const normalizedText = text.trim();
+
+      if (normalizedText.length < 2) {
+        return [];
+      }
+
+      if (HAS_GOOGLE_PLACES_KEY) {
+        try {
+          const response = await fetch(
+            `https://places.googleapis.com/v1/places:autocomplete?key=${GOOGLE_PLACES_API_KEY}`,
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+              },
+              body: JSON.stringify({
+                input: normalizedText,
+                languageCode: "en",
+                includedRegionCodes: ["us"],
+              }),
+            },
+          );
+
+          if (response.ok) {
+            const data = await response.json();
+            const googlePredictions = Array.isArray(data?.suggestions)
+              ? data.suggestions
+                  .map(createPredictionFromSuggestion)
+                  .filter(Boolean)
+              : [];
+
+            if (googlePredictions.length > 0) {
+              setGoogleApiUnavailable(false);
+              return googlePredictions;
+            }
+          } else {
+            setGoogleApiUnavailable(true);
+          }
+        } catch (error) {
+          console.warn(
+            "[LocationAutocompleteInstagram] Places API (v1) failed:",
+            error,
+          );
+          setGoogleApiUnavailable(true);
+        }
+
+        const legacyPredictions = await fetchLegacyPredictions(normalizedText);
+        if (legacyPredictions) {
+          setGoogleApiUnavailable(false);
+          return legacyPredictions;
+        }
+
+        setGoogleApiUnavailable(true);
+      }
+
+      const photonPredictions = await fetchPhotonPredictions(normalizedText);
+      return photonPredictions ?? [];
+    },
+    [fetchLegacyPredictions, fetchPhotonPredictions],
+  );
 
   const handleOpen = useCallback(() => {
     sheetRef.current?.present();
@@ -489,7 +481,7 @@ export function LocationAutocompleteInstagram({
   );
 
   const fetchPlaceDetails = useCallback(async (placeId: string) => {
-    if (!placeId || apiUnavailable) return null;
+    if (!placeId || !HAS_GOOGLE_PLACES_KEY) return null;
 
     try {
       const response = await fetch(
@@ -507,7 +499,7 @@ export function LocationAutocompleteInstagram({
       );
       return null;
     }
-  }, [apiUnavailable]);
+  }, []);
 
   const handleSelectPrediction = useCallback(
     async (prediction: GooglePlace) => {
@@ -819,7 +811,7 @@ export function LocationAutocompleteInstagram({
                         { color: colors.mutedForeground },
                       ]}
                     >
-                      {apiUnavailable
+                      {googleApiUnavailable
                         ? "Autocomplete is unavailable right now. You can still use the typed location below."
                         : "Try a more specific venue or address, or use the typed location below."}
                     </Text>
