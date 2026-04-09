@@ -1,7 +1,7 @@
 name: Preview iOS
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
 
 jobs:
   build_ios_preview:
