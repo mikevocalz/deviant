@@ -118,15 +118,11 @@ Identical to `events/create.tsx:930-950` for consistency
 ### DvntMap Component (Current State)
 
 **Technology Stack:**
-- **Native:** MapLibre GL (`@maplibre/maplibre-react-native`)
+- **Native:** `expo-maps`
 - **Web:** Custom fallback implementation
-- **Tiles:** MapTiler (requires `EXPO_PUBLIC_MAPTILER_KEY`)
-
-**Note:** User mentioned using `expo-maps` (v55.0.11 installed), but current implementation still uses MapLibre. This is **NOT a blocker** for current functionality, but should be addressed in future sprint.
 
 **Production Readiness:**
 - ✅ Graceful degradation (checks for native module)
-- ✅ API key validation
 - ✅ Performance optimized (React.memo, memoized GeoJSON)
 - ✅ Cross-platform support
 - ✅ Proper error states
@@ -188,7 +184,6 @@ Identical to `events/create.tsx:930-950` for consistency
 ## Future Enhancements
 
 ### P1 (Next Sprint)
-- [ ] Migrate from MapLibre to `expo-maps` (user preference)
 - [ ] Add loading state for map tile loading
 - [ ] Wrap DvntMap in ErrorBoundary
 - [ ] Use user's location as default center (not NYC)
@@ -207,9 +202,7 @@ Identical to `events/create.tsx:930-950` for consistency
 None — backward compatible
 
 ### Dependencies
-- ✅ `@maplibre/maplibre-react-native` — already installed
-- ✅ `expo-maps` — installed but not yet used
-- ✅ MapTiler API key — required in `.env`
+- ✅ `expo-maps`
 
 ### Rollout Plan
 1. ✅ TypeScript compilation verified

@@ -150,19 +150,6 @@ export function getStaticMapUrl(
 }
 
 /**
- * Generate MapLibre/MapTiler style URL for the app
- */
-export function getMapStyleUrl(): string {
-  const maptilerKey = process.env.EXPO_PUBLIC_MAPTILER_KEY;
-  if (!maptilerKey) {
-    console.warn("[Location] No MapTiler key");
-    return "";
-  }
-  // Dark style for consistency with app theme
-  return `https://api.maptiler.com/maps/019598bb-ad3a-7f79-a17e-9e6ecc85b2b4/style.json?key=${maptilerKey}`;
-}
-
-/**
  * Check if location has valid coordinates
  */
 export function hasValidCoordinates(

@@ -246,7 +246,6 @@ export default {
       "./plugins/with-custom-ringtone",
       "./plugins/with-live-activity",
       ["./plugins/with-development-team", { teamId: "436WA3W63V" }],
-      "./plugins/fix-widget-maplibre",
       "expo-secure-store",
       "expo-sharing",
       [

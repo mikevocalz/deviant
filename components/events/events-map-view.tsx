@@ -1,7 +1,6 @@
 /**
- * EventsMapView — MapLibre + MapTiler map of events with markers.
- * Uses DvntMap which wraps @maplibre/maplibre-react-native on native
- * and provides a graceful web fallback.
+ * EventsMapView — native maps view of events with markers.
+ * Uses DvntMap, which renders expo-maps on native and a web fallback.
  */
 
 import { useMemo, useCallback } from "react";
