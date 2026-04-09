@@ -4,7 +4,7 @@
  * Scans QR codes from tickets and checks them in
  */
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -12,11 +12,11 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
+import { Camera, useCameraDevice } from "react-native-vision-camera";
 import {
-  Camera,
-  useCameraDevice,
-  useCodeScanner,
-} from "react-native-vision-camera";
+  type Barcode,
+  useBarcodeScannerOutput,
+} from "react-native-vision-camera-barcode-scanner";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, ScanLine } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
@@ -41,16 +41,19 @@ export function TicketQRScanner({
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const device = useCameraDevice("back");
 
-  const codeScanner = useCodeScanner({
-    codeTypes: ["qr"],
-    onCodeScanned: async (codes) => {
-      if (codes.length > 0 && !isCheckingIn && !scannedCode) {
-        const code = codes[0].value;
+  const barcodeScannerOutput = useBarcodeScannerOutput({
+    barcodeFormats: ["qr-code"],
+    onBarcodeScanned: async (barcodes: Barcode[]) => {
+      if (barcodes.length > 0 && !isCheckingIn && !scannedCode) {
+        const code = barcodes[0]?.rawValue;
         if (code) {
           setScannedCode(code);
           await handleCheckIn(code);
         }
       }
+    },
+    onError: (error) => {
+      console.error("[QRScanner] Barcode scan error:", error);
     },
   });
 
@@ -136,7 +139,7 @@ export function TicketQRScanner({
           style={StyleSheet.absoluteFill}
           device={device}
           isActive={!isCheckingIn}
-          codeScanner={codeScanner}
+          outputs={[barcodeScannerOutput]}
         />
 
         {/* Scanning Overlay */}

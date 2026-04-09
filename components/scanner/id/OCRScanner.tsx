@@ -1,6 +1,10 @@
 // OCR Scanner disabled - react-native-vision-camera-text-recognition removed due to GoogleMLKit version conflict
 // See CLAUDE.md for details. TODO: Re-add OCR when compatible version is available
-import { Camera, useCameraDevice } from "react-native-vision-camera";
+import {
+  Camera,
+  type CameraRef,
+  useCameraDevice,
+} from "react-native-vision-camera";
 import { StyleSheet } from "react-native";
 
 type Block = {
@@ -14,7 +18,7 @@ export function OCRScanner({
   isActive,
 }: {
   onResult: (blocks: Block[]) => void;
-  cameraRef: React.RefObject<Camera | null>;
+  cameraRef: React.RefObject<CameraRef | null>;
   isActive: boolean;
 }) {
   const device = useCameraDevice("back");
@@ -30,7 +34,6 @@ export function OCRScanner({
       style={StyleSheet.absoluteFill}
       device={device}
       isActive={isActive}
-      photo
     />
   );
 }

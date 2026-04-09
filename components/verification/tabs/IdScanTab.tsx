@@ -1,7 +1,12 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Image } from "expo-image";
 import { useRef, useState, useEffect } from "react";
-import { Camera, useCameraDevice } from "react-native-vision-camera";
+import {
+  Camera,
+  type CameraRef,
+  useCameraDevice,
+  usePhotoOutput,
+} from "react-native-vision-camera";
 // TextRecognition removed due to GoogleMLKit version conflict - see CLAUDE.md
 // TODO: Re-add OCR when compatible version is available
 import * as ImagePicker from "expo-image-picker";
@@ -28,7 +33,8 @@ export default function IdScanTab() {
   const [ocrText, setOcrText] = useState<string>("");
   const [extractedDob, setExtractedDob] = useState<string | null>(null);
 
-  const camRef = useRef<Camera>(null);
+  const photoOutput = usePhotoOutput();
+  const camRef = useRef<CameraRef>(null);
   const device = useCameraDevice("back");
   const showToast = useUIStore((s) => s.showToast);
 
@@ -276,7 +282,7 @@ export default function IdScanTab() {
           style={{ flex: 1 }}
           device={device}
           isActive
-          photo
+          outputs={[photoOutput]}
         />
 
         {/* ID frame overlay */}
@@ -306,11 +312,11 @@ export default function IdScanTab() {
               onPress={async () => {
                 try {
                   setBusy(true);
-                  const photo = await camRef.current?.takePhoto();
-                  if (!photo?.path) throw new Error("Failed to capture");
-                  const uri = photo.path.startsWith("file://")
-                    ? photo.path
-                    : `file://${photo.path}`;
+                  const photo = await photoOutput.capturePhoto({}, {});
+                  const filePath = await photo.saveToTemporaryFileAsync();
+                  const uri = filePath.startsWith("file://")
+                    ? filePath
+                    : `file://${filePath}`;
                   setImageUri(uri);
                   setMode("preview");
                 } catch (e: any) {

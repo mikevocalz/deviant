@@ -410,8 +410,6 @@ function VideoPanel({
           style={StyleSheet.absoluteFill}
           device={frontDevice}
           isActive={true}
-          photo={false}
-          video={false}
         />
       );
     }
@@ -582,8 +580,6 @@ export function VideoStage({
             style={StyleSheet.absoluteFill}
             device={frontDevice}
             isActive={true}
-            photo={false}
-            video={false}
           />
         ) : hasVideoStream ? (
           <RTCView

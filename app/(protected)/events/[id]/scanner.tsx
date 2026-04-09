@@ -44,15 +44,16 @@ import * as Haptics from "expo-haptics";
 // Lazy-load VisionCamera to prevent crashes if not installed
 let Camera: any = null;
 let useCameraDevice: any = null;
-let useCodeScanner: any = null;
 let useCameraPermission: any = null;
+let useBarcodeScannerOutput: any = null;
 
 try {
   const vc = require("react-native-vision-camera");
+  const barcodeScanner = require("react-native-vision-camera-barcode-scanner");
   Camera = vc.Camera;
   useCameraDevice = vc.useCameraDevice;
-  useCodeScanner = vc.useCodeScanner;
   useCameraPermission = vc.useCameraPermission;
+  useBarcodeScannerOutput = barcodeScanner.useBarcodeScannerOutput;
 } catch {
   // VisionCamera not available
 }
@@ -223,9 +224,8 @@ function ScannerContent({ eventId }: { eventId: string }) {
     (codes: any[]) => {
       if (cooldownRef.current || scanResult) return;
       const code = codes[0];
-      if (!code?.value) return;
-
-      const qrValue = code.value;
+      const qrValue = code?.rawValue ?? code?.value;
+      if (!qrValue) return;
 
       // Prevent re-scanning same code rapidly
       if (qrValue === lastScannedRef.current) return;
@@ -366,11 +366,14 @@ function ScannerContent({ eventId }: { eventId: string }) {
     [scanResult, scanMutation, authUser?.id, eventId],
   );
 
-  const codeScanner =
-    hasVisionCamera && useCodeScanner
-      ? useCodeScanner({
-          codeTypes: ["qr"],
-          onCodeScanned: handleCodeScanned,
+  const barcodeScannerOutput =
+    hasVisionCamera && useBarcodeScannerOutput
+      ? useBarcodeScannerOutput({
+          barcodeFormats: ["qr-code"],
+          onBarcodeScanned: handleCodeScanned,
+          onError: (error: Error) => {
+            console.error("[Scanner] Barcode scan error:", error);
+          },
         })
       : null;
 
@@ -424,13 +427,13 @@ function ScannerContent({ eventId }: { eventId: string }) {
   return (
     <View className="flex-1 bg-black">
       {/* Camera */}
-      {device && codeScanner && (
+      {device && barcodeScannerOutput && (
         <Camera
           style={{ flex: 1 }}
           device={device}
           isActive={true}
-          codeScanner={codeScanner}
-          torch={torchOn ? "on" : "off"}
+          outputs={[barcodeScannerOutput]}
+          torchMode={torchOn ? "on" : "off"}
         />
       )}
 

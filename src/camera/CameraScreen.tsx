@@ -15,17 +15,18 @@ import {
   View,
   Text,
   Pressable,
-  Platform,
   ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
 import {
   Camera,
+  type CameraRef,
+  type Recorder,
   useCameraDevice,
   useCameraPermission,
   useMicrophonePermission,
-  type PhotoFile,
-  type VideoFile,
+  usePhotoOutput,
+  useVideoOutput,
 } from "react-native-vision-camera";
 import {
   X,
@@ -221,29 +222,43 @@ CaptureReview.displayName = "CaptureReview";
 // ---- Isolated Camera Preview ----
 // Only re-renders when camera-critical state changes (facing, mode, flash, zoom).
 
+type CameraPreviewProps = {
+  isActive: boolean;
+  photoOutput: ReturnType<typeof usePhotoOutput>;
+  videoOutput: ReturnType<typeof useVideoOutput>;
+};
+
 const CameraPreview = React.memo(
-  React.forwardRef<Camera, { isActive: boolean }>(({ isActive }, ref) => {
-    const mode = useStoryCaptureStore((s) => s.mode);
-    const facing = useStoryCaptureStore((s) => s.facing);
-    const zoom = useStoryCaptureStore((s) => s.zoom);
-    const device = useCameraDevice(facing);
+  React.forwardRef<CameraRef, CameraPreviewProps>(
+    ({ isActive, photoOutput, videoOutput }, ref) => {
+      const mode = useStoryCaptureStore((s) => s.mode);
+      const facing = useStoryCaptureStore((s) => s.facing);
+      const zoom = useStoryCaptureStore((s) => s.zoom);
+      const flash = useStoryCaptureStore((s) => s.flash);
+      const device = useCameraDevice(facing);
 
-    if (!device) return null;
+      if (!device) return null;
 
-    return (
-      <Camera
-        ref={ref}
-        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
-        device={device}
-        isActive={isActive}
-        photo={mode === "photo"}
-        video={mode === "video"}
-        audio={mode === "video"}
-        zoom={zoom}
-        enableZoomGesture={true}
-      />
-    );
-  }),
+      return (
+        <Camera
+          ref={ref}
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+          }}
+          device={device}
+          isActive={isActive}
+          outputs={mode === "photo" ? [photoOutput] : [videoOutput]}
+          zoom={zoom}
+          torchMode={mode === "video" && flash === "on" ? "on" : "off"}
+          enableNativeZoomGesture={true}
+        />
+      );
+    },
+  ),
 );
 CameraPreview.displayName = "CameraPreview";
 
@@ -284,7 +299,10 @@ export function CameraScreen({
   onGalleryPress,
 }: CameraScreenProps) {
   const insets = useSafeAreaInsets();
-  const cameraRef = useRef<Camera>(null);
+  const cameraRef = useRef<CameraRef>(null);
+  const recorderRef = useRef<Recorder | null>(null);
+  const photoOutput = usePhotoOutput();
+  const videoOutput = useVideoOutput({ enableAudio: true });
 
   const { hasPermission: hasCamPerm, requestPermission: reqCamPerm } =
     useCameraPermission();
@@ -389,12 +407,17 @@ export function CameraScreen({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     try {
       const flashVal = useStoryCaptureStore.getState().flash;
-      const photo: PhotoFile = await cameraRef.current.takePhoto({
-        flash: flashVal === "auto" ? "auto" : flashVal === "on" ? "on" : "off",
-        enableShutterSound: true,
-      });
+      const photo = await photoOutput.capturePhoto(
+        {
+          flashMode:
+            flashVal === "auto" ? "auto" : flashVal === "on" ? "on" : "off",
+          enableShutterSound: true,
+        },
+        {},
+      );
+      const filePath = await photo.saveToTemporaryFileAsync();
       const uri =
-        Platform.OS === "android" ? `file://${photo.path}` : photo.path;
+        filePath.startsWith("file://") ? filePath : `file://${filePath}`;
       setLastCapture({
         uri,
         type: "image",
@@ -406,10 +429,10 @@ export function CameraScreen({
     } finally {
       setIsTakingPhoto(false);
     }
-  }, [setIsTakingPhoto, setLastCapture]);
+  }, [photoOutput, setIsTakingPhoto, setLastCapture]);
 
   const handleStopRecording = useCallback(async () => {
-    if (!cameraRef.current || !useStoryCaptureStore.getState().isRecording)
+    if (!recorderRef.current || !useStoryCaptureStore.getState().isRecording)
       return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     if (recordingTimerRef.current) {
@@ -417,11 +440,12 @@ export function CameraScreen({
       recordingTimerRef.current = null;
     }
     try {
-      await cameraRef.current.stopRecording();
+      await recorderRef.current.stopRecording();
     } catch (e) {
       console.error("[Camera] Stop error:", e);
+      recorderRef.current = null;
+      stopRec();
     }
-    stopRec();
   }, [stopRec]);
 
   const handleStartRecording = useCallback(async () => {
@@ -443,34 +467,37 @@ export function CameraScreen({
     }, 1000);
 
     try {
-      const flashVal = useStoryCaptureStore.getState().flash;
-      cameraRef.current.startRecording({
-        flash: flashVal === "on" ? "on" : "off",
-        onRecordingFinished: (video: VideoFile) => {
+      const recorder = await videoOutput.createRecorder({});
+      recorderRef.current = recorder;
+      await recorder.startRecording(
+        (filePath: string) => {
           const uri =
-            Platform.OS === "android" ? `file://${video.path}` : video.path;
+            filePath.startsWith("file://") ? filePath : `file://${filePath}`;
           setLastCapture({
             uri,
             type: "video",
-            duration: video.duration,
+            duration: recorder.recordedDuration,
           });
+          recorderRef.current = null;
           stopRec();
           if (recordingTimerRef.current) {
             clearInterval(recordingTimerRef.current);
             recordingTimerRef.current = null;
           }
         },
-        onRecordingError: (err) => {
+        (err: Error) => {
           console.error("[Camera] Recording error:", err);
+          recorderRef.current = null;
           stopRec();
           if (recordingTimerRef.current) {
             clearInterval(recordingTimerRef.current);
             recordingTimerRef.current = null;
           }
         },
-      });
+      );
     } catch (e) {
       console.error("[Camera] Start error:", e);
+      recorderRef.current = null;
       stopRec();
       if (recordingTimerRef.current) {
         clearInterval(recordingTimerRef.current);
@@ -481,6 +508,7 @@ export function CameraScreen({
     maxVideoDuration,
     startRec,
     stopRec,
+    videoOutput,
     setLastCapture,
     handleStopRecording,
   ]);
@@ -562,7 +590,12 @@ export function CameraScreen({
           margin: 4,
         }}
       >
-        <CameraPreview ref={cameraRef} isActive={!lastCapture} />
+        <CameraPreview
+          ref={cameraRef}
+          isActive={!lastCapture}
+          photoOutput={photoOutput}
+          videoOutput={videoOutput}
+        />
 
         {/* Recording HUD */}
         {isRecording && <RecordingHUD maxDuration={maxVideoDuration} />}

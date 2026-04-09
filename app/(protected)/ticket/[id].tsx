@@ -342,17 +342,19 @@ function ViewTicketScreenContent() {
               { marginBottom: insets.bottom + 8 },
             ]}
           >
-            <View style={styles.walletIconWrap}>
-              {walletState === "loading" ? (
-                <ActivityIndicator size="small" color={accent} />
-              ) : (
-                <WalletCards size={22} color={accent} />
-              )}
-            </View>
+            <View style={styles.walletBannerLeading}>
+              <View style={styles.walletIconWrap}>
+                {walletState === "loading" ? (
+                  <ActivityIndicator size="small" color={accent} />
+                ) : (
+                  <WalletCards size={22} color={accent} />
+                )}
+              </View>
 
-            <View style={styles.walletBannerTextWrap}>
-              <Text style={styles.walletBannerTitle}>{walletTitle}</Text>
-              <Text style={styles.walletBannerSubtitle}>{walletSubtitle}</Text>
+              <View style={styles.walletBannerTextWrap}>
+                <Text style={styles.walletBannerTitle}>{walletTitle}</Text>
+                <Text style={styles.walletBannerSubtitle}>{walletSubtitle}</Text>
+              </View>
             </View>
 
             <Text
@@ -503,31 +505,39 @@ const styles = StyleSheet.create({
   walletBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 10,
+    justifyContent: "space-between",
     marginHorizontal: 16,
     marginTop: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
-    borderRadius: 14,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    minHeight: 68,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 18,
+    backgroundColor: "rgba(14,18,24,0.96)",
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
+    borderColor: "rgba(63,220,255,0.14)",
   },
   walletBottomCta: {
     marginTop: 10,
+    alignSelf: "stretch",
   },
   walletBannerPressed: {
-    opacity: 0.92,
+    opacity: 0.96,
   },
   walletBannerSuccess: {
-    backgroundColor: "rgba(63,220,255,0.08)",
-    borderColor: "rgba(63,220,255,0.18)",
+    backgroundColor: "rgba(15,38,44,0.96)",
+    borderColor: "rgba(63,220,255,0.26)",
+  },
+  walletBannerLeading: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
   },
   walletIconWrap: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "rgba(138,64,207,0.12)",
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(138,64,207,0.16)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -540,16 +550,16 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   walletBannerSubtitle: {
-    color: "rgba(255,255,255,0.58)",
-    fontSize: 11,
+    color: "rgba(255,255,255,0.62)",
+    fontSize: 12,
     fontWeight: "500",
     marginTop: 2,
   },
   walletBannerMeta: {
-    color: "rgba(255,255,255,0.48)",
-    fontSize: 11,
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 12,
     fontWeight: "700",
-    letterSpacing: 0.4,
+    letterSpacing: 0.6,
     textTransform: "uppercase",
   },
   walletBannerMetaSuccess: {

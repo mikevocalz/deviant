@@ -1,6 +1,11 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { useRef, useState } from "react";
-import { Camera, useCameraDevice } from "react-native-vision-camera";
+import {
+  Camera,
+  type CameraRef,
+  useCameraDevice,
+  usePhotoOutput,
+} from "react-native-vision-camera";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Camera as CameraIcon, X } from "lucide-react-native";
 import { Button } from "@/components/ui";
@@ -137,7 +142,8 @@ function FaceFrameOverlay({
 
 export default function FaceScanTab() {
   const device = useCameraDevice("front");
-  const camRef = useRef<Camera>(null);
+  const photoOutput = usePhotoOutput();
+  const camRef = useRef<CameraRef>(null);
 
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -225,12 +231,11 @@ export default function FaceScanTab() {
         requestAnimationFrame(animate);
       });
 
-      const photo = await camRef.current?.takePhoto({ flash: "off" });
-      if (!photo?.path) throw new Error("Unable to capture");
-
-      const uri = photo.path.startsWith("file://")
-        ? photo.path
-        : `file://${photo.path}`;
+      const photo = await photoOutput.capturePhoto({ flashMode: "off" }, {});
+      const filePath = await photo.saveToTemporaryFileAsync();
+      const uri = filePath.startsWith("file://")
+        ? filePath
+        : `file://${filePath}`;
       setCapturedUri(uri);
     } catch (e: any) {
       showToast("error", "Capture failed", e?.message);
@@ -319,7 +324,7 @@ export default function FaceScanTab() {
           style={StyleSheet.absoluteFillObject}
           device={device}
           isActive
-          photo
+          outputs={[photoOutput]}
         />
 
         <View className="absolute top-4 left-4 right-4 flex-row justify-between items-start">
