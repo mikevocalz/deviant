@@ -33,6 +33,7 @@ npm-debug.*
 yarn-debug.*
 yarn-error.*
 pnpm-debug.log*
+react-native-wgpu-*.tgz
 android-build.log
 android-run.log
 

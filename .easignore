@@ -113,6 +113,7 @@ logs/
 # Local skill assets not needed by the app bundle
 skills/
 skills-lock.json
+react-native-wgpu-*.tgz
 
 # Misc
 .vercel
