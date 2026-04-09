@@ -10,13 +10,11 @@ const supabaseUrl =
   typeof rawUrl === "string" && rawUrl.startsWith("https://")
     ? rawUrl
     : FALLBACK_SUPABASE_URL;
-const FALLBACK_SUPABASE_ANON_KEY =
-  "";
 const rawAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 const supabaseAnonKey =
   typeof rawAnonKey === "string" && rawAnonKey.startsWith("eyJ")
     ? rawAnonKey
-    : FALLBACK_SUPABASE_ANON_KEY;
+    : "";
 
 if (!supabaseAnonKey) {
   console.error(
