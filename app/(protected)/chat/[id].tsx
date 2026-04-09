@@ -5,11 +5,15 @@ import {
   Pressable,
   Animated,
   Platform,
-  Modal,
   Alert,
   StyleSheet,
   InteractionManager,
 } from "react-native";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
 import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import Reanimated, {
   SharedValue,
@@ -87,6 +91,7 @@ import { Galeria } from "@nandorojo/galeria";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { supabase } from "@/lib/supabase/client";
+import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 
 export const unstable_settings = {
   options: {
@@ -109,6 +114,17 @@ const GROUP_BUBBLE_COLORS = [
   "#FDCB6E", // warm gold
   "#6C5CE7", // indigo
 ];
+
+const THREAD_ACTION_BUTTON_STYLE = {
+  width: 44,
+  height: 44,
+  borderRadius: 14,
+  justifyContent: "center" as const,
+  alignItems: "center" as const,
+  backgroundColor: "rgba(62, 164, 229, 0.16)",
+  borderWidth: StyleSheet.hairlineWidth,
+  borderColor: "rgba(126, 203, 255, 0.22)",
+};
 
 function getGroupBubbleColor(
   senderId: string | undefined,
@@ -154,6 +170,45 @@ function renderMessageText(
 interface MediaMessageProps {
   mediaList: MediaAttachment[];
   onPress: (media: MediaAttachment) => void;
+}
+
+function GroupHeaderAvatarBox({
+  members,
+}: {
+  members: Array<{ id: string; username: string; avatar?: string }>;
+}) {
+  const previewMembers = members.slice(0, 4);
+  const inset = 4;
+  const positions = [
+    { top: inset, left: inset },
+    { top: inset, right: inset },
+    { bottom: inset, left: inset },
+    { bottom: inset, right: inset },
+  ] as const;
+
+  return (
+    <View style={styles.groupHeaderAvatarWrap}>
+      <View style={styles.groupHeaderAvatarBox}>
+        {previewMembers.map((member, idx) => (
+          <View
+            key={member.id || `${member.username}-${idx}`}
+            style={[
+              styles.groupHeaderAvatarSlot,
+              positions[idx] ?? positions[0],
+              { zIndex: previewMembers.length - idx },
+            ]}
+          >
+            <Avatar
+              uri={member.avatar || ""}
+              username={member.username}
+              size={18}
+              variant="roundedSquare"
+            />
+          </View>
+        ))}
+      </View>
+    </View>
+  );
 }
 
 function SingleVideoThumb({ media }: { media: MediaAttachment }) {
@@ -387,6 +442,8 @@ function ChatScreenContent() {
     ],
   );
 
+  const hasValidRouteId = !!chatId;
+
   const router = useRouter();
   const navigation = useNavigation();
 
@@ -398,13 +455,13 @@ function ChatScreenContent() {
     isLoading: isResolvingConversation,
     error: resolutionError,
     refetch: retryResolution,
-  } = useConversationResolution(chatId);
+  } = useConversationResolution(chatId || "");
 
   // Track the active conversation ID used for reading/writing messages.
   // CRITICAL: For numeric IDs, use chatId directly even if resolution failed
   // This allows existing conversations to work even if edge function is down
-  const isNumericId = /^\d+$/.test(chatId);
-  const activeConvId = resolvedConvId || (isNumericId ? chatId : "");
+  const isNumericId = !!chatId && /^\d+$/.test(chatId);
+  const activeConvId = isNumericId ? (chatId as string) : (resolvedConvId ?? "");
 
   // Set TrueSheet header — use peerUsername from route params for instant render
   // Falls back to "Chat" if no params passed (e.g. deep link)
@@ -436,6 +493,11 @@ function ChatScreenContent() {
   } = useChatStore();
 
   const chatMessages = messages[activeConvId] || emptyMessages;
+  const cachedConversationMessages = activeConvId
+    ? messages[activeConvId]
+    : undefined;
+  const [isInitialHydrationComplete, setIsInitialHydrationComplete] =
+    useState(false);
 
   // Hook to refresh message counts after marking as read
   const refreshMessageCounts = useRefreshMessageCounts();
@@ -477,30 +539,51 @@ function ChatScreenContent() {
   }, [chatId]);
 
   // Load messages once conversation ID is resolved
-  // FIX: Added guard to prevent duplicate loads and infinite loops
+  // Gate first paint on one stable hydration pass so the thread doesn't
+  // render into an unresolved state and then visibly snap to the bottom.
+  const hydratedConversationIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (!activeConvId || isResolvingConversation) return;
 
-    // GUARD: Prevent duplicate initial load
-    if (
-      hasLoadedInitialMessagesRef.current &&
-      resolvedConvIdRef.current === activeConvId
-    ) {
-      console.log("[Chat] Skipping duplicate load for:", activeConvId);
+    if (hydratedConversationIdRef.current === activeConvId) {
       return;
     }
 
-    console.log("[Chat] Loading messages for conversation:", activeConvId);
+    let cancelled = false;
 
-    // Store resolved ID for useFocusEffect
-    resolvedConvIdRef.current = activeConvId;
-    hasLoadedInitialMessagesRef.current = true;
+    const hydrateConversation = async () => {
+      setIsInitialHydrationComplete(false);
+      resolvedConvIdRef.current = activeConvId;
+      hasMarkedReadRef.current = null;
 
-    // Load messages FIRST — this is what the user sees
-    loadMessages(activeConvId);
-    // markAsRead is handled by its own dedicated effect below
-    // to avoid being skipped by the duplicate-load guard
-  }, [activeConvId, isResolvingConversation, loadMessages]);
+      if (Array.isArray(cachedConversationMessages)) {
+        hasLoadedInitialMessagesRef.current = true;
+        hydratedConversationIdRef.current = activeConvId;
+        setIsInitialHydrationComplete(true);
+        return;
+      }
+
+      console.log("[Chat] Hydrating messages for conversation:", activeConvId);
+      await loadMessages(activeConvId);
+
+      if (cancelled) return;
+
+      hasLoadedInitialMessagesRef.current = true;
+      hydratedConversationIdRef.current = activeConvId;
+      setIsInitialHydrationComplete(true);
+    };
+
+    void hydrateConversation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeConvId,
+    cachedConversationMessages,
+    isResolvingConversation,
+    loadMessages,
+  ]);
 
   // CRITICAL FIX: Dedicated markAsRead effect — fires when conversation is
   // validated, independent of the message-loading guard. Previously markAsRead
@@ -509,7 +592,8 @@ function ChatScreenContent() {
   // transitioned from false → true, so markAsRead never fired.
   const hasMarkedReadRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!activeConvId || !isConversationValid) return;
+    if (!activeConvId || !isConversationValid || !isInitialHydrationComplete)
+      return;
     // Only mark read once per conversation visit
     if (hasMarkedReadRef.current === activeConvId) return;
     hasMarkedReadRef.current = activeConvId;
@@ -525,7 +609,12 @@ function ChatScreenContent() {
       .catch((error) => {
         console.error("[Chat] markAsRead error:", error);
       });
-  }, [activeConvId, isConversationValid, refreshMessageCounts]);
+  }, [
+    activeConvId,
+    isConversationValid,
+    isInitialHydrationComplete,
+    refreshMessageCounts,
+  ]);
 
   // Realtime subscription — listen for new incoming messages so the chat
   // updates live without needing to close and reopen the screen.
@@ -535,7 +624,7 @@ function ChatScreenContent() {
 
   useEffect(() => {
     const convId = resolvedConvIdRef.current;
-    if (!convId || !/^\d+$/.test(convId)) return;
+    if (!convId || !/^\d+$/.test(convId) || !isInitialHydrationComplete) return;
 
     // GUARD: Only subscribe after initial load completes
     if (!hasLoadedInitialMessagesRef.current) return;
@@ -692,7 +781,7 @@ function ChatScreenContent() {
       cancelled = true;
       supabase.removeChannel(channel);
     };
-  }, [activeConvId, mergeRealtimeMessage]);
+  }, [activeConvId, isInitialHydrationComplete, mergeRealtimeMessage]);
   const {
     recipient,
     isLoadingRecipient,
@@ -714,6 +803,38 @@ function ChatScreenContent() {
   } = useChatScreenStore();
 
   const safeGroupMembers = useMemo(() => groupMembers || [], [groupMembers]);
+  const headerGroupMembers = useMemo(() => {
+    if (!isGroupChat) return safeGroupMembers;
+
+    const currentUserAuthId = currentUser?.authId || currentUser?.id;
+    const includesCurrentUser = safeGroupMembers.some(
+      (member) =>
+        (currentUserAuthId &&
+          (member.authId === currentUserAuthId || member.id === currentUserAuthId)) ||
+        (!!currentUser?.username && member.username === currentUser.username),
+    );
+
+    if (!currentUser || includesCurrentUser) return safeGroupMembers;
+
+    return [
+      ...safeGroupMembers,
+      {
+        id: String(currentUser.id || currentUser.authId || "me"),
+        authId: currentUser.authId || currentUser.id,
+        username: currentUser.username || "you",
+        name: currentUser.name || currentUser.username || "You",
+        avatar: currentUser.avatar || "",
+      },
+    ];
+  }, [currentUser, isGroupChat, safeGroupMembers]);
+  const groupMemberLookup = useMemo(() => {
+    const lookup = new Map<string, (typeof safeGroupMembers)[number]>();
+    for (const member of safeGroupMembers) {
+      if (member.id) lookup.set(String(member.id), member);
+      if (member.authId) lookup.set(String(member.authId), member);
+    }
+    return lookup;
+  }, [safeGroupMembers]);
 
   // Initialize recipient from route params on mount (instant render)
   useEffect(() => {
@@ -803,7 +924,7 @@ function ChatScreenContent() {
           // This ensures retry will call edge function to create NEW conversation
           const { invalidateConversationCache } =
             await import("@/lib/hooks/use-conversation-resolution");
-          invalidateConversationCache(queryClient, chatId);
+          invalidateConversationCache(queryClient, chatId || activeConvId);
           console.log(
             "[Chat] Invalidated cache for orphaned conversation:",
             activeConvId,
@@ -827,7 +948,7 @@ function ChatScreenContent() {
         // Also invalidate cache on error
         const { invalidateConversationCache } =
           await import("@/lib/hooks/use-conversation-resolution");
-        invalidateConversationCache(queryClient, chatId);
+        invalidateConversationCache(queryClient, chatId || activeConvId);
 
         useUIStore
           .getState()
@@ -880,6 +1001,7 @@ function ChatScreenContent() {
       console.log("[Chat] Unmounting, resetting screen state");
       resetChatScreen();
       hasLoadedInitialMessagesRef.current = false;
+      hydratedConversationIdRef.current = null;
       loadedRecipientConversationIdRef.current = null;
       selfMessageCheckDoneRef.current = false;
     };
@@ -1156,6 +1278,8 @@ function ChatScreenContent() {
     !!activeConvId;
 
   const { deleteMessage, editMessage, reactToMessage } = useChatStore();
+  const messageActionsSheetRef = useRef<BottomSheetModal>(null);
+  const messageActionsSnapPoints = useMemo(() => ["34%"], []);
 
   // Reaction emojis (Instagram-style)
   const REACTION_EMOJIS = ["😂", "😢", "😊", "😈", "🥵", "💝"];
@@ -1167,6 +1291,33 @@ function ChatScreenContent() {
     setSelectedMessage(message);
     setShowMessageActions(true);
   }, []);
+
+  const handleMessageActionsDismiss = useCallback(() => {
+    setShowMessageActions(false);
+    setSelectedMessage(null);
+  }, [setSelectedMessage, setShowMessageActions]);
+
+  const renderMessageActionsBackdrop = useCallback(
+    (props: any) => (
+      <BottomSheetBackdrop
+        {...props}
+        disappearsOnIndex={-1}
+        appearsOnIndex={0}
+        opacity={0.5}
+        pressBehavior="close"
+      />
+    ),
+    [],
+  );
+
+  useEffect(() => {
+    if (showMessageActions && selectedMessage) {
+      messageActionsSheetRef.current?.present();
+      return;
+    }
+
+    messageActionsSheetRef.current?.dismiss();
+  }, [selectedMessage, showMessageActions]);
 
   const handleDoubleTap = useCallback(
     (message: Message) => {
@@ -1240,14 +1391,66 @@ function ChatScreenContent() {
 
   const handleCopyMessage = useCallback(() => {
     if (!selectedMessage?.text) return;
-    // Copy not available without expo-clipboard — show toast only
-    showToast("info", "Copy", selectedMessage.text.slice(0, 100));
-    setShowMessageActions(false);
-    setSelectedMessage(null);
+    const copyText = async () => {
+      try {
+        if (
+          Platform.OS === "web" &&
+          typeof navigator !== "undefined" &&
+          navigator.clipboard
+        ) {
+          await navigator.clipboard.writeText(selectedMessage.text);
+        } else {
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { Clipboard: RNClipboard } = require("react-native");
+          if (!RNClipboard?.setString) {
+            throw new Error("Clipboard unavailable");
+          }
+          RNClipboard.setString(selectedMessage.text);
+        }
+
+        showToast("success", "Copied", "Message copied to clipboard.");
+      } catch (error) {
+        console.error("[Chat] Copy failed:", error);
+        showToast("error", "Copy Failed", "Couldn't copy this message.");
+      } finally {
+        setShowMessageActions(false);
+        setSelectedMessage(null);
+      }
+    };
+
+    void copyText();
   }, [selectedMessage, showToast]);
 
   // Show loading ONLY if truly loading, not if we have an error
-  if ((isLoading || isLoadingRecipient) && !resolutionError) {
+  if (!hasValidRouteId) {
+    return (
+      <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+        <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
+          <Pressable onPress={() => router.back()} hitSlop={12}>
+            <ArrowLeft size={24} color="#fff" />
+          </Pressable>
+          <Text className="text-lg font-semibold text-foreground">Chat</Text>
+        </View>
+        <View className="flex-1 items-center justify-center p-6">
+          <MessageCircle size={64} color="#666" strokeWidth={1.5} />
+          <Text className="text-foreground text-lg font-semibold mt-4 text-center">
+            Invalid chat link
+          </Text>
+          <Text className="text-muted-foreground text-sm mt-2 text-center">
+            This thread route is missing a valid conversation ID.
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (
+    (isLoading ||
+      isLoadingRecipient ||
+      isResolvingConversation ||
+      (!!activeConvId && !isInitialHydrationComplete)) &&
+    !resolutionError
+  ) {
     return (
       <SafeAreaView edges={["top"]} className="flex-1 bg-background">
         <ChatSkeleton />
@@ -1313,26 +1516,7 @@ function ChatScreenContent() {
             /* ── Group chat header ── */
             <>
               <View className="flex-row items-center gap-3 flex-1">
-                {/* Stacked avatars — rounded squares */}
-                <View style={{ width: 44, height: 40 }}>
-                  {safeGroupMembers.slice(0, 3).map((m, i) => (
-                    <Image
-                      key={m.id || i}
-                      source={{ uri: m.avatar || "" }}
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: 8,
-                        borderWidth: 2,
-                        borderColor: "#000",
-                        position: "absolute",
-                        left: i * 8,
-                        top: i === 1 ? 10 : i === 2 ? 4 : 0,
-                        zIndex: 3 - i,
-                      }}
-                    />
-                  ))}
-                </View>
+                <GroupHeaderAvatarBox members={headerGroupMembers} />
                 <View className="flex-1">
                   <Text
                     className="text-base font-semibold text-foreground"
@@ -1346,7 +1530,7 @@ function ChatScreenContent() {
                     className="text-xs text-muted-foreground"
                     numberOfLines={1}
                   >
-                    {safeGroupMembers.length + 1} members
+                    {headerGroupMembers.length} members
                     {safeGroupMembers.length > 0 && " · "}
                     {safeGroupMembers
                       .map((m) => m.name || m.username)
@@ -1368,6 +1552,7 @@ function ChatScreenContent() {
                         roomId: `call-${Date.now()}`,
                         isOutgoing: "true",
                         participantIds: ids,
+                        isGroup: "true",
                         callType: "audio",
                         chatId: chatId,
                         recipientUsername: groupName || "Group",
@@ -1376,7 +1561,7 @@ function ChatScreenContent() {
                     });
                   }
                 }}
-                className="p-2 rounded-full bg-primary/20"
+                style={THREAD_ACTION_BUTTON_STYLE}
                 hitSlop={12}
               >
                 <Phone size={22} color="#3EA4E5" />
@@ -1395,6 +1580,7 @@ function ChatScreenContent() {
                         roomId: `call-${Date.now()}`,
                         isOutgoing: "true",
                         participantIds: ids,
+                        isGroup: "true",
                         callType: "video",
                         chatId: chatId,
                         recipientUsername: groupName || "Group",
@@ -1403,7 +1589,7 @@ function ChatScreenContent() {
                     });
                   }
                 }}
-                className="p-2 rounded-full bg-primary/20"
+                style={THREAD_ACTION_BUTTON_STYLE}
                 hitSlop={12}
               >
                 <Video size={22} color="#3EA4E5" />
@@ -1418,7 +1604,7 @@ function ChatScreenContent() {
               >
                 <Image
                   source={{ uri: recipient?.avatar || "" }}
-                  className="w-10 h-10 rounded-full"
+                  className="w-10 h-10 rounded-2xl"
                 />
                 <View className="flex-1">
                   <Text className="text-base font-semibold text-foreground">
@@ -1445,7 +1631,7 @@ function ChatScreenContent() {
                     });
                   }
                 }}
-                className="p-2 rounded-full bg-primary/20"
+                style={THREAD_ACTION_BUTTON_STYLE}
                 hitSlop={12}
               >
                 <Phone size={22} color="#3EA4E5" />
@@ -1468,7 +1654,7 @@ function ChatScreenContent() {
                     });
                   }
                 }}
-                className="p-2 rounded-full bg-primary/20"
+                style={THREAD_ACTION_BUTTON_STYLE}
                 hitSlop={12}
               >
                 <Video size={22} color="#3EA4E5" />
@@ -1496,6 +1682,25 @@ function ChatScreenContent() {
             renderItem={({ item }) => {
               const isMe = item.sender === "me";
               const hasReactions = item.reactions && item.reactions.length > 0;
+              const bubbleBg = isMe
+                ? "#3FDCFF"
+                : isGroupChat
+                  ? getGroupBubbleColor(item.senderId, senderColorMap)
+                  : "#8A40CF";
+              const darkText = needsDarkText(bubbleBg);
+              const groupSender =
+                !isMe && isGroupChat && item.senderId
+                  ? groupMemberLookup.get(String(item.senderId))
+                  : null;
+              const incomingAvatarUri =
+                groupSender?.avatar || recipient?.avatar || "";
+              const incomingAvatarName =
+                groupSender?.username ||
+                groupSender?.name ||
+                recipient?.username ||
+                "member";
+              const incomingDisplayName =
+                groupSender?.name || groupSender?.username || "Group member";
               // Show read receipt only on the last read message sent by me
               const isLastReadByMe =
                 !isGroupChat &&
@@ -1563,14 +1768,7 @@ function ChatScreenContent() {
                     </View>
                   );
                 }
-
                 const hasMedia = item.media && item.media.length > 0;
-                const bubbleBg = isMe
-                  ? "#3FDCFF"
-                  : isGroupChat
-                    ? getGroupBubbleColor(item.senderId, senderColorMap)
-                    : "#8A40CF";
-                const darkText = needsDarkText(bubbleBg);
 
                 return (
                   <View style={{ flexShrink: 1 }}>
@@ -1641,7 +1839,10 @@ function ChatScreenContent() {
                   {Object.entries(groupedReactions).map(([emoji, count]) => (
                     <Pressable
                       key={emoji}
-                      onPress={() => reactToMessage(chatId, item.id, emoji)}
+                      onPress={() => {
+                        if (!conversationActionId) return;
+                        reactToMessage(conversationActionId, item.id, emoji);
+                      }}
                       style={{
                         flexDirection: "row",
                         alignItems: "center",
@@ -1750,12 +1951,27 @@ function ChatScreenContent() {
               ) : (
                 <View className="flex-row items-end gap-2 mb-2 self-start">
                   <Avatar
-                    uri={recipient?.avatar || ""}
-                    username={recipient?.username || ""}
+                    uri={incomingAvatarUri}
+                    username={incomingAvatarName}
                     size={28}
                     variant="roundedSquare"
                   />
                   <View style={{ flexShrink: 1, maxWidth: "80%" }}>
+                    {isGroupChat ? (
+                      <Text
+                        style={{
+                          fontSize: 12,
+                          fontWeight: "700",
+                          letterSpacing: 0.2,
+                          color: bubbleBg,
+                          marginBottom: 6,
+                          marginLeft: 2,
+                        }}
+                        numberOfLines={1}
+                      >
+                        {incomingDisplayName}
+                      </Text>
+                    ) : null}
                     {bubble}
                     {reactionPills}
                   </View>
@@ -1822,7 +2038,7 @@ function ChatScreenContent() {
                 >
                   <Image
                     source={{ uri: u.avatar }}
-                    className="w-9 h-9 rounded-full"
+                    className="w-9 h-9 rounded-xl"
                   />
                   <View>
                     <Text className="text-foreground font-medium">
@@ -1864,7 +2080,7 @@ function ChatScreenContent() {
                 </View>
                 <Pressable
                   onPress={() => setPendingMedia(null)}
-                  className="w-8 h-8 rounded-full bg-white/10 justify-center items-center"
+                  className="w-8 h-8 rounded-xl bg-white/10 justify-center items-center"
                 >
                   <X size={18} color="#fff" />
                 </Pressable>
@@ -1883,13 +2099,13 @@ function ChatScreenContent() {
                 <>
                   <Pressable
                     onPress={handleOpenCamera}
-                    className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
+                    className="w-10 h-10 rounded-2xl bg-secondary justify-center items-center"
                   >
                     <Camera size={22} color="#3EA4E5" />
                   </Pressable>
                   <Pressable
                     onPress={handlePickMedia}
-                    className="w-10 h-10 rounded-full bg-secondary justify-center items-center"
+                    className="w-10 h-10 rounded-2xl bg-secondary justify-center items-center"
                   >
                     <ImageIcon size={22} color="#3EA4E5" />
                   </Pressable>
@@ -1902,7 +2118,7 @@ function ChatScreenContent() {
                     onSelectionChange={handleSelectionChange}
                     placeholder="Message... (use @ to mention)"
                     placeholderTextColor="#666"
-                    className="flex-1 min-h-[40px] max-h-[100px] bg-secondary rounded-full px-4 py-2.5 text-foreground"
+                    className="flex-1 min-h-[40px] max-h-[100px] bg-secondary rounded-[18px] px-4 py-2.5 text-foreground"
                     multiline
                   />
                 </>
@@ -1914,7 +2130,7 @@ function ChatScreenContent() {
                 <Pressable
                   onPress={handleSend}
                   disabled={!canSend}
-                  className={`w-10 h-10 rounded-full justify-center items-center ${
+                  className={`w-10 h-10 rounded-2xl justify-center items-center ${
                     canSend ? "bg-primary" : "bg-secondary"
                   }`}
                 >
@@ -2002,187 +2218,166 @@ function ChatScreenContent() {
         )}
 
         {/* Message Action Sheet */}
-        <Modal
-          visible={showMessageActions}
-          transparent
-          animationType="fade"
-          onRequestClose={() => {
-            setShowMessageActions(false);
-            setSelectedMessage(null);
+        <BottomSheetModal
+          ref={messageActionsSheetRef}
+          snapPoints={messageActionsSnapPoints}
+          onDismiss={handleMessageActionsDismiss}
+          backdropComponent={renderMessageActionsBackdrop}
+          enablePanDownToClose
+          detached
+          bottomInset={24}
+          style={{ marginHorizontal: 12 }}
+          backgroundComponent={GlassSheetBackground}
+          handleIndicatorStyle={{
+            backgroundColor: "#555",
+            width: 36,
+            height: 4,
           }}
         >
-          <Pressable
-            style={{
-              flex: 1,
-              backgroundColor: "rgba(0,0,0,0.5)",
-              justifyContent: "flex-end",
-            }}
-            onPress={() => {
-              setShowMessageActions(false);
-              setSelectedMessage(null);
-            }}
-          >
-            <Pressable onPress={(e) => e.stopPropagation()}>
+          <BottomSheetView style={{ paddingBottom: 28 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "space-evenly",
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                borderBottomWidth: 1,
+                borderBottomColor: "#333",
+              }}
+            >
+              {REACTION_EMOJIS.map((emoji) => (
+                <Pressable
+                  key={emoji}
+                  onPress={() => handleReaction(emoji)}
+                  style={{
+                    width: 44,
+                    height: 44,
+                    borderRadius: 14,
+                    backgroundColor: selectedMessage?.reactions?.some(
+                      (r) => r.emoji === emoji && r.userId === currentUser?.id,
+                    )
+                      ? "rgba(62,164,229,0.2)"
+                      : "rgba(255,255,255,0.08)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Text style={{ fontSize: 24 }}>{emoji}</Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {selectedMessage && (
               <View
                 style={{
-                  backgroundColor: "#1a1a1a",
-                  borderTopLeftRadius: 20,
-                  borderTopRightRadius: 20,
-                  paddingBottom: 40,
+                  paddingHorizontal: 20,
+                  paddingVertical: 8,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "#333",
                 }}
               >
-                {/* Handle */}
-                <View
-                  style={{
-                    alignItems: "center",
-                    paddingVertical: 10,
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 36,
-                      height: 4,
-                      borderRadius: 2,
-                      backgroundColor: "#555",
-                    }}
-                  />
-                </View>
+                <Text style={{ color: "#999", fontSize: 13 }} numberOfLines={2}>
+                  {selectedMessage.text || "(media)"}
+                </Text>
+              </View>
+            )}
 
-                {/* Emoji Reaction Bar */}
-                <View
+            <View style={{ paddingTop: 4 }}>
+              {selectedMessage?.text ? (
+                <Pressable
+                  onPress={handleCopyMessage}
                   style={{
                     flexDirection: "row",
-                    justifyContent: "space-evenly",
-                    paddingHorizontal: 16,
-                    paddingVertical: 12,
-                    borderBottomWidth: 1,
-                    borderBottomColor: "#333",
+                    alignItems: "center",
+                    paddingHorizontal: 20,
+                    paddingVertical: 16,
                   }}
                 >
-                  {REACTION_EMOJIS.map((emoji) => (
-                    <Pressable
-                      key={emoji}
-                      onPress={() => handleReaction(emoji)}
-                      style={{
-                        width: 44,
-                        height: 44,
-                        borderRadius: 22,
-                        backgroundColor: selectedMessage?.reactions?.some(
-                          (r) =>
-                            r.emoji === emoji && r.userId === currentUser?.id,
-                        )
-                          ? "rgba(62,164,229,0.2)"
-                          : "rgba(255,255,255,0.08)",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
-                    >
-                      <Text style={{ fontSize: 24 }}>{emoji}</Text>
-                    </Pressable>
-                  ))}
-                </View>
-
-                {/* Message preview */}
-                {selectedMessage && (
-                  <View
+                  <Copy size={22} color="#fff" />
+                  <Text
                     style={{
-                      paddingHorizontal: 20,
-                      paddingVertical: 8,
-                      borderBottomWidth: 1,
-                      borderBottomColor: "#333",
+                      fontSize: 16,
+                      color: "#fff",
+                      marginLeft: 16,
                     }}
                   >
-                    <Text
-                      style={{ color: "#999", fontSize: 13 }}
-                      numberOfLines={2}
-                    >
-                      {selectedMessage.text || "(media)"}
-                    </Text>
-                  </View>
-                )}
+                    Copy
+                  </Text>
+                </Pressable>
+              ) : null}
 
-                {/* Actions */}
-                <View style={{ paddingTop: 4 }}>
-                  {/* Copy — available for all messages */}
-                  {selectedMessage?.text ? (
-                    <Pressable
-                      onPress={handleCopyMessage}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingHorizontal: 20,
-                        paddingVertical: 16,
-                      }}
-                    >
-                      <Copy size={22} color="#fff" />
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          color: "#fff",
-                          marginLeft: 16,
-                        }}
-                      >
-                        Copy
-                      </Text>
-                    </Pressable>
-                  ) : null}
+              {selectedMessage?.sender === "me" && selectedMessage?.text ? (
+                <Pressable
+                  onPress={handleStartEdit}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 20,
+                    paddingVertical: 16,
+                  }}
+                >
+                  <Pencil size={22} color="#fff" />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: "#fff",
+                      marginLeft: 16,
+                    }}
+                  >
+                    Edit
+                  </Text>
+                </Pressable>
+              ) : null}
 
-                  {/* Edit — only for own messages with text */}
-                  {selectedMessage?.sender === "me" && selectedMessage?.text ? (
-                    <Pressable
-                      onPress={handleStartEdit}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingHorizontal: 20,
-                        paddingVertical: 16,
-                      }}
-                    >
-                      <Pencil size={22} color="#fff" />
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          color: "#fff",
-                          marginLeft: 16,
-                        }}
-                      >
-                        Edit
-                      </Text>
-                    </Pressable>
-                  ) : null}
-
-                  {/* Unsend — only for own messages */}
-                  {selectedMessage?.sender === "me" ? (
-                    <Pressable
-                      onPress={handleUnsendMessage}
-                      style={{
-                        flexDirection: "row",
-                        alignItems: "center",
-                        paddingHorizontal: 20,
-                        paddingVertical: 16,
-                      }}
-                    >
-                      <Trash2 size={22} color="#ef4444" />
-                      <Text
-                        style={{
-                          fontSize: 16,
-                          color: "#ef4444",
-                          marginLeft: 16,
-                        }}
-                      >
-                        Unsend
-                      </Text>
-                    </Pressable>
-                  ) : null}
-                </View>
-              </View>
-            </Pressable>
-          </Pressable>
-        </Modal>
+              {selectedMessage?.sender === "me" ? (
+                <Pressable
+                  onPress={handleUnsendMessage}
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    paddingHorizontal: 20,
+                    paddingVertical: 16,
+                  }}
+                >
+                  <Trash2 size={22} color="#ef4444" />
+                  <Text
+                    style={{
+                      fontSize: 16,
+                      color: "#ef4444",
+                      marginLeft: 16,
+                    }}
+                  >
+                    Unsend
+                  </Text>
+                </Pressable>
+              ) : null}
+            </View>
+          </BottomSheetView>
+        </BottomSheetModal>
       </SafeAreaView>
     </KeyboardAvoidingView>
   );
 }
+
+const styles = StyleSheet.create({
+  groupHeaderAvatarWrap: {
+    width: 42,
+    height: 42,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  groupHeaderAvatarBox: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  groupHeaderAvatarSlot: {
+    position: "absolute",
+  },
+});
 
 // Wrap with ErrorBoundary for crash protection
 export default function ChatScreen() {

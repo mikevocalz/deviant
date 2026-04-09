@@ -55,8 +55,10 @@ import { storyTagsApi } from "@/lib/api/stories";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { useStoryFlowStore } from "@/lib/stores/story-flow-store";
 import { useStoryEditorResultStore } from "@/lib/stores/story-editor-result-store";
-import type { StoryAnimatedGifOverlay } from "@/lib/types";
+import type { StoryAnimatedGifOverlay, StoryOverlay } from "@/lib/types";
 import * as LegacyFileSystem from "expo-file-system/legacy";
+import { DVNTGifView } from "@/components/media/DVNTGifView";
+import { getImageStickerSourceById } from "@/src/stories-editor/constants";
 
 function StoryVideoPreview({ uri }: { uri: string }) {
   const [isPlaying, setIsPlaying] = useState(false);
@@ -110,6 +112,133 @@ function StoryVideoPreview({ uri }: { uri: string }) {
         </View>
       )}
     </Pressable>
+  );
+}
+
+function StoryOverlayPreview({
+  overlays,
+  width,
+  height,
+}: {
+  overlays: StoryOverlay[];
+  width: number;
+  height: number;
+}) {
+  if (overlays.length === 0) return null;
+
+  return (
+    <View pointerEvents="none" style={{ position: "absolute", inset: 0 }}>
+      {overlays.map((overlay) => {
+        if (overlay.type === "animated_gif") {
+          const size = width * overlay.sizeRatio * overlay.scale;
+          return (
+            <View
+              key={overlay.id}
+              style={{
+                position: "absolute",
+                left: width * overlay.x - size / 2,
+                top: height * overlay.y - size / 2,
+                width: size,
+                height: size,
+                opacity: overlay.opacity ?? 1,
+                transform: [{ rotate: `${overlay.rotation}deg` }],
+              }}
+            >
+              <DVNTGifView
+                uri={overlay.url}
+                width="100%"
+                height="100%"
+                contentFit="contain"
+              />
+            </View>
+          );
+        }
+
+        if (overlay.type === "emoji") {
+          const size = width * overlay.sizeRatio * overlay.scale;
+          return (
+            <Text
+              key={overlay.id}
+              style={{
+                position: "absolute",
+                left: width * overlay.x - size / 2,
+                top: height * overlay.y - size / 2,
+                width: size,
+                height: size,
+                fontSize: size,
+                textAlign: "center",
+                opacity: overlay.opacity ?? 1,
+                transform: [{ rotate: `${overlay.rotation}deg` }],
+              }}
+            >
+              {overlay.emoji}
+            </Text>
+          );
+        }
+
+        if (overlay.type === "text") {
+          const maxWidth = width * overlay.maxWidthRatio;
+          const fontSize = Math.max(width * overlay.fontSizeRatio * overlay.scale, 16);
+          return (
+            <View
+              key={overlay.id}
+              style={{
+                position: "absolute",
+                left: width * overlay.x - maxWidth / 2,
+                top: height * overlay.y - fontSize,
+                width: maxWidth,
+                opacity: overlay.opacity ?? 1,
+                transform: [{ rotate: `${overlay.rotation}deg` }],
+              }}
+            >
+              <Text
+                style={{
+                  color: overlay.color,
+                  backgroundColor: overlay.backgroundColor || "transparent",
+                  fontSize,
+                  lineHeight: fontSize * 1.12,
+                  fontWeight: "700",
+                  textAlign: overlay.textAlign || "center",
+                  fontFamily: overlay.fontFamily || undefined,
+                }}
+              >
+                {overlay.content}
+              </Text>
+            </View>
+          );
+        }
+
+        const size = width * overlay.sizeRatio * overlay.scale;
+        const assetSource =
+          overlay.source === "asset" && overlay.assetId
+            ? getImageStickerSourceById(overlay.assetId)
+            : null;
+        const imageSource =
+          overlay.source === "url" ? { uri: overlay.url } : assetSource;
+        if (!imageSource) return null;
+
+        return (
+          <View
+            key={overlay.id}
+            style={{
+              position: "absolute",
+              left: width * overlay.x - size / 2,
+              top: height * overlay.y - size / 2,
+              width: size,
+              height: size,
+              opacity: overlay.opacity ?? 1,
+              transform: [{ rotate: `${overlay.rotation}deg` }],
+            }}
+          >
+            <Image
+              source={imageSource}
+              style={{ width: "100%", height: "100%" }}
+              contentFit="contain"
+            />
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -230,6 +359,8 @@ function CreateStoryScreenContent() {
     (
       uri: string,
       rawIndex?: string | number,
+      mediaType: "image" | "video" = "image",
+      storyOverlays: StoryOverlay[] = [],
       animatedGifOverlays: StoryAnimatedGifOverlay[] = [],
     ) => {
       const idx =
@@ -242,8 +373,9 @@ function CreateStoryScreenContent() {
         updated[idx] = {
           ...updated[idx],
           uri,
-          type: "image",
-          kind: "image",
+          type: mediaType,
+          kind: mediaType === "video" ? "video" : "image",
+          storyOverlays,
           storyAnimatedGifOverlays: animatedGifOverlays,
         };
         setMediaAssets(updated);
@@ -256,8 +388,9 @@ function CreateStoryScreenContent() {
         const asset: MediaAsset = {
           id: uri,
           uri,
-          type: "image",
-          kind: "image",
+          type: mediaType,
+          kind: mediaType === "video" ? "video" : "image",
+          storyOverlays,
           storyAnimatedGifOverlays: animatedGifOverlays,
         };
         setMediaAssets([asset]);
@@ -287,6 +420,8 @@ function CreateStoryScreenContent() {
         applyEditedResult(
           editorResult.uri,
           editorResult.index,
+          editorResult.mediaType,
+          editorResult.storyOverlays,
           editorResult.animatedGifOverlays,
         );
       }
@@ -624,6 +759,7 @@ function CreateStoryScreenContent() {
         ...(r.thumbnailPath && { thumbnailKey: r.thumbnailPath }),
         ...(r.mimeType && { mimeType: r.mimeType }),
         ...(r.livePhotoVideoUrl && { livePhotoVideoUrl: r.livePhotoVideoUrl }),
+        storyOverlays: mediaAssets[index]?.storyOverlays || [],
         animatedGifOverlays:
           mediaAssets[index]?.storyAnimatedGifOverlays || [],
       }));
@@ -703,6 +839,20 @@ function CreateStoryScreenContent() {
   const currentMedia = currentAsset?.uri;
   const currentMediaType = currentAsset?.type;
   const isValid = mediaAssets.length > 0;
+  const currentStoryOverlays =
+    currentAsset?.storyOverlays?.length
+      ? currentAsset.storyOverlays
+      : (currentAsset?.storyAnimatedGifOverlays || []).map((overlay) => ({
+          ...overlay,
+          type: "animated_gif" as const,
+        }));
+  const creativeTools = (
+    currentMediaType === "video"
+      ? CREATIVE_TOOLS.filter((tool) =>
+          ["text", "stickers", "save"].includes(tool.id),
+        )
+      : CREATIVE_TOOLS
+  );
 
   // FIX: Use safe header update to prevent loops
   useSafeHeader({
@@ -805,13 +955,18 @@ function CreateStoryScreenContent() {
                 {currentMediaType === "video" ? (
                   <View className="flex-1 bg-black">
                     <StoryVideoPreview uri={currentMedia} />
+                    <StoryOverlayPreview
+                      overlays={currentStoryOverlays}
+                      width={CANVAS_WIDTH}
+                      height={CANVAS_HEIGHT}
+                    />
                   </View>
                 ) : (
                   <View className="flex-1">
                     <Image
                       source={{ uri: currentMedia }}
                       style={{ width: "100%", height: "100%" }}
-                      contentFit="contain"
+                      contentFit="cover"
                     />
                     {/* Tap anywhere to open Skia editor */}
                     <Pressable
@@ -825,88 +980,87 @@ function CreateStoryScreenContent() {
                         zIndex: 0,
                       }}
                     />
+                    <StoryOverlayPreview
+                      overlays={currentStoryOverlays}
+                      width={CANVAS_WIDTH}
+                      height={CANVAS_HEIGHT}
+                    />
                     {/* Creative tools — vertical toolbar on right */}
-                    <View
-                      className="absolute right-3 top-10 gap-3"
-                      style={{ zIndex: 10, elevation: 10 }}
-                      pointerEvents="box-none"
-                    >
-                      {CREATIVE_TOOLS.map((tool) => (
-                        <Pressable
-                          key={tool.id}
-                          onPress={() => {
-                            Haptics.impactAsync(
-                              Haptics.ImpactFeedbackStyle.Light,
-                            );
-                            if (tool.id === "save") {
-                              (async () => {
-                                try {
-                                  const MediaLibrary = require("expo-media-library");
-                                  const { status } =
-                                    await MediaLibrary.requestPermissionsAsync();
-                                  if (status !== "granted") {
-                                    showToast(
-                                      "warning",
-                                      "Permission",
-                                      "Media library permission required.",
-                                    );
-                                    return;
-                                  }
-                                  const asset = mediaAssets[currentIndex];
-                                  if (asset) {
-                                    await MediaLibrary.saveToLibraryAsync(
-                                      asset.uri,
-                                    );
-                                    showToast(
-                                      "success",
-                                      "Saved",
-                                      "Image saved to gallery",
-                                    );
-                                  }
-                                } catch {
-                                  showToast(
-                                    "error",
-                                    "Error",
-                                    "Failed to save image.",
-                                  );
-                                }
-                              })();
-                            } else {
-                              const modeMap: Record<string, string> = {
-                                text: "text",
-                                stickers: "sticker",
-                                draw: "drawing",
-                                effects: "filter",
-                              };
-                              handleOpenSkiaEditor(
-                                currentIndex,
-                                modeMap[tool.id],
-                              );
-                            }
-                          }}
-                          className="items-center"
-                        >
-                          <View
-                            className="w-10 h-10 rounded-xl bg-black/60 items-center justify-center"
-                            style={{ borderCurve: "continuous" }}
-                          >
-                            <tool.icon size={20} color="#fff" strokeWidth={2} />
-                          </View>
-                          <Text
-                            className="text-white text-[10px] font-medium mt-0.5"
-                            style={{
-                              textShadowColor: "rgba(0,0,0,0.8)",
-                              textShadowOffset: { width: 0, height: 1 },
-                              textShadowRadius: 2,
-                            }}
-                          >
-                            {tool.label}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
                   </View>
                 )}
+
+                <View
+                  className="absolute right-3 top-10 gap-3"
+                  style={{ zIndex: 10, elevation: 10 }}
+                  pointerEvents="box-none"
+                >
+                  {creativeTools.map((tool) => (
+                    <Pressable
+                      key={tool.id}
+                      onPress={() => {
+                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                        if (tool.id === "save") {
+                          (async () => {
+                            try {
+                              const MediaLibrary = require("expo-media-library");
+                              const { status } =
+                                await MediaLibrary.requestPermissionsAsync();
+                              if (status !== "granted") {
+                                showToast(
+                                  "warning",
+                                  "Permission",
+                                  "Media library permission required.",
+                                );
+                                return;
+                              }
+                              const asset = mediaAssets[currentIndex];
+                              if (asset) {
+                                await MediaLibrary.saveToLibraryAsync(asset.uri);
+                                showToast(
+                                  "success",
+                                  "Saved",
+                                  `${asset.type === "video" ? "Video" : "Image"} saved to gallery`,
+                                );
+                              }
+                            } catch {
+                              showToast(
+                                "error",
+                                "Error",
+                                `Failed to save ${currentMediaType === "video" ? "video" : "image"}.`,
+                              );
+                            }
+                          })();
+                        } else {
+                          const modeMap: Record<string, string> = {
+                            text: "text",
+                            stickers: "sticker",
+                            draw: "drawing",
+                            effects: "filter",
+                          };
+                          handleOpenSkiaEditor(currentIndex, modeMap[tool.id]);
+                        }
+                      }}
+                      className="items-center"
+                    >
+                      <View
+                        className="w-10 h-10 rounded-xl bg-black/60 items-center justify-center"
+                        style={{ borderCurve: "continuous" }}
+                      >
+                        <tool.icon size={20} color="#fff" strokeWidth={2} />
+                      </View>
+                      <Text
+                        className="text-white text-[10px] font-medium mt-0.5"
+                        style={{
+                          textShadowColor: "rgba(0,0,0,0.8)",
+                          textShadowOffset: { width: 0, height: 1 },
+                          textShadowRadius: 2,
+                        }}
+                      >
+                        {tool.label}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
               </View>
             ) : (
               <View className="flex-1 bg-card items-center justify-center">

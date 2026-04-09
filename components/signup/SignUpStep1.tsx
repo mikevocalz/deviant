@@ -15,6 +15,7 @@ import { useSignupStore } from "@/lib/stores/signup-store";
 import { supabase } from "@/lib/supabase/client";
 import { DB } from "@/lib/supabase/db-map";
 import { CheckCircle2, XCircle, ShieldAlert } from "lucide-react-native";
+import { AppTrace } from "@/lib/diagnostics/app-trace";
 
 const UNDERAGE_ERROR_MESSAGE = "You must be 18 or older to use this app.";
 
@@ -380,6 +381,10 @@ export function SignUpStep1() {
         setIsUserUnderage(false);
         setShowDatePicker(true);
         console.error("[SignUpStep1] BLOCKED: No date of birth entered");
+        AppTrace.warn("SIGNUP", "step1_blocked_missing_dob", {
+          hasEmail: Boolean(value.email),
+          hasPhone: Boolean(value.phone),
+        });
         return; // BLOCK - require DOB
       }
 
@@ -389,6 +394,9 @@ export function SignUpStep1() {
         setIsUserUnderage(true);
         setDobError("");
         console.error("[SignUpStep1] BLOCKED: Underage user attempted signup");
+        AppTrace.warn("SIGNUP", "step1_blocked_underage", {
+          hasDob: Boolean(value.dateOfBirth),
+        });
         return; // HARD BLOCK - do not proceed
       }
       setDobError("");
@@ -402,6 +410,10 @@ export function SignUpStep1() {
         phone: value.phone,
         dateOfBirth: value.dateOfBirth,
         password: value.password,
+      });
+      AppTrace.trace("SIGNUP", "step1_completed", {
+        hasPhone: Boolean(value.phone),
+        usernameLength: value.username.length,
       });
       setActiveStep(1);
     },

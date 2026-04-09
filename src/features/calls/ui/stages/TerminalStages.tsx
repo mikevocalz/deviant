@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   iconCircle: {
     width: 80,
     height: 80,
-    borderRadius: 40,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
@@ -161,7 +161,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 14,
     backgroundColor: "#3EA4E5",
-    borderRadius: 24,
+    borderRadius: 18,
   },
   btnPrimaryText: {
     color: "#fff",
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 28,
     paddingVertical: 14,
     backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 24,
+    borderRadius: 18,
   },
   btnGhostText: {
     color: "#fff",

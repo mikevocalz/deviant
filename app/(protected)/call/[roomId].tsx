@@ -28,6 +28,7 @@ export default function VideoCallScreen() {
     chatId,
     recipientUsername,
     recipientAvatar,
+    isGroup,
   } = useLocalSearchParams<{
     roomId?: string;
     isOutgoing?: string;
@@ -36,6 +37,7 @@ export default function VideoCallScreen() {
     chatId?: string;
     recipientUsername?: string;
     recipientAvatar?: string;
+    isGroup?: string;
   }>();
 
   const { requestPermissions, openSettings } = useMediaPermissions();
@@ -44,6 +46,9 @@ export default function VideoCallScreen() {
 
   const initialCallType: CallType =
     callTypeParam === "audio" ? "audio" : "video";
+  const isGroupCall =
+    isGroup === "true" ||
+    (!!participantIds && participantIds.split(",").filter(Boolean).length > 1);
 
   // ── DETERMINISTIC INIT: perms → room → peer → media ───────────────
   // Guarded: runs once, catches all errors, sets store error on failure.
@@ -105,6 +110,7 @@ export default function VideoCallScreen() {
       <CallScreen
         recipientName={recipientUsername || "Unknown"}
         recipientAvatar={recipientAvatar}
+        isGroupCall={isGroupCall}
         onOpenSettings={openSettings}
       />
     </View>

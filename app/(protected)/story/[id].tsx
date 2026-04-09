@@ -17,6 +17,7 @@ import { Animated as RNAnimated, Easing } from "react-native";
 import { useLocalSearchParams, useRouter, useFocusEffect } from "expo-router";
 import { Image } from "expo-image";
 import { VideoView, useVideoPlayer } from "expo-video";
+import { LinearGradient } from "expo-linear-gradient";
 import { X, Send, Eye, Heart, Trash2 } from "lucide-react-native";
 import { DVNTLiquidGlass } from "@/components/media/DVNTLiquidGlass";
 import { DVNTGifView } from "@/components/media/DVNTGifView";
@@ -66,10 +67,320 @@ import {
 } from "@/lib/diagnostics/loop-detection";
 import { usersApi } from "@/lib/api/users";
 import { storyTagsApi, type StoryTag } from "@/lib/api/stories";
-import type { StoryAnimatedGifOverlay } from "@/lib/types";
+import type { Story, StoryAnimatedGifOverlay, StoryOverlay } from "@/lib/types";
+import { getImageStickerSourceById } from "@/src/stories-editor/constants";
+import {
+  getSystemFontWeight,
+  shouldUseSystemFontFallback,
+} from "@/src/stories-editor/utils/text-support";
 
 const { width, height } = Dimensions.get("window");
 const LONG_PRESS_DELAY = 300;
+
+type RGB = { r: number; g: number; b: number };
+
+function clampChannel(value: number) {
+  return Math.max(0, Math.min(255, Math.round(value)));
+}
+
+function parseStoryColor(input?: string | null): RGB | null {
+  if (!input) return null;
+
+  const hex = input.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
+  if (hex) {
+    const raw = hex[1];
+    const normalized =
+      raw.length === 3
+        ? raw
+            .split("")
+            .map((char) => `${char}${char}`)
+            .join("")
+        : raw;
+
+    return {
+      r: parseInt(normalized.slice(0, 2), 16),
+      g: parseInt(normalized.slice(2, 4), 16),
+      b: parseInt(normalized.slice(4, 6), 16),
+    };
+  }
+
+  const rgb = input
+    .trim()
+    .match(
+      /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})(?:\s*,\s*[\d.]+\s*)?\)$/i,
+    );
+  if (!rgb) return null;
+
+  return {
+    r: clampChannel(Number(rgb[1])),
+    g: clampChannel(Number(rgb[2])),
+    b: clampChannel(Number(rgb[3])),
+  };
+}
+
+function mixStoryColor(base: RGB, target: RGB, amount: number): RGB {
+  return {
+    r: clampChannel(base.r + (target.r - base.r) * amount),
+    g: clampChannel(base.g + (target.g - base.g) * amount),
+    b: clampChannel(base.b + (target.b - base.b) * amount),
+  };
+}
+
+function rgbToHex(color: RGB) {
+  return `#${color.r.toString(16).padStart(2, "0")}${color.g
+    .toString(16)
+    .padStart(2, "0")}${color.b.toString(16).padStart(2, "0")}`;
+}
+
+function rgbToRgba(color: RGB, alpha: number) {
+  return `rgba(${color.r},${color.g},${color.b},${alpha})`;
+}
+
+function buildTextStoryPalette(backgroundColor?: string | null) {
+  const base = parseStoryColor(backgroundColor) ?? { r: 91, g: 27, b: 122 };
+  const deep = mixStoryColor(base, { r: 8, g: 10, b: 18 }, 0.52);
+  const lifted = mixStoryColor(base, { r: 255, g: 255, b: 255 }, 0.18);
+  const electric = mixStoryColor(base, { r: 255, g: 91, b: 252 }, 0.46);
+  const cyan = mixStoryColor(base, { r: 62, g: 164, b: 229 }, 0.6);
+
+  return {
+    background: [rgbToHex(deep), rgbToHex(base), rgbToHex(lifted)] as const,
+    card: rgbToRgba(mixStoryColor(base, { r: 6, g: 8, b: 14 }, 0.72), 0.84),
+    cardBorder: rgbToRgba(mixStoryColor(base, { r: 255, g: 255, b: 255 }, 0.2), 0.22),
+    innerHighlight: rgbToRgba(mixStoryColor(base, { r: 255, g: 255, b: 255 }, 0.36), 0.12),
+    accent: rgbToHex(electric),
+    glowPrimary: rgbToRgba(electric, 0.26),
+    glowSecondary: rgbToRgba(cyan, 0.2),
+    textShadow: rgbToRgba({ r: 0, g: 0, b: 0 }, 0.35),
+  };
+}
+
+function TextOnlyStoryViewer({
+  item,
+  insets,
+}: {
+  item: {
+    text?: string;
+    textColor?: string;
+    backgroundColor?: string;
+  };
+  insets: { top: number; bottom: number };
+}) {
+  const palette = useMemo(
+    () => buildTextStoryPalette(item.backgroundColor),
+    [item.backgroundColor],
+  );
+  const content = (item.text || "").trim();
+  const usesSystemFont = shouldUseSystemFontFallback(content);
+  const lineCount = Math.max(content.split("\n").length, 1);
+  const charCount = content.length;
+  const fontSize =
+    charCount > 180 || lineCount > 5
+      ? 34
+      : charCount > 120 || lineCount > 4
+        ? 40
+        : charCount > 72 || lineCount > 3
+          ? 48
+          : 58;
+
+  return (
+    <LinearGradient
+      colors={palette.background}
+      start={{ x: 0.06, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: -height * 0.08,
+          right: -width * 0.16,
+          width: width * 0.7,
+          height: width * 0.7,
+          borderRadius: 999,
+          backgroundColor: palette.glowPrimary,
+        }}
+      />
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          bottom: -height * 0.06,
+          left: -width * 0.12,
+          width: width * 0.64,
+          height: width * 0.64,
+          borderRadius: 999,
+          backgroundColor: palette.glowSecondary,
+        }}
+      />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          paddingTop: insets.top + 112,
+          paddingBottom: insets.bottom + 112,
+          paddingHorizontal: 24,
+        }}
+      >
+        <View
+          style={{
+            borderRadius: 34,
+            borderCurve: "continuous",
+            overflow: "hidden",
+            backgroundColor: palette.card,
+            borderWidth: 1,
+            borderColor: palette.cardBorder,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 18 },
+            shadowOpacity: 0.3,
+            shadowRadius: 32,
+          }}
+        >
+          <View
+            pointerEvents="none"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 160,
+              backgroundColor: palette.innerHighlight,
+            }}
+          />
+          <View
+            style={{
+              paddingHorizontal: 28,
+              paddingVertical: 32,
+              minHeight: Math.min(height * 0.44, 440),
+              justifyContent: "center",
+            }}
+          >
+            <View
+              style={{
+                width: 56,
+                height: 5,
+                borderRadius: 999,
+                alignSelf: "center",
+                backgroundColor: palette.accent,
+                marginBottom: 24,
+              }}
+            />
+            <Text
+              style={{
+                color: item.textColor || "#FFFFFF",
+                fontSize,
+                lineHeight: fontSize * 1.16,
+                textAlign: "center",
+                letterSpacing: -0.8,
+                textShadowColor: palette.textShadow,
+                textShadowRadius: 18,
+                textShadowOffset: { width: 0, height: 10 },
+                fontFamily: usesSystemFont ? undefined : "SpaceGrotesk-Bold",
+                fontWeight: usesSystemFont ? "800" : undefined,
+              }}
+            >
+              {content || "No text"}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </LinearGradient>
+  );
+}
+
+function StoryViewerLoadingState({
+  insets,
+  label,
+}: {
+  insets: { top: number; bottom: number };
+  label: string;
+}) {
+  return (
+    <LinearGradient
+      colors={["#050507", "#101119", "#07070a"]}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={{ flex: 1 }}
+    >
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          top: -height * 0.04,
+          right: -width * 0.12,
+          width: width * 0.58,
+          height: width * 0.58,
+          borderRadius: 999,
+          backgroundColor: "rgba(255,91,252,0.12)",
+        }}
+      />
+      <View
+        pointerEvents="none"
+        style={{
+          position: "absolute",
+          bottom: -height * 0.05,
+          left: -width * 0.14,
+          width: width * 0.62,
+          height: width * 0.62,
+          borderRadius: 999,
+          backgroundColor: "rgba(62,164,229,0.1)",
+        }}
+      />
+      <View
+        style={{
+          flex: 1,
+          justifyContent: "center",
+          alignItems: "center",
+          paddingTop: insets.top + 24,
+          paddingBottom: insets.bottom + 32,
+          paddingHorizontal: 28,
+        }}
+      >
+        <View
+          style={{
+            width: Math.min(width - 48, 360),
+            borderRadius: 30,
+            borderCurve: "continuous" as any,
+            backgroundColor: "rgba(18,18,24,0.9)",
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.08)",
+            paddingHorizontal: 24,
+            paddingVertical: 26,
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 18 },
+            shadowOpacity: 0.26,
+            shadowRadius: 28,
+            gap: 14,
+          }}
+        >
+          <ActivityIndicator color="#FFFFFF" />
+          <Text
+            style={{
+              color: "#FFFFFF",
+              fontSize: 18,
+              fontWeight: "800",
+              letterSpacing: -0.2,
+            }}
+          >
+            {label}
+          </Text>
+          <Text
+            style={{
+              color: "rgba(255,255,255,0.68)",
+              fontSize: 13,
+              lineHeight: 18,
+              textAlign: "center",
+            }}
+          >
+            Loading the full story before the viewer appears.
+          </Text>
+        </View>
+      </View>
+    </LinearGradient>
+  );
+}
 
 function ProgressBar({ progress }: { progress: SharedValue<number> }) {
   const animatedStyle = useAnimatedStyle(() => ({
@@ -190,6 +501,157 @@ function StoryAnimatedGifOverlays({
   );
 }
 
+function StoryOverlayLayer({
+  overlays,
+}: {
+  overlays: StoryOverlay[];
+}) {
+  if (overlays.length === 0) return null;
+
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+      }}
+    >
+      {overlays.map((overlay) => {
+        if (overlay.type === "animated_gif") {
+          const size = width * overlay.sizeRatio * overlay.scale;
+          const left = width * overlay.x - size / 2;
+          const top = height * overlay.y - size / 2;
+
+          return (
+            <View
+              key={overlay.id}
+              style={{
+                position: "absolute",
+                left,
+                top,
+                width: size,
+                height: size,
+                opacity: overlay.opacity ?? 1,
+                transform: [{ rotate: `${overlay.rotation}deg` }],
+              }}
+            >
+              <DVNTGifView
+                uri={overlay.url}
+                width="100%"
+                height="100%"
+                contentFit="contain"
+              />
+            </View>
+          );
+        }
+
+        if (overlay.type === "emoji") {
+          const size = width * overlay.sizeRatio * overlay.scale;
+          const left = width * overlay.x - size / 2;
+          const top = height * overlay.y - size / 2;
+
+          return (
+            <Text
+              key={overlay.id}
+              style={{
+                position: "absolute",
+                left,
+                top,
+                width: size,
+                height: size,
+                fontSize: size,
+                textAlign: "center",
+                opacity: overlay.opacity ?? 1,
+                transform: [{ rotate: `${overlay.rotation}deg` }],
+              }}
+            >
+              {overlay.emoji}
+            </Text>
+          );
+        }
+
+        if (overlay.type === "text") {
+          const maxWidth = width * overlay.maxWidthRatio;
+          const fontSize = Math.max(
+            width * overlay.fontSizeRatio * overlay.scale,
+            18,
+          );
+          const prefersSystemFont = shouldUseSystemFontFallback(overlay.content);
+          return (
+            <View
+              key={overlay.id}
+              style={{
+                position: "absolute",
+                left: width * overlay.x - maxWidth / 2,
+                top: height * overlay.y - fontSize,
+                width: maxWidth,
+                opacity: overlay.opacity ?? 1,
+                transform: [{ rotate: `${overlay.rotation}deg` }],
+              }}
+            >
+              <Text
+                style={{
+                  color: overlay.color,
+                  backgroundColor: overlay.backgroundColor || "transparent",
+                  fontSize,
+                  lineHeight: fontSize * 1.14,
+                  fontWeight: prefersSystemFont
+                    ? getSystemFontWeight(overlay.fontFamily)
+                    : "700",
+                  textAlign: overlay.textAlign || "center",
+                  fontFamily: prefersSystemFont
+                    ? undefined
+                    : overlay.fontFamily || undefined,
+                }}
+              >
+                {overlay.content}
+              </Text>
+            </View>
+          );
+        }
+
+        const size = width * overlay.sizeRatio * overlay.scale;
+        const left = width * overlay.x - size / 2;
+        const top = height * overlay.y - size / 2;
+        const assetSource =
+          overlay.source === "asset" && overlay.assetId
+            ? getImageStickerSourceById(overlay.assetId)
+            : null;
+        const imageSource =
+          overlay.source === "url"
+            ? { uri: overlay.url }
+            : assetSource;
+
+        if (!imageSource) return null;
+
+        return (
+          <View
+            key={overlay.id}
+            style={{
+              position: "absolute",
+              left,
+              top,
+              width: size,
+              height: size,
+              opacity: overlay.opacity ?? 1,
+              transform: [{ rotate: `${overlay.rotation}deg` }],
+            }}
+          >
+            <Image
+              source={imageSource}
+              style={{ width: "100%", height: "100%" }}
+              contentFit="contain"
+            />
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 function StoryViewerScreenContent() {
   // DEV-only loop detection
   useRenderLoopDetector("StoryViewer");
@@ -197,6 +659,10 @@ function StoryViewerScreenContent() {
   const rawParams = useLocalSearchParams<{
     id: string;
     username?: string;
+    demoText?: string;
+    demoBackground?: string;
+    demoTextColor?: string;
+    demoImageUrl?: string;
   }>();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -208,6 +674,20 @@ function StoryViewerScreenContent() {
   );
   const id = normalizedParams.id;
   const usernameParam = normalizedParams.username;
+  const demoTextParam =
+    typeof rawParams.demoText === "string" ? rawParams.demoText : undefined;
+  const demoBackgroundParam =
+    typeof rawParams.demoBackground === "string"
+      ? rawParams.demoBackground
+      : undefined;
+  const demoTextColorParam =
+    typeof rawParams.demoTextColor === "string"
+      ? rawParams.demoTextColor
+      : undefined;
+  const demoImageUrlParam =
+    typeof rawParams.demoImageUrl === "string"
+      ? rawParams.demoImageUrl
+      : undefined;
 
   loopDetection.log("StoryViewer", "mount", { id, username: usernameParam });
   const {
@@ -218,6 +698,8 @@ function StoryViewerScreenContent() {
   } = useStoryViewerStore();
   const insets = useSafeAreaInsets();
   const [showVideoPoster, setShowVideoPoster] = useState(true);
+  const storyChromeTopInset = Math.max(insets.top + 14, 26);
+  const touchZonesTop = storyChromeTopInset + 94;
 
   const progress = useSharedValue(0);
 
@@ -271,6 +753,52 @@ function StoryViewerScreenContent() {
   // Fetch real stories from API
   const { data: storiesData = [], isLoading, isFetching } = useStories();
 
+  const devDemoStories = useMemo<Story[]>(() => {
+    if (!__DEV__ || (!demoTextParam && !demoImageUrlParam)) return [];
+
+    return [
+      {
+        id: String(id || "dev-story-group-text"),
+        userId: "dev-demo-viewer",
+        username: usernameParam || "dev-demo",
+        avatar: "",
+        hasStory: true,
+        isViewed: false,
+        isYou: false,
+        items: [
+          demoImageUrlParam
+            ? {
+                id: "dev-story-item-image",
+                type: "image",
+                url: demoImageUrlParam,
+                duration: 5000,
+                storyOverlays: [],
+                animatedGifOverlays: [],
+                visibility: "public",
+              }
+            : {
+                id: "dev-story-item-text",
+                type: "text",
+                text: demoTextParam,
+                textColor: demoTextColorParam || "#FFF8FE",
+                backgroundColor: demoBackgroundParam || "#5b1b7a",
+                duration: 5000,
+                storyOverlays: [],
+                animatedGifOverlays: [],
+                visibility: "public",
+              },
+        ],
+      },
+    ];
+  }, [
+    demoBackgroundParam,
+    demoImageUrlParam,
+    demoTextColorParam,
+    demoTextParam,
+    id,
+    usernameParam,
+  ]);
+
   useEffect(() => {
     if (id) {
       setCurrentStoryId(id);
@@ -282,7 +810,7 @@ function StoryViewerScreenContent() {
   }, [id, setCurrentStoryId]);
 
   // Filter stories that have content
-  const availableStories = storiesData.filter(
+  const availableStories = (devDemoStories.length ? devDemoStories : storiesData).filter(
     (s) => s.items && s.items.length > 0,
   );
   // Use loose equality to handle string/number comparison (URL params are strings, API IDs may be numbers)
@@ -364,7 +892,7 @@ function StoryViewerScreenContent() {
 
   // Fetch tags for current story item
   useEffect(() => {
-    if (!currentItem?.id) {
+    if (!currentItem?.id || !/^\d+$/.test(String(currentItem.id))) {
       setStoryTags([]);
       return;
     }
@@ -379,7 +907,33 @@ function StoryViewerScreenContent() {
 
   const isVideo = currentItem?.type === "video";
   const isImage = currentItem?.type === "image" || currentItem?.type === "gif";
-  const animatedGifOverlays = currentItem?.animatedGifOverlays || [];
+  const storyOverlays = useMemo<StoryOverlay[]>(
+    () =>
+      currentItem?.storyOverlays?.length
+        ? currentItem.storyOverlays
+        : (currentItem?.animatedGifOverlays || []).map(
+            (overlay: StoryAnimatedGifOverlay) => ({
+              ...overlay,
+              type: "animated_gif" as const,
+            }),
+          ),
+    [currentItem?.animatedGifOverlays, currentItem?.storyOverlays],
+  );
+  const animatedGifOverlays = useMemo(
+    () =>
+      storyOverlays
+        .filter((overlay) => overlay.type === "animated_gif")
+        .map((overlay) => ({
+          id: overlay.id,
+          url: overlay.url,
+          x: overlay.x,
+          y: overlay.y,
+          sizeRatio: overlay.sizeRatio,
+          scale: overlay.scale,
+          rotation: overlay.rotation,
+        })),
+    [storyOverlays],
+  );
   const hasAnimatedContent =
     currentItem?.type === "gif" || animatedGifOverlays.length > 0;
 
@@ -680,8 +1234,16 @@ function StoryViewerScreenContent() {
   // story_views.story_id points to the concrete stories row for the
   // currently visible item, not the grouped author-level story id.
   const viewableStoryId = currentItemId ? String(currentItemId) : undefined;
-  const { data: viewerCount = 0 } = useStoryViewerCount(
-    isOwnStory ? viewableStoryId : undefined,
+  const persistedStoryItemId =
+    viewableStoryId && /^\d+$/.test(viewableStoryId)
+      ? viewableStoryId
+      : undefined;
+  const {
+    data: viewerCount,
+    isLoading: viewerCountLoading,
+    isFetching: viewerCountFetching,
+  } = useStoryViewerCount(
+    isOwnStory ? persistedStoryItemId : undefined,
   );
 
   // Delete story mutation
@@ -763,18 +1325,18 @@ function StoryViewerScreenContent() {
       viewTimerRef.current = null;
     }
 
-    if (!viewableStoryId || isOwnStory) return;
-    if (recordedViewsRef.current.has(viewableStoryId)) {
+    if (!persistedStoryItemId || isOwnStory) return;
+    if (recordedViewsRef.current.has(persistedStoryItemId)) {
       if (__DEV__) {
         console.log(
-          `[StoryViewer] View already recorded for story ${viewableStoryId}, skipping`,
+          `[StoryViewer] View already recorded for story ${persistedStoryItemId}, skipping`,
         );
       }
       return;
     }
 
     // Debounce: wait 500ms before recording to ensure user actually viewed the story
-    const capturedId = viewableStoryId;
+    const capturedId = persistedStoryItemId;
     viewTimerRef.current = setTimeout(() => {
       if (__DEV__) {
         console.log(
@@ -791,7 +1353,7 @@ function StoryViewerScreenContent() {
         viewTimerRef.current = null;
       }
     };
-  }, [viewableStoryId, isOwnStory]);
+  }, [persistedStoryItemId, isOwnStory]);
 
   const handleNext = useCallback(() => {
     if (!story || !story.items) return;
@@ -1064,37 +1626,11 @@ function StoryViewerScreenContent() {
   ]);
 
   if (isLoading) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "#000",
-          justifyContent: "center",
-          alignItems: "center",
-        }}
-      >
-        <Text style={{ color: "#fff" }}>Loading story...</Text>
-      </View>
-    );
+    return <StoryViewerLoadingState insets={insets} label="Loading story" />;
   }
 
   if ((!story || !currentItem) && (isLoading || isFetching)) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          backgroundColor: "#000",
-          justifyContent: "center",
-          alignItems: "center",
-          gap: 12,
-        }}
-      >
-        <ActivityIndicator color="#fff" />
-        <Text style={{ color: "rgba(255,255,255,0.72)" }}>
-          Finding story...
-        </Text>
-      </View>
-    );
+    return <StoryViewerLoadingState insets={insets} label="Finding story" />;
   }
 
   if (!story || !currentItem) {
@@ -1130,7 +1666,7 @@ function StoryViewerScreenContent() {
         behavior="padding"
         style={{ flex: 1, backgroundColor: "#000" }}
       >
-        <View style={{ flex: 1 }}>
+        <View style={{ flex: 1, backgroundColor: "#000" }}>
           {/* ── FULL-BLEED MEDIA ───────────────────────────────────────────── */}
           <View
             style={{
@@ -1188,30 +1724,12 @@ function StoryViewerScreenContent() {
               <Image
                 source={{ uri: currentItem.url }}
                 style={{ width: "100%", height: "100%" }}
-                contentFit="contain"
+                contentFit="cover"
                 transition={150}
                 cachePolicy="memory-disk"
               />
             ) : currentItem?.type === "text" ? (
-              <View
-                style={{
-                  flex: 1,
-                  justifyContent: "center",
-                  alignItems: "center",
-                  padding: 20,
-                }}
-              >
-                <Text
-                  style={{
-                    color: currentItem.textColor || "#fff",
-                    fontSize: 36,
-                    fontWeight: "bold",
-                    textAlign: "center",
-                  }}
-                >
-                  {currentItem.text}
-                </Text>
-              </View>
+              <TextOnlyStoryViewer item={currentItem} insets={insets} />
             ) : (
               <View
                 style={{
@@ -1226,7 +1744,7 @@ function StoryViewerScreenContent() {
               </View>
             )}
 
-            <StoryAnimatedGifOverlays overlays={animatedGifOverlays} />
+            <StoryOverlayLayer overlays={storyOverlays} />
 
             {/* Subtle top vignette for readability */}
             <View
@@ -1259,7 +1777,7 @@ function StoryViewerScreenContent() {
               style={{
                 flexDirection: "row",
                 paddingHorizontal: 10,
-                paddingTop: isOwnStory ? insets.top + 10 : 22,
+                paddingTop: storyChromeTopInset,
                 gap: 3,
               }}
             >
@@ -1295,7 +1813,7 @@ function StoryViewerScreenContent() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 paddingHorizontal: 14,
-                paddingTop: 10,
+                paddingTop: 16,
                 paddingBottom: 6,
               }}
               pointerEvents="box-none"
@@ -1423,7 +1941,7 @@ function StoryViewerScreenContent() {
           <View
             style={{
               position: "absolute",
-              top: insets.top + 90,
+              top: touchZonesTop,
               bottom: isOwnStory ? 0 : 110,
               left: 0,
               right: 0,
@@ -1518,7 +2036,7 @@ function StoryViewerScreenContent() {
           )}
 
           {/* ── OWN STORY: viewer count + delete ──────────────────────────── */}
-          {isOwnStory && (
+          {isOwnStory && persistedStoryItemId && (
             <>
               <Pressable
                 onPress={() => {
@@ -1546,11 +2064,23 @@ function StoryViewerScreenContent() {
                 }}
               >
                 <Eye size={16} color="#fff" />
-                <Text
-                  style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}
+                <View
+                  style={{
+                    minWidth: 18,
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
                 >
-                  {viewerCount}
-                </Text>
+                  {viewerCountLoading || (viewerCountFetching && viewerCount == null) ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <Text
+                      style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}
+                    >
+                      {viewerCount ?? 0}
+                    </Text>
+                  )}
+                </View>
               </Pressable>
 
               <Pressable
@@ -1600,95 +2130,103 @@ function StoryViewerScreenContent() {
               onComplete={() => removeFloatingEmoji(e.id)}
             />
           ))}
-        </View>
-
-        {/* ── BOTTOM BAR: normal flow, pushed up by KeyboardAvoidingView ── */}
-        {!isOwnStory && story && (
-          <View>
-            {/* Emoji reactions row — hidden while typing */}
-            {!isInputFocused && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  justifyContent: "center",
-                  gap: 8,
-                  paddingHorizontal: 20,
-                  marginBottom: 10,
-                }}
-              >
-                {REACTION_EMOJIS.map((emoji) => (
-                  <Pressable
-                    key={emoji}
-                    onPress={() => handleQuickReaction(emoji)}
-                    style={{
-                      width: 42,
-                      height: 42,
-                      borderRadius: 21,
-                      backgroundColor: "rgba(40,40,40,0.7)",
-                      borderWidth: 1,
-                      borderColor: "rgba(255,255,255,0.12)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={{ fontSize: 22 }}>{emoji}</Text>
-                  </Pressable>
-                ))}
-              </View>
-            )}
-
-            {/* Message input row — liquid glass pill */}
+          {/* ── BOTTOM BAR: overlay inside story stage so media stays edge-to-edge ── */}
+          {!isOwnStory && story && (
             <View
+              pointerEvents="box-none"
               style={{
-                paddingHorizontal: 12,
-                paddingTop: 6,
-                paddingBottom: Math.max(insets.bottom, 8),
+                position: "absolute",
+                left: 0,
+                right: 0,
+                bottom: 0,
+                zIndex: 70,
               }}
             >
-              <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
-                <TextInput
+              {/* Emoji reactions row — hidden while typing */}
+              {!isInputFocused && (
+                <View
                   style={{
-                    flex: 1,
-                    color: "#fff",
-                    fontSize: 15,
-                    paddingVertical: 6,
-                    paddingHorizontal: 12,
-                  }}
-                  placeholder="Send Message"
-                  placeholderTextColor="rgba(255,255,255,0.45)"
-                  value={replyText}
-                  onChangeText={setReplyText}
-                  onFocus={() => setIsInputFocused(true)}
-                  onBlur={() => setIsInputFocused(false)}
-                  returnKeyType="send"
-                  onSubmitEditing={handleSendReply}
-                  editable={!isSendingReply}
-                />
-                <Pressable
-                  onPress={
-                    replyText.trim().length > 0 ? handleSendReply : undefined
-                  }
-                  disabled={isSendingReply || !resolvedUserId}
-                  hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: 18,
-                    backgroundColor:
-                      replyText.trim().length > 0
-                        ? "#8A40CF"
-                        : "rgba(255,255,255,0.15)",
-                    alignItems: "center",
+                    flexDirection: "row",
                     justifyContent: "center",
-                    opacity: isSendingReply ? 0.5 : 1,
+                    gap: 8,
+                    paddingHorizontal: 20,
+                    marginBottom: 10,
                   }}
                 >
-                  <Send size={17} color="#fff" strokeWidth={2} />
-                </Pressable>
-              </DVNTLiquidGlass>
+                  {REACTION_EMOJIS.map((emoji) => (
+                    <Pressable
+                      key={emoji}
+                      onPress={() => handleQuickReaction(emoji)}
+                      style={{
+                        width: 42,
+                        height: 42,
+                        borderRadius: 21,
+                        backgroundColor: "rgba(40,40,40,0.7)",
+                        borderWidth: 1,
+                        borderColor: "rgba(255,255,255,0.12)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ fontSize: 22 }}>{emoji}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+              )}
+
+              {/* Message input row — liquid glass pill */}
+              <View
+                style={{
+                  paddingHorizontal: 12,
+                  paddingTop: 6,
+                  paddingBottom: Math.max(insets.bottom, 8),
+                }}
+              >
+                <DVNTLiquidGlass paddingH={6} paddingV={6} radius={28}>
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      color: "#fff",
+                      fontSize: 15,
+                      paddingVertical: 6,
+                      paddingHorizontal: 12,
+                    }}
+                    placeholder="Send Message"
+                    placeholderTextColor="rgba(255,255,255,0.45)"
+                    value={replyText}
+                    onChangeText={setReplyText}
+                    onFocus={() => setIsInputFocused(true)}
+                    onBlur={() => setIsInputFocused(false)}
+                    returnKeyType="send"
+                    onSubmitEditing={handleSendReply}
+                    editable={!isSendingReply}
+                  />
+                  <Pressable
+                    onPress={
+                      replyText.trim().length > 0 ? handleSendReply : undefined
+                    }
+                    disabled={isSendingReply || !resolvedUserId}
+                    hitSlop={{ top: 10, bottom: 10, left: 4, right: 4 }}
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor:
+                        replyText.trim().length > 0
+                          ? "#8A40CF"
+                          : "rgba(255,255,255,0.15)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      opacity: isSendingReply ? 0.5 : 1,
+                    }}
+                  >
+                    <Send size={17} color="#fff" strokeWidth={2} />
+                  </Pressable>
+                </DVNTLiquidGlass>
+              </View>
             </View>
-          </View>
-        )}
+          )}
+        </View>
       </KeyboardAvoidingView>
     </KeyboardProvider>
   );

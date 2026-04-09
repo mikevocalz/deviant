@@ -28,6 +28,7 @@ import {
   Volume2,
   VolumeX,
   ChevronUp,
+  Users,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import type { CallUiMode } from "../deriveCallUiMode";
@@ -44,6 +45,9 @@ export interface CallControlsProps {
   onSwitchCamera: () => void;
   onEndCall: () => void;
   onEscalateToVideo: () => void;
+  onOpenParticipants?: () => void;
+  showParticipantsButton?: boolean;
+  participantCount?: number;
 }
 
 export function CallControls({
@@ -58,6 +62,9 @@ export function CallControls({
   onSwitchCamera,
   onEndCall,
   onEscalateToVideo,
+  onOpenParticipants,
+  showParticipantsButton = false,
+  participantCount = 0,
 }: CallControlsProps) {
   const insets = useSafeAreaInsets();
   const [visible, setVisible] = useState(true);
@@ -114,11 +121,18 @@ export function CallControls({
               <Pressable
                 style={[styles.btn, styles.btnSecondary]}
                 onPress={wrap(onSwitchCamera)}
+                accessibilityRole="button"
+                accessibilityLabel="Flip camera"
               >
                 <SwitchCamera size={24} color="#fff" />
               </Pressable>
             )}
-          <Pressable style={[styles.btn, styles.btnEnd]} onPress={wrapEnd}>
+          <Pressable
+            style={[styles.btn, styles.btnEnd]}
+            onPress={wrapEnd}
+            accessibilityRole="button"
+            accessibilityLabel="End call"
+          >
             <PhoneOff size={28} color="#fff" />
           </Pressable>
         </View>
@@ -145,7 +159,12 @@ export function CallControls({
             { bottom: insets.bottom + 20 },
           ]}
         >
-          <Pressable style={styles.persistentEndPill} onPress={wrapEnd}>
+          <Pressable
+            style={styles.persistentEndPill}
+            onPress={wrapEnd}
+            accessibilityRole="button"
+            accessibilityLabel="End call"
+          >
             <PhoneOff size={18} color="#fff" />
             <Text style={styles.persistentEndText}>End</Text>
           </Pressable>
@@ -162,6 +181,8 @@ export function CallControls({
         <Pressable
           style={[styles.btn, isMuted ? styles.btnDanger : styles.btnSecondary]}
           onPress={wrap(onToggleMute)}
+          accessibilityRole="button"
+          accessibilityLabel={isMuted ? "Unmute microphone" : "Mute microphone"}
         >
           {isMuted ? (
             <MicOff size={24} color="#fff" />
@@ -174,6 +195,8 @@ export function CallControls({
         <Pressable
           style={[styles.btn, isSpeakerOn ? styles.btnActive : styles.btnDim]}
           onPress={wrap(onToggleSpeaker)}
+          accessibilityRole="button"
+          accessibilityLabel={isSpeakerOn ? "Turn speaker off" : "Turn speaker on"}
         >
           {isSpeakerOn ? (
             <Volume2 size={24} color="#fff" />
@@ -187,6 +210,8 @@ export function CallControls({
           <Pressable
             style={[styles.btn, styles.btnDim]}
             onPress={wrap(onEscalateToVideo)}
+            accessibilityRole="button"
+            accessibilityLabel="Turn video on"
           >
             <Video size={24} color="rgba(255,255,255,0.5)" />
           </Pressable>
@@ -196,6 +221,8 @@ export function CallControls({
             <Pressable
               style={[styles.btn, styles.btnSecondary]}
               onPress={wrap(onToggleVideo)}
+              accessibilityRole="button"
+              accessibilityLabel={isVideoOff ? "Turn camera on" : "Turn camera off"}
             >
               {isVideoOff ? (
                 <VideoOff size={24} color="rgba(255,255,255,0.5)" />
@@ -209,6 +236,8 @@ export function CallControls({
               <Pressable
                 style={[styles.btn, styles.btnSecondary]}
                 onPress={wrap(onSwitchCamera)}
+                accessibilityRole="button"
+                accessibilityLabel="Flip camera"
               >
                 <SwitchCamera size={24} color="#fff" />
               </Pressable>
@@ -216,8 +245,29 @@ export function CallControls({
           </>
         )}
 
+        {showParticipantsButton && onOpenParticipants && (
+          <Pressable
+            style={[styles.btn, styles.btnSecondary]}
+            onPress={wrap(onOpenParticipants)}
+            accessibilityRole="button"
+            accessibilityLabel={`Open participants, ${participantCount} total`}
+          >
+            <Users size={22} color="#fff" />
+            {participantCount > 0 && (
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{participantCount}</Text>
+              </View>
+            )}
+          </Pressable>
+        )}
+
         {/* End call */}
-        <Pressable style={[styles.btn, styles.btnEnd]} onPress={wrapEnd}>
+        <Pressable
+          style={[styles.btn, styles.btnEnd]}
+          onPress={wrapEnd}
+          accessibilityRole="button"
+          accessibilityLabel="End call"
+        >
           <PhoneOff size={28} color="#fff" />
         </Pressable>
       </View>
@@ -239,26 +289,28 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 14,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    borderRadius: 40,
-    paddingHorizontal: 20,
+    backgroundColor: "rgba(11,11,14,0.78)",
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 16,
     paddingVertical: 12,
   },
   btn: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
+    width: 56,
+    height: 56,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
   },
   btnSecondary: {
-    backgroundColor: "rgba(255,255,255,0.2)",
+    backgroundColor: "rgba(255,255,255,0.12)",
   },
   btnActive: {
-    backgroundColor: "rgba(255,255,255,0.3)",
+    backgroundColor: "rgba(62,164,229,0.34)",
   },
   btnDim: {
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
   btnDanger: {
     backgroundColor: "#FF3B30",
@@ -266,8 +318,25 @@ const styles = StyleSheet.create({
   btnEnd: {
     width: 62,
     height: 62,
-    borderRadius: 31,
+    borderRadius: 22,
     backgroundColor: "#FF3B30",
+  },
+  badge: {
+    position: "absolute",
+    top: 7,
+    right: 7,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 4,
+    backgroundColor: "#8A40CF",
+  },
+  badgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
   },
   // ── Persistent End pill (always visible when controls auto-hide) ────
   persistentEndContainer: {
@@ -280,7 +349,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     backgroundColor: "#FF3B30",
-    borderRadius: 24,
+    borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
     // Subtle shadow for visibility over video

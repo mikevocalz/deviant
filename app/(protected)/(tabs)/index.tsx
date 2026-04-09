@@ -2,7 +2,10 @@ import { View, Text, Pressable } from "react-native";
 import { Main } from "@expo/html-elements";
 import { Feed } from "@/components/feed/feed";
 import { MasonryFeed } from "@/components/feed/masonry-feed";
-import { SpicyToggleFAB } from "@/components/spicy-toggle-fab";
+import {
+  SpicyToggleFAB,
+  supportsNativeTabsBottomAccessory,
+} from "@/components/spicy-toggle-fab";
 import { useAppStore } from "@/lib/stores/app-store";
 import { LayoutGrid, List } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
@@ -98,6 +101,7 @@ export const FeedModeToggle = memo(function FeedModeToggle() {
 
 export default function HomeScreen() {
   const feedMode = useAppStore((s) => s.feedMode);
+  const shouldRenderScreenFab = !supportsNativeTabsBottomAccessory();
 
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
@@ -119,7 +123,7 @@ export default function HomeScreen() {
           {feedMode === "masonry" ? <MasonryFeed /> : <Feed />}
         </ErrorBoundary>
       </Main>
-      <SpicyToggleFAB />
+      {shouldRenderScreenFab ? <SpicyToggleFAB /> : null}
     </View>
   );
 }

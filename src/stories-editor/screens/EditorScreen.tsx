@@ -7,8 +7,8 @@
 // editing workflow.
 // ============================================================
 
-import React, { useCallback, useRef, useMemo, useEffect } from "react";
-import { View, StatusBar, Alert } from "react-native";
+import React, { useCallback, useRef, useMemo, useEffect, useState } from "react";
+import { View, StatusBar, Alert, ActivityIndicator, Text } from "react-native";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useCanvasRef } from "@shopify/react-native-skia";
 import { GestureDetector, Gesture } from "react-native-gesture-handler";
@@ -58,7 +58,7 @@ import {
 } from "../types";
 import { generateId } from "../utils/helpers";
 import { useRenderSurface, screenToCanvas } from "../utils/geometry";
-import type { StoryAnimatedGifOverlay } from "@/lib/types";
+import type { StoryAnimatedGifOverlay, StoryOverlay } from "@/lib/types";
 
 // ---- Props ----
 
@@ -68,27 +68,115 @@ interface EditorScreenProps {
   onClose: () => void;
   onSave?: (result: {
     editedUri: string;
+    mediaType: "image" | "video";
+    storyOverlays: StoryOverlay[];
     animatedGifOverlays: StoryAnimatedGifOverlay[];
   }) => void;
   initialMode?: EditorMode;
+  autoCompleteTextOnly?: boolean;
+}
+
+function extractStoryOverlays(
+  elements: Array<TextElement | StickerElement>,
+): StoryOverlay[] {
+  const overlays = elements
+    .map<StoryOverlay | null>((element) => {
+      if (element.type === "text") {
+        return {
+          id: element.id,
+          type: "text" as const,
+          content: element.content,
+          x: Number((element.transform.translateX / CANVAS_WIDTH).toFixed(6)),
+          y: Number((element.transform.translateY / CANVAS_HEIGHT).toFixed(6)),
+          scale: Number(element.transform.scale.toFixed(6)),
+          rotation: Number(element.transform.rotation.toFixed(3)),
+          opacity: Number(element.opacity.toFixed(3)),
+          color: element.color,
+          backgroundColor: element.backgroundColor,
+          fontFamily: element.fontFamily,
+          fontSizeRatio: Number((element.fontSize / CANVAS_WIDTH).toFixed(6)),
+          maxWidthRatio: Number((element.maxWidth / CANVAS_WIDTH).toFixed(6)),
+          textAlign: element.textAlign,
+        };
+      }
+
+      if (element.category === "gif" && typeof element.source === "string") {
+        return {
+          id: element.id,
+          type: "animated_gif" as const,
+          url: element.source,
+          x: Number((element.transform.translateX / CANVAS_WIDTH).toFixed(6)),
+          y: Number((element.transform.translateY / CANVAS_HEIGHT).toFixed(6)),
+          sizeRatio: Number((element.size / CANVAS_WIDTH).toFixed(6)),
+          scale: Number(element.transform.scale.toFixed(6)),
+          rotation: Number(element.transform.rotation.toFixed(3)),
+          opacity: Number(element.opacity.toFixed(3)),
+        };
+      }
+
+      if (element.category === "emoji" && typeof element.source === "string") {
+        return {
+          id: element.id,
+          type: "emoji" as const,
+          emoji: element.source,
+          x: Number((element.transform.translateX / CANVAS_WIDTH).toFixed(6)),
+          y: Number((element.transform.translateY / CANVAS_HEIGHT).toFixed(6)),
+          sizeRatio: Number((element.size / CANVAS_WIDTH).toFixed(6)),
+          scale: Number(element.transform.scale.toFixed(6)),
+          rotation: Number(element.transform.rotation.toFixed(3)),
+          opacity: Number(element.opacity.toFixed(3)),
+        };
+      }
+
+      if (typeof element.source === "number" && element.assetId) {
+        return {
+          id: element.id,
+          type: "sticker" as const,
+          source: "asset" as const,
+          assetId: element.assetId,
+          x: Number((element.transform.translateX / CANVAS_WIDTH).toFixed(6)),
+          y: Number((element.transform.translateY / CANVAS_HEIGHT).toFixed(6)),
+          sizeRatio: Number((element.size / CANVAS_WIDTH).toFixed(6)),
+          scale: Number(element.transform.scale.toFixed(6)),
+          rotation: Number(element.transform.rotation.toFixed(3)),
+          opacity: Number(element.opacity.toFixed(3)),
+        };
+      }
+
+      if (typeof element.source === "string" && element.source.startsWith("http")) {
+        return {
+          id: element.id,
+          type: "sticker" as const,
+          source: "url" as const,
+          url: element.source,
+          x: Number((element.transform.translateX / CANVAS_WIDTH).toFixed(6)),
+          y: Number((element.transform.translateY / CANVAS_HEIGHT).toFixed(6)),
+          sizeRatio: Number((element.size / CANVAS_WIDTH).toFixed(6)),
+          scale: Number(element.transform.scale.toFixed(6)),
+          rotation: Number(element.transform.rotation.toFixed(3)),
+          opacity: Number(element.opacity.toFixed(3)),
+        };
+      }
+
+      return null;
+    });
+
+  return overlays.filter((overlay): overlay is StoryOverlay => overlay !== null);
 }
 
 function extractAnimatedGifOverlays(
-  elements: StickerElement[],
+  overlays: StoryOverlay[],
 ): StoryAnimatedGifOverlay[] {
-  return elements
-    .filter(
-      (element) =>
-        element.category === "gif" && typeof element.source === "string",
-    )
-    .map((element) => ({
-      id: element.id,
-      url: element.source as string,
-      x: Number((element.transform.translateX / CANVAS_WIDTH).toFixed(6)),
-      y: Number((element.transform.translateY / CANVAS_HEIGHT).toFixed(6)),
-      sizeRatio: Number((element.size / CANVAS_WIDTH).toFixed(6)),
-      scale: Number(element.transform.scale.toFixed(6)),
-      rotation: Number(element.transform.rotation.toFixed(3)),
+  return overlays
+    .filter((overlay) => overlay.type === "animated_gif")
+    .map((overlay) => ({
+      id: overlay.id,
+      url: overlay.url,
+      x: overlay.x,
+      y: overlay.y,
+      sizeRatio: overlay.sizeRatio,
+      scale: overlay.scale,
+      rotation: overlay.rotation,
     }));
 }
 
@@ -100,6 +188,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   onClose,
   onSave,
   initialMode,
+  autoCompleteTextOnly = false,
 }) => {
   // Zustand store — persists across navigations
   const setMode = useEditorStore((s) => s.setMode);
@@ -130,6 +219,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   const storeMediaType = useEditorStore((s) => s.mediaType);
   const textOnlyMode = useEditorStore((s) => s.textOnlyMode);
   const setTextOnlyMode = useEditorStore((s) => s.setTextOnlyMode);
+  const textEditContent = useEditorStore((s) => s.textEditContent);
 
   const selectedElement = useSelectedElement();
   const canUndo = useCanUndo();
@@ -301,9 +391,9 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   );
 
   const handleSelectImageSticker = useCallback(
-    (source: number, _id: string) => {
+    (source: number, id: string) => {
       console.log("[Editor] Adding image sticker (require ID):", source);
-      addStickerElement(source);
+      addStickerElement(source, { assetId: id, category: "custom" });
       setMode("idle");
     },
     [addStickerElement, setMode],
@@ -340,6 +430,13 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   const setExportStatus = useEditorStore((s) => s.setExportStatus);
   const setExportArtifact = useEditorStore((s) => s.setExportArtifact);
   const setExportError = useEditorStore((s) => s.setExportError);
+  const exportStatus = useEditorStore((s) => s.exportSession.status);
+  const [captureMode, setCaptureMode] = useState<"idle" | "story-export">(
+    "idle",
+  );
+  const [isAutoCompletingTextOnly, setIsAutoCompletingTextOnly] =
+    useState(false);
+  const autoCompleteProofTriggeredRef = useRef(false);
 
   /**
    * Capture the Skia canvas as a PNG file.
@@ -355,34 +452,38 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
     }
 
     // Deselect so selection border doesn't appear in snapshot
+    setCaptureMode("story-export");
     useEditorStore.getState().selectElement(null);
 
-    // Double-flush: rAF then short delay to ensure Skia scene graph is committed
-    await new Promise<void>((r) => requestAnimationFrame(() => r()));
-    await new Promise<void>((r) => setTimeout(r, 80));
-
-    const trySnapshot = () => {
-      try {
-        const image = canvas.makeImageSnapshot();
-        if (!image) {
-          console.warn("[Editor] makeImageSnapshot returned null");
-          return null;
-        }
-        const w = image.width();
-        const h = image.height();
-        if (w === 0 || h === 0) {
-          console.warn(`[Editor] Snapshot has zero dimensions: ${w}x${h}`);
-          return null;
-        }
-        if (__DEV__) console.log(`[Editor] Snapshot OK: ${w}x${h}`);
-        return image;
-      } catch (e) {
-        console.warn("[Editor] makeImageSnapshot threw:", e);
-        return null;
-      }
-    };
-
     try {
+      // Give Skia + overlay state enough time to settle after hiding selection
+      // chrome. This prevents selection/bounding artifacts from being captured
+      // on slower devices when the user saves immediately after a transform.
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      await new Promise<void>((r) => requestAnimationFrame(() => r()));
+      await new Promise<void>((r) => setTimeout(r, 180));
+
+      const trySnapshot = () => {
+        try {
+          const image = canvas.makeImageSnapshot();
+          if (!image) {
+            console.warn("[Editor] makeImageSnapshot returned null");
+            return null;
+          }
+          const w = image.width();
+          const h = image.height();
+          if (w === 0 || h === 0) {
+            console.warn(`[Editor] Snapshot has zero dimensions: ${w}x${h}`);
+            return null;
+          }
+          if (__DEV__) console.log(`[Editor] Snapshot OK: ${w}x${h}`);
+          return image;
+        } catch (e) {
+          console.warn("[Editor] makeImageSnapshot threw:", e);
+          return null;
+        }
+      };
+
       let image = trySnapshot();
       if (!image) {
         await new Promise<void>((r) => setTimeout(r, 200));
@@ -424,6 +525,8 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
     } catch (err) {
       console.error("[Editor] Capture failed:", err);
       return null;
+    } finally {
+      setCaptureMode("idle");
     }
   }, [canvasRef]);
 
@@ -467,6 +570,14 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
   const showToast = useUIStore((s) => s.showToast);
 
   const handleSaveToLibrary = useCallback(async () => {
+    if (storeMediaType === "video") {
+      showToast(
+        "warning",
+        "Video Save Unavailable",
+        "Saving edited video stories to the library is not available yet.",
+      );
+      return;
+    }
     let artifact = useEditorStore.getState().exportSession.artifact;
     if (!artifact) {
       const rendered = await renderFinalArtifact();
@@ -497,12 +608,54 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       setExportError("Failed to save to gallery");
       showToast("error", "Error", "Failed to save image.");
     }
-  }, [renderFinalArtifact, setExportStatus, setExportError, showToast]);
+  }, [
+    renderFinalArtifact,
+    setExportStatus,
+    setExportError,
+    showToast,
+    storeMediaType,
+  ]);
 
   /**
    * "Done" / navigate back — renders artifact, passes URI to parent.
    */
-  const handleSave = useCallback(async () => {
+  const handleSave = useCallback(async (): Promise<boolean> => {
+    const allSerializableOverlays = extractStoryOverlays(
+      useEditorStore
+        .getState()
+        .elements.filter(
+          (element): element is TextElement | StickerElement =>
+            element.type === "text" || element.type === "sticker",
+        ),
+    );
+    const animatedGifOverlays =
+      extractAnimatedGifOverlays(allSerializableOverlays);
+
+    const hasUnsupportedVideoEdits =
+      storeMediaType === "video" &&
+      (drawingPaths.length > 0 ||
+        currentFilter !== null ||
+        Object.values(adjustments).some((value) => value !== 0));
+
+    if (hasUnsupportedVideoEdits) {
+      showToast(
+        "warning",
+        "Video Editing Limit",
+        "Video stories currently support text, stickers, emoji, and GIF overlays only.",
+      );
+      return false;
+    }
+
+    if (storeMediaType === "video") {
+      onSave?.({
+        editedUri: storeMediaUri || mediaUri,
+        mediaType: "video",
+        storyOverlays: allSerializableOverlays,
+        animatedGifOverlays,
+      });
+      return true;
+    }
+
     const rendered = await renderFinalArtifact();
     if (!rendered) {
       showToast(
@@ -510,20 +663,96 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         "Export Failed",
         "Could not render your story. Try again.",
       );
-      return; // Stay in editor — don't navigate away and lose work
+      return false;
     }
-    const animatedGifOverlays = extractAnimatedGifOverlays(
-      useEditorStore
-        .getState()
-        .elements.filter(
-          (element): element is StickerElement => element.type === "sticker",
-        ),
-    );
+
     onSave?.({
       editedUri: rendered.uri,
+      mediaType: "image",
+      storyOverlays: allSerializableOverlays.filter(
+        (overlay) => overlay.type === "animated_gif",
+      ),
       animatedGifOverlays,
     });
-  }, [onSave, renderFinalArtifact, showToast]);
+    return true;
+  }, [
+    adjustments,
+    currentFilter,
+    drawingPaths.length,
+    mediaUri,
+    onSave,
+    renderFinalArtifact,
+    showToast,
+    storeMediaType,
+    storeMediaUri,
+  ]);
+
+  const handleTextEditorDone = useCallback(() => {
+    if (!textOnlyMode || !!storeMediaUri) {
+      setMode("idle");
+      return;
+    }
+
+    if (isAutoCompletingTextOnly) {
+      return;
+    }
+
+    setIsAutoCompletingTextOnly(true);
+    setMode("idle");
+
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        void handleSave().then((didSave) => {
+          setIsAutoCompletingTextOnly(false);
+          if (!didSave) {
+            setMode("text");
+          }
+        });
+      }, 0);
+    });
+  }, [
+    handleSave,
+    isAutoCompletingTextOnly,
+    setMode,
+    storeMediaUri,
+    textOnlyMode,
+  ]);
+
+  useEffect(() => {
+    if (
+      !autoCompleteTextOnly ||
+      autoCompleteProofTriggeredRef.current ||
+      mode !== "text" ||
+      !textOnlyMode ||
+      !!storeMediaUri ||
+      !textEditContent.trim()
+    ) {
+      return;
+    }
+
+    autoCompleteProofTriggeredRef.current = true;
+    const timer = setTimeout(() => {
+      handleTextEditorDone();
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [
+    autoCompleteTextOnly,
+    handleTextEditorDone,
+    mode,
+    storeMediaUri,
+    textEditContent,
+    textOnlyMode,
+  ]);
+
+  useEffect(() => {
+    if (
+      storeMediaType === "video" &&
+      (mode === "drawing" || mode === "filter" || mode === "adjust")
+    ) {
+      setMode("idle");
+    }
+  }, [mode, setMode, storeMediaType]);
 
   // ---- Close ----
 
@@ -666,6 +895,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
             liveStrokeColor={drawingColor}
             liveStrokeWidth={strokeWidth}
             showDebugOverlay={showPerfHUD}
+            hideSelection={captureMode !== "idle"}
           />
         </View>
       </GestureDetector>
@@ -674,6 +904,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         elements={stickerElements}
         surface={surface}
         selectedElementId={selectedElementId}
+        showSelection={captureMode === "idle"}
       />
 
       {/* ---- Per-element gesture overlays (wcandillon pattern) ---- */}
@@ -700,11 +931,13 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
         })}
 
       {/* ---- Top Navigation ---- */}
-      <TopNavBar
-        onClose={handleClose}
-        mode={mode}
-        onDone={mode === "drawing" ? () => setMode("idle") : undefined}
-      />
+      {!isAutoCompletingTextOnly && (
+        <TopNavBar
+          onClose={handleClose}
+          mode={mode}
+          onDone={mode === "drawing" ? () => setMode("idle") : undefined}
+        />
+      )}
 
       {/* ---- Perf HUD (dev only) ---- */}
       <PerfHUD
@@ -718,14 +951,19 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       />
 
       {/* ---- Right Island Menu — ALWAYS visible (not just idle) ---- */}
-      <RightIslandMenu
-        mode={mode}
-        onModeChange={setMode}
-        onUndo={undo}
-        onRedo={redo}
-        canUndo={canUndo}
-        canRedo={canRedo}
-      />
+      {!isAutoCompletingTextOnly && (
+        <RightIslandMenu
+          mode={mode}
+          onModeChange={setMode}
+          onUndo={undo}
+          onRedo={redo}
+          canUndo={canUndo}
+          canRedo={canRedo}
+          allowedModes={
+            storeMediaType === "video" ? ["text", "sticker"] : undefined
+          }
+        />
+      )}
 
       {/* ---- Drawing Toolbar (overlay at bottom — thin bar) ---- */}
       {mode === "drawing" && (
@@ -755,7 +993,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
           onAdd={handleAddText}
           onUpdate={handleUpdateText}
           onRemove={removeElement}
-          onDone={() => setMode("idle")}
+          onDone={handleTextEditorDone}
           onCancel={() => setMode("idle")}
         />
       )}
@@ -808,7 +1046,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       </AnimatedToolPanel>
 
       {/* ---- Background Picker (ONLY for explicit text-only stories) ---- */}
-      {mode === "idle" && textOnlyMode && (
+      {mode === "idle" && textOnlyMode && !isAutoCompletingTextOnly && (
         <BackgroundPicker
           selectedId={canvasBackground.id}
           onSelect={(bg: any) => setCanvasBackgroundId(bg.id)}
@@ -816,14 +1054,66 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       )}
 
       {/* ---- Bottom Action Bar ---- */}
-      <BottomActionBar
-        mode={mode}
-        onDone={handleSave}
-        onPickMedia={handlePickMedia}
-        onSaveToLibrary={handleSaveToLibrary}
-        hasMedia={!!storeMediaUri}
-        hasElements={hasElements}
-      />
+      {!isAutoCompletingTextOnly && (
+        <BottomActionBar
+          mode={mode}
+          onDone={handleSave}
+          onPickMedia={handlePickMedia}
+          onSaveToLibrary={handleSaveToLibrary}
+          hasMedia={!!storeMediaUri}
+          hasElements={hasElements}
+        />
+      )}
+
+      {isAutoCompletingTextOnly && (
+        <View
+          pointerEvents="auto"
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.84)",
+            alignItems: "center",
+            justifyContent: "center",
+            paddingHorizontal: 32,
+            zIndex: 200,
+          }}
+        >
+          <View
+            style={{
+              minWidth: 220,
+              borderRadius: 24,
+              backgroundColor: "rgba(14,14,18,0.96)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.08)",
+              paddingHorizontal: 22,
+              paddingVertical: 20,
+              alignItems: "center",
+              gap: 10,
+            }}
+          >
+            <ActivityIndicator size="small" color="#FFFFFF" />
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontSize: 17,
+                fontWeight: "700",
+              }}
+            >
+              Finishing story
+            </Text>
+            <Text
+              style={{
+                color: "rgba(255,255,255,0.68)",
+                fontSize: 13,
+                textAlign: "center",
+                lineHeight: 18,
+              }}
+            >
+              Saving your text story without dropping back into the editor.
+            </Text>
+          </View>
+        </View>
+      )}
     </View>
   );
 };

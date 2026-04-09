@@ -50,6 +50,19 @@ interface MarkAsReadResponse {
   error?: { code?: string; message?: string } | string;
 }
 
+interface DeleteConversationResponse {
+  ok: boolean;
+  data?: {
+    deletedConversationId: number;
+    unread?: {
+      inbox: number;
+      spam: number;
+      authoritative?: boolean;
+    };
+  };
+  error?: { code?: string; message?: string } | string;
+}
+
 export const messagesApi = {
   /**
    * Get conversations list — BATCHED (O(4) round-trips regardless of N conversations)
@@ -827,6 +840,54 @@ export const messagesApi = {
       return {
         ok: false,
         markedRead: 0,
+        unread: null,
+      };
+    }
+  },
+
+  /**
+   * Remove the current user from a conversation so it disappears from the inbox.
+   */
+  async deleteConversation(conversationId: string) {
+    try {
+      const token = await requireBetterAuthToken();
+
+      const { data, error } =
+        await supabase.functions.invoke<DeleteConversationResponse>(
+          "delete-conversation",
+          {
+            body: { conversationId: parseInt(conversationId, 10) },
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+
+      if (error) {
+        console.error(
+          "[Messages] deleteConversation edge function error:",
+          error,
+        );
+        return {
+          ok: false,
+          unread: null,
+        };
+      }
+
+      if (!data?.ok) {
+        console.error("[Messages] deleteConversation failed:", data?.error);
+        return {
+          ok: false,
+          unread: null,
+        };
+      }
+
+      return {
+        ok: true,
+        unread: data.data?.unread ?? null,
+      };
+    } catch (error) {
+      console.error("[Messages] deleteConversation error:", error);
+      return {
+        ok: false,
         unread: null,
       };
     }

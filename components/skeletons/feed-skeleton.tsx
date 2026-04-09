@@ -4,6 +4,7 @@ import {
   SkeletonCircle,
   SkeletonText,
 } from "@/components/ui/skeleton";
+import { StoriesBarSkeleton } from "./stories-skeleton";
 
 const { width } = Dimensions.get("window");
 
@@ -58,6 +59,8 @@ function FeedPostSkeleton() {
 export function FeedSkeleton() {
   return (
     <View style={styles.container}>
+      <View style={styles.topSpacer} />
+      <StoriesBarSkeleton />
       <FeedPostSkeleton />
       <FeedPostSkeleton />
     </View>
@@ -67,7 +70,11 @@ export function FeedSkeleton() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: "#000",
     paddingBottom: 20,
+  },
+  topSpacer: {
+    height: 40,
   },
   postContainer: {
     marginBottom: 16,

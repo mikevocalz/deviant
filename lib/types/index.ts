@@ -76,6 +76,59 @@ export type StoryAnimatedGifOverlay = {
   rotation: number;
 };
 
+export type StoryOverlay =
+  | {
+      id: string;
+      type: "animated_gif";
+      url: string;
+      x: number;
+      y: number;
+      sizeRatio: number;
+      scale: number;
+      rotation: number;
+      opacity?: number;
+    }
+  | {
+      id: string;
+      type: "emoji";
+      emoji: string;
+      x: number;
+      y: number;
+      sizeRatio: number;
+      scale: number;
+      rotation: number;
+      opacity?: number;
+    }
+  | {
+      id: string;
+      type: "text";
+      content: string;
+      x: number;
+      y: number;
+      scale: number;
+      rotation: number;
+      opacity?: number;
+      color: string;
+      backgroundColor?: string;
+      fontFamily?: string;
+      fontSizeRatio: number;
+      maxWidthRatio: number;
+      textAlign?: "left" | "center" | "right";
+    }
+  | {
+      id: string;
+      type: "sticker";
+      x: number;
+      y: number;
+      sizeRatio: number;
+      scale: number;
+      rotation: number;
+      opacity?: number;
+      source: "asset" | "url";
+      assetId?: string;
+      url?: string;
+    };
+
 export type StoryItem = {
   url?: string;
   thumbnail?: string;
@@ -88,6 +141,7 @@ export type StoryItem = {
   textColor?: string;
   backgroundColor?: string;
   animatedGifOverlays?: StoryAnimatedGifOverlay[];
+  storyOverlays?: StoryOverlay[];
   header: {
     heading: string;
     subheading: string;
@@ -116,6 +170,7 @@ export type Story = {
     textColor?: string;
     backgroundColor?: string;
     animatedGifOverlays?: StoryAnimatedGifOverlay[];
+    storyOverlays?: StoryOverlay[];
     duration?: number;
     visibility?: "public" | "close_friends";
   }>;

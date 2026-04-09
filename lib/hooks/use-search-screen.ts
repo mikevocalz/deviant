@@ -11,7 +11,7 @@
  * - keepPreviousData only after first success
  */
 
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { usersApi } from "@/lib/api/users";
 import { postsApi } from "@/lib/api/posts";
 import { searchApi } from "@/lib/api/search";
@@ -37,7 +37,7 @@ export interface DiscoverDTO {
   posts: Post[];
 }
 
-export function useDiscoverData() {
+export function useDiscoverData(options?: { enabled?: boolean }) {
   return useQuery<DiscoverDTO>({
     queryKey: ["search", SEARCH_QUERY_VERSION, "discover"],
     queryFn: async () => {
@@ -48,6 +48,7 @@ export function useDiscoverData() {
       return { users, posts: filterSafePosts(posts) };
     },
     staleTime: 5 * 60 * 1000,
+    enabled: options?.enabled ?? true,
   });
 }
 
@@ -58,7 +59,10 @@ export interface SearchResultsDTO {
   isHashtag: boolean;
 }
 
-export function useSearchResults(debouncedQuery: string) {
+export function useSearchResults(
+  debouncedQuery: string,
+  options?: { enabled?: boolean },
+) {
   return useQuery<SearchResultsDTO>({
     queryKey: ["search", SEARCH_QUERY_VERSION, "results", debouncedQuery],
     queryFn: async () => {
@@ -80,7 +84,9 @@ export function useSearchResults(debouncedQuery: string) {
         isHashtag,
       };
     },
-    enabled: !!debouncedQuery && debouncedQuery.length >= 2,
-    placeholderData: keepPreviousData,
+    enabled:
+      (options?.enabled ?? true) &&
+      !!debouncedQuery &&
+      debouncedQuery.length >= 2,
   });
 }

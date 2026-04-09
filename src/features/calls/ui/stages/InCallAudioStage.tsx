@@ -61,21 +61,23 @@ export function InCallAudioStage({
           ]}
         />
 
-        {recipientAvatar ? (
-          <Image source={{ uri: recipientAvatar }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <Text style={styles.avatarInitial}>
-              {recipientName.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-        )}
+        <View style={styles.identityCard}>
+          {recipientAvatar ? (
+            <Image source={{ uri: recipientAvatar }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <Text style={styles.avatarInitial}>
+                {recipientName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
 
-        <Text style={styles.name}>{recipientName}</Text>
+          <Text style={styles.name}>{recipientName}</Text>
 
-        {callDuration > 0 && (
-          <Text style={styles.duration}>{formatDuration(callDuration)}</Text>
-        )}
+          {callDuration > 0 && (
+            <Text style={styles.duration}>{formatDuration(callDuration)}</Text>
+          )}
+        </View>
       </View>
     </View>
   );
@@ -92,18 +94,29 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 12,
   },
+  identityCard: {
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 32,
+    paddingHorizontal: 28,
+    paddingVertical: 28,
+    backgroundColor: "rgba(12,12,16,0.72)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    minWidth: 250,
+  },
   pulseRing: {
     position: "absolute",
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 170,
+    height: 170,
+    borderRadius: 48,
     borderWidth: 2,
     borderColor: "rgba(62,164,229,0.3)",
   },
   avatar: {
     width: 120,
     height: 120,
-    borderRadius: 60,
+    borderRadius: 28,
   },
   avatarPlaceholder: {
     backgroundColor: "#333",
@@ -122,7 +135,7 @@ const styles = StyleSheet.create({
   },
   duration: {
     color: "rgba(255,255,255,0.5)",
-    fontSize: 18,
+    fontSize: 15,
     fontFamily: "monospace",
   },
 });

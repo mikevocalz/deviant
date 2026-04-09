@@ -8,7 +8,7 @@ import {
   storyViewsApi,
 } from "@/lib/api/stories";
 import { useAuthStore } from "@/lib/stores/auth-store";
-import type { Story } from "@/lib/types";
+import type { Story, StoryOverlay } from "@/lib/types";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 
 // Query keys
@@ -23,6 +23,11 @@ export const storyViewKeys = {
     [...storyViewKeys.all, "viewers", storyId] as const,
   count: (storyId: string) => [...storyViewKeys.all, "count", storyId] as const,
 };
+
+function normalizePersistedStoryId(storyId: string | undefined) {
+  if (!storyId) return undefined;
+  return /^\d+$/.test(storyId) ? storyId : undefined;
+}
 
 function buildStoryGroup(
   currentUser: ReturnType<typeof useAuthStore.getState>["user"],
@@ -39,6 +44,7 @@ function buildStoryGroup(
     textColor?: string;
     backgroundColor?: string;
     animatedGifOverlays?: import("@/lib/types").StoryAnimatedGifOverlay[];
+    storyOverlays?: StoryOverlay[];
   }>,
   visibility?: "public" | "close_friends",
 ): Story {
@@ -64,6 +70,7 @@ function buildStoryGroup(
       textColor: item.textColor,
       backgroundColor: item.backgroundColor,
       animatedGifOverlays: item.animatedGifOverlays || [],
+      storyOverlays: item.storyOverlays || [],
       duration: item.type === "video" ? 30000 : 5000,
       visibility,
     })),
@@ -221,10 +228,11 @@ export function useDeleteStory() {
 
 // Fetch viewers for a story (only useful for own stories) — polls every 5s
 export function useStoryViewers(storyId: string | undefined) {
+  const persistedStoryId = normalizePersistedStoryId(storyId);
   return useQuery({
-    queryKey: storyViewKeys.viewers(storyId || ""),
-    queryFn: () => storyViewsApi.getViewers(storyId!),
-    enabled: !!storyId,
+    queryKey: storyViewKeys.viewers(persistedStoryId || ""),
+    queryFn: () => storyViewsApi.getViewers(persistedStoryId!),
+    enabled: !!persistedStoryId,
     staleTime: 0,
     refetchInterval: 5000,
   });
@@ -232,10 +240,11 @@ export function useStoryViewers(storyId: string | undefined) {
 
 // Fetch viewer count for a story — polls every 5s to stay current
 export function useStoryViewerCount(storyId: string | undefined) {
+  const persistedStoryId = normalizePersistedStoryId(storyId);
   return useQuery({
-    queryKey: storyViewKeys.count(storyId || ""),
-    queryFn: () => storyViewsApi.getViewerCount(storyId!),
-    enabled: !!storyId,
+    queryKey: storyViewKeys.count(persistedStoryId || ""),
+    queryFn: () => storyViewsApi.getViewerCount(persistedStoryId!),
+    enabled: !!persistedStoryId,
     staleTime: 0,
     refetchInterval: 5000,
   });
@@ -243,13 +252,14 @@ export function useStoryViewerCount(storyId: string | undefined) {
 
 // Fetch total viewer count across ALL story items for a user
 export function useStoryViewerCountTotal(storyItemIds: string[]) {
+  const persistedStoryItemIds = storyItemIds.filter((id) => /^\d+$/.test(id));
   return useQuery({
-    queryKey: [...storyViewKeys.all, "countTotal", ...storyItemIds],
+    queryKey: [...storyViewKeys.all, "countTotal", ...persistedStoryItemIds],
     queryFn: async () => {
-      if (!storyItemIds.length) return 0;
+      if (!persistedStoryItemIds.length) return 0;
       // Get unique viewers across all items
       const allViewerSets = await Promise.all(
-        storyItemIds.map((id) => storyViewsApi.getViewers(id)),
+        persistedStoryItemIds.map((id) => storyViewsApi.getViewers(id)),
       );
       const uniqueUserIds = new Set<number>();
       for (const viewers of allViewerSets) {
@@ -259,7 +269,7 @@ export function useStoryViewerCountTotal(storyItemIds: string[]) {
       }
       return uniqueUserIds.size;
     },
-    enabled: storyItemIds.length > 0,
+    enabled: persistedStoryItemIds.length > 0,
     staleTime: 0,
     refetchInterval: 5000,
   });

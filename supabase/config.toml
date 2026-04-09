@@ -99,3 +99,6 @@ verify_jwt = false
 
 [functions.get-text-post-slides]
 verify_jwt = false
+
+[functions.delete-conversation]
+verify_jwt = false

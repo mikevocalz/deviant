@@ -3,7 +3,7 @@ import { View, Text } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Button } from "@/components/ui/button";
 import { router, useGlobalSearchParams } from "expo-router";
-import { authClient } from "@/lib/auth-client";
+import { authClient, resendVerificationEmail } from "@/lib/auth-client";
 import { Check, Mail, AlertCircle } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -69,9 +69,10 @@ export default function VerifyEmailScreen() {
         return;
       }
 
-      await (authClient as any).sendVerificationEmail({
-        email: session.user.email,
-      });
+      const response = await resendVerificationEmail(session.user.email);
+      if (response?.error) {
+        throw new Error(response.error.message || "Failed to resend verification email");
+      }
 
       showToast(
         "success",

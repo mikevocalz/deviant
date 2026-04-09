@@ -1,9 +1,11 @@
 import { create } from "zustand";
-import type { StoryAnimatedGifOverlay } from "@/lib/types";
+import type { StoryAnimatedGifOverlay, StoryOverlay } from "@/lib/types";
 
 interface StoryEditorResult {
   uri: string;
   index: number;
+  mediaType: "image" | "video";
+  storyOverlays: StoryOverlay[];
   animatedGifOverlays: StoryAnimatedGifOverlay[];
 }
 

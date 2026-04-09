@@ -195,6 +195,25 @@ export default function AnimatedSplashScreen({
     return () => clearTimeout(timer);
   }, [onAnimationFinish]);
 
+  const iconStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
+
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+    transform: [
+      {
+        scale: interpolate(
+          glowOpacity.value,
+          [0, 0.4],
+          [0.8, 1.2],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
+  }));
+
   // Show timeout/retry UI
   if (bootTimedOut) {
     return (
@@ -220,25 +239,6 @@ export default function AnimatedSplashScreen({
       </View>
     );
   }
-
-  const iconStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ scale: scale.value }],
-  }));
-
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-    transform: [
-      {
-        scale: interpolate(
-          glowOpacity.value,
-          [0, 0.4],
-          [0.8, 1.2],
-          Extrapolation.CLAMP,
-        ),
-      },
-    ],
-  }));
 
   // const handleRiveError = (err: RiveError) => {
   //   console.error("[Splash] Rive error:", err.message, "type:", err.type);

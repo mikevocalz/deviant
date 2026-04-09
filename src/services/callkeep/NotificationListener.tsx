@@ -47,6 +47,7 @@ interface CallNotificationData {
   callerId: string;
   callerUsername?: string;
   callerAvatar?: string;
+  isGroup?: boolean;
 }
 
 export function NotificationListener(): null {
@@ -217,6 +218,7 @@ export function NotificationListener(): null {
         params: {
           roomId,
           callType: callType || "video",
+          isGroup: data.isGroup ? "true" : "false",
           recipientUsername: callerUsername || "Unknown",
           recipientAvatar: callerAvatar || "",
         },

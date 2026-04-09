@@ -31,10 +31,19 @@ export function useBootLocation() {
 
     (async () => {
       try {
-        // Check permission WITHOUT prompting
-        const { status } = await Location.getForegroundPermissionsAsync();
-        if (status !== "granted") {
-          console.log("[BootLocation] No location permission yet — skipping");
+        let permission = await Location.getForegroundPermissionsAsync();
+
+        if (
+          permission.status !== "granted" &&
+          permission.canAskAgain &&
+          permission.status === "undetermined"
+        ) {
+          console.log("[BootLocation] Requesting location permission on boot");
+          permission = await Location.requestForegroundPermissionsAsync();
+        }
+
+        if (permission.status !== "granted") {
+          console.log("[BootLocation] No location permission available — skipping");
           return;
         }
 

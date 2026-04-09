@@ -11,6 +11,7 @@
 import { useEffect, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useAppStore } from "@/lib/stores/app-store";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import {
   bootstrapApi,
@@ -153,6 +154,7 @@ async function hydrateBootstrapProfileTextPosts(
 export function useBootstrapProfile() {
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id) || "";
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
   const hasRun = useRef(false);
   const trace = useScreenTrace("Profile");
 
@@ -191,13 +193,13 @@ export function useBootstrapProfile() {
       });
     }
 
-    bootstrapApi.profile({ userId }).then((data) => {
+    bootstrapApi.profile({ userId, includeNSFW: nsfwEnabled }).then((data) => {
       if (!data) return;
       hydrateFromProfileBootstrap(queryClient, userId, data);
       void hydrateBootstrapProfileTextPosts(queryClient, userId, data.posts);
       trace.markUsable();
     });
-  }, [enabled, userId, queryClient, trace]);
+  }, [enabled, userId, nsfwEnabled, queryClient, trace]);
 
   return { enabled };
 }

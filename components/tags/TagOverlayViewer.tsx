@@ -29,10 +29,11 @@ interface TagOverlayViewerProps {
   mediaIndex?: number;
   /** Reanimated shared value (0–1) driving show/hide animation, controlled by parent */
   tagProgress: SharedValue<number>;
+  guestMode?: boolean;
 }
 
 export const TagOverlayViewer: React.FC<TagOverlayViewerProps> = React.memo(
-  ({ postId, mediaIndex = 0, tagProgress }) => {
+  ({ postId, mediaIndex = 0, tagProgress, guestMode = false }) => {
     const router = useRouter();
     const queryClient = useQueryClient();
     const currentUserId = useAuthStore((s) => s.user?.id);
@@ -57,9 +58,10 @@ export const TagOverlayViewer: React.FC<TagOverlayViewerProps> = React.memo(
           viewerId: currentUserId,
           router,
           queryClient,
+          guestMode,
         });
       },
-      [currentUserId, router, queryClient],
+      [currentUserId, guestMode, router, queryClient],
     );
 
     return (

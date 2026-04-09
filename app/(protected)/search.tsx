@@ -42,12 +42,31 @@ import {
 } from "@/components/ui/location-autocomplete-v3";
 import { TextPostSurface } from "@/components/post/TextPostSurface";
 import { resolveTextPostPresentation } from "@/lib/posts/text-post";
+import { prefetchImagesBlocking } from "@/lib/perf/image-prefetch";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const columnWidth = (SCREEN_WIDTH - 8) / 3;
 const GRID_COLS = SCREEN_WIDTH >= 768 ? 5 : 4;
 const GRID_GAP = 2;
 const GRID_CELL_SIZE = (SCREEN_WIDTH - GRID_GAP * (GRID_COLS - 1)) / GRID_COLS;
+
+function getSearchPreviewUrls(posts: Post[]) {
+  return posts
+    .flatMap((post) => {
+      const firstMedia = post.media?.[0];
+      const isVideo = post.type === "video" || firstMedia?.type === "video";
+      const imageUri =
+        post.thumbnail || (!isVideo ? firstMedia?.url : undefined);
+      return imageUri ? [imageUri] : [];
+    })
+    .filter(Boolean);
+}
+
+function getSearchAvatarUrls(users: Array<{ avatar?: string | null }>) {
+  return users
+    .map((user) => user.avatar)
+    .filter((url): url is string => typeof url === "string" && url.length > 0);
+}
 
 function PostGridTile({
   post,
@@ -100,6 +119,7 @@ function PostGridTile({
               source={{ uri: imageUri }}
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
+              transition={0}
               cachePolicy="memory-disk"
             />
             {isVideo ? (
@@ -129,7 +149,7 @@ function PostGridTile({
           </>
         ) : videoUrl ? (
           <>
-            <VideoThumbnailImage videoUrl={videoUrl} />
+            <VideoThumbnailImage videoUrl={videoUrl} transition={0} />
             <View className="absolute top-2 right-2">
               <Play size={20} color="#fff" fill="#fff" />
             </View>
@@ -202,6 +222,7 @@ function DiscoverSection({
                   username={user.username}
                   size="lg"
                   variant="roundedSquare"
+                  transition={0}
                 />
                 <View className="flex-row items-center gap-1 mt-2">
                   <Text
@@ -303,7 +324,7 @@ function SearchScreenContent() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const navigation = useNavigation();
-  const params = useLocalSearchParams<{ query?: string }>();
+  const params = useLocalSearchParams<{ query?: string; mode?: string }>();
   const searchQuery = useSearchStore((s) => s.searchQuery);
   const setSearchQuery = useSearchStore((s) => s.setSearchQuery);
   const debouncedSearch = useSearchStore((s) => s.debouncedSearch);
@@ -318,6 +339,10 @@ function SearchScreenContent() {
   const [selectedLocation, setSelectedLocation] = useState<LocationData | null>(
     null,
   );
+  const [criticalAssetsReady, setCriticalAssetsReady] = useState(false);
+  const [activeAssetKey, setActiveAssetKey] = useState<string | null>(null);
+  const isContentMode = searchMode === "content";
+  const hasSearchQuery = debouncedSearch.trim().length >= 2;
 
   // TanStack Debouncer — 300ms delay prevents query-per-keystroke
   const searchDebouncer = useMemo(
@@ -334,11 +359,27 @@ function SearchScreenContent() {
     }
   }, [params.query, setSearchQuery, setDebouncedSearch]);
 
+  useEffect(() => {
+    if (params.mode === "location") {
+      setSearchMode("location");
+      return;
+    }
+
+    if (params.mode === "content") {
+      setSearchMode("content");
+    }
+  }, [params.mode]);
+
   // Consolidated queries — ONE for discover, ONE for search results
-  const { data: discoverData, isLoading: isDiscoverLoading } =
-    useDiscoverData();
-  const { data: searchData, isLoading: isSearchLoading } =
-    useSearchResults(debouncedSearch);
+  const { data: discoverData, isLoading: isDiscoverLoading } = useDiscoverData({
+    enabled: isContentMode && !hasSearchQuery,
+  });
+  const { data: searchData, isLoading: isSearchLoading } = useSearchResults(
+    debouncedSearch,
+    {
+      enabled: isContentMode && hasSearchQuery,
+    },
+  );
 
   const isHashtag = debouncedSearch.startsWith("#");
   const discoverPosts = useMemo(
@@ -350,6 +391,100 @@ function SearchScreenContent() {
     [searchData?.posts?.docs],
   );
   const userResults = searchData?.users?.docs || [];
+  const criticalAssetPayload = useMemo(() => {
+    if (!isContentMode) {
+      return { key: "location-mode", urls: [] as string[] };
+    }
+
+    if (hasSearchQuery) {
+      if (!searchData) {
+        return { key: null, urls: [] as string[] };
+      }
+
+      const urls = [
+        ...getSearchAvatarUrls(userResults),
+        ...getSearchPreviewUrls(searchResults),
+      ].slice(0, 16);
+      const key = [
+        "results",
+        debouncedSearch.trim().toLowerCase(),
+        userResults.map((user: any) => user.id).join(","),
+        searchResults.map((post) => post.id).join(","),
+      ].join(":");
+      return { key, urls };
+    }
+
+    if (!discoverData) {
+      return { key: null, urls: [] as string[] };
+    }
+
+    const urls = [
+      ...getSearchAvatarUrls(discoverData.users),
+      ...getSearchPreviewUrls(discoverPosts),
+    ].slice(0, 16);
+    const key = [
+      "discover",
+      discoverData.users.map((user) => user.id).join(","),
+      discoverPosts.map((post) => post.id).join(","),
+    ].join(":");
+    return { key, urls };
+  }, [
+    debouncedSearch,
+    discoverData,
+    discoverPosts,
+    hasSearchQuery,
+    isContentMode,
+    searchData,
+    searchResults,
+    userResults,
+  ]);
+
+  useEffect(() => {
+    if (!isContentMode) {
+      setActiveAssetKey("location-mode");
+      setCriticalAssetsReady(true);
+      return;
+    }
+
+    const pendingContentData = hasSearchQuery ? !searchData : !discoverData;
+    if (pendingContentData || !criticalAssetPayload.key) {
+      setActiveAssetKey(null);
+      setCriticalAssetsReady(false);
+      return;
+    }
+
+    if (activeAssetKey === criticalAssetPayload.key && criticalAssetsReady) {
+      return;
+    }
+
+    let cancelled = false;
+    setActiveAssetKey(criticalAssetPayload.key);
+    setCriticalAssetsReady(false);
+
+    const warmAssets = async () => {
+      if (criticalAssetPayload.urls.length > 0) {
+        await prefetchImagesBlocking(criticalAssetPayload.urls);
+      }
+
+      if (cancelled) return;
+      setCriticalAssetsReady(true);
+    };
+
+    void warmAssets();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    activeAssetKey,
+    criticalAssetPayload.key,
+    criticalAssetPayload.urls,
+    criticalAssetsReady,
+    discoverData,
+    hasSearchQuery,
+    isContentMode,
+    searchData,
+  ]);
 
   const handleQueryChange = useCallback(
     (text: string) => {
@@ -368,7 +503,6 @@ function SearchScreenContent() {
   const handleLocationSelect = useCallback(
     (location: LocationData) => {
       setSelectedLocation(location);
-      // Navigate to location results or show posts from this location
       router.push(`/location/${location.placeId || location.name}`);
     },
     [router],
@@ -376,9 +510,9 @@ function SearchScreenContent() {
 
   const toggleSearchMode = useCallback(() => {
     setSearchMode((prev) => (prev === "content" ? "location" : "content"));
+    searchDebouncer.cancel();
     clearSearch();
-    setSelectedLocation(null);
-  }, [clearSearch]);
+  }, [clearSearch, searchDebouncer]);
 
   return (
     <View
@@ -393,33 +527,33 @@ function SearchScreenContent() {
         >
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
-        <View className="flex-1 flex-row items-center bg-secondary rounded-xl px-3">
+        <View className="flex-1">
           {searchMode === "content" ? (
-            <Search size={20} color="#999" />
-          ) : (
-            <MapPin size={20} color="#999" />
-          )}
-          {searchMode === "content" ? (
-            <TextInput
-              value={searchQuery}
-              onChangeText={handleQueryChange}
-              placeholder={isHashtag ? "Search hashtags..." : "Search"}
-              placeholderTextColor="#999"
-              autoFocus={false}
-              className="flex-1 h-10 ml-2 text-foreground"
-            />
+            <View className="flex-row items-center bg-secondary rounded-xl px-3">
+              <Search size={20} color="#999" />
+              <TextInput
+                value={searchQuery}
+                onChangeText={handleQueryChange}
+                placeholder={isHashtag ? "Search hashtags..." : "Search"}
+                placeholderTextColor="#999"
+                autoFocus={false}
+                className="flex-1 h-10 ml-2 text-foreground"
+              />
+              {searchQuery.length > 0 && (
+                <Pressable onPress={handleClear}>
+                  <X size={20} color="#999" />
+                </Pressable>
+              )}
+            </View>
           ) : (
             <LocationAutocompleteV3
-              value={selectedLocation?.name || ""}
+              value={selectedLocation?.formattedAddress || selectedLocation?.name || ""}
               placeholder="Search locations..."
               onLocationSelect={handleLocationSelect}
               onClear={() => setSelectedLocation(null)}
+              embedded
+              showLeadingIcon={false}
             />
-          )}
-          {searchMode === "content" && searchQuery.length > 0 && (
-            <Pressable onPress={handleClear}>
-              <X size={20} color="#999" />
-            </Pressable>
           )}
         </View>
         <Pressable
@@ -465,7 +599,7 @@ function SearchScreenContent() {
           </View>
         ) : debouncedSearch.length >= 2 ? (
           // Content search mode
-          isSearchLoading && !searchData ? (
+          isSearchLoading || !searchData || !criticalAssetsReady ? (
             <SearchResultsSkeleton />
           ) : (
             <View className="flex-1">
@@ -533,7 +667,8 @@ function SearchScreenContent() {
                             uri={user.avatar}
                             username={user.username || "User"}
                             size="md"
-                            variant="circle"
+                            variant="roundedSquare"
+                            transition={0}
                           />
                           <View className="ml-3 flex-1">
                             <Text className="font-semibold text-foreground">
@@ -581,7 +716,7 @@ function SearchScreenContent() {
               )}
             </View>
           )
-        ) : isDiscoverLoading && !discoverData ? (
+        ) : isDiscoverLoading || !discoverData || !criticalAssetsReady ? (
           <SearchSkeleton />
         ) : (
           <>

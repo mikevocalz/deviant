@@ -21,6 +21,8 @@ import {
 const PRODUCTION_DOMAIN = "dvntlive.app";
 const CUSTOM_SCHEME = "dvnt";
 const WWW_DOMAIN = `www.${PRODUCTION_DOMAIN}`;
+const DEV_CLIENT_BOOTSTRAP_MARKERS =
+  /^exp\+dvnt:\/\/expo-development-client\b|^dvnt:\/\/expo-development-client\b|expo-development-client\/?\?url=/i;
 
 // ── 1) parseIncomingUrl ──────────────────────────────────────────────
 
@@ -34,6 +36,7 @@ const WWW_DOMAIN = `www.${PRODUCTION_DOMAIN}`;
  */
 export function parseIncomingUrl(url: string): ParsedDeepLink | null {
   if (!url || typeof url !== "string") return null;
+  if (DEV_CLIENT_BOOTSTRAP_MARKERS.test(url)) return null;
 
   try {
     let path = "";
@@ -145,6 +148,55 @@ export interface NavigationTarget {
   reason?: string;
 }
 
+function resolveGuestPublicTarget(
+  parsed: ParsedDeepLink,
+): NavigationTarget | null {
+  const match = matchRoute(parsed.path);
+  if (!match) return null;
+
+  switch (match.entry.urlPattern) {
+    case "/u/:username":
+    case "/profile/:username":
+      return {
+        path: `/(public)/profile/${match.params.username}`,
+        params: { ...parsed.params, ...match.params },
+        valid: true,
+      };
+    case "/home":
+      return {
+        path: "/(public)/(tabs)",
+        params: parsed.params,
+        valid: true,
+      };
+    case "/events":
+      return {
+        path: "/(public)/(tabs)/events",
+        params: parsed.params,
+        valid: true,
+      };
+    case "/search":
+      return {
+        path: "/(public)/search",
+        params: parsed.params,
+        valid: true,
+      };
+    case "/activity":
+      return {
+        path: "/(public)/(tabs)/activity",
+        params: parsed.params,
+        valid: true,
+      };
+    case "/create":
+      return {
+        path: "/(public)/(tabs)/create",
+        params: parsed.params,
+        valid: true,
+      };
+    default:
+      return null;
+  }
+}
+
 export function resolveNavigationTarget(
   parsed: ParsedDeepLink,
 ): NavigationTarget {
@@ -195,6 +247,14 @@ export function handleDeepLink(url: string): void {
   // Check auth state
   const { isAuthenticated } = useAuthStore.getState();
 
+  if (!isAuthenticated) {
+    const guestTarget = resolveGuestPublicTarget(parsed);
+    if (guestTarget) {
+      navigateToTarget(guestTarget);
+      return;
+    }
+  }
+
   if (parsed.requiresAuth && !isAuthenticated) {
     // Save as pending link — will be replayed after login
     console.log("[LinkEngine] Auth required, saving as pending link");
@@ -217,9 +277,12 @@ const NAV_DEBOUNCE_MS = 500;
  * Prevents double navigation and duplicate transitions.
  */
 export function navigateOnce(parsed: ParsedDeepLink): void {
-  const now = Date.now();
   const target = resolveNavigationTarget(parsed);
+  navigateToTarget(target);
+}
 
+function navigateToTarget(target: NavigationTarget): void {
+  const now = Date.now();
   // Prevent double navigation
   if (
     target.path === lastNavigationPath &&
@@ -241,8 +304,10 @@ export function navigateOnce(parsed: ParsedDeepLink): void {
   try {
     // Use replace for auth routes, push for everything else
     const isAuthRoute = target.path.startsWith("/(auth)");
-    if (isAuthRoute) {
+    if (isAuthRoute || target.path === "/(public)/(tabs)") {
       router.replace(target.path as any);
+    } else if (target.params && Object.keys(target.params).length > 0) {
+      router.push({ pathname: target.path as any, params: target.params } as any);
     } else {
       router.push(target.path as any);
     }

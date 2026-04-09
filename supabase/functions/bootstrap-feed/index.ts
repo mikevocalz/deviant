@@ -194,7 +194,12 @@ Deno.serve(async (req: Request) => {
   const t0 = Date.now();
 
   try {
-    const { user_id, cursor = 0, limit = PAGE_SIZE } = await req.json();
+    const {
+      user_id,
+      cursor = 0,
+      limit = PAGE_SIZE,
+      include_nsfw = false,
+    } = await req.json();
 
     if (!user_id) {
       return new Response(JSON.stringify({ error: "Missing user_id" }), {
@@ -238,6 +243,31 @@ Deno.serve(async (req: Request) => {
 
     // ── Fire ALL queries in parallel — never sequential ──────────
 
+    let postsQuery = supabase
+      .from("posts")
+      .select(
+        `
+          id, content, post_kind, text_theme, created_at, visibility, is_nsfw, location,
+          likes_count, comments_count,
+          author:users!posts_author_id_users_id_fk(
+            id, username, first_name, verified,
+            avatar:avatar_id(url)
+          ),
+          media:posts_media(type, url, "order"),
+          post_text_slides(id, slide_index, content)
+        `,
+        { count: "exact" },
+      )
+      .eq("visibility", "public");
+
+    if (!include_nsfw) {
+      postsQuery = postsQuery.or("is_nsfw.is.false,is_nsfw.is.null");
+    }
+
+    postsQuery = postsQuery
+      .order("created_at", { ascending: false })
+      .range(cursor, cursor + limit - 1);
+
     const [
       postsResult,
       viewerLikesResult,
@@ -247,23 +277,7 @@ Deno.serve(async (req: Request) => {
       viewerProfileResult,
     ] = await Promise.all([
       // 1. Feed posts with author + media (single join query)
-      supabase
-        .from("posts")
-        .select(
-          `
-          id, content, post_kind, text_theme, created_at, visibility, is_nsfw, location,
-          likes_count, comments_count,
-          author:users!posts_author_id_users_id_fk(
-            id, username, first_name, verified,
-            avatar:avatar_id(url)
-          ),
-          media:posts_media(type, url, "order")
-        `,
-          { count: "exact" },
-        )
-        .eq("visibility", "public")
-        .order("created_at", { ascending: false })
-        .range(cursor, cursor + limit - 1),
+      postsQuery,
 
       // 2. Viewer's liked post IDs — use integer ID
       intUserId
@@ -338,12 +352,32 @@ Deno.serve(async (req: Request) => {
       const author = p.author;
       const avatarUrl =
         typeof author?.avatar === "object" ? author?.avatar?.url : null;
+      const textSlides = Array.isArray(p.post_text_slides)
+        ? p.post_text_slides
+            .sort(
+              (a: any, b: any) =>
+                Number(a?.slide_index ?? 0) - Number(b?.slide_index ?? 0),
+            )
+            .map((slide: any, index: number) => {
+              const parsedOrder = Number(slide?.slide_index);
+              return {
+                id:
+                  slide?.id != null && String(slide.id).length > 0
+                    ? String(slide.id)
+                    : `${pid}-slide-${index}`,
+                order: Number.isFinite(parsedOrder) ? parsedOrder : index,
+                content:
+                  typeof slide?.content === "string" ? slide.content : "",
+              };
+            })
+        : [];
 
       return {
         id: pid,
         caption: p.content || "",
         kind: p.post_kind === "text" ? "text" : "media",
         textTheme: p.text_theme || null,
+        textSlides,
         createdAt: p.created_at,
         isNSFW: p.is_nsfw || false,
         location: p.location || null,

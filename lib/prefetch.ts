@@ -87,6 +87,7 @@ export const screenPrefetch = {
     qc.prefetchQuery({
       queryKey: eventKeys.detail(eventId),
       queryFn: () => eventsApiClient.getEventById(eventId),
+      staleTime: 5 * 60 * 1000,
     });
   },
 

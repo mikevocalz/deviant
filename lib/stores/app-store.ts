@@ -22,6 +22,13 @@ function readPersistedNsfwEnabled(): boolean {
   }
 }
 
+function logNsfwTransition(
+  event: string,
+  details: Record<string, unknown>,
+): void {
+  console.log(`[SpicyToggleStore] ${event}`, details);
+}
+
 interface AppState {
   appReady: boolean;
   splashAnimationFinished: boolean;
@@ -35,10 +42,10 @@ interface AppState {
   setAppReady: (ready: boolean) => void;
   setSplashAnimationFinished: (finished: boolean) => void;
   onAnimationFinish: (isCancelled: boolean) => void;
-  setNsfwEnabled: (enabled: boolean) => void;
-  toggleNsfwEnabled: () => boolean;
+  setNsfwEnabled: (enabled: boolean, source?: string) => void;
+  toggleNsfwEnabled: (source?: string) => boolean;
   setFeedMode: (mode: FeedMode) => void;
-  loadNsfwSetting: () => void;
+  loadNsfwSetting: (source?: string) => void;
   setPendingNotificationRoute: (route: string | null) => void;
   consumePendingNotificationRoute: () => string | null;
   setPendingShareIntentRoute: (route: PendingAppRoute | null) => void;
@@ -108,17 +115,35 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (route) set({ pendingShareIntentRoute: null });
     return route;
   },
-  setNsfwEnabled: (enabled) => {
+  setNsfwEnabled: (enabled, source = "unknown") => {
+    const previousEnabled = get().nsfwEnabled;
+    const persistedBefore = readPersistedNsfwEnabled();
+    logNsfwTransition("setNsfwEnabled", {
+      source,
+      previousEnabled,
+      nextEnabled: enabled,
+      persistedBefore,
+    });
+
     set({ nsfwEnabled: enabled, nsfwLoaded: true });
     try {
       mmkv.set(NSFW_STORAGE_KEY, JSON.stringify(enabled));
+      logNsfwTransition("persistedNsfwEnabled", {
+        source,
+        persistedAfter: readPersistedNsfwEnabled(),
+      });
     } catch (error) {
       console.log("Error saving NSFW setting:", error);
     }
   },
-  toggleNsfwEnabled: () => {
+  toggleNsfwEnabled: (source = "unknown") => {
     const nextEnabled = !get().nsfwEnabled;
-    get().setNsfwEnabled(nextEnabled);
+    logNsfwTransition("toggleNsfwEnabled", {
+      source,
+      currentEnabled: get().nsfwEnabled,
+      nextEnabled,
+    });
+    get().setNsfwEnabled(nextEnabled, source);
     return nextEnabled;
   },
   setFeedMode: (mode) => {
@@ -129,10 +154,19 @@ export const useAppStore = create<AppState>((set, get) => ({
       console.log("Error saving feed mode:", error);
     }
   },
-  loadNsfwSetting: () => {
+  loadNsfwSetting: (source = "unknown") => {
     try {
       const nextEnabled = readPersistedNsfwEnabled();
       const { nsfwEnabled, nsfwLoaded } = get();
+      const willOverwrite = nsfwEnabled !== nextEnabled;
+
+      logNsfwTransition("loadNsfwSetting", {
+        source,
+        currentEnabled: nsfwEnabled,
+        persistedEnabled: nextEnabled,
+        nsfwLoaded,
+        willOverwrite,
+      });
 
       if (nsfwLoaded && nsfwEnabled === nextEnabled) {
         return;

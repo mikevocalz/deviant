@@ -182,19 +182,19 @@ function ViewTicketScreenContent() {
   }, [canAddToWallet, showToast, ticket, walletState]);
 
   const walletTitle =
-    walletState === "success"
-      ? Platform.OS === "ios"
-        ? "Apple Wallet Ready"
-        : "Google Wallet Ready"
-      : Platform.OS === "ios"
-        ? "Add to Apple Wallet"
-        : "Add to Google Wallet";
+    walletState === "loading"
+      ? "Opening Wallet"
+      : walletState === "success"
+        ? "Wallet Ready"
+        : "Add to Wallet";
 
   const walletSubtitle =
     walletState === "success"
-      ? "Your ticket pass opened successfully"
-      : "Keep your ticket one tap away on this device";
-  const bottomActionsPadding = canAddToWallet ? insets.bottom + 210 : 116;
+      ? "Pass opened successfully"
+      : Platform.OS === "ios"
+        ? "Save your Apple Wallet pass"
+        : "Save your Google Wallet pass";
+  const bottomActionsPadding = canAddToWallet ? insets.bottom + 176 : 116;
 
   return (
     <View style={styles.screen}>
@@ -218,9 +218,10 @@ function ViewTicketScreenContent() {
           <TicketHeroCard ticket={ticket} />
         </View>
 
-        {/* ── Transfer Pending banner ── */}
-        {isTransferPending && (
-          <Motion.View
+        <View>
+          {/* ── Transfer Pending banner ── */}
+          {isTransferPending && (
+            <Motion.View
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: "spring", damping: 20, stiffness: 300 }}
@@ -237,88 +238,89 @@ function ViewTicketScreenContent() {
               Transfer pending — waiting for recipient to accept
             </Text>
           </Motion.View>
-        )}
+          )}
 
-        {/* ── Expired / Revoked banner ── */}
-        {(isExpired || isRevoked) && (
-          <Motion.View
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            style={[
-              styles.statusBanner,
-              {
-                backgroundColor: isRevoked
-                  ? "rgba(239,68,68,0.12)"
-                  : "rgba(163,163,163,0.1)",
-                borderColor: isRevoked
-                  ? "rgba(239,68,68,0.2)"
-                  : "rgba(163,163,163,0.15)",
-              },
-            ]}
-          >
-            <Shield size={16} color={isRevoked ? "#ef4444" : "#a3a3a3"} />
-            <Text
+          {/* ── Expired / Revoked banner ── */}
+          {(isExpired || isRevoked) && (
+            <Motion.View
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
               style={[
-                styles.statusBannerText,
-                { color: isRevoked ? "#ef4444" : "#a3a3a3" },
-              ]}
-            >
-              {isRevoked
-                ? "This ticket has been revoked"
-                : "This event has ended"}
-            </Text>
-          </Motion.View>
-        )}
-
-        {/* ── Tear line separator ── */}
-        <View style={styles.tearLine}>
-          <View style={styles.tearCircleLeft} />
-          {Array.from({ length: 24 }).map((_, i) => (
-            <View
-              key={i}
-              style={[styles.tearDash, { backgroundColor: `${accent}30` }]}
-            />
-          ))}
-          <View style={styles.tearCircleRight} />
-        </View>
-
-        {/* ── 2. QR CODE ZONE ── */}
-        <TicketQRCode ticket={ticket} />
-
-        {/* ── Transferable / Non-transferable label ── */}
-        <View style={styles.transferRow}>
-          <View
-            style={[
-              styles.transferBadge,
-              {
-                borderColor:
-                  (ticket.transferable ?? true)
-                    ? "rgba(63,220,255,0.2)"
-                    : "rgba(255,255,255,0.08)",
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.transferText,
+                styles.statusBanner,
                 {
-                  color:
-                    (ticket.transferable ?? true)
-                      ? "#3FDCFF"
-                      : "rgba(255,255,255,0.25)",
+                  backgroundColor: isRevoked
+                    ? "rgba(239,68,68,0.12)"
+                    : "rgba(163,163,163,0.1)",
+                  borderColor: isRevoked
+                    ? "rgba(239,68,68,0.2)"
+                    : "rgba(163,163,163,0.15)",
                 },
               ]}
             >
-              {(ticket.transferable ?? true)
-                ? "Transferable"
-                : "Non-transferable"}
-            </Text>
-          </View>
-        </View>
+              <Shield size={16} color={isRevoked ? "#ef4444" : "#a3a3a3"} />
+              <Text
+                style={[
+                  styles.statusBannerText,
+                  { color: isRevoked ? "#ef4444" : "#a3a3a3" },
+                ]}
+              >
+                {isRevoked
+                  ? "This ticket has been revoked"
+                  : "This event has ended"}
+              </Text>
+            </Motion.View>
+          )}
 
-        {/* ── 3. ACCESS DETAILS ── */}
-        <TicketAccessDetails ticket={ticket} />
+          {/* ── Tear line separator ── */}
+          <View style={styles.tearLine}>
+            <View style={styles.tearCircleLeft} />
+            {Array.from({ length: 24 }).map((_, i) => (
+              <View
+                key={i}
+                style={[styles.tearDash, { backgroundColor: `${accent}30` }]}
+              />
+            ))}
+            <View style={styles.tearCircleRight} />
+          </View>
+
+          {/* ── 2. QR CODE ZONE ── */}
+          <TicketQRCode ticket={ticket} />
+
+          {/* ── Transferable / Non-transferable label ── */}
+          <View style={styles.transferRow}>
+            <View
+              style={[
+                styles.transferBadge,
+                {
+                  borderColor:
+                    (ticket.transferable ?? true)
+                      ? "rgba(63,220,255,0.2)"
+                      : "rgba(255,255,255,0.08)",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.transferText,
+                  {
+                    color:
+                      (ticket.transferable ?? true)
+                        ? "#3FDCFF"
+                        : "rgba(255,255,255,0.25)",
+                  },
+                ]}
+              >
+                {(ticket.transferable ?? true)
+                  ? "Transferable"
+                  : "Non-transferable"}
+              </Text>
+            </View>
+          </View>
+
+          {/* ── 3. ACCESS DETAILS ── */}
+          <TicketAccessDetails ticket={ticket} />
+        </View>
       </ScrollView>
 
       <View style={styles.bottomActionsWrap}>
@@ -353,16 +355,14 @@ function ViewTicketScreenContent() {
               <Text style={styles.walletBannerSubtitle}>{walletSubtitle}</Text>
             </View>
 
-            <View
+            <Text
               style={[
-                styles.walletBannerArrow,
-                walletState === "success" && styles.walletBannerArrowSuccess,
+                styles.walletBannerMeta,
+                walletState === "success" && styles.walletBannerMetaSuccess,
               ]}
             >
-              <Text style={styles.walletBannerArrowText}>
-                {walletState === "success" ? "✓" : "›"}
-              </Text>
-            </View>
+              {walletState === "success" ? "Done" : "Open"}
+            </Text>
           </Pressable>
         )}
       </View>
@@ -503,31 +503,31 @@ const styles = StyleSheet.create({
   walletBanner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-    marginHorizontal: 20,
-    marginTop: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: "rgba(138,64,207,0.15)",
+    gap: 10,
+    marginHorizontal: 16,
+    marginTop: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderWidth: 1,
-    borderColor: "rgba(138,64,207,0.25)",
+    borderColor: "rgba(255,255,255,0.08)",
   },
   walletBottomCta: {
     marginTop: 10,
   },
   walletBannerPressed: {
-    opacity: 0.88,
+    opacity: 0.92,
   },
   walletBannerSuccess: {
-    backgroundColor: "rgba(63,220,255,0.12)",
-    borderColor: "rgba(63,220,255,0.24)",
+    backgroundColor: "rgba(63,220,255,0.08)",
+    borderColor: "rgba(63,220,255,0.18)",
   },
   walletIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.05)",
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(138,64,207,0.12)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -536,31 +536,24 @@ const styles = StyleSheet.create({
   },
   walletBannerTitle: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: "700",
   },
   walletBannerSubtitle: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 12,
+    color: "rgba(255,255,255,0.58)",
+    fontSize: 11,
     fontWeight: "500",
-    marginTop: 1,
+    marginTop: 2,
   },
-  walletBannerArrow: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(138,64,207,0.4)",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  walletBannerArrowSuccess: {
-    backgroundColor: "rgba(63,220,255,0.35)",
-  },
-  walletBannerArrowText: {
-    color: "#fff",
-    fontSize: 18,
+  walletBannerMeta: {
+    color: "rgba(255,255,255,0.48)",
+    fontSize: 11,
     fontWeight: "700",
-    lineHeight: 20,
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+  walletBannerMetaSuccess: {
+    color: "#3FDCFF",
   },
 });
 

@@ -21,6 +21,7 @@ interface RouteToProfileParams {
   viewerId: string | number | undefined;
   router: Router;
   queryClient?: QueryClient;
+  guestMode?: boolean;
 }
 
 /**
@@ -43,6 +44,7 @@ export function routeToProfile({
   viewerId,
   router,
   queryClient,
+  guestMode = false,
 }: RouteToProfileParams): void {
   // Normalize IDs to strings for comparison
   const targetId = targetUserId ? String(targetUserId) : "";
@@ -56,6 +58,17 @@ export function routeToProfile({
       viewerId: currentId,
       isOwnProfile: targetId === currentId && targetId !== "",
     });
+  }
+
+  if (guestMode && targetUsername) {
+    const params: Record<string, string> = {};
+    if (targetAvatar && targetAvatar.length > 0) params.avatar = targetAvatar;
+    if (targetName && targetName.length > 0) params.name = targetName;
+    router.push({
+      pathname: `/(public)/profile/${targetUsername}`,
+      params,
+    } as any);
+    return;
   }
 
   // If viewing own profile, route to /profile/me (tabs profile)
@@ -105,7 +118,12 @@ export function getProfilePath(
   targetUserId: string | number | undefined,
   targetUsername: string | undefined,
   viewerId: string | number | undefined,
+  guestMode: boolean = false,
 ): string {
+  if (guestMode && targetUsername) {
+    return `/(public)/profile/${targetUsername}`;
+  }
+
   const targetId = targetUserId ? String(targetUserId) : "";
   const currentId = viewerId ? String(viewerId) : "";
 

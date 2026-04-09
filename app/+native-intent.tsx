@@ -9,6 +9,8 @@ import { useDeepLinkStore } from "@/lib/stores/deep-link-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 
 const SHARE_INTENT_MARKERS = /dataUrl=|dvntShareKey/i;
+const DEV_CLIENT_BOOTSTRAP_MARKERS =
+  /^exp\+dvnt:\/\/expo-development-client\b|^dvnt:\/\/expo-development-client\b|expo-development-client\/?\?url=/i;
 
 export function redirectSystemPath({
   path,
@@ -21,6 +23,13 @@ export function redirectSystemPath({
 
   // Skip empty or root paths
   if (!path || path === "/" || path === "") return "/";
+
+  // Expo dev-client launches can arrive through the app scheme during local
+  // development. They are bootstrap URLs, not in-app routes.
+  if (DEV_CLIENT_BOOTSTRAP_MARKERS.test(path)) {
+    console.log("[NativeIntent] Ignoring Expo dev-client bootstrap URL");
+    return "/";
+  }
 
   // Share intents from iOS Share Extension open app with dvnt://dataUrl=dvntShareKey#text
   // (or #media, #weburl, #file). These are not routes — open home; ShareIntentHandler
@@ -47,6 +56,30 @@ export function redirectSystemPath({
 
   // Auth gating: if route requires auth and user isn't authenticated, save as pending
   const { isAuthenticated } = useAuthStore.getState();
+  if (!isAuthenticated) {
+    const normalizedPath = parsed.path.toLowerCase();
+    const userProfileMatch =
+      normalizedPath.match(/^\/u\/([^/?#]+)/) ||
+      normalizedPath.match(/^\/profile\/([^/?#]+)/);
+
+    if (userProfileMatch?.[1]) {
+      const username = decodeURIComponent(userProfileMatch[1]);
+      return `/(public)/profile/${username}`;
+    }
+
+    if (normalizedPath === "/search") {
+      return "/(public)/search";
+    }
+
+    if (normalizedPath === "/activity") {
+      return "/(public)/(tabs)/activity";
+    }
+
+    if (normalizedPath === "/create") {
+      return "/(public)/(tabs)/create";
+    }
+  }
+
   if (parsed.requiresAuth && !isAuthenticated) {
     console.log(
       "[NativeIntent] Auth required, saving pending link:",

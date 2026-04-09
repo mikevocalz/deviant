@@ -3,6 +3,7 @@ import { Button, Checkbox } from "@/components/ui";
 import { useSignupStore } from "@/lib/stores/signup-store";
 import { FileText } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { AppTrace } from "@/lib/diagnostics/app-trace";
 
 /**
  * SignUpStep3 - Terms Agreement
@@ -32,9 +33,21 @@ export function SignUpStep3() {
 
   const handleContinue = () => {
     console.log("[Terms] handleContinue pressed", { termsAccepted });
-    if (!termsAccepted) return;
+    if (!termsAccepted) {
+      AppTrace.warn("SIGNUP", "terms_continue_blocked", {
+        termsAccepted: false,
+      });
+      return;
+    }
     console.log("[Terms] Advancing to step 2 (Verification)");
+    AppTrace.trace("SIGNUP", "terms_accepted_continue", {
+      termsAccepted: true,
+    });
     setActiveStep(2);
+  };
+
+  const handleToggleTerms = () => {
+    setTermsAccepted(!termsAccepted);
   };
 
   return (
@@ -95,9 +108,9 @@ export function SignUpStep3() {
               </Text>
               <Text className="text-zinc-400 text-sm leading-relaxed">
                 To protect our community, you must submit a valid
-                government-issued ID and a live selfie. This data is encrypted,
-                never displayed publicly, never sold or shared with advertisers,
-                and access is limited to authorized staff only. Your public
+                government-issued ID and a live selfie. Your ID is used only to
+                verify age and identity, is never shown publicly, and is not
+                used for advertising or profile personalization. Your public
                 profile uses your chosen name and photos.
               </Text>
             </View>
@@ -120,9 +133,10 @@ export function SignUpStep3() {
               </Text>
               <Text className="text-zinc-400 text-sm leading-relaxed">
                 DVNT does NOT sell user data, share data with advertisers, or
-                run targeted ads. Your verification data is encrypted, stored
-                separately from your profile, and never used for behavioral
-                analysis. You control your profile visibility.
+                run targeted ads. Verification captures stay outside your public
+                profile, are used only for trust and age checks, and are not
+                used for behavioral analysis. You control your profile
+                visibility.
               </Text>
             </View>
 
@@ -154,12 +168,15 @@ export function SignUpStep3() {
       </View>
 
       <Pressable
-        onPress={() => setTermsAccepted(!termsAccepted)}
+        onPress={handleToggleTerms}
+        accessibilityRole="checkbox"
+        accessibilityState={{ checked: termsAccepted }}
+        hitSlop={8}
         className="flex-row items-start gap-3 p-4 rounded-lg border border-border bg-card"
       >
         <Checkbox
           checked={termsAccepted}
-          onCheckedChange={() => {}}
+          onCheckedChange={setTermsAccepted}
           borderColor="#34A2DF"
         />
         <Text className="flex-1 text-sm leading-relaxed text-foreground">

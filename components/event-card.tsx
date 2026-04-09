@@ -11,15 +11,48 @@ import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 import { useToggleEventLike } from "@/lib/hooks/use-events";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
+import type { PublicGateReason } from "@/lib/access/public-gates";
 
-export function EventCard({ event, index, scrollY, formatLikes }: any) {
+export function EventCard({
+  event,
+  index,
+  scrollY,
+  formatLikes,
+  guestMode = false,
+  onRequireAuth,
+}: any) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const toggleLike = useToggleEventLike();
+  const attendeePreview = Array.isArray(event.attendees) ? event.attendees : [];
+  const totalAttendees =
+    typeof event.totalAttendees === "number"
+      ? event.totalAttendees
+      : attendeePreview.length;
+
+  const requireAuth = useCallback(
+    (reason: PublicGateReason) => {
+      onRequireAuth?.(reason);
+    },
+    [onRequireAuth],
+  );
 
   const handleLike = useCallback(() => {
+    if (guestMode) {
+      requireAuth("events");
+      return;
+    }
     toggleLike.mutate({ eventId: event.id, isLiked: event.isLiked ?? false });
-  }, [event.id, event.isLiked, toggleLike]);
+  }, [event.id, event.isLiked, guestMode, requireAuth, toggleLike]);
+
+  const handleOpen = useCallback(() => {
+    if (guestMode) {
+      requireAuth("events");
+      return;
+    }
+    screenPrefetch.eventDetail(queryClient, event.id);
+    router.push(`/(protected)/events/${event.id}` as any);
+  }, [event.id, guestMode, queryClient, requireAuth, router]);
 
   // Responsive sizing: full width on phone, max 614px centered on tablet
   const {
@@ -53,10 +86,7 @@ export function EventCard({ event, index, scrollY, formatLikes }: any) {
         transition={{ type: "spring", damping: 20, stiffness: 300 }}
       >
         <Pressable
-          onPress={() => {
-            screenPrefetch.eventDetail(queryClient, event.id);
-            router.push(`/(protected)/events/${event.id}` as any);
-          }}
+          onPress={handleOpen}
         >
           <View style={{ height: CARD_HEIGHT }} className="w-full">
             <Animated.View
@@ -83,7 +113,7 @@ export function EventCard({ event, index, scrollY, formatLikes }: any) {
 
             {/* Attendees */}
             <View className="absolute top-4 left-4 flex-row items-center">
-              {event.attendees.map((attendee: any, idx: number) => (
+              {attendeePreview.slice(0, 3).map((attendee: any, idx: number) => (
                 <View
                   key={idx}
                   className="w-10 h-10 rounded-xl border-2 border-background justify-center items-center overflow-hidden"
@@ -108,7 +138,7 @@ export function EventCard({ event, index, scrollY, formatLikes }: any) {
               ))}
               <View className="ml-2 bg-black/40 px-2 py-1 rounded-xl">
                 <Text className="text-white text-xs font-medium">
-                  +{event.totalAttendees - event.attendees.length}
+                  +{Math.max(totalAttendees - attendeePreview.slice(0, 3).length, 0)}
                 </Text>
               </View>
             </View>
@@ -139,13 +169,16 @@ export function EventCard({ event, index, scrollY, formatLikes }: any) {
                 {event.title}
               </Text>
               <Text className="text-white/80 text-sm mb-4">
-                {event.time} • {event.totalAttendees} participants
+                {event.time} • {totalAttendees} participants
               </Text>
 
               <View className="flex-row items-center justify-between">
                 <View className="flex-row items-center gap-3">
                   <Pressable
-                    onPress={handleLike}
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      handleLike();
+                    }}
                     hitSlop={8}
                     className="flex-row items-center gap-1.5 bg-white/20 px-4 py-2 rounded-xl"
                   >
@@ -158,10 +191,22 @@ export function EventCard({ event, index, scrollY, formatLikes }: any) {
                       {formatLikes(event.likes ?? 0)}
                     </Text>
                   </Pressable>
-                  <Pressable className="bg-white/20 p-2 rounded-xl">
+                  <Pressable
+                    className="bg-white/20 p-2 rounded-xl"
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      requireAuth("events");
+                    }}
+                  >
                     <Share2 size={16} color="#fff" />
                   </Pressable>
-                  <Pressable className="bg-white/20 p-2 rounded-xl">
+                  <Pressable
+                    className="bg-white/20 p-2 rounded-xl"
+                    onPress={(e) => {
+                      e.stopPropagation?.();
+                      requireAuth("events");
+                    }}
+                  >
                     <Bookmark size={16} color="#fff" />
                   </Pressable>
                 </View>

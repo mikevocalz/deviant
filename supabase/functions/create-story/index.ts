@@ -45,6 +45,27 @@ interface CreateStoryBody {
   mediaKey?: string;
   thumbnailUrl?: string;
   thumbnailKey?: string;
+  storyOverlays?: Array<{
+    id?: string;
+    type: "animated_gif" | "emoji" | "text" | "sticker";
+    url?: string;
+    assetId?: string;
+    source?: "asset" | "url";
+    emoji?: string;
+    content?: string;
+    color?: string;
+    backgroundColor?: string;
+    fontFamily?: string;
+    fontSizeRatio?: number;
+    maxWidthRatio?: number;
+    textAlign?: "left" | "center" | "right";
+    x: number;
+    y: number;
+    sizeRatio?: number;
+    scale?: number;
+    rotation?: number;
+    opacity?: number;
+  }>;
   animatedGifOverlays?: Array<{
     id?: string;
     url: string;
@@ -118,6 +139,7 @@ Deno.serve(async (req) => {
       mediaKey,
       thumbnailUrl,
       thumbnailKey,
+      storyOverlays,
       animatedGifOverlays,
     } = body;
 
@@ -233,14 +255,59 @@ Deno.serve(async (req) => {
 
     console.log("[Edge:create-story] Story created:", story.id);
 
-    const normalizedOverlays = Array.isArray(animatedGifOverlays)
-      ? animatedGifOverlays.filter(
-          (overlay) =>
-            overlay &&
-            typeof overlay.url === "string" &&
-            overlay.url.length > 0,
-        )
+    const normalizedLegacyAnimatedOverlays = Array.isArray(animatedGifOverlays)
+      ? animatedGifOverlays
+          .filter(
+            (overlay) =>
+              overlay &&
+              typeof overlay.url === "string" &&
+              overlay.url.length > 0,
+          )
+          .map((overlay) => ({
+            id: overlay.id,
+            type: "animated_gif" as const,
+            url: overlay.url,
+            x: overlay.x,
+            y: overlay.y,
+            sizeRatio: overlay.sizeRatio,
+            scale: overlay.scale ?? 1,
+            rotation: overlay.rotation ?? 0,
+            opacity: 1,
+          }))
       : [];
+
+    const normalizedStoryOverlays = Array.isArray(storyOverlays)
+      ? storyOverlays.filter((overlay) => {
+          if (!overlay || typeof overlay.type !== "string") return false;
+          if (overlay.type === "animated_gif") {
+            return typeof overlay.url === "string" && overlay.url.length > 0;
+          }
+          if (overlay.type === "emoji") {
+            return typeof overlay.emoji === "string" && overlay.emoji.length > 0;
+          }
+          if (overlay.type === "text") {
+            return (
+              typeof overlay.content === "string" && overlay.content.length > 0
+            );
+          }
+          if (overlay.type === "sticker") {
+            return (
+              (overlay.source === "asset" &&
+                typeof overlay.assetId === "string" &&
+                overlay.assetId.length > 0) ||
+              (overlay.source !== "asset" &&
+                typeof overlay.url === "string" &&
+                overlay.url.length > 0)
+            );
+          }
+          return false;
+        })
+      : [];
+
+    const normalizedOverlays =
+      normalizedStoryOverlays.length > 0
+        ? normalizedStoryOverlays
+        : normalizedLegacyAnimatedOverlays;
 
     if (normalizedOverlays.length > 0) {
       const stickerRows = normalizedOverlays.map((overlay, index) => ({
@@ -250,15 +317,55 @@ Deno.serve(async (req) => {
           typeof overlay.id === "string" && overlay.id.length > 0
             ? overlay.id
             : crypto.randomUUID(),
-        type: "animated_gif",
-        data: {
-          url: overlay.url,
-          x: overlay.x,
-          y: overlay.y,
-          sizeRatio: overlay.sizeRatio,
-          scale: overlay.scale ?? 1,
-          rotation: overlay.rotation ?? 0,
-        },
+        type: overlay.type,
+        data:
+          overlay.type === "animated_gif"
+            ? {
+                url: overlay.url,
+                x: overlay.x,
+                y: overlay.y,
+                sizeRatio: overlay.sizeRatio,
+                scale: overlay.scale ?? 1,
+                rotation: overlay.rotation ?? 0,
+                opacity: overlay.opacity ?? 1,
+              }
+            : overlay.type === "emoji"
+              ? {
+                  emoji: overlay.emoji,
+                  x: overlay.x,
+                  y: overlay.y,
+                  sizeRatio: overlay.sizeRatio ?? 0.18,
+                  scale: overlay.scale ?? 1,
+                  rotation: overlay.rotation ?? 0,
+                  opacity: overlay.opacity ?? 1,
+                }
+              : overlay.type === "text"
+                ? {
+                    content: overlay.content,
+                    x: overlay.x,
+                    y: overlay.y,
+                    scale: overlay.scale ?? 1,
+                    rotation: overlay.rotation ?? 0,
+                    opacity: overlay.opacity ?? 1,
+                    color: overlay.color ?? "#FFFFFF",
+                    backgroundColor: overlay.backgroundColor,
+                    fontFamily: overlay.fontFamily,
+                    fontSizeRatio: overlay.fontSizeRatio ?? 0.11,
+                    maxWidthRatio: overlay.maxWidthRatio ?? 0.8,
+                    textAlign: overlay.textAlign ?? "center",
+                  }
+                : {
+                    source: overlay.source === "asset" ? "asset" : "url",
+                    assetId:
+                      overlay.source === "asset" ? overlay.assetId : undefined,
+                    url: overlay.source === "asset" ? undefined : overlay.url,
+                    x: overlay.x,
+                    y: overlay.y,
+                    sizeRatio: overlay.sizeRatio ?? 0.2,
+                    scale: overlay.scale ?? 1,
+                    rotation: overlay.rotation ?? 0,
+                    opacity: overlay.opacity ?? 1,
+                  },
       }));
 
       const { error: stickerError } = await supabaseAdmin

@@ -1,4 +1,4 @@
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCallback, useEffect } from "react";
 import Animated, {
@@ -8,6 +8,7 @@ import Animated, {
 } from "react-native-reanimated";
 import * as Haptics from "expo-haptics";
 import { useAppStore } from "@/lib/stores/app-store";
+import { usePathname } from "expo-router";
 
 const TRACK_WIDTH = 84;
 const TRACK_HEIGHT = 42;
@@ -18,10 +19,19 @@ const THUMB_OFF = 0;
 
 const SPRING_CONFIG = { damping: 20, stiffness: 300 };
 
-export function SpicyToggleFAB() {
+type SpicyToggleFABProps = {
+  accessoryPlacement?: "regular" | "inline";
+};
+
+export function supportsNativeTabsBottomAccessory(): boolean {
+  return Platform.OS === "ios" && Number(Platform.Version) >= 26;
+}
+
+export function SpicyToggleFAB({ accessoryPlacement }: SpicyToggleFABProps) {
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
-  const toggleNsfwEnabled = useAppStore((s) => s.toggleNsfwEnabled);
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
+  const isAccessory = accessoryPlacement !== undefined;
 
   // Reanimated shared value — survives OTA reloads correctly
   const thumbX = useSharedValue(nsfwEnabled ? THUMB_ON : THUMB_OFF);
@@ -38,28 +48,73 @@ export function SpicyToggleFAB() {
     transform: [{ translateX: thumbX.value }],
   }));
 
-  const doToggle = useCallback(() => {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const nextEnabled = toggleNsfwEnabled();
-    console.log("[SpicyToggle] Toggling NSFW:", nextEnabled);
-    // No query invalidation needed — feed filtering is 100% client-side
-    // via useMemo on nsfwEnabled. Invalidation raced with initial feed load
-    // after OTA and caused feed reset/blank state.
-  }, [toggleNsfwEnabled]);
+  useEffect(() => {
+    console.log("[SpicyToggle] mount", {
+      pathname,
+      accessoryPlacement: accessoryPlacement ?? "screen",
+    });
 
-  return (
+    return () => {
+      console.log("[SpicyToggle] unmount", {
+        pathname,
+        accessoryPlacement: accessoryPlacement ?? "screen",
+      });
+    };
+  }, [pathname, accessoryPlacement]);
+
+  const doToggle = useCallback(() => {
+    const store = useAppStore.getState();
+    const currentEnabled = store.nsfwEnabled;
+    const nextEnabled = !currentEnabled;
+    const source = isAccessory
+      ? `feed_tab_accessory_${accessoryPlacement}`
+      : "feed_screen_fab";
+
+    console.log("[SpicyToggle] onPress", {
+      pathname,
+      source,
+      currentEnabled,
+      nextEnabled,
+    });
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    store.setNsfwEnabled(nextEnabled, source);
+  }, [accessoryPlacement, isAccessory, pathname]);
+
+  const pressable = (
     <Pressable
+      onPressIn={() => {
+        console.log("[SpicyToggle] onPressIn", {
+          pathname,
+          accessoryPlacement: accessoryPlacement ?? "screen",
+          currentEnabled: useAppStore.getState().nsfwEnabled,
+        });
+      }}
       onPress={doToggle}
       hitSlop={12}
-      style={{
-        position: "absolute",
-        bottom: insets.bottom + 14,
-        right: 8,
-        zIndex: 50,
-        elevation: 50,
-        alignItems: "center",
-        padding: 8,
-      }}
+      accessibilityRole="switch"
+      accessibilityLabel="Spicy content toggle"
+      accessibilityState={{ checked: nsfwEnabled }}
+      testID="feed-spicy-toggle"
+      style={
+        isAccessory
+          ? {
+              alignItems: "center",
+              padding: 8,
+            }
+          : {
+              position: "absolute",
+              bottom: Platform.select({
+                ios: insets.bottom + 64,
+                android: insets.bottom + 72,
+                default: insets.bottom + 24,
+              }),
+              right: 8,
+              zIndex: 50,
+              elevation: 50,
+              alignItems: "center",
+              padding: 8,
+            }
+      }
     >
       {/* Track */}
       <View
@@ -128,4 +183,22 @@ export function SpicyToggleFAB() {
       </View>
     </Pressable>
   );
+
+  if (isAccessory) {
+    return (
+      <View
+        pointerEvents="box-none"
+        style={{
+          width: "100%",
+          alignItems: "flex-end",
+          paddingRight: accessoryPlacement === "inline" ? 8 : 16,
+          paddingBottom: accessoryPlacement === "inline" ? 2 : 8,
+        }}
+      >
+        {pressable}
+      </View>
+    );
+  }
+
+  return pressable;
 }

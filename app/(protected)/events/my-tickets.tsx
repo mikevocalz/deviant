@@ -113,11 +113,13 @@ function TicketCard({
         <View className="flex-row">
           {/* Event image */}
           {ticket.event_image ? (
-            <Image
-              source={{ uri: ticket.event_image }}
-              style={{ width: 80, height: 100 }}
-              contentFit="cover"
-            />
+            <View style={{ width: 80, height: 100, overflow: "hidden" }}>
+              <Image
+                source={{ uri: ticket.event_image }}
+                style={{ width: 80, height: 100 }}
+                contentFit="cover"
+              />
+            </View>
           ) : (
             <View className="w-20 h-[100px] bg-muted items-center justify-center">
               <Ticket size={24} color="#666" />

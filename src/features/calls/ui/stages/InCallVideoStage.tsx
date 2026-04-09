@@ -136,7 +136,7 @@ const styles = StyleSheet.create({
   avatarLarge: {
     width: 100,
     height: 100,
-    borderRadius: 50,
+    borderRadius: 28,
   },
   avatarPlaceholder: {
     backgroundColor: "#333",
@@ -164,10 +164,12 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.8)",
     fontSize: 14,
     fontFamily: "monospace",
-    backgroundColor: "rgba(0,0,0,0.5)",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 12,
+    backgroundColor: "rgba(12,12,16,0.76)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 16,
     overflow: "hidden",
   },
   pulseRing: {

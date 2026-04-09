@@ -20,7 +20,7 @@ import {
   useWindowDimensions,
 } from "react-native";
 import { Image } from "expo-image";
-import { useMemo, useCallback, memo, useEffect, useRef } from "react";
+import { useMemo, useCallback, memo, useEffect, useRef, useState } from "react";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useQueryClient } from "@tanstack/react-query";
 import { Heart, Bookmark, Play, Grid3x3 } from "lucide-react-native";
@@ -51,6 +51,12 @@ import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import * as Haptics from "expo-haptics";
 import { TextPostSurface } from "@/components/post/TextPostSurface";
 import { resolveTextPostPresentation } from "@/lib/posts/text-post";
+import { useStories } from "@/lib/hooks/use-stories";
+import {
+  extractFeedImageUrls,
+  prefetchImages,
+  prefetchImagesBlocking,
+} from "@/lib/perf/image-prefetch";
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -424,12 +430,12 @@ export function MasonryFeed() {
   const loadNsfwSetting = useAppStore((s) => s.loadNsfwSetting);
 
   useEffect(() => {
-    loadNsfwSetting();
+    loadNsfwSetting("masonry_feed_mount");
   }, [loadNsfwSetting]);
 
   useFocusEffect(
     useCallback(() => {
-      loadNsfwSetting();
+      loadNsfwSetting("masonry_feed_focus");
     }, [loadNsfwSetting]),
   );
 
@@ -437,6 +443,12 @@ export function MasonryFeed() {
     if (!data?.pages) return [];
     return data.pages.flatMap((page) => page.data).filter(shouldRenderInFeed);
   }, [data]);
+
+  const {
+    data: stories = [],
+    isFetched: storiesFetched,
+    isError: storiesErrored,
+  } = useStories();
 
   // Seed like states from feed data
   useEffect(() => {
@@ -459,8 +471,44 @@ export function MasonryFeed() {
     return allPosts.filter((post) => !post.isNSFW);
   }, [allPosts, nsfwEnabled]);
 
-  // Fetch events for inline cards (same as classic feed)
-  const { data: forYouEvents } = useForYouEvents();
+  const {
+    data: forYouEvents,
+    isFetched: eventsFetched,
+    isError: eventsErrored,
+  } = useForYouEvents();
+
+  const [firstPageMediaPrefetched, setFirstPageMediaPrefetched] =
+    useState(false);
+  useEffect(() => {
+    if (allPosts.length === 0 || firstPageMediaPrefetched) return;
+
+    let cancelled = false;
+
+    const warmInitialMedia = async () => {
+      const firstPageUrls = extractFeedImageUrls(allPosts.slice(0, 8));
+      if (firstPageUrls.length > 0) {
+        await prefetchImagesBlocking(firstPageUrls);
+      }
+      if (cancelled) return;
+      setFirstPageMediaPrefetched(true);
+
+      const remainingUrls = extractFeedImageUrls(allPosts.slice(8));
+      if (remainingUrls.length > 0) {
+        prefetchImages(remainingUrls);
+      }
+    };
+
+    void warmInitialMedia();
+    return () => {
+      cancelled = true;
+    };
+  }, [allPosts, firstPageMediaPrefetched]);
+
+  useEffect(() => {
+    if (isRefetching) {
+      setFirstPageMediaPrefetched(false);
+    }
+  }, [isRefetching]);
 
   // Build interleaved sections
   const sections = useMemo(
@@ -498,7 +546,20 @@ export function MasonryFeed() {
     [hasNextPage, isFetchingNextPage, fetchNextPage],
   );
 
-  if (isLoading || !nsfwLoaded) return <FeedSkeleton />;
+  const storiesReady = storiesFetched || storiesErrored;
+  const eventsReady = eventsFetched || eventsErrored;
+  const criticalImagesReady =
+    filteredPosts.length === 0 ? true : firstPageMediaPrefetched;
+
+  if (
+    isLoading ||
+    !nsfwLoaded ||
+    !storiesReady ||
+    !eventsReady ||
+    !criticalImagesReady
+  ) {
+    return <FeedSkeleton />;
+  }
 
   if (error) {
     return (
@@ -524,7 +585,7 @@ export function MasonryFeed() {
       }
     >
       <View style={{ height: 40 }} />
-      <StoriesBar />
+      <StoriesBar stories={stories} isLoadingOverride={!storiesReady} />
 
       {filteredPosts.length === 0 ? (
         <EmptyState

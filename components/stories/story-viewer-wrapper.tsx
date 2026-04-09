@@ -25,6 +25,7 @@ import {
   StoryHeaderText,
   StoryFooter,
 } from "./story-overlays";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } =
   Dimensions.get("window");
@@ -40,12 +41,20 @@ export function StoryViewerWrapper({
   const router = useRouter();
   const { data: stories = [] } = useStories();
   const user = useAuthStore((s) => s.user);
+  const insets = useSafeAreaInsets();
 
   // Transform app stories → InstaStory data format
   const instaData = useMemo(() => {
     if (!stories.length) return [];
     return toInstaStoryData(stories);
   }, [stories]);
+  const progressContainerStyle = useMemo(
+    () => ({
+      ...progressStyles.container,
+      paddingTop: Math.max(insets.top + 8, 18),
+    }),
+    [insets.top],
+  );
 
   const handleStart = useCallback((userStory?: IUserStory) => {
     console.log("[StoryViewer] Story started:", userStory?.user_name);
@@ -94,7 +103,7 @@ export function StoryViewerWrapper({
       storyContainerStyle={fullscreenStyles.container}
       storyImageStyle={fullscreenStyles.image}
       // ── Custom progress bar styling ────────────────────────
-      animationBarContainerStyle={progressStyles.container}
+      animationBarContainerStyle={progressContainerStyle}
       loadedAnimationBarStyle={progressStyles.loaded}
       unloadedAnimationBarStyle={progressStyles.unloaded}
       // ── Custom header area ─────────────────────────────────
@@ -139,7 +148,6 @@ const fullscreenStyles = StyleSheet.create({
 const progressStyles = StyleSheet.create({
   container: {
     flexDirection: "row",
-    paddingTop: 54, // Below status bar
     paddingHorizontal: 8,
     gap: 4,
   },

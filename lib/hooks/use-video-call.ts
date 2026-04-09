@@ -1565,6 +1565,7 @@ export function useVideoCall() {
     callDuration,
     error: error_store,
     errorCode: errorCode_store,
+    connectionStatus,
     isConnected: connectionStatus === "connected",
     isInCall: callPhase === "connected" || callPhase === "outgoing_ringing",
     isMuted: !isMicOn,

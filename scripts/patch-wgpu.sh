@@ -65,8 +65,6 @@ find "$WGPU_DIR" -type f \( -name "*.h" -o -name "*.cpp" -o -name "*.mm" -o -nam
     sed -i '' 's/@interface WebGPUView/@interface WGPUWebGPUView/g' "$file" 2>/dev/null || true
     sed -i '' 's/@implementation WebGPUView/@implementation WGPUWebGPUView/g' "$file" 2>/dev/null || true
     sed -i '' 's/WebGPUView:/WGPUWebGPUView:/g' "$file" 2>/dev/null || true
-    sed -i '' 's/WebGPUViewComponentDescriptor/WGPUWebGPUViewComponentDescriptor/g' "$file" 2>/dev/null || true
-    sed -i '' 's/WebGPUViewProps/WGPUWebGPUViewProps/g' "$file" 2>/dev/null || true
     sed -i '' 's/WebGPUViewCls/WGPUWebGPUViewCls/g' "$file" 2>/dev/null || true
     sed -i '' 's/"WebGPUView"/"WGPUWebGPUView"/g' "$file" 2>/dev/null || true
     sed -i '' 's/'\''WebGPUView'\''/'\''WGPUWebGPUView'\''/g' "$file" 2>/dev/null || true
@@ -77,6 +75,9 @@ find "$WGPU_DIR" -type f \( -name "*.h" -o -name "*.cpp" -o -name "*.mm" -o -nam
     sed -i '' 's/\.\/WebGPUViewNativeComponent/\.\/WGPUWebGPUViewNativeComponent/g' "$file" 2>/dev/null || true
     sed -i '' 's/WebGPUViewNativeComponent/WGPUWebGPUViewNativeComponent/g' "$file" 2>/dev/null || true
     sed -i '' 's/WebGPUViewPackage/WGPUWebGPUViewPackage/g' "$file" 2>/dev/null || true
+    # The generated Fabric codegen symbols intentionally keep the original
+    # names (`WGPUWebGPUViewProps`, `WGPUWebGPUViewComponentDescriptor`), so we
+    # only rename the Objective-C view class and leave codegen types untouched.
     # Use perl for more complex replacements
     perl -i -pe 's/\bWebGPUView\b/WGPUWebGPUView/g' "$file" 2>/dev/null || true
   fi

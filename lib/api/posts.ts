@@ -2,7 +2,10 @@ import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import type { Post } from "@/lib/types";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
-import { requireBetterAuthToken } from "../auth/identity";
+import {
+  hasAuthenticatedUser,
+  requireBetterAuthToken,
+} from "../auth/identity";
 import { likesApi } from "./likes";
 import {
   getPrimaryTextPostContent,
@@ -64,13 +67,15 @@ async function fetchTextPostSlidesViaFunction(
   }
 
   let headers: Record<string, string> | undefined;
-  try {
-    const token = await requireBetterAuthToken();
-    if (token) {
-      headers = { Authorization: `Bearer ${token}` };
+  if (hasAuthenticatedUser()) {
+    try {
+      const token = await requireBetterAuthToken();
+      if (token) {
+        headers = { Authorization: `Bearer ${token}` };
+      }
+    } catch {
+      headers = undefined;
     }
-  } catch {
-    headers = undefined;
   }
 
   try {
@@ -534,7 +539,7 @@ export const postsApi = {
     try {
       console.log("[Posts] getExplorePosts, limit:", limit);
 
-      const { data: posts, error } = await supabase
+      let exploreQuery = supabase
         .from(DB.posts.table)
         .select(
           `
@@ -562,7 +567,13 @@ export const postsApi = {
           )
         `,
         )
-        .eq(DB.posts.visibility, "public")
+        .eq(DB.posts.visibility, "public");
+
+      exploreQuery = exploreQuery.or(
+        `${DB.posts.isNsfw}.is.false,${DB.posts.isNsfw}.is.null`,
+      );
+
+      const { data: posts, error } = await exploreQuery
         .order(DB.posts.createdAt, { ascending: false })
         .limit(limit * 3);
 

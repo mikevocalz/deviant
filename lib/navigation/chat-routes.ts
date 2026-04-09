@@ -8,8 +8,8 @@
 import { Router } from "expo-router";
 
 export interface ChatRouteParams {
-  /** Conversation ID, username, or auth_id */
-  identifier: string;
+  /** Canonical numeric conversation ID */
+  conversationId: string;
   /** Optional: Pre-fetched peer avatar for instant render */
   peerAvatar?: string;
   /** Optional: Pre-fetched peer username for instant render */
@@ -24,27 +24,25 @@ export interface ChatRouteParams {
  * @example
  * // From messages list (has peer data)
  * navigateToChat(router, {
- *   identifier: conversation.id,
+ *   conversationId: conversation.id,
  *   peerAvatar: conversation.user.avatar,
  *   peerUsername: conversation.user.username,
  *   peerName: conversation.user.name,
  * });
- * 
- * // From profile (username only)
- * navigateToChat(router, {
- *   identifier: username,
- * });
- * 
- * // From deep link (conversation ID only)
- * navigateToChat(router, {
- *   identifier: conversationId,
- * });
  */
 export function navigateToChat(router: Router, params: ChatRouteParams): void {
-  const { identifier, peerAvatar, peerUsername, peerName } = params;
+  const { conversationId, peerAvatar, peerUsername, peerName } = params;
 
-  if (!identifier) {
-    console.error("[ChatRoutes] navigateToChat called with empty identifier");
+  if (!conversationId) {
+    console.error("[ChatRoutes] navigateToChat called with empty conversationId");
+    return;
+  }
+
+  if (!/^\d+$/.test(conversationId)) {
+    console.error(
+      "[ChatRoutes] navigateToChat requires a canonical numeric conversationId",
+      conversationId,
+    );
     return;
   }
 
@@ -52,7 +50,7 @@ export function navigateToChat(router: Router, params: ChatRouteParams): void {
   router.push({
     pathname: "/(protected)/chat/[id]",
     params: {
-      id: identifier,
+      id: conversationId,
       ...(peerAvatar && { peerAvatar }),
       ...(peerUsername && { peerUsername }),
       ...(peerName && { peerName }),
@@ -70,7 +68,7 @@ export function normalizeChatParams(rawParams: {
   peerUsername?: string | string[];
   peerName?: string | string[];
 }): {
-  chatId: string;
+  chatId: string | null;
   peerAvatar: string | undefined;
   peerUsername: string | undefined;
   peerName: string | undefined;
@@ -81,7 +79,7 @@ export function normalizeChatParams(rawParams: {
   };
 
   return {
-    chatId: normalize(rawParams.id) || "1",
+    chatId: normalize(rawParams.id) || null,
     peerAvatar: normalize(rawParams.peerAvatar),
     peerUsername: normalize(rawParams.peerUsername),
     peerName: normalize(rawParams.peerName),

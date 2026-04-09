@@ -1,58 +1,93 @@
-import { useState } from "react";
-import { View, Text, Pressable } from "react-native";
+import { useMemo, useState } from "react";
+import { View, Text, Pressable, Linking } from "react-native";
 import { toast } from "sonner-native";
 import { useForm } from "@tanstack/react-form";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { FormInput } from "@/components/form";
 import { Button } from "@/components/ui/button";
 import { router, useLocalSearchParams } from "expo-router";
-import { authClient } from "@/lib/auth-client";
-import { ArrowLeft, Mail } from "lucide-react-native";
+import {
+  ArrowLeft,
+  LifeBuoy,
+  Mail,
+  ShieldCheck,
+} from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
+import { requestPasswordReset } from "@/lib/auth-client";
+import { AppTrace, getErrorMessage } from "@/lib/diagnostics/app-trace";
+
+const SUPPORT_EMAIL = "DeviantEventsDC@gmail.com";
 
 export default function ForgotPasswordScreen() {
   const { email: emailParam } = useLocalSearchParams<{ email?: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [emailSent, setEmailSent] = useState(false);
+  const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const { colors } = useColorScheme();
 
+  const defaultEmail = useMemo(
+    () => (typeof emailParam === "string" ? emailParam : ""),
+    [emailParam],
+  );
+
   const form = useForm({
-    defaultValues: { email: emailParam || "" },
+    defaultValues: { email: defaultEmail },
     onSubmit: async ({ value }) => {
       setIsSubmitting(true);
+      const startedAt = Date.now();
+      AppTrace.trace("RECOVERY", "request_started", {
+        hasEmail: Boolean(value.email.trim()),
+      });
 
       try {
-        console.log("[ForgotPassword] Sending reset email to:", value.email);
+        const response = await requestPasswordReset(value.email.trim());
 
-        const { error } = await (authClient as any).forgetPassword({
-          email: value.email,
-          redirectTo: "dvnt://reset-password",
-        });
-
-        if (error) {
-          console.error("[ForgotPassword] Error:", error);
-          toast.error("Error", {
-            description: error.message || "Failed to send reset email",
+        if (response?.error) {
+          AppTrace.warn("RECOVERY", "request_failed", {
+            elapsedMs: Date.now() - startedAt,
+            error:
+              response.error.message ||
+              "We couldn’t send the recovery email. Please try again.",
           });
-        } else {
-          console.log("[ForgotPassword] Reset email sent successfully");
-          setEmailSent(true);
-          toast.success("Check Your Email", {
-            description: "We've sent you a password reset link",
+          toast.error("Recovery failed", {
+            description:
+              response.error.message ||
+              "We couldn’t send the recovery email. Please try again.",
           });
+          return;
         }
-      } catch (error: any) {
-        console.error("[ForgotPassword] Error:", error);
-        toast.error("Error", {
-          description: error?.message || "Something went wrong",
-        });
-      }
 
-      setIsSubmitting(false);
+        setSubmittedEmail(value.email.trim());
+        AppTrace.trace("RECOVERY", "request_sent", {
+          elapsedMs: Date.now() - startedAt,
+        });
+        toast.success("Check your email", {
+          description: "We sent a secure password reset link.",
+        });
+      } catch (error: any) {
+        AppTrace.error("RECOVERY", "request_failed_exception", {
+          elapsedMs: Date.now() - startedAt,
+          error: getErrorMessage(error),
+        });
+        toast.error("Recovery failed", {
+          description:
+            error?.message ||
+            "We couldn’t send the recovery email. Please try again.",
+        });
+      } finally {
+        setIsSubmitting(false);
+      }
     },
   });
 
-  if (emailSent) {
+  const openSupportEmail = async () => {
+    const subject = encodeURIComponent("DVNT Account Recovery");
+    const body = encodeURIComponent(
+      "I need help recovering my DVNT account.",
+    );
+    await Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
+  };
+
+  if (submittedEmail) {
     return (
       <View className="flex-1 bg-background">
         <KeyboardAwareScrollView
@@ -63,27 +98,50 @@ export default function ForgotPasswordScreen() {
             paddingHorizontal: 24,
           }}
         >
-          <View className="items-center gap-6">
-            <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center">
-              <Mail size={40} color={colors.primary} />
+          <View className="gap-6 items-center">
+            <View className="w-20 h-20 rounded-[24px] bg-primary/10 items-center justify-center">
+              <Mail size={36} color={colors.primary} />
             </View>
 
-            <View className="items-center gap-2">
+            <View className="gap-2 items-center">
               <Text className="text-2xl font-bold text-foreground text-center">
-                Check Your Email
+                Check your email
               </Text>
-              <Text className="text-muted-foreground text-center">
-                We've sent a password reset link to your email address. Click
-                the link to reset your password.
+              <Text className="text-muted-foreground text-center leading-6">
+                We sent a secure reset link to {submittedEmail}. Use the newest
+                email if you requested recovery more than once.
               </Text>
             </View>
 
-            <View className="w-full gap-3 mt-4">
-              <Button onPress={() => router.back()}>Back to Login</Button>
+            <View className="w-full rounded-3xl border border-white/10 bg-white/5 p-4 gap-3">
+              <View className="flex-row items-start gap-3">
+                <ShieldCheck size={18} color={colors.primary} />
+                <Text className="flex-1 text-sm text-muted-foreground leading-5">
+                  Recovery links expire. If this email does not arrive, check
+                  spam or request another one below.
+                </Text>
+              </View>
+              <View className="flex-row items-start gap-3">
+                <LifeBuoy size={18} color={colors.primary} />
+                <Text className="flex-1 text-sm text-muted-foreground leading-5">
+                  If you no longer have email access, contact {SUPPORT_EMAIL}
+                  for manual help during beta.
+                </Text>
+              </View>
+            </View>
 
-              <Button variant="secondary" onPress={() => setEmailSent(false)}>
-                Try Different Email
+            <View className="w-full gap-3">
+              <Button onPress={() => setSubmittedEmail(null)}>
+                Send another link
               </Button>
+              <Button variant="secondary" onPress={() => router.replace("/(auth)/login")}>
+                Back to sign in
+              </Button>
+              <Pressable onPress={openSupportEmail} className="items-center py-2">
+                <Text className="text-sm text-primary font-medium">
+                  Need help recovering your account?
+                </Text>
+              </Pressable>
             </View>
           </View>
         </KeyboardAwareScrollView>
@@ -98,12 +156,11 @@ export default function ForgotPasswordScreen() {
         contentContainerStyle={{
           flexGrow: 1,
           paddingHorizontal: 24,
-          paddingTop: 60,
+          paddingTop: 56,
         }}
         keyboardShouldPersistTaps="handled"
       >
         <View className="gap-8">
-          {/* Header */}
           <View className="gap-4">
             <Pressable onPress={() => router.back()} className="self-start">
               <ArrowLeft size={24} color={colors.foreground} />
@@ -111,16 +168,26 @@ export default function ForgotPasswordScreen() {
 
             <View className="gap-2">
               <Text className="text-3xl font-bold text-foreground">
-                Forgot Password?
+                Recover your account
               </Text>
-              <Text className="text-muted-foreground">
-                Enter your email address and we'll send you a link to reset your
-                password.
+              <Text className="text-muted-foreground leading-6">
+                Use the email attached to your DVNT account. We’ll send a secure
+                reset link so you can create a new password.
               </Text>
             </View>
           </View>
 
-          {/* Form */}
+          <View className="rounded-3xl border border-white/10 bg-white/5 p-4 gap-3">
+            <View className="flex-row items-start gap-3">
+              <ShieldCheck size={18} color={colors.primary} />
+              <Text className="flex-1 text-sm text-muted-foreground leading-5">
+                For now, DVNT recovery is email-based. Name, DOB, phone, and
+                backup-email recovery are part of the coordinated backend phase,
+                not this client-only pass.
+              </Text>
+            </View>
+          </View>
+
           <View className="gap-4">
             <FormInput
               form={form}
@@ -143,14 +210,14 @@ export default function ForgotPasswordScreen() {
               disabled={isSubmitting}
               loading={isSubmitting}
             >
-              {isSubmitting ? "Sending..." : "Send Reset Link"}
+              {isSubmitting ? "Sending link..." : "Send recovery link"}
             </Button>
 
-            <View className="items-center">
-              <Pressable onPress={() => router.back()}>
-                <Text className="text-sm text-primary">Back to Login</Text>
-              </Pressable>
-            </View>
+            <Pressable onPress={openSupportEmail} className="items-center py-2">
+              <Text className="text-sm text-primary font-medium">
+                Need manual help? Contact support
+              </Text>
+            </Pressable>
           </View>
         </View>
       </KeyboardAwareScrollView>

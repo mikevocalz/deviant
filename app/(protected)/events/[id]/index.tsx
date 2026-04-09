@@ -837,15 +837,17 @@ function EventDetailScreenContent() {
         {/* ── 1. HERO SECTION ──────────────────────────────────── */}
         <View style={s.heroWrapper}>
           {/* Parallax hero image */}
-          <Animated.View style={[s.heroImageContainer, heroParallaxStyle]}>
-            <Image
-              source={{ uri: event.image }}
-              style={s.heroImage}
-              contentFit="cover"
-              transition={200}
-              cachePolicy="memory-disk"
-            />
-          </Animated.View>
+          <View style={s.heroImageContainer}>
+            <Animated.View style={[s.heroImageContainer, heroParallaxStyle]}>
+              <Image
+                source={{ uri: event.image }}
+                style={s.heroImage}
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
+              />
+            </Animated.View>
+          </View>
 
           {/* Dark gradient overlay */}
           <LinearGradient

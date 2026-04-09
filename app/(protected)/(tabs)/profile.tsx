@@ -28,6 +28,7 @@ import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { useProfileStore } from "@/lib/stores/profile-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useAppStore } from "@/lib/stores/app-store";
 import { ProfileSkeleton } from "@/components/skeletons";
 import { Motion } from "@legendapp/motion";
 import { useProfilePosts, usePostsByIds } from "@/lib/hooks/use-posts";
@@ -116,6 +117,7 @@ function ProfileScreenContent() {
   const [isAvatarViewerOpen, setIsAvatarViewerOpen] = useState(false);
   const user = useAuthStore((state) => state.user);
   const setUser = useAuthStore((state) => state.setUser);
+  const nsfwEnabled = useAppStore((state) => state.nsfwEnabled);
 
   // CRITICAL: userId must exist before any queries run
   // This is the KEY guard that prevents crashes
@@ -514,9 +516,17 @@ function ProfileScreenContent() {
   // in (protected)/_layout.tsx — no duplicate AppState listener needed here
 
   // Transform user posts data using SAFE mapper - NEVER throws
+  const visibleUserPosts = useMemo(
+    () =>
+      nsfwEnabled
+        ? userPostsData
+        : (userPostsData || []).filter((post) => !post.isNSFW),
+    [userPostsData, nsfwEnabled],
+  );
+
   const userPosts: SafeGridTile[] = useMemo(() => {
-    return safeGridTiles(userPostsData);
-  }, [userPostsData]);
+    return safeGridTiles(visibleUserPosts);
+  }, [visibleUserPosts]);
 
   // Fetch bookmarked posts
   const { data: bookmarkedPostsData = [] } = usePostsByIds(bookmarkedPosts);

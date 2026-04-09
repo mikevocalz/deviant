@@ -13,7 +13,7 @@ import {
   FlatList,
   TouchableOpacity,
 } from "react-native";
-import { MapPin, AlertCircle, X, Loader2 } from "lucide-react-native";
+import { MapPin, X, Loader2 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useDebounce } from "@/lib/hooks/use-debounce";
 
@@ -31,6 +31,8 @@ interface LocationAutocompleteProps {
   onLocationSelect: (location: LocationData) => void;
   onClear?: () => void;
   onTextChange?: (text: string) => void;
+  embedded?: boolean;
+  showLeadingIcon?: boolean;
 }
 
 interface GooglePlace {
@@ -45,22 +47,14 @@ interface GooglePlace {
 const GOOGLE_PLACES_API_KEY =
   process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || "";
 
-// Debug: Log the API key status
-console.log(
-  "[LocationAutocompleteV3] API Key:",
-  GOOGLE_PLACES_API_KEY ? "Present" : "Missing",
-);
-console.log(
-  "[LocationAutocompleteV3] API Key Length:",
-  GOOGLE_PLACES_API_KEY.length,
-);
-
 export function LocationAutocompleteV3({
   value,
   placeholder = "Search location...",
   onLocationSelect,
   onClear,
   onTextChange,
+  embedded = false,
+  showLeadingIcon = true,
 }: LocationAutocompleteProps) {
   const { colors } = useColorScheme();
   const [inputText, setInputText] = useState(value || "");
@@ -68,13 +62,29 @@ export function LocationAutocompleteV3({
   const [isLoading, setIsLoading] = useState(false);
   const [hasError, setHasError] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
+  const requestIdRef = useRef(0);
+  const suppressNextLookupRef = useRef(false);
+  const lastResolvedValueRef = useRef(value || "");
 
   // Debounce the input text for API calls (300ms delay)
   const debouncedText = useDebounce(inputText, 300);
 
+  useEffect(() => {
+    const nextValue = value || "";
+
+    if (nextValue === lastResolvedValueRef.current || nextValue === inputText) {
+      return;
+    }
+
+    lastResolvedValueRef.current = nextValue;
+    suppressNextLookupRef.current = true;
+    setInputText(nextValue);
+    setPredictions([]);
+    setShowDropdown(false);
+  }, [inputText, value]);
+
   // Check if API key is configured
   useEffect(() => {
-    console.log("[LocationAutocompleteV3] Checking API key configuration...");
     if (
       !GOOGLE_PLACES_API_KEY ||
       GOOGLE_PLACES_API_KEY === "your_google_places_api_key_here"
@@ -83,8 +93,6 @@ export function LocationAutocompleteV3({
         "[LocationAutocompleteV3] Google Places API key not configured or using placeholder. Using manual input mode.",
       );
       setHasError(true);
-    } else {
-      console.log("[LocationAutocompleteV3] API key configured successfully");
     }
   }, []);
 
@@ -98,17 +106,31 @@ export function LocationAutocompleteV3({
 
     if (hasError) return;
 
-    fetchPredictions(debouncedText);
+    if (suppressNextLookupRef.current) {
+      suppressNextLookupRef.current = false;
+      return;
+    }
+
+    void fetchPredictions(debouncedText);
   }, [debouncedText, hasError]);
 
-  const fetchPredictions = async (text: string) => {
+  const fetchPredictions = useCallback(async (text: string) => {
+    const normalizedText = text.trim();
+
+    if (normalizedText.length < 2) {
+      setPredictions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    const requestId = ++requestIdRef.current;
     setIsLoading(true);
     setShowDropdown(true);
 
     try {
       // Use the Google Places API with the correct parameters for Instagram-like results
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?key=${GOOGLE_PLACES_API_KEY}&input=${encodeURIComponent(text)}&language=en&components=country:us&types=establishment|geocode|address&radius=50000&strictbounds=false`,
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?key=${GOOGLE_PLACES_API_KEY}&input=${encodeURIComponent(normalizedText)}&language=en&components=country:us&types=establishment|geocode|address&radius=50000&strictbounds=false`,
       );
 
       if (!response.ok) {
@@ -123,26 +145,25 @@ export function LocationAutocompleteV3({
           data.error_message,
         );
         // Try alternative endpoint for Places API (New)
-        tryAlternativeAPI(text);
+        await tryAlternativeAPI(normalizedText, requestId);
         return;
       }
 
+      if (requestId !== requestIdRef.current) return;
       setPredictions(data.predictions || []);
-      console.log(
-        "[LocationAutocompleteV3] Predictions:",
-        data.predictions?.length || 0,
-      );
     } catch (error) {
       console.error("[LocationAutocompleteV3] Fetch error:", error);
       // Try alternative API on error
-      tryAlternativeAPI(text);
+      await tryAlternativeAPI(normalizedText, requestId);
     } finally {
-      setIsLoading(false);
+      if (requestId === requestIdRef.current) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, []);
 
   // Try alternative Places API (New) endpoint
-  const tryAlternativeAPI = async (text: string) => {
+  const tryAlternativeAPI = async (text: string, requestId: number) => {
     try {
       // Try the newer Places API format
       const response = await fetch(
@@ -169,6 +190,7 @@ export function LocationAutocompleteV3({
               },
             }),
           );
+          if (requestId !== requestIdRef.current) return;
           setPredictions(convertedPredictions);
           return;
         }
@@ -178,6 +200,7 @@ export function LocationAutocompleteV3({
     }
 
     // Ultimate fallback to popular locations
+    if (requestId !== requestIdRef.current) return;
     setPredictions(getPopularLocations(text));
   };
 
@@ -388,6 +411,8 @@ export function LocationAutocompleteV3({
   };
 
   const handleSelectPrediction = async (prediction: GooglePlace) => {
+    suppressNextLookupRef.current = true;
+    lastResolvedValueRef.current = prediction.description;
     setInputText(prediction.description);
     setShowDropdown(false);
     setPredictions([]);
@@ -408,7 +433,9 @@ export function LocationAutocompleteV3({
 
   const handleTextChange = useCallback(
     (text: string) => {
+      lastResolvedValueRef.current = text;
       setInputText(text);
+      setShowDropdown(text.trim().length >= 2);
       if (onTextChange) {
         onTextChange(text);
       }
@@ -417,6 +444,8 @@ export function LocationAutocompleteV3({
   );
 
   const handleClear = () => {
+    suppressNextLookupRef.current = true;
+    lastResolvedValueRef.current = "";
     setInputText("");
     setPredictions([]);
     setShowDropdown(false);
@@ -427,6 +456,8 @@ export function LocationAutocompleteV3({
 
   const handleSubmit = () => {
     if (inputText.trim()) {
+      suppressNextLookupRef.current = true;
+      lastResolvedValueRef.current = inputText.trim();
       const locationData: LocationData = {
         name: inputText.trim(),
       };
@@ -442,22 +473,24 @@ export function LocationAutocompleteV3({
         style={[
           styles.container,
           {
-            backgroundColor: colors.card,
-            borderRadius: 16,
-            paddingHorizontal: 12,
+            backgroundColor: embedded ? "transparent" : colors.card,
+            borderRadius: embedded ? 0 : 16,
+            paddingHorizontal: embedded ? 0 : 12,
             flexDirection: "row",
             alignItems: "center",
           },
         ]}
       >
-        <MapPin size={18} color={colors.mutedForeground} />
+        {showLeadingIcon ? (
+          <MapPin size={18} color={colors.mutedForeground} />
+        ) : null}
         <TextInput
           style={{
             flex: 1,
             height: 48,
             color: colors.foreground,
             fontSize: 15,
-            marginLeft: 8,
+            marginLeft: showLeadingIcon ? 8 : 0,
           }}
           placeholder={placeholder}
           placeholderTextColor={colors.mutedForeground}
@@ -480,19 +513,21 @@ export function LocationAutocompleteV3({
         style={{
           flexDirection: "row",
           alignItems: "center",
-          backgroundColor: colors.card,
-          borderRadius: 16,
-          paddingHorizontal: 12,
+          backgroundColor: embedded ? "transparent" : colors.card,
+          borderRadius: embedded ? 0 : 16,
+          paddingHorizontal: embedded ? 0 : 12,
         }}
       >
-        <MapPin size={18} color={colors.mutedForeground} />
+        {showLeadingIcon ? (
+          <MapPin size={18} color={colors.mutedForeground} />
+        ) : null}
         <TextInput
           style={{
             flex: 1,
             height: 48,
             color: colors.foreground,
             fontSize: 15,
-            marginLeft: 8,
+            marginLeft: showLeadingIcon ? 8 : 0,
             backgroundColor: "transparent",
           }}
           placeholder={placeholder}
@@ -501,9 +536,14 @@ export function LocationAutocompleteV3({
           onChangeText={handleTextChange}
           onSubmitEditing={handleSubmit}
           onFocus={() => {
-            setShowDropdown(true);
-            if (inputText.length >= 2) {
-              fetchPredictions(inputText);
+            const normalizedText = inputText.trim();
+            setShowDropdown(normalizedText.length >= 2);
+            if (
+              normalizedText.length >= 2 &&
+              predictions.length === 0 &&
+              !isLoading
+            ) {
+              void fetchPredictions(normalizedText);
             }
           }}
         />
