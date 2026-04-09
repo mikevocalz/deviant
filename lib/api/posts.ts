@@ -184,29 +184,44 @@ export function transformPost(
     postKind === "text"
       ? textPresentation.previewText
       : getPrimaryTextPostContent([], dbPost[DB.posts.content]);
-  const allMedia = (dbPost.media || []).map((m: any) => {
-    const rawType: string = m[DB.postsMedia.type] || "image";
-    const mimeType: string | undefined = m[DB.postsMedia.mimeType] ?? undefined;
-    const livePhotoVideoUrl: string | undefined =
-      m[DB.postsMedia.livePhotoVideoUrl] ?? undefined;
+  const allMedia = (dbPost.media || [])
+    .map((m: any, index: number) => {
+      const rawType: string = m[DB.postsMedia.type] || "image";
+      const mimeType: string | undefined =
+        m[DB.postsMedia.mimeType] ?? undefined;
+      const livePhotoVideoUrl: string | undefined =
+        m[DB.postsMedia.livePhotoVideoUrl] ?? undefined;
+      const rawOrder =
+        m?.[DB.postsMedia.order] ??
+        m?.order ??
+        m?._order ??
+        index;
+      const sortOrder = Number.isFinite(Number(rawOrder))
+        ? Number(rawOrder)
+        : index;
 
-    // Derive kind: existing rows have no mime_type — fall back to type field
-    let kind: import("@/lib/types").MediaKind = "image";
-    if (rawType === "video") kind = "video";
-    else if (rawType === "gif" || mimeType === "image/gif") kind = "gif";
-    else if (rawType === "livePhoto" || livePhotoVideoUrl) kind = "livePhoto";
+      // Derive kind: existing rows have no mime_type — fall back to type field
+      let kind: import("@/lib/types").MediaKind = "image";
+      if (rawType === "video") kind = "video";
+      else if (rawType === "gif" || mimeType === "image/gif") kind = "gif";
+      else if (rawType === "livePhoto" || livePhotoVideoUrl)
+        kind = "livePhoto";
 
-    return {
-      type: kind,
-      url: m[DB.postsMedia.url] || "",
-      mimeType,
-      livePhotoVideoUrl,
-    };
-  });
+      return {
+        type: kind,
+        url: m[DB.postsMedia.url] || "",
+        mimeType,
+        livePhotoVideoUrl,
+        sortOrder,
+      };
+    })
+    .sort((a: any, b: any) => a.sortOrder - b.sortOrder);
 
   // Separate thumbnail entries from visible media
   const thumbnailEntry = allMedia.find((m: any) => m.type === "thumbnail");
-  const media = allMedia.filter((m: any) => m.type !== "thumbnail");
+  const media = allMedia
+    .filter((m: any) => m.type !== "thumbnail")
+    .map(({ sortOrder: _sortOrder, ...item }: any) => item);
 
   // For video posts, use the stored thumbnail image; for images use first media URL
   // NEVER use a video URL as thumbnail — expo-image can't render it
