@@ -33,7 +33,7 @@
     },
     "preview": {
       "distribution": "internal",
-      "channel": "production",
+      "channel": "preview",
       "ios": {
         "image": "latest"
       },
