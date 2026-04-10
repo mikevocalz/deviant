@@ -357,14 +357,6 @@ function ViewTicketScreenContent() {
               </View>
             </View>
 
-            <Text
-              style={[
-                styles.walletBannerMeta,
-                walletState === "success" && styles.walletBannerMetaSuccess,
-              ]}
-            >
-              {walletState === "success" ? "Done" : "Open"}
-            </Text>
           </Pressable>
         )}
       </View>
@@ -559,18 +551,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "500",
     marginTop: 2,
-  },
-  walletBannerMeta: {
-    marginLeft: 12,
-    flexShrink: 0,
-    color: "rgba(255,255,255,0.72)",
-    fontSize: 12,
-    fontWeight: "700",
-    letterSpacing: 0.6,
-    textTransform: "uppercase",
-  },
-  walletBannerMetaSuccess: {
-    color: "#3FDCFF",
   },
 });
 

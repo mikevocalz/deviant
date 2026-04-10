@@ -7,12 +7,16 @@ export default function IndexRoute() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hasHydrated = useAuthStore((s) => s._hasHydrated);
 
-  if (!hasHydrated || authStatus === "loading") {
+  if (!hasHydrated) {
     return null;
   }
 
   if (isAuthenticated) {
     return <Redirect href="/(protected)/(tabs)" />;
+  }
+
+  if (authStatus === "loading") {
+    return null;
   }
 
   if (!hasSeenOnboarding) {

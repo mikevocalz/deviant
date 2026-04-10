@@ -515,7 +515,9 @@ export default function RootLayout() {
                         <SpotifyShareSheet />
                         {/* Auth loading overlay — covers content but does NOT unmount navigation.
                           Skip when opened from share intent so user sees content instead of black. */}
-                        {!authSettled && !openedFromShareIntent && (
+                        {!authSettled &&
+                          !openedFromShareIntent &&
+                          !isAuthenticated && (
                           <View
                             style={{
                               position: "absolute",
