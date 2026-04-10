@@ -51,6 +51,8 @@ interface LocationAutocompleteProps {
   onClear?: () => void;
   onTextChange?: (text: string) => void;
   autoOpen?: boolean;
+  hideTrigger?: boolean;
+  onDismiss?: () => void;
 }
 
 type GooglePlace = {
@@ -185,6 +187,8 @@ export function LocationAutocompleteInstagram({
   onClear,
   onTextChange,
   autoOpen = false,
+  hideTrigger = false,
+  onDismiss,
 }: LocationAutocompleteProps) {
   const { colors } = useColorScheme();
   const sheetRef = useRef<BottomSheetModal>(null);
@@ -457,7 +461,8 @@ export function LocationAutocompleteInstagram({
     fetchDebouncerRef.current.cancel();
     setPredictions([]);
     setIsLoading(false);
-  }, []);
+    onDismiss?.();
+  }, [onDismiss]);
 
   const handleChangeText = useCallback(
     (text: string) => {
@@ -609,42 +614,44 @@ export function LocationAutocompleteInstagram({
 
   return (
     <View>
-      <Pressable
-        onPress={handleOpen}
-        style={[
-          styles.trigger,
-          {
-            backgroundColor: colors.card,
-            borderColor: colors.border,
-          },
-        ]}
-      >
-        <MapPin size={18} color={colors.mutedForeground} />
-        <Text
-          numberOfLines={1}
+      {!hideTrigger ? (
+        <Pressable
+          onPress={handleOpen}
           style={[
-            styles.triggerText,
+            styles.trigger,
             {
-              color: displayValue ? colors.foreground : colors.mutedForeground,
+              backgroundColor: colors.card,
+              borderColor: colors.border,
             },
           ]}
         >
-          {displayValue || placeholder}
-        </Text>
-        {displayValue ? (
-          <Pressable
-            hitSlop={10}
-            onPress={() => {
-              onClear?.();
-              handleChangeText("");
-            }}
+          <MapPin size={18} color={colors.mutedForeground} />
+          <Text
+            numberOfLines={1}
+            style={[
+              styles.triggerText,
+              {
+                color: displayValue ? colors.foreground : colors.mutedForeground,
+              },
+            ]}
           >
-            <X size={16} color={colors.mutedForeground} />
-          </Pressable>
-        ) : (
-          <Search size={16} color={colors.mutedForeground} />
-        )}
-      </Pressable>
+            {displayValue || placeholder}
+          </Text>
+          {displayValue ? (
+            <Pressable
+              hitSlop={10}
+              onPress={() => {
+                onClear?.();
+                handleChangeText("");
+              }}
+            >
+              <X size={16} color={colors.mutedForeground} />
+            </Pressable>
+          ) : (
+            <Search size={16} color={colors.mutedForeground} />
+          )}
+        </Pressable>
+      ) : null}
 
       <BottomSheetModal
         ref={sheetRef}

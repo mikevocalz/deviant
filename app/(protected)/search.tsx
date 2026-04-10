@@ -564,18 +564,7 @@ function SearchScreenContent() {
               )}
             </View>
           ) : (
-            <LocationAutocompleteInstagram
-              value={selectedLocation?.formattedAddress || selectedLocation?.name || ""}
-              placeholder="Search locations..."
-              onLocationSelect={handleLocationSelect}
-              onClear={() => setSelectedLocation(null)}
-              onTextChange={(text) => {
-                if (!text.trim()) {
-                  setSelectedLocation(null);
-                }
-              }}
-              autoOpen={!selectedLocation}
-            />
+            <View />
           )}
         </View>
         <Pressable
@@ -593,29 +582,21 @@ function SearchScreenContent() {
 
       {/* Content */}
       {searchMode === "location" ? (
-        <View className="flex-1 p-4">
-          <View className="flex-row items-center gap-2 mb-4">
-            <MapPin size={20} color="#3FDCFF" />
-            <Text className="text-lg font-semibold text-foreground">
-              Location Search
-            </Text>
-          </View>
-          <Text className="text-sm text-muted-foreground mb-4">
-            Search for locations to find posts from specific places, venues,
-            or areas.
-          </Text>
-          {selectedLocation && (
-            <View className="bg-secondary rounded-lg p-4 mb-4">
-              <Text className="font-medium text-foreground mb-1">
-                {selectedLocation.name}
-              </Text>
-              {selectedLocation.formattedAddress && (
-                <Text className="text-sm text-muted-foreground">
-                  {selectedLocation.formattedAddress}
-                </Text>
-              )}
-            </View>
-          )}
+        <View className="flex-1">
+          <LocationAutocompleteInstagram
+            value={selectedLocation?.formattedAddress || selectedLocation?.name || ""}
+            placeholder="Search locations..."
+            onLocationSelect={handleLocationSelect}
+            onClear={() => setSelectedLocation(null)}
+            onTextChange={(text) => {
+              if (!text.trim()) {
+                setSelectedLocation(null);
+              }
+            }}
+            autoOpen
+            hideTrigger
+            onDismiss={() => setSearchMode("content")}
+          />
         </View>
       ) : (
         <ScrollView
