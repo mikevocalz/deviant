@@ -246,6 +246,28 @@ function mergePredictions(
   return merged;
 }
 
+function createManualPrediction(
+  query: string,
+  activeCity?: { name?: string | null; state?: string | null } | null,
+): GooglePlace | null {
+  const normalizedQuery = query.trim();
+  if (normalizedQuery.length < 2) return null;
+
+  const localityParts = [activeCity?.name, activeCity?.state].filter(Boolean);
+  const secondaryText =
+    localityParts.length > 0 ? `${localityParts.join(", ")}, USA` : "Nearby";
+
+  return {
+    place_id: `manual-${normalizeMatchText(`${normalizedQuery}-${secondaryText}`)}`,
+    description: `${normalizedQuery}, ${secondaryText}`,
+    structured_formatting: {
+      main_text: normalizedQuery,
+      secondary_text: secondaryText,
+    },
+    types: ["establishment"],
+  };
+}
+
 export function LocationAutocompleteV3({
   value,
   placeholder = "Search location...",
@@ -491,8 +513,16 @@ export function LocationAutocompleteV3({
 
     // Ultimate fallback to popular locations
     if (requestId !== requestIdRef.current) return;
+    const manualPrediction = createManualPrediction(text, activeCity);
     setPredictions(
-      prioritizeNearbyPredictions(getPopularLocations(text), localityHints, text),
+      prioritizeNearbyPredictions(
+        mergePredictions(
+          manualPrediction ? [manualPrediction] : [],
+          getPopularLocations(text),
+        ),
+        localityHints,
+        text,
+      ),
     );
   };
 
@@ -758,6 +788,17 @@ export function LocationAutocompleteV3({
     }
   };
 
+  const visiblePredictions = (() => {
+    const manualPrediction =
+      predictions.length === 0 && inputText.trim().length >= 2
+        ? createManualPrediction(inputText, activeCity)
+        : null;
+
+    return manualPrediction
+      ? mergePredictions([manualPrediction], predictions)
+      : predictions;
+  })();
+
   // Show manual input when API key is missing or invalid
   if (hasError) {
     return (
@@ -847,7 +888,7 @@ export function LocationAutocompleteV3({
         )}
       </View>
 
-      {showDropdown && predictions.length > 0 && (
+      {showDropdown && visiblePredictions.length > 0 && (
         <View
           style={{
             backgroundColor: colors.card,
@@ -861,10 +902,12 @@ export function LocationAutocompleteV3({
             left: 0,
             right: 0,
             zIndex: 1000,
+            elevation: 1000,
           }}
         >
           <FlatList
-            data={predictions}
+            keyboardShouldPersistTaps="handled"
+            data={visiblePredictions}
             keyExtractor={(item) => item.place_id}
             renderItem={({ item }) => (
               <TouchableOpacity

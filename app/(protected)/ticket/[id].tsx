@@ -398,10 +398,12 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: "rgba(10,10,10,0.96)",
+    paddingHorizontal: 16,
   },
   ticketActionsBar: {
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
+    marginHorizontal: -16,
   },
   heroWrap: {
     paddingHorizontal: 16,
@@ -506,9 +508,9 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginHorizontal: 16,
     marginTop: 8,
     minHeight: 68,
+    width: "100%",
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 18,
@@ -529,11 +531,13 @@ const styles = StyleSheet.create({
   },
   walletBannerLeading: {
     flex: 1,
+    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
   walletIconWrap: {
+    flexShrink: 0,
     width: 42,
     height: 42,
     borderRadius: 21,
@@ -543,6 +547,7 @@ const styles = StyleSheet.create({
   },
   walletBannerTextWrap: {
     flex: 1,
+    minWidth: 0,
   },
   walletBannerTitle: {
     color: "#fff",
@@ -556,6 +561,8 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   walletBannerMeta: {
+    marginLeft: 12,
+    flexShrink: 0,
     color: "rgba(255,255,255,0.72)",
     fontSize: 12,
     fontWeight: "700",

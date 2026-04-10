@@ -535,7 +535,10 @@ function SearchScreenContent() {
       style={{ paddingTop: insets.top }}
     >
       {/* Header */}
-      <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
+      <View
+        className="flex-row items-center gap-3 border-b border-border px-4 py-3"
+        style={{ zIndex: 20, elevation: 20 }}
+      >
         <Pressable
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
@@ -585,57 +588,59 @@ function SearchScreenContent() {
       </View>
 
       {/* Content */}
-      <ScrollView className="flex-1" keyboardDismissMode="on-drag">
-        {searchMode === "location" ? (
-          // Location search mode
-          <View className="flex-1 p-4">
-            <View className="flex-row items-center gap-2 mb-4">
-              <MapPin size={20} color="#3FDCFF" />
-              <Text className="text-lg font-semibold text-foreground">
-                Location Search
-              </Text>
-            </View>
-            <Text className="text-sm text-muted-foreground mb-4">
-              Search for locations to find posts from specific places, venues,
-              or areas.
+      {searchMode === "location" ? (
+        <View className="flex-1 p-4">
+          <View className="flex-row items-center gap-2 mb-4">
+            <MapPin size={20} color="#3FDCFF" />
+            <Text className="text-lg font-semibold text-foreground">
+              Location Search
             </Text>
-            {selectedLocation && (
-              <View className="bg-secondary rounded-lg p-4 mb-4">
-                <Text className="font-medium text-foreground mb-1">
-                  {selectedLocation.name}
-                </Text>
-                {selectedLocation.formattedAddress && (
-                  <Text className="text-sm text-muted-foreground">
-                    {selectedLocation.formattedAddress}
-                  </Text>
-                )}
-              </View>
-            )}
           </View>
-        ) : debouncedSearch.length >= 2 ? (
-          // Content search mode
-          isSearchLoading || !searchData || !criticalAssetsReady ? (
-            <SearchResultsSkeleton />
-          ) : (
-            <View className="flex-1">
-              {isHashtag ? (
-                <>
-                  <View className="p-4 border-b border-border">
-                    <View className="flex-row items-center gap-2">
-                      <Hash size={20} color="#fff" />
-                      <Text className="text-lg font-semibold text-foreground">
-                        {searchQuery}
+          <Text className="text-sm text-muted-foreground mb-4">
+            Search for locations to find posts from specific places, venues,
+            or areas.
+          </Text>
+          {selectedLocation && (
+            <View className="bg-secondary rounded-lg p-4 mb-4">
+              <Text className="font-medium text-foreground mb-1">
+                {selectedLocation.name}
+              </Text>
+              {selectedLocation.formattedAddress && (
+                <Text className="text-sm text-muted-foreground">
+                  {selectedLocation.formattedAddress}
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+      ) : (
+        <ScrollView
+          className="flex-1"
+          keyboardDismissMode="on-drag"
+          keyboardShouldPersistTaps="handled"
+        >
+          {debouncedSearch.length >= 2 ? (
+            isSearchLoading || !searchData || !criticalAssetsReady ? (
+              <SearchResultsSkeleton />
+            ) : (
+              <View className="flex-1">
+                {isHashtag ? (
+                  <>
+                    <View className="p-4 border-b border-border">
+                      <View className="flex-row items-center gap-2">
+                        <Hash size={20} color="#fff" />
+                        <Text className="text-lg font-semibold text-foreground">
+                          {searchQuery}
+                        </Text>
+                      </View>
+                      <Text className="text-sm text-muted-foreground mt-1">
+                        {searchResults.length}{" "}
+                        {searchResults.length === 1 ? "post" : "posts"}
                       </Text>
                     </View>
-                    <Text className="text-sm text-muted-foreground mt-1">
-                      {searchResults.length}{" "}
-                      {searchResults.length === 1 ? "post" : "posts"}
-                    </Text>
-                  </View>
-                  {searchResults.length > 0 ? (
-                    <View className="flex-row flex-wrap">
-                      {searchResults.map((post: any) => {
-                        return (
+                    {searchResults.length > 0 ? (
+                      <View className="flex-row flex-wrap">
+                        {searchResults.map((post: any) => (
                           <PostGridTile
                             key={post.id}
                             post={post}
@@ -643,70 +648,68 @@ function SearchScreenContent() {
                             router={router}
                             queryClient={queryClient}
                           />
-                        );
-                      })}
-                    </View>
-                  ) : (
-                    <View className="p-8 items-center">
-                      <Hash size={48} color="#666" />
-                      <Text className="text-muted-foreground mt-4 text-center">
-                        No posts found for {searchQuery}
-                      </Text>
-                    </View>
-                  )}
-                </>
-              ) : (
-                <>
-                  {userResults.length > 0 && (
-                    <View className="p-4 border-b border-border">
-                      <Text className="text-base font-semibold text-foreground mb-3">
-                        Users
-                      </Text>
-                      {userResults.map((user: any) => (
-                        <Pressable
-                          key={user.id}
-                          onPress={() =>
-                            router.push({
-                              pathname: "/(protected)/profile/[username]",
-                              params: {
-                                username: user.username,
-                                authId: user.authId || user.id,
-                                avatar: user.avatar || "",
-                                name: user.name || "",
-                              },
-                            })
-                          }
-                          className="flex-row items-center py-3 border-b border-border"
-                        >
-                          <Avatar
-                            uri={user.avatar}
-                            username={user.username || "User"}
-                            size="md"
-                            variant="roundedSquare"
-                            transition={0}
-                          />
-                          <View className="ml-3 flex-1">
-                            <Text className="font-semibold text-foreground">
-                              {user.username}
-                            </Text>
-                            {user.name && (
-                              <Text className="text-muted-foreground text-[13px]">
-                                {user.name}
+                        ))}
+                      </View>
+                    ) : (
+                      <View className="p-8 items-center">
+                        <Hash size={48} color="#666" />
+                        <Text className="text-muted-foreground mt-4 text-center">
+                          No posts found for {searchQuery}
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    {userResults.length > 0 && (
+                      <View className="p-4 border-b border-border">
+                        <Text className="text-base font-semibold text-foreground mb-3">
+                          Users
+                        </Text>
+                        {userResults.map((user: any) => (
+                          <Pressable
+                            key={user.id}
+                            onPress={() =>
+                              router.push({
+                                pathname: "/(protected)/profile/[username]",
+                                params: {
+                                  username: user.username,
+                                  authId: user.authId || user.id,
+                                  avatar: user.avatar || "",
+                                  name: user.name || "",
+                                },
+                              })
+                            }
+                            className="flex-row items-center py-3 border-b border-border"
+                          >
+                            <Avatar
+                              uri={user.avatar}
+                              username={user.username || "User"}
+                              size="md"
+                              variant="roundedSquare"
+                              transition={0}
+                            />
+                            <View className="ml-3 flex-1">
+                              <Text className="font-semibold text-foreground">
+                                {user.username}
                               </Text>
-                            )}
-                          </View>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
-                  {searchResults.length > 0 && (
-                    <View className="p-4">
-                      <Text className="text-base font-semibold text-foreground mb-3">
-                        Posts
-                      </Text>
-                      <View className="flex-row flex-wrap">
-                        {searchResults.map((post: any) => {
-                          return (
+                              {user.name && (
+                                <Text className="text-muted-foreground text-[13px]">
+                                  {user.name}
+                                </Text>
+                              )}
+                            </View>
+                          </Pressable>
+                        ))}
+                      </View>
+                    )}
+                    {searchResults.length > 0 && (
+                      <View className="p-4">
+                        <Text className="text-base font-semibold text-foreground mb-3">
+                          Posts
+                        </Text>
+                        <View className="flex-row flex-wrap">
+                          {searchResults.map((post: any) => (
                             <PostGridTile
                               key={post.id}
                               post={post}
@@ -714,36 +717,36 @@ function SearchScreenContent() {
                               router={router}
                               queryClient={queryClient}
                             />
-                          );
-                        })}
+                          ))}
+                        </View>
                       </View>
-                    </View>
-                  )}
-                  {userResults.length === 0 && searchResults.length === 0 && (
-                    <View className="p-8 items-center">
-                      <Search size={48} color="#666" />
-                      <Text className="text-muted-foreground mt-4 text-center">
-                        No results found for "{debouncedSearch}"
-                      </Text>
-                    </View>
-                  )}
-                </>
-              )}
-            </View>
-          )
-        ) : isDiscoverLoading || !discoverData || !criticalAssetsReady ? (
-          <SearchSkeleton />
-        ) : (
-          <>
-            <DiscoverSection users={discoverData?.users ?? []} />
-            <DiscoverGrid
-              router={router}
-              posts={discoverPosts}
-              queryClient={queryClient}
-            />
-          </>
-        )}
-      </ScrollView>
+                    )}
+                    {userResults.length === 0 && searchResults.length === 0 && (
+                      <View className="p-8 items-center">
+                        <Search size={48} color="#666" />
+                        <Text className="text-muted-foreground mt-4 text-center">
+                          No results found for "{debouncedSearch}"
+                        </Text>
+                      </View>
+                    )}
+                  </>
+                )}
+              </View>
+            )
+          ) : isDiscoverLoading || !discoverData || !criticalAssetsReady ? (
+            <SearchSkeleton />
+          ) : (
+            <>
+              <DiscoverSection users={discoverData?.users ?? []} />
+              <DiscoverGrid
+                router={router}
+                posts={discoverPosts}
+                queryClient={queryClient}
+              />
+            </>
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
