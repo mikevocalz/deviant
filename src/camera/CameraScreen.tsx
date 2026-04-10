@@ -18,6 +18,7 @@ import {
   ActivityIndicator,
 } from "react-native";
 import { Image } from "expo-image";
+import { VideoView, useVideoPlayer } from "expo-video";
 import {
   Camera,
   type CameraRef,
@@ -138,6 +139,12 @@ const CaptureReview: React.FC<{
 }> = React.memo(({ onRetake, onNext }) => {
   const insets = useSafeAreaInsets();
   const lastCapture = useStoryCaptureStore((s) => s.lastCapture);
+  const videoSource = lastCapture?.type === "video" ? lastCapture.uri : null;
+  const player = useVideoPlayer(videoSource, (instance) => {
+    instance.loop = true;
+    instance.muted = false;
+    instance.play();
+  });
 
   if (!lastCapture) return null;
 
@@ -156,11 +163,12 @@ const CaptureReview: React.FC<{
             contentFit="cover"
           />
         ) : (
-          <View className="flex-1 items-center justify-center bg-neutral-900">
-            <Image
-              source={{ uri: lastCapture.uri }}
+          <View className="flex-1 bg-neutral-900">
+            <VideoView
+              player={player}
               style={{ width: "100%", height: "100%" }}
               contentFit="cover"
+              nativeControls={false}
             />
           </View>
         )}
@@ -209,7 +217,7 @@ const CaptureReview: React.FC<{
           }}
         >
           <Text style={{ color: "#fff", fontSize: 17, fontWeight: "700" }}>
-            Use Photo
+            {lastCapture.type === "video" ? "Use Video" : "Use Photo"}
           </Text>
           <ArrowRight size={20} color="#fff" strokeWidth={2.5} />
         </Pressable>
@@ -297,6 +305,7 @@ export function CameraScreen({
   onGalleryPress,
 }: CameraScreenProps) {
   const insets = useSafeAreaInsets();
+  const allowedModesKey = allowedModes.join(",");
   const cameraRef = useRef<CameraRef>(null);
   const recorderRef = useRef<Recorder | null>(null);
   const photoOutput = usePhotoOutput();
@@ -380,6 +389,19 @@ export function CameraScreen({
       if (recordingTimerRef.current) clearInterval(recordingTimerRef.current);
     };
   }, []);
+
+  // Keep the internal capture mode aligned with the route mode restrictions.
+  useEffect(() => {
+    const preferredMode = allowedModes[0] ?? "photo";
+    const currentMode = useStoryCaptureStore.getState().mode;
+
+    if (
+      (allowedModes.length === 1 && currentMode !== preferredMode) ||
+      !allowedModes.includes(currentMode)
+    ) {
+      setMode(preferredMode);
+    }
+  }, [allowedModesKey, setMode]);
 
   // ---- Reset store on mount (clear stale state) + unmount ----
   useEffect(() => {
