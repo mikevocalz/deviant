@@ -698,8 +698,8 @@ function StoryViewerScreenContent() {
   } = useStoryViewerStore();
   const insets = useSafeAreaInsets();
   const [showVideoPoster, setShowVideoPoster] = useState(true);
-  const storyChromeTopInset = Math.max(insets.top + 14, 26);
-  const touchZonesTop = storyChromeTopInset + 94;
+  const storyChromeTopInset = Math.max(insets.top + 10, 22);
+  const touchZonesTop = insets.top + 90;
 
   const progress = useSharedValue(0);
 
@@ -1813,7 +1813,7 @@ function StoryViewerScreenContent() {
                 alignItems: "center",
                 justifyContent: "space-between",
                 paddingHorizontal: 14,
-                paddingTop: 16,
+                paddingTop: 10,
                 paddingBottom: 6,
               }}
               pointerEvents="box-none"
