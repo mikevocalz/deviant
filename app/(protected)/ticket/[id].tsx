@@ -187,13 +187,6 @@ function ViewTicketScreenContent() {
       : walletState === "success"
         ? "Wallet Ready"
         : "Add to Wallet";
-
-  const walletSubtitle =
-    walletState === "success"
-      ? "Pass opened successfully"
-      : Platform.OS === "ios"
-        ? "Save your Apple Wallet pass"
-        : "Save your Google Wallet pass";
   const bottomActionsPadding = canAddToWallet ? insets.bottom + 176 : 116;
 
   return (
@@ -339,7 +332,7 @@ function ViewTicketScreenContent() {
               styles.walletBottomCta,
               pressed && walletState !== "loading" && styles.walletBannerPressed,
               walletState === "success" && styles.walletBannerSuccess,
-              { marginBottom: insets.bottom + 8 },
+              { marginBottom: insets.bottom + 6 },
             ]}
           >
             <View style={styles.walletBannerLeading}>
@@ -353,7 +346,6 @@ function ViewTicketScreenContent() {
 
               <View style={styles.walletBannerTextWrap}>
                 <Text style={styles.walletBannerTitle}>{walletTitle}</Text>
-                <Text style={styles.walletBannerSubtitle}>{walletSubtitle}</Text>
               </View>
             </View>
 
@@ -511,7 +503,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(63,220,255,0.14)",
   },
   walletBottomCta: {
-    marginTop: 10,
+    marginTop: 6,
     alignSelf: "stretch",
   },
   walletBannerPressed: {
@@ -545,12 +537,6 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "700",
-  },
-  walletBannerSubtitle: {
-    color: "rgba(255,255,255,0.62)",
-    fontSize: 12,
-    fontWeight: "500",
-    marginTop: 2,
   },
 });
 
