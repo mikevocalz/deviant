@@ -151,6 +151,7 @@ export default {
       "./plugins/fix-wgpu-headers",
       "./plugins/with-cube-luts",
       "./plugins/disable-frame-processors",
+      "./plugins/fix-visioncamera-barcode-scanner-swift",
       "expo-asset",
       "expo-audio",
       "expo-font",
