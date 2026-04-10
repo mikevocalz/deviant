@@ -37,9 +37,9 @@ import type { Post } from "@/lib/types";
 import { useQueryClient } from "@tanstack/react-query";
 import { navigateToPost } from "@/lib/routes/post-routes";
 import {
-  LocationAutocompleteV3,
+  LocationAutocompleteInstagram,
   type LocationData,
-} from "@/components/ui/location-autocomplete-v3";
+} from "@/components/ui/location-autocomplete-instagram";
 import { TextPostSurface } from "@/components/post/TextPostSurface";
 import { resolveTextPostPresentation } from "@/lib/posts/text-post";
 import { prefetchImagesBlocking } from "@/lib/perf/image-prefetch";
@@ -564,13 +564,17 @@ function SearchScreenContent() {
               )}
             </View>
           ) : (
-            <LocationAutocompleteV3
+            <LocationAutocompleteInstagram
               value={selectedLocation?.formattedAddress || selectedLocation?.name || ""}
               placeholder="Search locations..."
               onLocationSelect={handleLocationSelect}
               onClear={() => setSelectedLocation(null)}
-              embedded
-              showLeadingIcon={false}
+              onTextChange={(text) => {
+                if (!text.trim()) {
+                  setSelectedLocation(null);
+                }
+              }}
+              autoOpen={!selectedLocation}
             />
           )}
         </View>
