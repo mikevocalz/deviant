@@ -228,6 +228,56 @@ function createPredictionFromTextSearchResult(place: any): GooglePlace | null {
   };
 }
 
+function normalizePhotonPredictions(data: any): GooglePlace[] {
+  if (!data || !Array.isArray(data.features)) return [];
+
+  return data.features
+    .map((feature: any) => {
+      const props = feature?.properties ?? {};
+      const coords = Array.isArray(feature?.geometry?.coordinates)
+        ? feature.geometry.coordinates
+        : [];
+      const longitude =
+        typeof coords[0] === "number" ? Number(coords[0]) : undefined;
+      const latitude =
+        typeof coords[1] === "number" ? Number(coords[1]) : undefined;
+      const mainText =
+        props.name ||
+        props.street ||
+        props.city ||
+        props.state ||
+        props.country;
+
+      if (!mainText) return null;
+
+      const secondaryText = [
+        props.street,
+        props.city,
+        props.state,
+        props.country,
+      ]
+        .filter(Boolean)
+        .join(", ");
+
+      return {
+        place_id:
+          props.osm_id != null
+            ? `photon-${props.osm_type || "place"}-${props.osm_id}`
+            : `photon-${normalizeMatchText(mainText)}-${latitude ?? "x"}-${longitude ?? "y"}`,
+        description: secondaryText ? `${mainText}, ${secondaryText}` : mainText,
+        structured_formatting: {
+          main_text: mainText,
+          secondary_text: secondaryText || undefined,
+        },
+        types: [props.osm_value || "geocode"],
+        latitude,
+        longitude,
+      } satisfies GooglePlace;
+    })
+    .filter(Boolean)
+    .slice(0, 8) as GooglePlace[];
+}
+
 function mergePredictions(
   primary: GooglePlace[],
   secondary: GooglePlace[],
@@ -284,11 +334,13 @@ export function LocationAutocompleteV3({
   const [inputText, setInputText] = useState(value || "");
   const [predictions, setPredictions] = useState<GooglePlace[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [hasError, setHasError] = useState(false);
   const [showDropdown, setShowDropdown] = useState(false);
   const requestIdRef = useRef(0);
   const suppressNextLookupRef = useRef(false);
   const lastResolvedValueRef = useRef(value || "");
+  const hasGooglePlacesKey =
+    !!GOOGLE_PLACES_API_KEY &&
+    GOOGLE_PLACES_API_KEY !== "your_google_places_api_key_here";
   const localityHints = getLocalityHints(activeCity?.state, activeCity?.name);
   const biasLatitude = activeCity?.lat ?? deviceLat;
   const biasLongitude = activeCity?.lng ?? deviceLng;
@@ -310,18 +362,13 @@ export function LocationAutocompleteV3({
     setShowDropdown(false);
   }, [inputText, value]);
 
-  // Check if API key is configured
   useEffect(() => {
-    if (
-      !GOOGLE_PLACES_API_KEY ||
-      GOOGLE_PLACES_API_KEY === "your_google_places_api_key_here"
-    ) {
+    if (!hasGooglePlacesKey) {
       console.warn(
-        "[LocationAutocompleteV3] Google Places API key not configured or using placeholder. Using manual input mode.",
+        "[LocationAutocompleteV3] Google Places API key not configured in this build. Falling back to Photon search.",
       );
-      setHasError(true);
     }
-  }, []);
+  }, [hasGooglePlacesKey]);
 
   // Fetch predictions when debounced text changes
   useEffect(() => {
@@ -331,15 +378,36 @@ export function LocationAutocompleteV3({
       return;
     }
 
-    if (hasError) return;
-
     if (suppressNextLookupRef.current) {
       suppressNextLookupRef.current = false;
       return;
     }
 
     void fetchPredictions(debouncedText);
-  }, [debouncedText, hasError]);
+  }, [debouncedText]);
+
+  const fetchPhotonPredictions = useCallback(
+    async (text: string) => {
+      const params = new URLSearchParams({
+        q: text,
+        limit: "8",
+        lang: "en",
+      });
+
+      if (typeof biasLatitude === "number" && typeof biasLongitude === "number") {
+        params.set("lat", String(biasLatitude));
+        params.set("lon", String(biasLongitude));
+      }
+
+      const response = await fetch(`https://photon.komoot.io/api/?${params.toString()}`);
+      if (!response.ok) {
+        throw new Error(`Photon HTTP error! status: ${response.status}`);
+      }
+
+      return normalizePhotonPredictions(await response.json());
+    },
+    [biasLatitude, biasLongitude],
+  );
 
   const fetchPredictions = useCallback(async (text: string) => {
     const normalizedText = text.trim();
@@ -355,6 +423,26 @@ export function LocationAutocompleteV3({
     setShowDropdown(true);
 
     try {
+      if (!hasGooglePlacesKey) {
+        const manualPrediction = createManualPrediction(normalizedText, activeCity);
+        const photonPredictions = await fetchPhotonPredictions(normalizedText);
+        if (requestId !== requestIdRef.current) return;
+        setPredictions(
+          prioritizeNearbyPredictions(
+            mergePredictions(
+              photonPredictions,
+              mergePredictions(
+                manualPrediction ? [manualPrediction] : [],
+                getPopularLocations(normalizedText),
+              ),
+            ),
+            localityHints,
+            normalizedText,
+          ),
+        );
+        return;
+      }
+
       const localTextSearchPromise =
         typeof biasLatitude === "number" && typeof biasLongitude === "number"
           ? fetch(
@@ -389,7 +477,7 @@ export function LocationAutocompleteV3({
           : "";
       const [response, localTextPredictions] = await Promise.all([
         fetch(
-          `https://maps.googleapis.com/maps/api/place/autocomplete/json?key=${GOOGLE_PLACES_API_KEY}&input=${encodeURIComponent(normalizedText)}&language=en&components=country:us&types=establishment|geocode|address${locationBiasQuery}&strictbounds=false`,
+          `https://maps.googleapis.com/maps/api/place/autocomplete/json?key=${GOOGLE_PLACES_API_KEY}&input=${encodeURIComponent(normalizedText)}&language=en&components=country:us${locationBiasQuery}&strictbounds=false`,
         ),
         localTextSearchPromise,
       ]);
@@ -427,11 +515,46 @@ export function LocationAutocompleteV3({
         setIsLoading(false);
       }
     }
-  }, [biasLatitude, biasLongitude, localityHints]);
+  }, [
+    activeCity,
+    biasLatitude,
+    biasLongitude,
+    fetchPhotonPredictions,
+    hasGooglePlacesKey,
+    localityHints,
+  ]);
 
   // Try alternative Places API (New) endpoint
   const tryAlternativeAPI = async (text: string, requestId: number) => {
+    let photonPredictions: GooglePlace[] = [];
+
     try {
+      photonPredictions = await fetchPhotonPredictions(text).catch(
+        (error) => {
+          console.error("[LocationAutocompleteV3] Photon fallback error:", error);
+          return [] as GooglePlace[];
+        },
+      );
+
+      if (!hasGooglePlacesKey) {
+        const manualPrediction = createManualPrediction(text, activeCity);
+        if (requestId !== requestIdRef.current) return;
+        setPredictions(
+          prioritizeNearbyPredictions(
+            mergePredictions(
+              photonPredictions,
+              mergePredictions(
+                manualPrediction ? [manualPrediction] : [],
+                getPopularLocations(text),
+              ),
+            ),
+            localityHints,
+            text,
+          ),
+        );
+        return;
+      }
+
       const localTextPredictions =
         typeof biasLatitude === "number" && typeof biasLongitude === "number"
           ? await fetch(
@@ -499,7 +622,10 @@ export function LocationAutocompleteV3({
           if (requestId !== requestIdRef.current) return;
           setPredictions(
             prioritizeNearbyPredictions(
-              mergePredictions(localTextPredictions, convertedPredictions),
+              mergePredictions(
+                photonPredictions,
+                mergePredictions(localTextPredictions, convertedPredictions),
+              ),
               localityHints,
               text,
             ),
@@ -517,8 +643,11 @@ export function LocationAutocompleteV3({
     setPredictions(
       prioritizeNearbyPredictions(
         mergePredictions(
-          manualPrediction ? [manualPrediction] : [],
-          getPopularLocations(text),
+          photonPredictions,
+          mergePredictions(
+            manualPrediction ? [manualPrediction] : [],
+            getPopularLocations(text),
+          ),
         ),
         localityHints,
         text,
@@ -608,6 +737,14 @@ export function LocationAutocompleteV3({
   };
 
   const fetchPlaceDetails = async (placeId: string) => {
+    if (
+      !hasGooglePlacesKey ||
+      placeId.startsWith("photon-") ||
+      placeId.startsWith("manual-")
+    ) {
+      return null;
+    }
+
     try {
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/details/json?key=${GOOGLE_PLACES_API_KEY}&place_id=${placeId}&fields=formatted_address,name,geometry,place_id,types`,
@@ -739,6 +876,21 @@ export function LocationAutocompleteV3({
     setShowDropdown(false);
     setPredictions([]);
 
+    if (
+      prediction.place_id.startsWith("manual-") ||
+      prediction.place_id.startsWith("photon-") ||
+      !hasGooglePlacesKey
+    ) {
+      onLocationSelect({
+        name: prediction.structured_formatting.main_text,
+        placeId: prediction.place_id,
+        formattedAddress: prediction.description,
+        latitude: prediction.latitude,
+        longitude: prediction.longitude,
+      });
+      return;
+    }
+
     // Fetch detailed place information
     const details = await fetchPlaceDetails(prediction.place_id);
 
@@ -798,47 +950,6 @@ export function LocationAutocompleteV3({
       ? mergePredictions([manualPrediction], predictions)
       : predictions;
   })();
-
-  // Show manual input when API key is missing or invalid
-  if (hasError) {
-    return (
-      <View
-        style={[
-          styles.container,
-          {
-            backgroundColor: embedded ? "transparent" : colors.card,
-            borderRadius: embedded ? 0 : 16,
-            paddingHorizontal: embedded ? 0 : 12,
-            flexDirection: "row",
-            alignItems: "center",
-          },
-        ]}
-      >
-        {showLeadingIcon ? (
-          <MapPin size={18} color={colors.mutedForeground} />
-        ) : null}
-        <TextInput
-          style={{
-            flex: 1,
-            height: 48,
-            color: colors.foreground,
-            fontSize: 15,
-            marginLeft: showLeadingIcon ? 8 : 0,
-          }}
-          placeholder={placeholder}
-          placeholderTextColor={colors.mutedForeground}
-          value={inputText}
-          onChangeText={handleTextChange}
-          onSubmitEditing={handleSubmit}
-        />
-        {inputText.length > 0 && (
-          <Pressable onPress={handleClear} hitSlop={8}>
-            <X size={18} color={colors.mutedForeground} />
-          </Pressable>
-        )}
-      </View>
-    );
-  }
 
   return (
     <View style={styles.container}>
