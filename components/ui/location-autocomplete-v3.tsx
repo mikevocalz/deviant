@@ -16,6 +16,7 @@ import {
 import { MapPin, X, Loader2 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useDebounce } from "@/lib/hooks/use-debounce";
+import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 
 export interface LocationData {
   name: string;
@@ -42,10 +43,208 @@ interface GooglePlace {
     main_text: string;
     secondary_text?: string;
   };
+  types?: string[];
+  latitude?: number;
+  longitude?: number;
 }
 
 const GOOGLE_PLACES_API_KEY =
   process.env.EXPO_PUBLIC_GOOGLE_PLACES_API_KEY || "";
+
+const US_STATE_CODES: Record<string, string> = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY",
+};
+
+const US_STATE_NAMES = Object.fromEntries(
+  Object.entries(US_STATE_CODES).map(([name, code]) => [code, name]),
+);
+
+function normalizeMatchText(value?: string | null) {
+  return (value || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9,\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getLocalityHints(state?: string | null, city?: string | null) {
+  const hints = new Set<string>();
+  const normalizedState = normalizeMatchText(state);
+
+  if (normalizedState) {
+    hints.add(normalizedState);
+
+    const stateCode = US_STATE_CODES[normalizedState];
+    if (stateCode) {
+      hints.add(normalizeMatchText(stateCode));
+    }
+
+    const stateName = US_STATE_NAMES[normalizedState.toUpperCase()];
+    if (stateName) {
+      hints.add(normalizeMatchText(stateName));
+    }
+  }
+
+  const normalizedCity = normalizeMatchText(city);
+  if (normalizedCity) {
+    hints.add(normalizedCity);
+  }
+
+  return Array.from(hints).filter((hint) => hint.length >= 2);
+}
+
+function prioritizeNearbyPredictions(
+  predictions: GooglePlace[],
+  localityHints: string[],
+  query: string,
+) {
+  if (localityHints.length === 0 || predictions.length === 0) {
+    return predictions;
+  }
+
+  const normalizedQuery = normalizeMatchText(query);
+  const hasExplicitLocationInQuery = normalizedQuery.includes(",");
+  const scoredPredictions = predictions.map((prediction, index) => {
+    const haystack = normalizeMatchText(
+      `${prediction.description} ${prediction.structured_formatting.secondary_text || ""}`,
+    );
+    const score = localityHints.reduce((total, hint) => {
+      if (!hint || !haystack.includes(hint)) return total;
+      return total + (hint.includes(" ") ? 3 : 2);
+    }, 0);
+
+    return {
+      prediction,
+      score,
+      index,
+    };
+  });
+
+  const localMatches = scoredPredictions
+    .filter((entry) => entry.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.prediction);
+
+  if (!hasExplicitLocationInQuery && localMatches.length > 0) {
+    return localMatches;
+  }
+
+  return scoredPredictions
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((entry) => entry.prediction);
+}
+
+function createPredictionFromSuggestion(suggestion: any): GooglePlace | null {
+  const place = suggestion?.place;
+  const text = suggestion?.text?.text;
+  const placeId = place?.id;
+  const mainText = place?.displayName?.text || text || "";
+  const secondaryText = place?.formattedAddress || "";
+
+  if (!mainText) return null;
+
+  return {
+    place_id: placeId || `fallback-${mainText.toLowerCase()}`,
+    description: secondaryText ? `${mainText}, ${secondaryText}` : mainText,
+    structured_formatting: {
+      main_text: mainText,
+      secondary_text: secondaryText,
+    },
+    types: place?.types || [],
+    latitude: place?.location?.latitude,
+    longitude: place?.location?.longitude,
+  };
+}
+
+function createPredictionFromTextSearchResult(place: any): GooglePlace | null {
+  const mainText = place?.name;
+  const secondaryText = place?.formatted_address;
+  const placeId = place?.place_id;
+
+  if (!mainText && !secondaryText) return null;
+
+  return {
+    place_id:
+      placeId ||
+      `textsearch-${normalizeMatchText(mainText || secondaryText || "")}`,
+    description:
+      mainText && secondaryText ? `${mainText}, ${secondaryText}` : mainText || secondaryText,
+    structured_formatting: {
+      main_text: mainText || secondaryText || "",
+      secondary_text: secondaryText,
+    },
+    types: place?.types || [],
+    latitude: place?.geometry?.location?.lat,
+    longitude: place?.geometry?.location?.lng,
+  };
+}
+
+function mergePredictions(
+  primary: GooglePlace[],
+  secondary: GooglePlace[],
+): GooglePlace[] {
+  const seen = new Set<string>();
+  const merged: GooglePlace[] = [];
+
+  for (const prediction of [...primary, ...secondary]) {
+    const key =
+      prediction.place_id || normalizeMatchText(prediction.description);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    merged.push(prediction);
+  }
+
+  return merged;
+}
 
 export function LocationAutocompleteV3({
   value,
@@ -57,6 +256,9 @@ export function LocationAutocompleteV3({
   showLeadingIcon = true,
 }: LocationAutocompleteProps) {
   const { colors } = useColorScheme();
+  const activeCity = useEventsLocationStore((state) => state.activeCity);
+  const deviceLat = useEventsLocationStore((state) => state.deviceLat);
+  const deviceLng = useEventsLocationStore((state) => state.deviceLng);
   const [inputText, setInputText] = useState(value || "");
   const [predictions, setPredictions] = useState<GooglePlace[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -65,6 +267,9 @@ export function LocationAutocompleteV3({
   const requestIdRef = useRef(0);
   const suppressNextLookupRef = useRef(false);
   const lastResolvedValueRef = useRef(value || "");
+  const localityHints = getLocalityHints(activeCity?.state, activeCity?.name);
+  const biasLatitude = activeCity?.lat ?? deviceLat;
+  const biasLongitude = activeCity?.lng ?? deviceLng;
 
   // Debounce the input text for API calls (300ms delay)
   const debouncedText = useDebounce(inputText, 300);
@@ -128,10 +333,44 @@ export function LocationAutocompleteV3({
     setShowDropdown(true);
 
     try {
+      const localTextSearchPromise =
+        typeof biasLatitude === "number" && typeof biasLongitude === "number"
+          ? fetch(
+              `https://maps.googleapis.com/maps/api/place/textsearch/json?key=${GOOGLE_PLACES_API_KEY}&query=${encodeURIComponent(normalizedText)}&location=${biasLatitude},${biasLongitude}&radius=250000&language=en&region=us`,
+            )
+              .then(async (response) => {
+                if (!response.ok) return [];
+                const data = await response.json();
+                if (
+                  data.status !== "OK" &&
+                  data.status !== "ZERO_RESULTS"
+                ) {
+                  return [];
+                }
+                return (data.results || [])
+                  .map(createPredictionFromTextSearchResult)
+                  .filter(Boolean) as GooglePlace[];
+              })
+              .catch((error) => {
+                console.error(
+                  "[LocationAutocompleteV3] Local text search error:",
+                  error,
+                );
+                return [] as GooglePlace[];
+              })
+          : Promise.resolve([] as GooglePlace[]);
+
       // Use the Google Places API with the correct parameters for Instagram-like results
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?key=${GOOGLE_PLACES_API_KEY}&input=${encodeURIComponent(normalizedText)}&language=en&components=country:us&types=establishment|geocode|address&radius=50000&strictbounds=false`,
-      );
+      const locationBiasQuery =
+        typeof biasLatitude === "number" && typeof biasLongitude === "number"
+          ? `&location=${biasLatitude},${biasLongitude}&radius=250000`
+          : "";
+      const [response, localTextPredictions] = await Promise.all([
+        fetch(
+          `https://maps.googleapis.com/maps/api/place/autocomplete/json?key=${GOOGLE_PLACES_API_KEY}&input=${encodeURIComponent(normalizedText)}&language=en&components=country:us&types=establishment|geocode|address${locationBiasQuery}&strictbounds=false`,
+        ),
+        localTextSearchPromise,
+      ]);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -150,7 +389,13 @@ export function LocationAutocompleteV3({
       }
 
       if (requestId !== requestIdRef.current) return;
-      setPredictions(data.predictions || []);
+      const nextPredictions = mergePredictions(
+        localTextPredictions,
+        data.predictions || [],
+      );
+      setPredictions(
+        prioritizeNearbyPredictions(nextPredictions, localityHints, normalizedText),
+      );
     } catch (error) {
       console.error("[LocationAutocompleteV3] Fetch error:", error);
       // Try alternative API on error
@@ -160,38 +405,83 @@ export function LocationAutocompleteV3({
         setIsLoading(false);
       }
     }
-  }, []);
+  }, [biasLatitude, biasLongitude, localityHints]);
 
   // Try alternative Places API (New) endpoint
   const tryAlternativeAPI = async (text: string, requestId: number) => {
     try {
-      // Try the newer Places API format
+      const localTextPredictions =
+        typeof biasLatitude === "number" && typeof biasLongitude === "number"
+          ? await fetch(
+              `https://maps.googleapis.com/maps/api/place/textsearch/json?key=${GOOGLE_PLACES_API_KEY}&query=${encodeURIComponent(text)}&location=${biasLatitude},${biasLongitude}&radius=250000&language=en&region=us`,
+            )
+              .then(async (response) => {
+                if (!response.ok) return [];
+                const data = await response.json();
+                if (
+                  data.status !== "OK" &&
+                  data.status !== "ZERO_RESULTS"
+                ) {
+                  return [];
+                }
+                return (data.results || [])
+                  .map(createPredictionFromTextSearchResult)
+                  .filter(Boolean) as GooglePlace[];
+              })
+              .catch((error) => {
+                console.error(
+                  "[LocationAutocompleteV3] Local text search error:",
+                  error,
+                );
+                return [] as GooglePlace[];
+              })
+          : [];
       const response = await fetch(
-        `https://places.googleapis.com/v1/places:autocomplete?key=${GOOGLE_PLACES_API_KEY}&input=${encodeURIComponent(text)}&language=en&includedRegionCodes=us`,
+        `https://places.googleapis.com/v1/places:autocomplete?key=${GOOGLE_PLACES_API_KEY}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+          },
+          body: JSON.stringify({
+            input: text,
+            languageCode: "en",
+            includedRegionCodes: ["us"],
+            ...(
+              typeof biasLatitude === "number" &&
+              typeof biasLongitude === "number"
+                ? {
+                    locationBias: {
+                      circle: {
+                        center: {
+                          latitude: biasLatitude,
+                          longitude: biasLongitude,
+                        },
+                        radius: 250000,
+                      },
+                    },
+                  }
+                : {}
+            ),
+          }),
+        },
       );
 
       if (response.ok) {
         const data = await response.json();
         if (data.suggestions) {
-          // Convert to our format
-          const convertedPredictions = data.suggestions.map(
-            (suggestion: any) => ({
-              place_id: suggestion.place?.id || "fallback-" + Math.random(),
-              description:
-                suggestion.place?.displayName?.text ||
-                suggestion.text?.text ||
-                "",
-              structured_formatting: {
-                main_text:
-                  suggestion.place?.displayName?.text ||
-                  suggestion.text?.text ||
-                  "",
-                secondary_text: suggestion.place?.formattedAddress || "",
-              },
-            }),
-          );
+          const convertedPredictions = data.suggestions
+            .map(createPredictionFromSuggestion)
+            .filter(Boolean);
           if (requestId !== requestIdRef.current) return;
-          setPredictions(convertedPredictions);
+          setPredictions(
+            prioritizeNearbyPredictions(
+              mergePredictions(localTextPredictions, convertedPredictions),
+              localityHints,
+              text,
+            ),
+          );
           return;
         }
       }
@@ -201,7 +491,9 @@ export function LocationAutocompleteV3({
 
     // Ultimate fallback to popular locations
     if (requestId !== requestIdRef.current) return;
-    setPredictions(getPopularLocations(text));
+    setPredictions(
+      prioritizeNearbyPredictions(getPopularLocations(text), localityHints, text),
+    );
   };
 
   // Fallback popular locations when API is not working
@@ -424,8 +716,8 @@ export function LocationAutocompleteV3({
       name: prediction.structured_formatting.main_text,
       placeId: prediction.place_id,
       formattedAddress: prediction.description,
-      latitude: details?.geometry?.location?.lat,
-      longitude: details?.geometry?.location?.lng,
+      latitude: details?.geometry?.location?.lat ?? prediction.latitude,
+      longitude: details?.geometry?.location?.lng ?? prediction.longitude,
     };
 
     onLocationSelect(locationData);

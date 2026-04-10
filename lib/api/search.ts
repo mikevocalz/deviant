@@ -181,4 +181,34 @@ export const searchApi = {
       return { docs: [], totalDocs: 0 };
     }
   },
+
+  /**
+   * Search posts by location label
+   */
+  async searchPostsByLocation(query: string, limit: number = 60) {
+    try {
+      const normalizedQuery = query.trim();
+
+      if (!normalizedQuery || normalizedQuery.length < 2) {
+        return { docs: [], totalDocs: 0 };
+      }
+
+      const { data, error, count } = await supabase
+        .from(DB.posts.table)
+        .select(SEARCH_POST_SELECT, { count: "exact" })
+        .ilike(DB.posts.location, `%${normalizedQuery}%`)
+        .eq(DB.posts.visibility, "public")
+        .eq(DB.posts.isNsfw, false)
+        .order(DB.posts.createdAt, { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+
+      const docs = (data || []).map((post: any) => transformPost(post, false));
+      return { docs, totalDocs: count || docs.length };
+    } catch (error) {
+      console.error("[Search] searchPostsByLocation error:", error);
+      return { docs: [], totalDocs: 0 };
+    }
+  },
 };

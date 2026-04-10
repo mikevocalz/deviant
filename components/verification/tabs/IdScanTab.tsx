@@ -5,6 +5,7 @@ import {
   Camera,
   type CameraRef,
   useCameraDevice,
+  useCameraPermission,
   usePhotoOutput,
 } from "react-native-vision-camera";
 // TextRecognition removed due to GoogleMLKit version conflict - see CLAUDE.md
@@ -36,7 +37,14 @@ export default function IdScanTab() {
   const photoOutput = usePhotoOutput();
   const camRef = useRef<CameraRef>(null);
   const device = useCameraDevice("back");
+  const { hasPermission, requestPermission } = useCameraPermission();
   const showToast = useUIStore((s) => s.showToast);
+
+  useEffect(() => {
+    if (mode === "camera" && !hasPermission) {
+      void requestPermission();
+    }
+  }, [hasPermission, mode, requestPermission]);
 
   // Simulate scanning progress
   useEffect(() => {
@@ -254,6 +262,32 @@ export default function IdScanTab() {
 
   // Camera mode
   if (mode === "camera") {
+    if (!hasPermission) {
+      return (
+        <View
+          className="flex-1 bg-card rounded-2xl items-center justify-center px-6"
+          style={{ minHeight: 300 }}
+        >
+          <Text className="text-foreground text-center font-semibold">
+            Camera permission required
+          </Text>
+          <Text className="text-muted text-center mt-2">
+            Allow camera access to capture your ID.
+          </Text>
+          <Button onPress={() => void requestPermission()} className="mt-4">
+            <Text className="text-primary-foreground">Grant Access</Text>
+          </Button>
+          <Button
+            variant="outline"
+            onPress={() => setMode("select")}
+            className="mt-3"
+          >
+            Go Back
+          </Button>
+        </View>
+      );
+    }
+
     if (!device) {
       return (
         <View

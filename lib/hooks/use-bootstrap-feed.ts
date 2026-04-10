@@ -15,7 +15,7 @@
  * 5. Return stories data for the StoriesBar
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -130,6 +130,14 @@ function hydrateFromBootstrap(
   );
 }
 
+function getCachedFeedItems(
+  queryClient: ReturnType<typeof useQueryClient>,
+): unknown[] {
+  const existingFeed = queryClient.getQueryData(postKeys.feedInfinite()) as any;
+  if (!Array.isArray(existingFeed?.pages)) return [];
+  return existingFeed.pages.flatMap((page: any) => page?.data || []);
+}
+
 /**
  * Hook: use bootstrap feed if the feature flag is enabled.
  *
@@ -143,21 +151,42 @@ export function useBootstrapFeed() {
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
   const hasRun = useRef(false);
   const isBootstrapping = useRef(false);
+  const [bootstrapState, setBootstrapState] = useState<{
+    key: string;
+    status: "idle" | "bootstrapping" | "ready";
+  }>({
+    key: "",
+    status: "idle",
+  });
   const trace = useScreenTrace("Feed");
 
   const enabled = isFeatureEnabled("perf_bootstrap_feed");
+  const canBootstrap = enabled && !!userId;
+  const bootstrapKey = canBootstrap ? `${userId}:${nsfwEnabled}` : "disabled";
+  const hasCachedFeed = getCachedFeedItems(queryClient).length > 0;
+  const status =
+    bootstrapState.key === bootstrapKey ? bootstrapState.status : "idle";
 
   useEffect(() => {
-    if (!enabled || !userId || hasRun.current || isBootstrapping.current)
+    if (bootstrapState.key !== bootstrapKey) {
+      hasRun.current = false;
+      isBootstrapping.current = false;
+      setBootstrapState({
+        key: bootstrapKey,
+        status: canBootstrap ? "idle" : "ready",
+      });
       return;
+    }
+
+    if (!canBootstrap) {
+      return;
+    }
+
+    if (hasRun.current || isBootstrapping.current) return;
 
     // Check if we already have fresh feed data from MMKV cache
-    const existingFeed = queryClient.getQueryData(
-      postKeys.feedInfinite(),
-    ) as any;
-    const cachedItems = Array.isArray(existingFeed?.pages)
-      ? existingFeed.pages.flatMap((page: any) => page?.data || [])
-      : [];
+    const existingFeed = queryClient.getQueryData(postKeys.feedInfinite()) as any;
+    const cachedItems = getCachedFeedItems(queryClient);
 
     if (
       existingFeed &&
@@ -168,6 +197,7 @@ export function useBootstrapFeed() {
       trace.markUsable();
       console.log("[BootstrapFeed] Cache hit — skipping bootstrap call");
       hasRun.current = true;
+      setBootstrapState({ key: bootstrapKey, status: "ready" });
       return;
     }
 
@@ -185,6 +215,7 @@ export function useBootstrapFeed() {
     // Mark as bootstrapping to prevent duplicate calls
     hasRun.current = true;
     isBootstrapping.current = true;
+    setBootstrapState({ key: bootstrapKey, status: "bootstrapping" });
 
     // Fire bootstrap request
     console.log("[BootstrapFeed] No cached data, running bootstrap");
@@ -197,20 +228,36 @@ export function useBootstrapFeed() {
           console.warn(
             "[BootstrapFeed] Bootstrap failed — falling back to individual queries",
           );
+          setBootstrapState({ key: bootstrapKey, status: "ready" });
           return;
         }
 
         hydrateFromBootstrap(queryClient, userId, data);
         trace.markUsable();
+        setBootstrapState({ key: bootstrapKey, status: "ready" });
       })
       .catch((error) => {
         isBootstrapping.current = false;
+        setBootstrapState({ key: bootstrapKey, status: "ready" });
         console.error("[BootstrapFeed] Bootstrap error:", error);
       });
-  }, [enabled, userId, nsfwEnabled, queryClient, trace]);
+  }, [
+    bootstrapKey,
+    bootstrapState.key,
+    canBootstrap,
+    nsfwEnabled,
+    queryClient,
+    trace,
+    userId,
+  ]);
+
+  const shouldEnableFeedQuery =
+    !canBootstrap || hasCachedFeed || status === "ready";
 
   return {
     enabled,
-    isBootstrapping: isBootstrapping.current,
+    isBootstrapping:
+      canBootstrap && !hasCachedFeed && status === "bootstrapping",
+    shouldEnableFeedQuery,
   };
 }

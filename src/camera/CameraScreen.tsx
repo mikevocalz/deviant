@@ -220,7 +220,7 @@ const CaptureReview: React.FC<{
 CaptureReview.displayName = "CaptureReview";
 
 // ---- Isolated Camera Preview ----
-// Only re-renders when camera-critical state changes (facing, mode, flash, zoom).
+// Only re-renders when camera-critical state changes (facing, mode, flash).
 
 type CameraPreviewProps = {
   isActive: boolean;
@@ -233,7 +233,6 @@ const CameraPreview = React.memo(
     ({ isActive, photoOutput, videoOutput }, ref) => {
       const mode = useStoryCaptureStore((s) => s.mode);
       const facing = useStoryCaptureStore((s) => s.facing);
-      const zoom = useStoryCaptureStore((s) => s.zoom);
       const flash = useStoryCaptureStore((s) => s.flash);
       const device = useCameraDevice(facing);
 
@@ -252,7 +251,6 @@ const CameraPreview = React.memo(
           device={device}
           isActive={isActive}
           outputs={mode === "photo" ? [photoOutput] : [videoOutput]}
-          zoom={zoom}
           torchMode={mode === "video" && flash === "on" ? "on" : "off"}
           enableNativeZoomGesture={true}
         />
@@ -303,6 +301,7 @@ export function CameraScreen({
   const recorderRef = useRef<Recorder | null>(null);
   const photoOutput = usePhotoOutput();
   const videoOutput = useVideoOutput({ enableAudio: true });
+  const requiresMicrophone = allowedModes.includes("video");
 
   const { hasPermission: hasCamPerm, requestPermission: reqCamPerm } =
     useCameraPermission();
@@ -344,10 +343,10 @@ export function CameraScreen({
   useEffect(() => {
     (async () => {
       const cam = await reqCamPerm();
-      const mic = await reqMicPerm();
+      const mic = requiresMicrophone ? await reqMicPerm() : true;
       setPermReady(cam && mic);
     })();
-  }, [reqCamPerm, reqMicPerm, setPermReady]);
+  }, [reqCamPerm, reqMicPerm, requiresMicrophone, setPermReady]);
 
   // ---- Gallery thumb (deferred — non-blocking) ----
   useEffect(() => {
@@ -551,7 +550,7 @@ export function CameraScreen({
         <Pressable
           onPress={async () => {
             const c = await reqCamPerm();
-            const m = await reqMicPerm();
+            const m = requiresMicrophone ? await reqMicPerm() : true;
             setPermReady(c && m);
           }}
           className="bg-[#3EA4E5] px-6 py-3 rounded-xl"

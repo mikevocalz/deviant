@@ -4,7 +4,7 @@
  * Scans QR codes from tickets and checks them in
  */
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -12,7 +12,11 @@ import {
   Pressable,
   ActivityIndicator,
 } from "react-native";
-import { Camera, useCameraDevice } from "react-native-vision-camera";
+import {
+  Camera,
+  useCameraDevice,
+  useCameraPermission,
+} from "react-native-vision-camera";
 import {
   type Barcode,
   useBarcodeScannerOutput,
@@ -40,6 +44,13 @@ export function TicketQRScanner({
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [scannedCode, setScannedCode] = useState<string | null>(null);
   const device = useCameraDevice("back");
+  const { hasPermission, requestPermission } = useCameraPermission();
+
+  useEffect(() => {
+    if (!hasPermission) {
+      void requestPermission();
+    }
+  }, [hasPermission, requestPermission]);
 
   const barcodeScannerOutput = useBarcodeScannerOutput({
     barcodeFormats: ["qr-code"],
@@ -107,6 +118,41 @@ export function TicketQRScanner({
           <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
             Camera not available
           </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + 12,
+              backgroundColor: colors.background,
+            },
+          ]}
+        >
+          <Pressable onPress={onClose} hitSlop={12}>
+            <X size={24} color={colors.foreground} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+            Scan Ticket QR Code
+          </Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+            Camera permission is required to scan tickets
+          </Text>
+          <Pressable
+            onPress={() => void requestPermission()}
+            style={styles.permissionButton}
+          >
+            <Text style={styles.permissionButtonText}>Grant Permission</Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -294,6 +340,28 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: "center",
+  },
+  permissionButton: {
+    marginTop: 16,
+    borderRadius: 14,
+    backgroundColor: "#8A40CF",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  permissionButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   checkingInContainer: {
     alignItems: "center",
     gap: 12,
@@ -301,13 +369,5 @@ const styles = StyleSheet.create({
   checkingInText: {
     fontSize: 16,
     fontWeight: "500",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  errorText: {
-    fontSize: 16,
   },
 });

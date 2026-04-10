@@ -37,7 +37,7 @@ import {
   hasValidCoordinates,
   getStaticMapUrl,
 } from "@/lib/utils/location";
-import { postsApi } from "@/lib/api/posts";
+import { searchApi } from "@/lib/api/search";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const GRID_COLS = 3;
@@ -157,14 +157,76 @@ function PostGridItem({ post, onPress }: { post: Post; onPress: () => void }) {
   );
 }
 
+function normalizeLocationTerm(value?: string | string[] | null) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return (raw || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9,\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function getLocationMatchTerms(parts: Array<string | string[] | null | undefined>) {
+  const terms = new Set<string>();
+
+  for (const part of parts) {
+    const normalized = normalizeLocationTerm(part);
+    if (!normalized) continue;
+
+    terms.add(normalized);
+
+    const firstSegment = normalized.split(",")[0]?.trim();
+    if (firstSegment) {
+      terms.add(firstSegment);
+    }
+  }
+
+  return Array.from(terms).filter((term) => term.length >= 2);
+}
+
+function locationMatches(postLocation: string | undefined, terms: string[]) {
+  if (!postLocation || terms.length === 0) return false;
+
+  const normalizedLocation = normalizeLocationTerm(postLocation);
+  if (!normalizedLocation) return false;
+
+  const locationVariants = new Set<string>([normalizedLocation]);
+  const firstSegment = normalizedLocation.split(",")[0]?.trim();
+  if (firstSegment) {
+    locationVariants.add(firstSegment);
+  }
+
+  return terms.some((term) =>
+    Array.from(locationVariants).some(
+      (candidate) => candidate.includes(term) || term.includes(candidate),
+    ),
+  );
+}
+
 function LocationScreenContent() {
-  const { placeId } = useLocalSearchParams<{ placeId: string }>();
+  const { placeId, name, formattedAddress, latitude, longitude } =
+    useLocalSearchParams<{
+      placeId: string;
+      name?: string;
+      formattedAddress?: string;
+      latitude?: string;
+      longitude?: string;
+    }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useColorScheme();
   const queryClient = useQueryClient();
 
   const [location, setLocation] = useState<NormalizedLocation | null>(null);
+  const routeLocationName = normalizeLocationTerm(name) || normalizeLocationTerm(placeId);
+  const locationMatchTerms = getLocationMatchTerms([name, formattedAddress, placeId]);
+  const locationSearchLabel =
+    (Array.isArray(name) ? name[0] : name) ||
+    (Array.isArray(formattedAddress) ? formattedAddress[0] : formattedAddress) ||
+    (Array.isArray(placeId) ? placeId[0] : placeId) ||
+    "";
+  const parsedLatitude = latitude ? Number(latitude) : NaN;
+  const parsedLongitude = longitude ? Number(longitude) : NaN;
 
   // Fetch posts at this location
   const {
@@ -173,25 +235,44 @@ function LocationScreenContent() {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ["posts", "by-location", placeId],
+    queryKey: [
+      "posts",
+      "by-location",
+      placeId,
+      normalizeLocationTerm(name),
+      normalizeLocationTerm(formattedAddress),
+    ],
     queryFn: async () => {
-      // TODO: Replace with actual API call once backend supports placeId search
-      // For now, fetch all posts and filter client-side
-      const allPosts = await postsApi.getExplorePosts(100);
-      return allPosts.filter(
-        (p) =>
-          p.location &&
-          p.location.toLowerCase().includes(placeId.toLowerCase()),
+      const searchResults =
+        await searchApi.searchPostsByLocation(locationSearchLabel);
+      return searchResults.docs.filter((post) =>
+        locationMatches(post.location, locationMatchTerms),
       );
     },
-    enabled: !!placeId,
+    enabled:
+      locationMatchTerms.length > 0 && locationSearchLabel.trim().length >= 2,
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
-  // Try to reconstruct location from posts
   useEffect(() => {
+    if (routeLocationName) {
+      setLocation({
+        placeId: placeId,
+        provider: "google",
+        name: Array.isArray(name) ? name[0] || routeLocationName : name || routeLocationName,
+        formattedAddress:
+          (Array.isArray(formattedAddress)
+            ? formattedAddress[0]
+            : formattedAddress) ||
+          (Array.isArray(name) ? name[0] : name) ||
+          routeLocationName,
+        latitude: Number.isFinite(parsedLatitude) ? parsedLatitude : 0,
+        longitude: Number.isFinite(parsedLongitude) ? parsedLongitude : 0,
+      });
+      return;
+    }
+
     if (posts.length > 0 && posts[0].location) {
-      // Create a mock location from the first post
       setLocation({
         placeId: placeId,
         provider: "google",
@@ -201,7 +282,15 @@ function LocationScreenContent() {
         longitude: 0,
       });
     }
-  }, [posts, placeId]);
+  }, [
+    formattedAddress,
+    name,
+    parsedLatitude,
+    parsedLongitude,
+    placeId,
+    posts,
+    routeLocationName,
+  ]);
 
   const handlePostPress = useCallback(
     (postId: string) => {

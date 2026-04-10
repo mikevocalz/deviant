@@ -1,9 +1,10 @@
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Camera,
   type CameraRef,
   useCameraDevice,
+  useCameraPermission,
   usePhotoOutput,
 } from "react-native-vision-camera";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -144,6 +145,7 @@ export default function FaceScanTab() {
   const device = useCameraDevice("front");
   const photoOutput = usePhotoOutput();
   const camRef = useRef<CameraRef>(null);
+  const { hasPermission, requestPermission } = useCameraPermission();
 
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -161,6 +163,12 @@ export default function FaceScanTab() {
     cameraLayout.width,
     cameraLayout.height,
   );
+
+  useEffect(() => {
+    if (!hasPermission) {
+      void requestPermission();
+    }
+  }, [hasPermission, requestPermission]);
 
   if (faceComplete && storedFaceUri) {
     return (
@@ -203,6 +211,25 @@ export default function FaceScanTab() {
         style={{ minHeight: 320 }}
       >
         <Text className="text-muted">Camera not available</Text>
+      </View>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <View
+        className="flex-1 bg-card rounded-2xl items-center justify-center px-6"
+        style={{ minHeight: 320 }}
+      >
+        <Text className="text-foreground text-center font-semibold">
+          Camera permission required
+        </Text>
+        <Text className="text-muted text-center mt-2">
+          We need camera access to capture your verification selfie.
+        </Text>
+        <Button onPress={() => void requestPermission()} className="mt-4">
+          <Text className="text-primary-foreground">Grant Access</Text>
+        </Button>
       </View>
     );
   }

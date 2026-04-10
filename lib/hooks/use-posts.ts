@@ -102,10 +102,15 @@ export function useFeedPosts() {
 }
 
 // Fetch feed posts with infinite scroll
-export function useInfiniteFeedPosts() {
+export function useInfiniteFeedPosts({
+  enabled = true,
+}: {
+  enabled?: boolean;
+} = {}) {
   return useInfiniteQuery({
     queryKey: postKeys.feedInfinite(),
     queryFn: ({ pageParam = 0 }) => postsApi.getFeedPostsPaginated(pageParam),
+    enabled,
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
     staleTime: STALE_TIMES.feed,

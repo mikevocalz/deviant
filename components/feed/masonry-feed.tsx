@@ -410,7 +410,7 @@ export function MasonryFeed() {
   }, [scrollToTopTrigger]);
 
   // Same data hooks as classic feed
-  useBootstrapFeed();
+  const bootstrapFeed = useBootstrapFeed();
   const {
     data,
     isLoading,
@@ -420,7 +420,9 @@ export function MasonryFeed() {
     isFetchingNextPage,
     refetch,
     isRefetching,
-  } = useInfiniteFeedPosts();
+  } = useInfiniteFeedPosts({
+    enabled: bootstrapFeed.shouldEnableFeedQuery,
+  });
 
   useSyncLikedPosts();
   useBookmarks();

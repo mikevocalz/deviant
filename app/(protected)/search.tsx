@@ -503,7 +503,22 @@ function SearchScreenContent() {
   const handleLocationSelect = useCallback(
     (location: LocationData) => {
       setSelectedLocation(location);
-      router.push(`/location/${location.placeId || location.name}`);
+      router.push({
+        pathname: "/(protected)/location/[placeId]",
+        params: {
+          placeId: location.placeId || location.name,
+          name: location.name,
+          formattedAddress: location.formattedAddress || "",
+          latitude:
+            typeof location.latitude === "number"
+              ? String(location.latitude)
+              : "",
+          longitude:
+            typeof location.longitude === "number"
+              ? String(location.longitude)
+              : "",
+        },
+      });
     },
     [router],
   );

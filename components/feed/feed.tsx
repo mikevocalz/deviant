@@ -264,7 +264,7 @@ export function Feed({
   // Perf: Bootstrap hydrates the TanStack cache BEFORE individual queries run.
   // When perf_bootstrap_feed flag is ON, a single edge function call populates
   // the feed cache, so useInfiniteFeedPosts returns data instantly from cache.
-  useBootstrapFeed();
+  const bootstrapFeed = useBootstrapFeed();
   const trace = useScreenTrace("Feed");
 
   const {
@@ -276,7 +276,9 @@ export function Feed({
     isFetchingNextPage,
     refetch,
     isRefetching,
-  } = useInfiniteFeedPosts();
+  } = useInfiniteFeedPosts({
+    enabled: bootstrapFeed.shouldEnableFeedQuery,
+  });
 
   const {
     data: stories = [],
