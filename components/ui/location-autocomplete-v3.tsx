@@ -1017,7 +1017,7 @@ export function LocationAutocompleteV3({
           }}
         >
           <FlatList
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             data={visiblePredictions}
             keyExtractor={(item) => item.place_id}
             renderItem={({ item }) => (

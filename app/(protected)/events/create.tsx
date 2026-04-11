@@ -583,7 +583,7 @@ function CreateEventScreenContent() {
           paddingBottom: insets.bottom + 20,
         }}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         keyboardDismissMode="on-drag"
         bottomOffset={100}
         enabled={true}
@@ -1005,20 +1005,18 @@ function CreateEventScreenContent() {
                         className="flex-1 py-2.5 rounded-xl items-center"
                         style={{
                           backgroundColor: isActive
-                            ? `${colors.primary}20`
+                            ? colors.primary
                             : "rgba(255,255,255,0.04)",
                           borderWidth: 1,
                           borderColor: isActive
-                            ? `${colors.primary}60`
+                            ? colors.primary
                             : "rgba(255,255,255,0.08)",
                         }}
                       >
                         <Text
                           className="text-xs font-semibold"
                           style={{
-                            color: isActive
-                              ? colors.primary
-                              : colors.mutedForeground,
+                            color: isActive ? "#fff" : colors.mutedForeground,
                           }}
                         >
                           {labels[opt]}
@@ -1054,20 +1052,18 @@ function CreateEventScreenContent() {
                         className="flex-1 py-2.5 rounded-xl items-center"
                         style={{
                           backgroundColor: isActive
-                            ? `${colors.primary}20`
+                            ? colors.primary
                             : "rgba(255,255,255,0.04)",
                           borderWidth: 1,
                           borderColor: isActive
-                            ? `${colors.primary}60`
+                            ? colors.primary
                             : "rgba(255,255,255,0.08)",
                         }}
                       >
                         <Text
                           className="text-xs font-semibold"
                           style={{
-                            color: isActive
-                              ? colors.primary
-                              : colors.mutedForeground,
+                            color: isActive ? "#fff" : colors.mutedForeground,
                           }}
                         >
                           {labels[opt]}
