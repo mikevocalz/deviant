@@ -58,9 +58,9 @@ import { Badge } from "@/components/ui/badge";
 import { Text as UIText } from "@/components/ui/text";
 import { Progress } from "@/components/ui/progress";
 import {
-  LocationAutocompleteInstagram,
+  LocationAutocompleteV3,
   type LocationData,
-} from "@/components/ui/location-autocomplete-instagram";
+} from "@/components/ui/location-autocomplete-v3";
 import { useCreateEvent } from "@/lib/hooks/use-events";
 import {
   ticketTypesApi,
@@ -904,26 +904,27 @@ function CreateEventScreenContent() {
               <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
                 Location
               </Text>
-              <LocationAutocompleteInstagram
-                value={location}
-                placeholder="Search venue or address"
-                onLocationSelect={(data: LocationData) => {
-                  setLocation(data.name);
-                  setLocationData(data);
-                }}
-                onTextChange={(text: string) => {
-                  // Update location as user types (enables form validation)
-                  setLocation(text);
-                  // Clear coordinates since we only have text, not a selected place
-                  if (!text) {
+              <View style={{ zIndex: 1000, position: "relative" }}>
+                <LocationAutocompleteV3
+                  value={location}
+                  placeholder="Search venue or address"
+                  onLocationSelect={(data: LocationData) => {
+                    setLocation(data.name);
+                    setLocationData(data);
+                  }}
+                  onTextChange={(text: string) => {
+                    // Keep step validation in sync with inline typing.
+                    setLocation(text);
+                    if (!text.trim()) {
+                      setLocationData(null);
+                    }
+                  }}
+                  onClear={() => {
+                    setLocation("");
                     setLocationData(null);
-                  }
-                }}
-                onClear={() => {
-                  setLocation("");
-                  setLocationData(null);
-                }}
-              />
+                  }}
+                />
+              </View>
 
               {locationData?.latitude && locationData?.longitude && (
                 <View
