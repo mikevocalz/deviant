@@ -6,7 +6,6 @@
  */
 
 import * as LegacyFileSystem from "expo-file-system/legacy";
-import { Platform } from "react-native";
 import { getAuthToken } from "@/lib/auth-client";
 
 const FileSystem = LegacyFileSystem;
@@ -31,6 +30,33 @@ export interface ServerUploadResult {
   path: string;
   filename: string;
   error?: string;
+}
+
+function sanitizeExtension(extension?: string | null): string {
+  if (!extension) return "jpg";
+
+  const normalized = extension.replace(/^\./, "").toLowerCase();
+  return /^[a-z0-9]+$/i.test(normalized) ? normalized : "jpg";
+}
+
+function getExtension(uri: string, mimeType?: string): string {
+  const uriMatch = uri.match(/\.([a-z0-9]+)(?:\?|$)/i);
+  if (uriMatch) {
+    return sanitizeExtension(uriMatch[1]);
+  }
+
+  const mimeMap: Record<string, string> = {
+    "image/heic": "heic",
+    "image/jpeg": "jpg",
+    "image/jpg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+    "video/mp4": "mp4",
+    "video/mov": "mov",
+    "video/quicktime": "mov",
+  };
+
+  return sanitizeExtension(mimeMap[mimeType || ""]);
 }
 
 /**
@@ -85,10 +111,14 @@ function getMimeFromUri(uri: string): string {
 /**
  * Ensure file is accessible — copy ph:// or content:// URIs to cache
  */
-async function ensureFileAccessible(uri: string): Promise<string> {
+async function ensureFileAccessible(
+  uri: string,
+  mimeType?: string,
+): Promise<string> {
   if (uri.startsWith("file://")) {
     const info = await FileSystem.getInfoAsync(uri);
     if (info.exists) return uri;
+    throw new Error("Selected file is no longer available");
   }
 
   if (
@@ -96,9 +126,15 @@ async function ensureFileAccessible(uri: string): Promise<string> {
     uri.startsWith("content://") ||
     uri.startsWith("assets-library://")
   ) {
-    const ext = uri.split(".").pop() || "jpg";
+    const ext = getExtension(uri, mimeType);
     const cacheUri = `${FileSystem.cacheDirectory}upload_${Date.now()}.${ext}`;
     await FileSystem.copyAsync({ from: uri, to: cacheUri });
+
+    const copiedInfo = await FileSystem.getInfoAsync(cacheUri);
+    if (!copiedInfo.exists) {
+      throw new Error("Failed to prepare selected media for upload");
+    }
+
     return cacheUri;
   }
 
@@ -132,11 +168,9 @@ export async function uploadToServer(
       };
     }
 
-    // Ensure file is accessible
-    const accessibleUri = await ensureFileAccessible(uri);
-
     // Determine mime type and kind (mime-aware so videos get post-video, not post-image)
-    const mime = getMimeFromUri(accessibleUri);
+    const mime = getMimeFromUri(uri);
+    const accessibleUri = await ensureFileAccessible(uri, mime);
     const kind = folderToKind(folder, mime);
     const filename = accessibleUri.split("/").pop() || "upload";
 

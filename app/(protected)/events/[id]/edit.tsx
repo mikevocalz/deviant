@@ -57,6 +57,10 @@ import {
   LocationAutocompleteInstagram,
   type LocationData,
 } from "@/components/ui/location-autocomplete-instagram";
+import {
+  isRemoteMediaUri,
+  persistLocalMediaSelection,
+} from "@/lib/media/persist-local-selection";
 
 function EditEventScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -102,6 +106,26 @@ function EditEventScreenContent() {
   useEffect(() => {
     requestPermissions();
   }, [requestPermissions]);
+
+  const persistEventDraftAssets = useCallback(
+    async (
+      assets: Array<{
+        uri: string;
+        fileName?: string;
+        mimeType?: string;
+      }>,
+    ) =>
+      Promise.all(
+        assets.map((asset) =>
+          persistLocalMediaSelection(asset.uri, {
+            scope: "event-drafts/images",
+            fileName: asset.fileName,
+            mimeType: asset.mimeType,
+          }),
+        ),
+      ),
+    [],
+  );
 
   // Fetch event data
   useEffect(() => {
@@ -242,10 +266,18 @@ function EditEventScreenContent() {
       allowsMultipleSelection: remaining > 1,
     });
     if (result && result.length > 0) {
-      setEventImages((prev) =>
-        [...prev, ...result.map((r) => r.uri)].slice(0, 4),
-      );
-      setHasChanges(true);
+      try {
+        const persistedUris = await persistEventDraftAssets(result);
+        setEventImages((prev) => [...prev, ...persistedUris].slice(0, 4));
+        setHasChanges(true);
+      } catch (error) {
+        console.error("[EditEvent] Failed to persist selected images:", error);
+        showToast(
+          "error",
+          "Media Error",
+          "Failed to add the selected images. Please try again.",
+        );
+      }
     }
   };
 
@@ -327,12 +359,17 @@ function EditEventScreenContent() {
     try {
       // Upload new images if any are local URIs
       const uploadedImages: string[] = [];
-      const localImages = eventImages.filter(
-        (uri) => uri.startsWith("file://") || uri.startsWith("content://"),
+      const normalizedImages = await Promise.all(
+        eventImages.map((uri) =>
+          isRemoteMediaUri(uri)
+            ? Promise.resolve(uri)
+            : persistLocalMediaSelection(uri, { scope: "event-drafts/images" }),
+        ),
       );
-      const remoteImages = eventImages.filter(
-        (uri) => uri.startsWith("http://") || uri.startsWith("https://"),
-      );
+      setEventImages(normalizedImages);
+
+      const localImages = normalizedImages.filter((uri) => !isRemoteMediaUri(uri));
+      const remoteImages = normalizedImages.filter((uri) => isRemoteMediaUri(uri));
 
       if (localImages.length > 0) {
         // Convert string URIs to MediaFile format

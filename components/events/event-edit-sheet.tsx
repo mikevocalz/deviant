@@ -40,6 +40,10 @@ import { useMediaPicker } from "@/lib/hooks";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useQueryClient } from "@tanstack/react-query";
 import { eventKeys } from "@/lib/hooks/use-events";
+import {
+  isRemoteMediaUri,
+  persistLocalMediaSelection,
+} from "@/lib/media/persist-local-selection";
 
 interface EventEditSheetProps {
   visible: boolean;
@@ -165,6 +169,26 @@ export function EventEditSheet({
     [],
   );
 
+  const persistEventDraftAssets = useCallback(
+    async (
+      assets: Array<{
+        uri: string;
+        fileName?: string;
+        mimeType?: string;
+      }>,
+    ) =>
+      Promise.all(
+        assets.map((asset) =>
+          persistLocalMediaSelection(asset.uri, {
+            scope: "event-drafts/images",
+            fileName: asset.fileName,
+            mimeType: asset.mimeType,
+          }),
+        ),
+      ),
+    [],
+  );
+
   const handlePickImages = useCallback(async () => {
     const remaining = 5 - eventImages.length;
     if (remaining <= 0) return;
@@ -173,11 +197,19 @@ export function EventEditSheet({
       allowsMultipleSelection: remaining > 1,
     });
     if (result && result.length > 0) {
-      setEventImages((prev) =>
-        [...prev, ...result.map((r) => r.uri)].slice(0, 5),
-      );
+      try {
+        const persistedUris = await persistEventDraftAssets(result);
+        setEventImages((prev) => [...prev, ...persistedUris].slice(0, 5));
+      } catch (error) {
+        console.error("[EventEditSheet] Failed to persist images:", error);
+        showToast(
+          "error",
+          "Media Error",
+          "Failed to add the selected images. Please try again.",
+        );
+      }
     }
-  }, [eventImages.length, pickFromLibrary]);
+  }, [eventImages.length, persistEventDraftAssets, pickFromLibrary, showToast]);
 
   const removeImage = useCallback((index: number) => {
     setEventImages((prev) => prev.filter((_, i) => i !== index));
@@ -262,12 +294,17 @@ export function EventEditSheet({
     setIsSaving(true);
     try {
       // Upload new local images
-      const localImages = eventImages.filter(
-        (uri) => uri.startsWith("file://") || uri.startsWith("content://"),
+      const normalizedImages = await Promise.all(
+        eventImages.map((uri) =>
+          isRemoteMediaUri(uri)
+            ? Promise.resolve(uri)
+            : persistLocalMediaSelection(uri, { scope: "event-drafts/images" }),
+        ),
       );
-      const remoteImages = eventImages.filter(
-        (uri) => uri.startsWith("http://") || uri.startsWith("https://"),
-      );
+      setEventImages(normalizedImages);
+
+      const localImages = normalizedImages.filter((uri) => !isRemoteMediaUri(uri));
+      const remoteImages = normalizedImages.filter((uri) => isRemoteMediaUri(uri));
 
       let uploadedImages: string[] = [];
       if (localImages.length > 0) {
