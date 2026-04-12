@@ -4,8 +4,8 @@
  * Popup modal for rating an event with 5 stars and optional comment
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, Pressable, TextInput } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Keyboard, View, Text, Pressable } from "react-native";
 import StarRating from "react-native-star-rating-widget";
 import { X } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
@@ -13,6 +13,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import BottomSheet, {
   BottomSheetBackdrop,
   BottomSheetScrollView,
+  BottomSheetTextInput,
 } from "@gorhom/bottom-sheet";
 import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 
@@ -30,6 +31,7 @@ export function EventRatingModal({
   onSubmit,
 }: EventRatingModalProps) {
   const sheetRef = useRef<BottomSheet>(null);
+  const snapPoints = useMemo(() => ["68%", "92%"], []);
   const { colors } = useColorScheme();
   const showToast = useUIStore((s) => s.showToast);
   const [rating, setRating] = useState(0);
@@ -37,14 +39,19 @@ export function EventRatingModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (visible) sheetRef.current?.expand();
-    else sheetRef.current?.close();
+    if (visible) {
+      sheetRef.current?.snapToIndex(0);
+    } else {
+      Keyboard.dismiss();
+      sheetRef.current?.close();
+    }
   }, [visible]);
 
   const handleSheetChange = useCallback(
     (index: number) => {
       if (index === -1) {
         if (!isSubmitting) {
+          Keyboard.dismiss();
           setRating(0);
           setComment("");
           onClose();
@@ -77,6 +84,7 @@ export function EventRatingModal({
     const submittedComment = comment.trim() || undefined;
 
     // Close immediately — optimistic update in hook handles the rest
+    Keyboard.dismiss();
     setRating(0);
     setComment("");
     onClose();
@@ -92,6 +100,7 @@ export function EventRatingModal({
 
   const handleClose = () => {
     if (!isSubmitting) {
+      Keyboard.dismiss();
       setRating(0);
       setComment("");
       onClose();
@@ -102,8 +111,10 @@ export function EventRatingModal({
     <BottomSheet
       ref={sheetRef}
       index={-1}
-      enableDynamicSizing
+      snapPoints={snapPoints}
+      enableDynamicSizing={false}
       enablePanDownToClose
+      enableBlurKeyboardOnGesture
       backdropComponent={renderBackdrop}
       onChange={handleSheetChange}
       backgroundStyle={{
@@ -115,7 +126,7 @@ export function EventRatingModal({
         backgroundColor: "rgba(255,255,255,0.3)",
         width: 36,
       }}
-      keyboardBehavior="interactive"
+      keyboardBehavior="extend"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
     >
@@ -149,6 +160,7 @@ export function EventRatingModal({
       <BottomSheetScrollView
         contentContainerStyle={{ padding: 20, paddingBottom: 40 }}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
       >
         {/* Rating Section */}
         <View style={{ alignItems: "center", marginBottom: 24 }}>
@@ -185,14 +197,18 @@ export function EventRatingModal({
           >
             Add a comment (optional)
           </Text>
-          <TextInput
+          <BottomSheetTextInput
             value={comment}
             onChangeText={setComment}
             placeholder="Share your thoughts about this event..."
             placeholderTextColor={colors.mutedForeground}
+            onFocus={() => sheetRef.current?.snapToIndex(1)}
             multiline
             numberOfLines={4}
             maxLength={1000}
+            returnKeyType="done"
+            blurOnSubmit
+            onSubmitEditing={() => Keyboard.dismiss()}
             style={{
               backgroundColor: colors.background,
               borderRadius: 12,
