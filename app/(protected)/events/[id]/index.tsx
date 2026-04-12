@@ -67,13 +67,13 @@ import {
 import { ticketsApi } from "@/lib/api/tickets";
 import { ticketKeys } from "@/lib/hooks/use-tickets";
 import * as WebBrowser from "expo-web-browser";
-import * as Calendar from "expo-calendar";
 import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
 import { useCreateEventReview } from "@/lib/hooks/use-event-reviews";
 import { EventRatingModal } from "@/components/event-rating-modal";
 import { StarRatingDisplay } from "react-native-star-rating-widget";
 import { shareEvent } from "@/lib/utils/sharing";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { SafeCalendar as Calendar } from "@/lib/safe-native-modules";
 import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
 import { useTicketCheckout } from "@/lib/hooks/use-ticket-checkout";
 import { MENTION_COLOR } from "@/src/constants/mentions";
@@ -101,8 +101,35 @@ import { DVNTLiquidGlassIconButton } from "@/components/media/DVNTLiquidGlass";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 420;
+const DEFAULT_EVENT_DURATION_MS = 3 * 60 * 60 * 1000;
 
 // ── Helpers ──────────────────────────────────────────────────────────
+
+function buildCalendarWindow(
+  startValue?: string | null,
+  endValue?: string | null,
+) {
+  const fallbackStart = new Date();
+  const parsedStart = startValue ? new Date(startValue) : fallbackStart;
+  const startDate = Number.isFinite(parsedStart.getTime())
+    ? parsedStart
+    : fallbackStart;
+  const parsedEnd = endValue ? new Date(endValue) : null;
+  const endDate =
+    parsedEnd &&
+    Number.isFinite(parsedEnd.getTime()) &&
+    parsedEnd.getTime() > startDate.getTime()
+      ? parsedEnd
+      : new Date(startDate.getTime() + DEFAULT_EVENT_DURATION_MS);
+
+  return { startDate, endDate };
+}
+
+type CalendarRecord = {
+  id: string;
+  allowsModifications?: boolean;
+  source?: { name?: string };
+};
 
 function buildTicketTiers(event: EventDetail): TicketTier[] {
   const price = event.price || 0;
@@ -699,6 +726,19 @@ function EventDetailScreenContent() {
 
   const handleAddToCalendar = useCallback(async () => {
     if (!eventData) return;
+    if (
+      !Calendar?.requestCalendarPermissionsAsync ||
+      !Calendar?.getCalendarsAsync ||
+      !Calendar?.createEventAsync
+    ) {
+      showToast(
+        "error",
+        "Calendar Unavailable",
+        "Calendar support is not available in this build",
+      );
+      return;
+    }
+
     try {
       const { status } = await Calendar.requestCalendarPermissionsAsync();
       if (status !== "granted") {
@@ -712,13 +752,14 @@ function EventDetailScreenContent() {
 
       // Get default calendar
       const calendars = await Calendar.getCalendarsAsync(
-        Calendar.EntityTypes.EVENT,
+        Calendar.EntityTypes?.EVENT,
       );
       const defaultCal =
         calendars.find(
-          (c) => c.allowsModifications && c.source?.name === "iCloud",
+          (c: CalendarRecord) =>
+            c.allowsModifications && c.source?.name === "iCloud",
         ) ||
-        calendars.find((c) => c.allowsModifications) ||
+        calendars.find((c: CalendarRecord) => c.allowsModifications) ||
         calendars[0];
 
       if (!defaultCal) {
@@ -730,18 +771,18 @@ function EventDetailScreenContent() {
         return;
       }
 
-      const startDate = new Date(eventData.fullDate || eventData.date);
-      const endDate = eventData.endDate
-        ? new Date(eventData.endDate)
-        : new Date(startDate.getTime() + 3 * 60 * 60 * 1000); // default 3h
+      const { startDate, endDate } = buildCalendarWindow(
+        eventData.fullDate || eventData.date,
+        eventData.endDate,
+      );
 
       await Calendar.createEventAsync(defaultCal.id, {
-        title: eventData.title,
+        title: eventData.title || "Event",
         startDate,
         endDate,
         location: eventData.location || eventData.locationName || "",
         notes: eventData.description || "",
-        timeZone: "America/New_York",
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
       showToast(

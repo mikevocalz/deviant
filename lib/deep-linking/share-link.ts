@@ -4,7 +4,7 @@
  * NEVER shares dvnt:// scheme externally — always HTTPS.
  */
 
-import { Share, Platform } from "react-native";
+import { Share } from "react-native";
 import * as Haptics from "expo-haptics";
 
 const PRODUCTION_DOMAIN = "https://dvntlive.app";
@@ -96,17 +96,21 @@ export async function shareUrl(
   options?: ShareOptions,
 ): Promise<ShareResult> {
   try {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+      () => {},
+    );
+
+    const shareMessage = options?.message?.includes(url)
+      ? options.message
+      : options?.message
+        ? `${options.message}\n${url}`
+        : url;
 
     const result = await Share.share(
-      Platform.OS === "ios"
-        ? {
-            url,
-            message: options?.message,
-          }
-        : {
-            message: options?.message || url,
-          },
+      {
+        message: shareMessage,
+        title: options?.title || "DVNT",
+      },
       {
         dialogTitle: options?.title || "Share via DVNT",
         subject: options?.title || "DVNT",
@@ -131,7 +135,9 @@ export function copyShareUrl(url: string): void {
     if (RNClipboard?.setString) {
       RNClipboard.setString(url);
     }
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    void Haptics.notificationAsync(
+      Haptics.NotificationFeedbackType.Success,
+    ).catch(() => {});
   } catch (error) {
     console.error("[ShareLink] Copy failed:", error);
   }

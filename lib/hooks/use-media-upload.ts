@@ -34,6 +34,9 @@ import {
   generateVideoThumbnail,
   cleanupThumbnail,
 } from "@/lib/video-thumbnail";
+import * as LegacyFileSystem from "expo-file-system/legacy";
+
+const FileSystem = LegacyFileSystem;
 
 export type UploadResult = ServerUploadResult;
 
@@ -68,6 +71,21 @@ export interface MediaUploadResult {
     compressedSize: number;
     reductionPercent: number;
   };
+}
+
+async function assertReadableMediaUri(uri: string): Promise<void> {
+  if (!uri.startsWith("file://")) {
+    return;
+  }
+
+  const info = await FileSystem.getInfoAsync(uri).catch(() => null);
+  if (info?.exists) {
+    return;
+  }
+
+  throw new Error(
+    "Selected media is no longer available. Please remove it and choose it again.",
+  );
 }
 
 export function useMediaUpload(options: UseMediaUploadOptions = {}) {
@@ -133,6 +151,27 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           file.type,
           file.uri.substring(0, 50),
         );
+
+        try {
+          await assertReadableMediaUri(file.uri);
+          if (file.pairedVideoUri) {
+            await assertReadableMediaUri(file.pairedVideoUri);
+          }
+        } catch (mediaError: any) {
+          const skippedSteps = file.type === "video" ? videoSteps : 1;
+          results.push({
+            type: file.type,
+            kind: file.kind,
+            url: "",
+            success: false,
+            error:
+              mediaError?.message ||
+              "Selected media is no longer available. Please choose it again.",
+          });
+          completedSteps += skippedSteps;
+          setProgress(Math.round((completedSteps / totalSteps) * 100));
+          continue;
+        }
 
         if (file.type === "video") {
           // ========== VIDEO PROCESSING (MANDATORY COMPRESSION) ==========

@@ -9,6 +9,7 @@ import { mmkv } from "@/lib/mmkv-zustand";
 import type { Ticket } from "@/lib/stores/ticket-store";
 
 const CALENDAR_EVENTS_KEY = "@deviant/calendar_events";
+const DEFAULT_EVENT_DURATION_MS = 3 * 60 * 60 * 1000;
 
 /** Persist which tickets have been added to calendar */
 function getAddedEvents(): Record<string, string> {
@@ -34,7 +35,7 @@ function isAlreadyAdded(ticketId: string): boolean {
 /** Get the default writable calendar */
 async function getDefaultCalendarId(): Promise<string | null> {
   const calendars = await Calendar.getCalendarsAsync(
-    Calendar.EntityTypes.EVENT,
+    Calendar.EntityTypes?.EVENT,
   );
 
   type CalendarRecord = { id: string; allowsModifications?: boolean; source?: { name?: string }; isPrimary?: boolean };
@@ -78,9 +79,31 @@ function openSettings() {
     "Please enable calendar access in Settings to add this event.",
     [
       { text: "Cancel", style: "cancel" },
-      { text: "Open Settings", onPress: () => Linking.openSettings() },
+      {
+        text: "Open Settings",
+        onPress: () => {
+          void Linking.openSettings().catch(() => {});
+        },
+      },
     ],
   );
+}
+
+function buildCalendarWindow(startValue?: string | null, endValue?: string | null) {
+  const fallbackStart = new Date();
+  const parsedStart = startValue ? new Date(startValue) : fallbackStart;
+  const startDate = Number.isFinite(parsedStart.getTime())
+    ? parsedStart
+    : fallbackStart;
+  const parsedEnd = endValue ? new Date(endValue) : null;
+  const endDate =
+    parsedEnd &&
+    Number.isFinite(parsedEnd.getTime()) &&
+    parsedEnd.getTime() > startDate.getTime()
+      ? parsedEnd
+      : new Date(startDate.getTime() + DEFAULT_EVENT_DURATION_MS);
+
+  return { startDate, endDate };
 }
 
 export interface AddToCalendarResult {
@@ -98,7 +121,11 @@ export async function addTicketToCalendar(
 ): Promise<AddToCalendarResult> {
   try {
     // 0. Guard: Calendar module may not be in this native binary
-    if (!Calendar) {
+    if (
+      !Calendar?.requestCalendarPermissionsAsync ||
+      !Calendar?.getCalendarsAsync ||
+      !Calendar?.createEventAsync
+    ) {
       return { success: false, error: "calendar_not_available" };
     }
 
@@ -121,12 +148,10 @@ export async function addTicketToCalendar(
     }
 
     // 4. Build event
-    const startDate = ticket.eventDate
-      ? new Date(ticket.eventDate)
-      : new Date();
-    const endDate = ticket.eventEndDate
-      ? new Date(ticket.eventEndDate)
-      : new Date(startDate.getTime() + 3 * 60 * 60 * 1000); // default 3h
+    const { startDate, endDate } = buildCalendarWindow(
+      ticket.eventDate,
+      ticket.eventEndDate,
+    );
 
     const deepLink = `dvnt://ticket/${ticket.eventId}`;
 

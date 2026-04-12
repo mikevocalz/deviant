@@ -47,7 +47,7 @@ export function generateAppDeepLink(content: ShareableContent): string {
 export async function shareContent(content: ShareableContent): Promise<void> {
   const url = generateDeepLink(content);
   const message = content.message || getDefaultMessage(content);
-  const fullMessage = `${message}\n\n${url}`;
+  const fullMessage = message.includes(url) ? message : `${message}\n\n${url}`;
 
   console.log("[Sharing] Attempting to share:", { content, url, message });
 
@@ -72,10 +72,10 @@ export async function shareContent(content: ShareableContent): Promise<void> {
         {
           message: fullMessage,
           title: content.title || "Share",
-          url: url,
         },
         {
           dialogTitle: content.title || "Share",
+          subject: content.title || "Share",
         },
       );
 

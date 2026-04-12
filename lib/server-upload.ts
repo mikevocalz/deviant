@@ -128,7 +128,24 @@ async function ensureFileAccessible(
   ) {
     const ext = getExtension(uri, mimeType);
     const cacheUri = `${FileSystem.cacheDirectory}upload_${Date.now()}.${ext}`;
-    await FileSystem.copyAsync({ from: uri, to: cacheUri });
+
+    try {
+      await FileSystem.copyAsync({ from: uri, to: cacheUri });
+    } catch (error) {
+      console.warn(
+        "[ServerUpload] Copy to cache failed, attempting original URI fallback:",
+        error,
+      );
+
+      const originalInfo = await FileSystem.getInfoAsync(uri).catch(() => null);
+      if (originalInfo?.exists) {
+        return uri;
+      }
+
+      throw new Error(
+        "Selected media is no longer available. Please remove it and choose it again.",
+      );
+    }
 
     const copiedInfo = await FileSystem.getInfoAsync(cacheUri);
     if (!copiedInfo.exists) {
@@ -171,6 +188,14 @@ export async function uploadToServer(
     // Determine mime type and kind (mime-aware so videos get post-video, not post-image)
     const mime = getMimeFromUri(uri);
     const accessibleUri = await ensureFileAccessible(uri, mime);
+    const accessibleInfo = await FileSystem.getInfoAsync(accessibleUri).catch(
+      () => null,
+    );
+    if (!accessibleInfo?.exists) {
+      throw new Error(
+        "Selected media is no longer available. Please choose it again.",
+      );
+    }
     const kind = folderToKind(folder, mime);
     const filename = accessibleUri.split("/").pop() || "upload";
 
