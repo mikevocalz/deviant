@@ -72,16 +72,39 @@ export async function persistLocalMediaSelection(
     return uri;
   }
 
+  const sourceInfo = await FileSystem.getInfoAsync(uri).catch(() => null);
+  if (!sourceInfo?.exists) {
+    throw new Error(
+      "Selected media is no longer available. Please remove it and add it again.",
+    );
+  }
+
   await FileSystem.makeDirectoryAsync(targetDirectory, { intermediates: true });
 
   const extension = guessExtension(options.fileName || uri, options.mimeType);
   const fileName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
   const targetUri = `${targetDirectory}${fileName}`;
 
-  await FileSystem.copyAsync({
-    from: uri,
-    to: targetUri,
-  });
+  try {
+    await FileSystem.copyAsync({
+      from: uri,
+      to: targetUri,
+    });
+  } catch (error) {
+    console.warn(
+      "[persistLocalMediaSelection] Copy failed, falling back to original URI:",
+      error,
+    );
+
+    const fallbackInfo = await FileSystem.getInfoAsync(uri).catch(() => null);
+    if (fallbackInfo?.exists) {
+      return uri;
+    }
+
+    throw new Error(
+      "Selected media is no longer available. Please remove it and add it again.",
+    );
+  }
 
   const info = await FileSystem.getInfoAsync(targetUri);
   if (!info.exists) {
