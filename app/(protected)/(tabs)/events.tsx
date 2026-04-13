@@ -703,11 +703,6 @@ function EventsScreenContent() {
           </View>
         )}
 
-        {/* Spotlight Section — above tabs when items exist */}
-        {spotlightItems.length > 0 && !showMapView && (
-          <SpotlightSection items={spotlightItems} />
-        )}
-
         {showMapView ? (
           <EventsMapView events={eventsWithPromotion} />
         ) : (
@@ -847,12 +842,21 @@ function EventsScreenContent() {
                         className="flex-1"
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={{
-                          padding: 16,
                           paddingBottom: 32,
                         }}
                       >
-                        <EventCardSkeleton />
-                        <EventCardSkeleton />
+                        {spotlightItems.length > 0 && !showMapView && (
+                          <SpotlightSection items={spotlightItems} />
+                        )}
+                        <View
+                          style={{
+                            paddingHorizontal: 16,
+                            paddingTop: 16,
+                          }}
+                        >
+                          <EventCardSkeleton />
+                          <EventCardSkeleton />
+                        </View>
                       </ScrollView>
                     ) : (
                       <Animated.ScrollView
@@ -862,55 +866,64 @@ function EventsScreenContent() {
                         onScroll={scrollHandler}
                         scrollEventThrottle={16}
                       >
-                        {/* Curated collections — only on All Events tab, no search/filters */}
-                        {tabIndex === 1 && showCollections && (
-                          <View className="pt-4">
-                            <EventCollectionRow
-                              title="This Weekend"
-                              emoji="\uD83C\uDF89"
-                              events={collections.weekend}
-                            />
-                            <EventCollectionRow
-                              title="Trending"
-                              emoji="\uD83D\uDD25"
-                              events={collections.trending}
-                            />
-                            <EventCollectionRow
-                              title="New & Notable"
-                              emoji="\u2728"
-                              events={collections.fresh}
-                            />
-                          </View>
+                        {spotlightItems.length > 0 && !showMapView && (
+                          <SpotlightSection items={spotlightItems} />
                         )}
                         <View
                           style={{
-                            paddingHorizontal: 16,
-                            flexDirection: isLargeScreen ? "row" : "column",
-                            flexWrap: isLargeScreen ? "wrap" : "nowrap",
-                            gap: gridGap,
+                            paddingTop: 16,
                           }}
                         >
-                          {filteredEvents.map((event, index) => (
-                            <View
-                              key={event.id}
-                              style={
-                                isLargeScreen ? { width: cardWidth } : undefined
-                              }
-                            >
-                              <EventCard
-                                event={event}
-                                index={index}
-                                scrollY={scrollY}
-                                colors={colors}
-                                router={router}
-                                formatLikes={formatLikes}
-                                cardWidth={cardWidth}
-                                cardHeight={cardHeight}
-                                compact={isLargeScreen}
-                                queryClient={queryClient}
+                          {/* Curated collections — only on All Events tab, no search/filters */}
+                          {tabIndex === 1 && showCollections && (
+                            <View>
+                              <EventCollectionRow
+                                title="This Weekend"
+                                emoji="\uD83C\uDF89"
+                                events={collections.weekend}
+                              />
+                              <EventCollectionRow
+                                title="Trending"
+                                emoji="\uD83D\uDD25"
+                                events={collections.trending}
+                              />
+                              <EventCollectionRow
+                                title="New & Notable"
+                                emoji="\u2728"
+                                events={collections.fresh}
                               />
                             </View>
-                          ))}
+                          )}
+                          <View
+                            style={{
+                              paddingHorizontal: 16,
+                              flexDirection: isLargeScreen ? "row" : "column",
+                              flexWrap: isLargeScreen ? "wrap" : "nowrap",
+                              gap: gridGap,
+                            }}
+                          >
+                            {filteredEvents.map((event, index) => (
+                              <View
+                                key={event.id}
+                                style={
+                                  isLargeScreen ? { width: cardWidth } : undefined
+                                }
+                              >
+                                <EventCard
+                                  event={event}
+                                  index={index}
+                                  scrollY={scrollY}
+                                  colors={colors}
+                                  router={router}
+                                  formatLikes={formatLikes}
+                                  cardWidth={cardWidth}
+                                  cardHeight={cardHeight}
+                                  compact={isLargeScreen}
+                                  queryClient={queryClient}
+                                />
+                              </View>
+                            ))}
+                          </View>
                         </View>
                       </Animated.ScrollView>
                     )}
