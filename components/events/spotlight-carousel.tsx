@@ -156,7 +156,7 @@ function DotIndicator({
   activeIndex: number;
 }) {
   return (
-    <View className="flex-row items-center justify-center gap-1.5 mt-3">
+    <View className="flex-row items-center justify-center gap-1.5 mt-1.5">
       {Array.from({ length: Math.min(count, 8) }).map((_, i) => (
         <View
           key={i}

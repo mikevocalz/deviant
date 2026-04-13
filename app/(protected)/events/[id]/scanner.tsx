@@ -191,6 +191,36 @@ function ScanResultOverlay({
   );
 }
 
+// Separate component so useBarcodeScannerOutput is always called unconditionally
+function LiveCamera({
+  onCodeScanned,
+  torchOn,
+}: {
+  onCodeScanned: (codes: any[]) => void;
+  torchOn: boolean;
+}) {
+  const device = useCameraDevice("back");
+  const barcodeScannerOutput = useBarcodeScannerOutput({
+    barcodeFormats: ["qr-code"],
+    onBarcodeScanned: onCodeScanned,
+    onError: (error: Error) => {
+      console.error("[Scanner] Barcode scan error:", error);
+    },
+  });
+
+  if (!device) return null;
+
+  return (
+    <Camera
+      style={{ flex: 1 }}
+      device={device}
+      isActive={true}
+      outputs={[barcodeScannerOutput]}
+      torchMode={torchOn ? "on" : "off"}
+    />
+  );
+}
+
 function ScannerContent({ eventId }: { eventId: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -209,7 +239,6 @@ function ScannerContent({ eventId }: { eventId: string }) {
 
   // VisionCamera setup
   const hasVisionCamera = Camera != null && useCameraDevice != null;
-  const device = hasVisionCamera ? useCameraDevice("back") : null;
   const permission = hasVisionCamera
     ? useCameraPermission()
     : { hasPermission: false, requestPermission: async () => {} };
@@ -366,17 +395,6 @@ function ScannerContent({ eventId }: { eventId: string }) {
     [scanResult, scanMutation, authUser?.id, eventId],
   );
 
-  const barcodeScannerOutput =
-    hasVisionCamera && useBarcodeScannerOutput
-      ? useBarcodeScannerOutput({
-          barcodeFormats: ["qr-code"],
-          onBarcodeScanned: handleCodeScanned,
-          onError: (error: Error) => {
-            console.error("[Scanner] Barcode scan error:", error);
-          },
-        })
-      : null;
-
   const dismissResult = useCallback(() => {
     setScanResult(null);
     lastScannedRef.current = "";
@@ -426,16 +444,12 @@ function ScannerContent({ eventId }: { eventId: string }) {
 
   return (
     <View className="flex-1 bg-black">
-      {/* Camera */}
-      {device && barcodeScannerOutput && (
-        <Camera
-          style={{ flex: 1 }}
-          device={device}
-          isActive={true}
-          outputs={[barcodeScannerOutput]}
-          torchMode={torchOn ? "on" : "off"}
-        />
-      )}
+      {/* Camera — rendered as its own component so useBarcodeScannerOutput
+          is always called unconditionally (Rules of Hooks) */}
+      <LiveCamera
+        onCodeScanned={handleCodeScanned}
+        torchOn={torchOn}
+      />
 
       {/* Scan overlay frame */}
       <View
