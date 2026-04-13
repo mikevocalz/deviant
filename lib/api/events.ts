@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId as getCurrentUserIdAsync } from "../auth/identity";
+import { requireBetterAuthToken } from "../auth/identity";
 import {
   getCurrentUserId,
   getCurrentUserIdInt,
@@ -55,6 +55,37 @@ function formatEventDate(isoDate: string | null | undefined) {
 }
 
 export const eventsApi = {
+  async toggleEventLike(
+    eventId: string,
+  ): Promise<{ liked: boolean; likes: number }> {
+    const eventIdInt = parseInt(eventId, 10);
+    if (isNaN(eventIdInt)) {
+      throw new Error("Invalid event id");
+    }
+
+    const token = await requireBetterAuthToken();
+    const { data, error } = await supabase.functions.invoke<{
+      ok: boolean;
+      data?: { liked: boolean; likesCount: number };
+      error?: { code: string; message: string };
+    }>("toggle-event-like", {
+      body: { eventId: eventIdInt },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "x-auth-token": token,
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message || "Failed to toggle event like");
+    }
+    if (!data?.ok || !data.data) {
+      throw new Error(data?.error?.message || "Failed to toggle event like");
+    }
+
+    return { liked: data.data.liked, likes: data.data.likesCount };
+  },
+
   /**
    * Get events via batch RPC (single round-trip).
    * Replaces the old 4-request waterfall.
@@ -900,48 +931,16 @@ export const eventsApi = {
    * Like an event (save it)
    */
   async likeEvent(eventId: string): Promise<boolean> {
-    try {
-      const userId = getCurrentUserIdInt() ?? (await getCurrentUserIdAsync());
-      if (!userId) throw new Error("Not authenticated");
-
-      const { error } = await supabase.from(DB.eventLikes.table).upsert(
-        {
-          [DB.eventLikes.eventId]: parseInt(eventId),
-          [DB.eventLikes.userId]: userId,
-        },
-        { onConflict: "event_id,user_id" },
-      );
-
-      if (error) throw error;
-      console.log("[Events] likeEvent:", eventId);
-      return true;
-    } catch (error) {
-      console.error("[Events] likeEvent error:", error);
-      throw error;
-    }
+    const result = await this.toggleEventLike(eventId);
+    return result.liked;
   },
 
   /**
    * Unlike an event (unsave it)
    */
   async unlikeEvent(eventId: string): Promise<boolean> {
-    try {
-      const userId = getCurrentUserIdInt() ?? (await getCurrentUserIdAsync());
-      if (!userId) throw new Error("Not authenticated");
-
-      const { error } = await supabase
-        .from(DB.eventLikes.table)
-        .delete()
-        .eq(DB.eventLikes.eventId, parseInt(eventId))
-        .eq(DB.eventLikes.userId, userId);
-
-      if (error) throw error;
-      console.log("[Events] unlikeEvent:", eventId);
-      return true;
-    } catch (error) {
-      console.error("[Events] unlikeEvent error:", error);
-      throw error;
-    }
+    const result = await this.toggleEventLike(eventId);
+    return !result.liked;
   },
 
   /**
@@ -949,7 +948,7 @@ export const eventsApi = {
    */
   async isEventLiked(eventId: string): Promise<boolean> {
     try {
-      const userId = getCurrentUserIdInt() ?? (await getCurrentUserIdAsync());
+      const userId = getCurrentUserIdInt();
       if (!userId) return false;
 
       const { data, error } = await supabase

@@ -344,18 +344,12 @@ export function useToggleEventLike() {
   return useMutation({
     mutationFn: async ({
       eventId,
-      isLiked,
+      isLiked: _isLiked,
     }: {
       eventId: string;
       isLiked: boolean;
     }) => {
-      if (isLiked) {
-        await eventsApiClient.unlikeEvent(eventId);
-        return { liked: false };
-      } else {
-        await eventsApiClient.likeEvent(eventId);
-        return { liked: true };
-      }
+      return eventsApiClient.toggleEventLike(eventId);
     },
     onMutate: async ({ eventId, isLiked }) => {
       // Cancel outgoing refetches for event lists
@@ -444,7 +438,22 @@ export function useToggleEventLike() {
         );
       }
     },
-    onSuccess: (_result, { eventId }) => {
+    onSuccess: (result, { eventId }) => {
+      queryClient.setQueriesData<Event[]>(
+        { queryKey: eventKeys.all },
+        (old) =>
+          old?.map((event) =>
+            String(event.id) === eventId
+              ? { ...event, isLiked: result.liked, likes: result.likes }
+              : event,
+          ) ?? old,
+      );
+      queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
+        old
+          ? { ...old, isLiked: result.liked, likes: result.likes }
+          : old,
+      );
+
       // Refresh liked events list and event detail
       const uid = getCurrentUserIdInt();
       if (uid) {

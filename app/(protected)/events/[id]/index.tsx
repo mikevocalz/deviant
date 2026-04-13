@@ -386,10 +386,12 @@ function EventDetailScreenContent() {
     const wasLiked = isLiked;
     setIsLiked(!wasLiked);
     try {
-      if (wasLiked) {
-        await eventsApi.unlikeEvent(eventId);
-      } else {
-        await eventsApi.likeEvent(eventId);
+      const result = await eventsApi.toggleEventLike(eventId);
+      setIsLiked(result.liked);
+      queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
+        old ? { ...old, isLiked: result.liked, likes: result.likes } : old,
+      );
+      if (result.liked && !wasLiked) {
         showToast("success", "Saved", "Event added to your liked events");
       }
       // Invalidate liked events cache so profile updates

@@ -33,11 +33,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { LinearGradient } from "expo-linear-gradient";
 import { Motion } from "@legendapp/motion";
-import Animated, {
-  useAnimatedScrollHandler,
-  useSharedValue,
-  useAnimatedStyle,
-} from "react-native-reanimated";
+import Animated from "react-native-reanimated";
 import { useRef, useCallback, useMemo } from "react";
 import { Debouncer } from "@tanstack/react-pacer";
 import { EventCardSkeleton } from "@/components/skeletons";
@@ -70,7 +66,6 @@ import {
 function EventCard({
   event,
   index,
-  scrollY,
   colors,
   router,
   formatLikes,
@@ -81,7 +76,6 @@ function EventCard({
 }: {
   event: Event;
   index: number;
-  scrollY: any;
   colors: any;
   router: any;
   formatLikes: (likes: number) => string;
@@ -95,14 +89,6 @@ function EventCard({
   const handleLike = useCallback(() => {
     toggleLike.mutate({ eventId: event.id, isLiked: event.isLiked ?? false });
   }, [event.id, event.isLiked, toggleLike]);
-
-  const animatedImageStyle = useAnimatedStyle(() => {
-    "worklet";
-    const translateY = (scrollY.value - index * (cardHeight + 20)) * -0.15;
-    return {
-      transform: [{ translateY }],
-    };
-  });
 
   return (
     <Motion.View
@@ -141,15 +127,12 @@ function EventCard({
           <View style={{ height: cardHeight }} className="w-full">
             {/* Parallax image layer */}
             <Animated.View
-              style={[
-                {
-                  width: "100%",
-                  height: cardHeight + 100,
-                  position: "absolute",
-                  top: -50,
-                },
-                animatedImageStyle,
-              ]}
+              style={{
+                width: "100%",
+                height: cardHeight + 100,
+                position: "absolute",
+                top: -50,
+              }}
             >
               <Image
                 source={{ uri: event.image }}
@@ -293,7 +276,6 @@ function EventCard({
 function EventsScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
-  const scrollY = useSharedValue(0);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const pagerRef = useRef<any>(null);
@@ -410,12 +392,6 @@ function EventsScreenContent() {
       })
       .filter((ev: any) => !ev._deduped);
   }, [events, promotedIds, spotlightEventIds]);
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
-  });
 
   const formatLikes = (likes: number) => {
     if (likes >= 1000) {
@@ -863,8 +839,6 @@ function EventsScreenContent() {
                         className="flex-1"
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={{ paddingBottom: 16 }}
-                        onScroll={scrollHandler}
-                        scrollEventThrottle={16}
                       >
                         {spotlightItems.length > 0 && !showMapView && (
                           <SpotlightSection items={spotlightItems} />
@@ -912,7 +886,6 @@ function EventsScreenContent() {
                                 <EventCard
                                   event={event}
                                   index={index}
-                                  scrollY={scrollY}
                                   colors={colors}
                                   router={router}
                                   formatLikes={formatLikes}
