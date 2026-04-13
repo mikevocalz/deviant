@@ -93,20 +93,22 @@ export function TicketQRScanner({
     [onCheckInSuccess, showToast],
   );
 
+  const onBarcodeScanned = useCallback(
+    (barcodes: Barcode[]) => {
+      if (barcodes.length > 0 && !isCheckingInRef.current && !scannedCodeRef.current) {
+        const code = barcodes[0]?.rawValue;
+        if (code) {
+          scannedCodeRef.current = code;
+          void handleCheckIn(code);
+        }
+      }
+    },
+    [handleCheckIn],
+  );
+
   const barcodeScannerOutput = useBarcodeScannerOutput({
     barcodeFormats: ["qr-code"],
-    onBarcodeScanned: useCallback(
-      (barcodes: Barcode[]) => {
-        if (barcodes.length > 0 && !isCheckingInRef.current && !scannedCodeRef.current) {
-          const code = barcodes[0]?.rawValue;
-          if (code) {
-            scannedCodeRef.current = code;
-            void handleCheckIn(code);
-          }
-        }
-      },
-      [handleCheckIn],
-    ),
+    onBarcodeScanned,
     onError: (error) => {
       console.error("[QRScanner] Barcode scan error:", error);
     },

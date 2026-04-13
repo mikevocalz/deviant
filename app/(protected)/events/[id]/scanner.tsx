@@ -34,7 +34,6 @@ import {
   AlertTriangle,
   Zap,
   ZapOff,
-  RotateCcw,
 } from "lucide-react-native";
 import { useScanTicket } from "@/lib/hooks/use-tickets";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -57,6 +56,13 @@ try {
 } catch {
   // VisionCamera not available
 }
+
+// All three must be present for the scanner to work
+const hasVisionCamera =
+  Camera != null &&
+  useCameraDevice != null &&
+  useCameraPermission != null &&
+  useBarcodeScannerOutput != null;
 
 type ScanResult = {
   type: "success" | "error" | "already_scanned" | "not_found";
@@ -191,7 +197,9 @@ function ScanResultOverlay({
   );
 }
 
-// Separate component so useBarcodeScannerOutput is always called unconditionally
+// ── LiveCamera ────────────────────────────────────────────────────────────────
+// Separate component so useBarcodeScannerOutput + useCameraDevice are
+// always called unconditionally (Rules of Hooks).
 function LiveCamera({
   onCodeScanned,
   torchOn,
@@ -221,13 +229,19 @@ function LiveCamera({
   );
 }
 
-function ScannerContent({ eventId }: { eventId: string }) {
+// ── ScannerWithCamera ─────────────────────────────────────────────────────────
+// Only rendered when hasVisionCamera is true.
+// Calls useCameraPermission() unconditionally at the top level.
+function ScannerWithCamera({ eventId }: { eventId: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const authUser = useAuthStore((s) => s.user);
   const scanMutation = useScanTicket();
   const offlineStore = useOfflineCheckinStore();
   const hasOfflineData = offlineStore.hasOfflineData(eventId);
+
+  // Always call useCameraPermission unconditionally (no ternary)
+  const { hasPermission, requestPermission } = useCameraPermission();
 
   const [torchOn, setTorchOn] = useState(false);
   const [scanResult, setScanResult] = useState<ScanResult | null>(null);
@@ -237,17 +251,11 @@ function ScannerContent({ eventId }: { eventId: string }) {
   const lastScannedRef = useRef<string>("");
   const cooldownRef = useRef(false);
 
-  // VisionCamera setup
-  const hasVisionCamera = Camera != null && useCameraDevice != null;
-  const permission = hasVisionCamera
-    ? useCameraPermission()
-    : { hasPermission: false, requestPermission: async () => {} };
-
   useEffect(() => {
-    if (hasVisionCamera && !permission.hasPermission) {
-      permission.requestPermission();
+    if (!hasPermission) {
+      requestPermission();
     }
-  }, [hasVisionCamera]);
+  }, [hasPermission, requestPermission]);
 
   const handleCodeScanned = useCallback(
     (codes: any[]) => {
@@ -256,12 +264,10 @@ function ScannerContent({ eventId }: { eventId: string }) {
       const qrValue = code?.rawValue ?? code?.value;
       if (!qrValue) return;
 
-      // Prevent re-scanning same code rapidly
       if (qrValue === lastScannedRef.current) return;
       lastScannedRef.current = qrValue;
       cooldownRef.current = true;
 
-      // Extract qr_token from value (could be raw token or dvnt://ticket/{token})
       let qrToken = qrValue;
       const deepLinkMatch = qrValue.match(/dvnt:\/\/ticket\/(.+)/);
       if (deepLinkMatch) {
@@ -321,7 +327,6 @@ function ScannerContent({ eventId }: { eventId: string }) {
             }
           },
           onError: () => {
-            // Offline fallback: validate against downloaded tokens
             if (hasOfflineData) {
               if (offlineStore.isAlreadyScanned(eventId, qrToken)) {
                 Haptics.notificationAsync(
@@ -392,7 +397,7 @@ function ScannerContent({ eventId }: { eventId: string }) {
         },
       );
     },
-    [scanResult, scanMutation, authUser?.id, eventId],
+    [scanResult, scanMutation, authUser?.id, eventId, hasOfflineData, offlineStore],
   );
 
   const dismissResult = useCallback(() => {
@@ -401,29 +406,7 @@ function ScannerContent({ eventId }: { eventId: string }) {
     cooldownRef.current = false;
   }, []);
 
-  // Fallback if VisionCamera not available
-  if (!hasVisionCamera) {
-    return (
-      <View className="flex-1 bg-black items-center justify-center px-8">
-        <ScanLine size={64} color="rgba(255,255,255,0.3)" />
-        <Text className="text-white text-lg font-sans-semibold mt-4 text-center">
-          Camera Scanner Unavailable
-        </Text>
-        <Text className="text-white/60 text-sm mt-2 text-center">
-          react-native-vision-camera is required for ticket scanning. Please
-          install it in your development build.
-        </Text>
-        <Pressable
-          onPress={() => router.back()}
-          className="mt-6 bg-white/10 rounded-full px-6 py-3"
-        >
-          <Text className="text-white font-sans-semibold">Go Back</Text>
-        </Pressable>
-      </View>
-    );
-  }
-
-  if (!permission.hasPermission) {
+  if (!hasPermission) {
     return (
       <View className="flex-1 bg-black items-center justify-center px-8">
         <ScanLine size={64} color="rgba(255,255,255,0.3)" />
@@ -431,7 +414,7 @@ function ScannerContent({ eventId }: { eventId: string }) {
           Camera Permission Required
         </Text>
         <Pressable
-          onPress={() => permission.requestPermission()}
+          onPress={() => requestPermission()}
           className="mt-6 bg-primary rounded-full px-6 py-3"
         >
           <Text className="text-black font-sans-semibold">
@@ -444,12 +427,8 @@ function ScannerContent({ eventId }: { eventId: string }) {
 
   return (
     <View className="flex-1 bg-black">
-      {/* Camera — rendered as its own component so useBarcodeScannerOutput
-          is always called unconditionally (Rules of Hooks) */}
-      <LiveCamera
-        onCodeScanned={handleCodeScanned}
-        torchOn={torchOn}
-      />
+      {/* Camera — always called unconditionally inside LiveCamera */}
+      <LiveCamera onCodeScanned={handleCodeScanned} torchOn={torchOn} />
 
       {/* Scan overlay frame */}
       <View
@@ -528,7 +507,6 @@ function ScannerContent({ eventId }: { eventId: string }) {
           maxHeight: showHistory ? 320 : undefined,
         }}
       >
-        {/* Stats row */}
         <Pressable
           onPress={() => setShowHistory((v) => !v)}
           className="flex-row items-center justify-between"
@@ -553,7 +531,6 @@ function ScannerContent({ eventId }: { eventId: string }) {
           )}
         </Pressable>
 
-        {/* Scan history list */}
         {showHistory && scanHistory.length > 0 && (
           <ScrollView
             style={{ maxHeight: 220, marginTop: 10 }}
@@ -614,12 +591,10 @@ function ScannerContent({ eventId }: { eventId: string }) {
         )}
       </View>
 
-      {/* Scan result overlay */}
       {scanResult && (
         <ScanResultOverlay result={scanResult} onDismiss={dismissResult} />
       )}
 
-      {/* Scanning indicator */}
       {scanMutation.isPending && !scanResult && (
         <View
           style={{
@@ -636,6 +611,36 @@ function ScannerContent({ eventId }: { eventId: string }) {
       )}
     </View>
   );
+}
+
+// ── ScannerContent ────────────────────────────────────────────────────────────
+// Gate: shows fallback UI when VisionCamera isn't available,
+// otherwise renders ScannerWithCamera (which calls hooks unconditionally).
+function ScannerContent({ eventId }: { eventId: string }) {
+  const router = useRouter();
+
+  if (!hasVisionCamera) {
+    return (
+      <View className="flex-1 bg-black items-center justify-center px-8">
+        <ScanLine size={64} color="rgba(255,255,255,0.3)" />
+        <Text className="text-white text-lg font-sans-semibold mt-4 text-center">
+          Camera Scanner Unavailable
+        </Text>
+        <Text className="text-white/60 text-sm mt-2 text-center">
+          react-native-vision-camera is required for ticket scanning. Please
+          install it in your development build.
+        </Text>
+        <Pressable
+          onPress={() => router.back()}
+          className="mt-6 bg-white/10 rounded-full px-6 py-3"
+        >
+          <Text className="text-white font-sans-semibold">Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  return <ScannerWithCamera eventId={eventId} />;
 }
 
 export default function TicketScannerScreen() {

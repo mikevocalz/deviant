@@ -1,74 +1,29 @@
 /**
- * SpotlightCarousel — Infinite auto-scrolling carousel for promoted events.
+ * SpotlightCarousel — Promoted events horizontal pager.
  *
- * Adapted from the GameStoreHero pattern:
- * - Dynamic blurred background that crossfades on index change
- * - 3:5 aspect ratio cards with gradient overlay
- * - Auto-scroll with pause on touch
- *
- * Uses ScrollView + Reanimated (not FlatList/FlashList per project rules).
+ * Design: wide landscape cards, smooth Reanimated scroll-driven dots,
+ * no BlurView, no crossfading background — clean and fast.
  */
 
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
   Pressable,
-  ScrollView,
   useWindowDimensions,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
 } from "react-native";
-import { Image } from "expo-image";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
-import { Zap } from "lucide-react-native";
 import Animated, {
-  FadeIn,
-  FadeOut,
   useSharedValue,
+  useAnimatedScrollHandler,
   useAnimatedStyle,
-  withSpring,
-  runOnJS,
+  interpolate,
+  type SharedValue,
 } from "react-native-reanimated";
+import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { Zap, MapPin } from "lucide-react-native";
 import { useRouter } from "expo-router";
-import { create } from "zustand";
 import type { SpotlightItem } from "@/src/events/promotion-types";
-
-// ── Local Zustand store for carousel state (NO useState) ─────────────────────
-
-interface SpotlightCarouselState {
-  activeIndex: number;
-  setActiveIndex: (i: number) => void;
-  reset: () => void;
-}
-
-const useCarouselStore = create<SpotlightCarouselState>((set) => ({
-  activeIndex: 0,
-  setActiveIndex: (i) => set({ activeIndex: i }),
-  reset: () => set({ activeIndex: 0 }),
-}));
-
-// ── Dynamic Background ───────────────────────────────────────────────────────
-
-function DynamicBackground({ uri }: { uri?: string }) {
-  if (!uri) return null;
-  return (
-    <Animated.View
-      key={uri}
-      entering={FadeIn.duration(800)}
-      exiting={FadeOut.duration(800)}
-      className="absolute inset-0"
-    >
-      <Image
-        source={{ uri }}
-        style={{ width: "100%", height: "100%" }}
-        contentFit="cover"
-        cachePolicy="memory-disk"
-      />
-    </Animated.View>
-  );
-}
 
 // ── Spotlight Card ───────────────────────────────────────────────────────────
 
@@ -91,51 +46,110 @@ function SpotlightCard({
       style={{ width: cardWidth, marginHorizontal: 6 }}
     >
       <View
-        className="rounded-3xl overflow-hidden"
         style={{
           width: cardWidth,
           height: cardHeight,
-          backgroundColor: "rgba(255,255,255,0.1)",
+          borderRadius: 20,
+          overflow: "hidden",
+          backgroundColor: "#1a1a1a",
         }}
       >
         <Image
           source={{ uri: item.spotlight_image || item.cover_image }}
           style={{ width: "100%", height: "100%" }}
           contentFit="cover"
-          transition={200}
           cachePolicy="memory-disk"
         />
         <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.5)", "rgba(0,0,0,0.7)"]}
-          className="absolute inset-0 justify-end"
+          colors={["transparent", "rgba(0,0,0,0.25)", "rgba(0,0,0,0.82)"]}
+          locations={[0.35, 0.6, 1]}
+          style={{
+            position: "absolute",
+            inset: 0,
+            justifyContent: "flex-end",
+            padding: 16,
+          }}
         >
-          <View className="p-4">
-            <View className="flex-row items-center gap-1.5 mb-2">
-              <View className="bg-amber-500/90 px-2 py-0.5 rounded-lg flex-row items-center gap-1">
-                <Zap size={10} color="#fff" fill="#fff" />
-                <Text className="text-white text-[10px] font-bold uppercase tracking-wider">
-                  Promoted
+          {/* Promoted badge */}
+          <View
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 4,
+              marginBottom: 8,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "rgba(245,158,11,0.9)",
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 4,
+                paddingHorizontal: 8,
+                paddingVertical: 3,
+                borderRadius: 8,
+              }}
+            >
+              <Zap size={10} color="#fff" fill="#fff" />
+              <Text
+                style={{
+                  color: "#fff",
+                  fontSize: 10,
+                  fontWeight: "800",
+                  letterSpacing: 0.5,
+                }}
+              >
+                SPOTLIGHT
+              </Text>
+            </View>
+            {item.category && (
+              <View
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.15)",
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 8,
+                }}
+              >
+                <Text style={{ color: "#fff", fontSize: 10, fontWeight: "500" }}>
+                  {item.category}
                 </Text>
               </View>
-              {item.category && (
-                <View className="bg-white/20 px-2 py-0.5 rounded-lg">
-                  <Text className="text-white text-[10px] font-medium">
-                    {item.category}
-                  </Text>
-                </View>
-              )}
-            </View>
+            )}
+          </View>
+
+          <Text
+            style={{
+              color: "#fff",
+              fontSize: 18,
+              fontWeight: "700",
+              lineHeight: 22,
+              marginBottom: 4,
+            }}
+            numberOfLines={2}
+          >
+            {item.title}
+          </Text>
+
+          <View
+            style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+          >
+            <MapPin size={11} color="rgba(255,255,255,0.6)" />
             <Text
-              className="text-white text-lg font-bold"
-              numberOfLines={2}
+              style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}
+              numberOfLines={1}
             >
-              {item.title}
-            </Text>
-            <Text className="text-white/70 text-xs mt-1" numberOfLines={1}>
               {item.location}
             </Text>
             {item.price != null && (
-              <Text className="text-white font-bold text-sm mt-1">
+              <Text
+                style={{
+                  color: "#fff",
+                  fontSize: 12,
+                  fontWeight: "700",
+                  marginLeft: "auto",
+                }}
+              >
                 {item.price === 0 ? "Free" : `$${item.price}`}
               </Text>
             )}
@@ -146,31 +160,47 @@ function SpotlightCard({
   );
 }
 
-// ── Dot Indicator ────────────────────────────────────────────────────────────
+// ── Animated Dot ─────────────────────────────────────────────────────────────
 
-function DotIndicator({
+function AnimatedDot({
+  index,
+  scrollX,
+  itemWidth,
   count,
-  activeIndex,
 }: {
+  index: number;
+  scrollX: SharedValue<number>;
+  itemWidth: number;
   count: number;
-  activeIndex: number;
 }) {
+  const animatedStyle = useAnimatedStyle(() => {
+    const input = scrollX.value / itemWidth;
+    const width = interpolate(
+      input,
+      [index - 1, index, index + 1],
+      [5, 18, 5],
+      "clamp",
+    );
+    const opacity = interpolate(
+      input,
+      [index - 1, index, index + 1],
+      [0.3, 1, 0.3],
+      "clamp",
+    );
+    return { width, opacity };
+  });
+
   return (
-    <View className="flex-row items-center justify-center gap-1.5 mt-1.5">
-      {Array.from({ length: Math.min(count, 8) }).map((_, i) => (
-        <View
-          key={i}
-          className="rounded-full"
-          style={{
-            width: i === activeIndex ? 16 : 6,
-            height: 6,
-            backgroundColor:
-              i === activeIndex ? "#fff" : "rgba(255,255,255,0.3)",
-            borderRadius: 3,
-          }}
-        />
-      ))}
-    </View>
+    <Animated.View
+      style={[
+        {
+          height: 5,
+          borderRadius: 3,
+          backgroundColor: "#fff",
+        },
+        animatedStyle,
+      ]}
+    />
   );
 }
 
@@ -178,47 +208,43 @@ function DotIndicator({
 
 export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
   const { width: screenWidth } = useWindowDimensions();
-  const activeIndex = useCarouselStore((s) => s.activeIndex);
-  const setActiveIndex = useCarouselStore((s) => s.setActiveIndex);
-  const reset = useCarouselStore((s) => s.reset);
-  const scrollRef = useRef<ScrollView>(null);
+  const scrollRef = useRef<Animated.ScrollView>(null);
   const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isScrollingRef = useRef(false);
+  const isUserScrollingRef = useRef(false);
+  const activeIndexRef = useRef(0);
 
-  const CARD_WIDTH = Math.round(screenWidth * 0.65);
-  const CARD_HEIGHT = Math.round(CARD_WIDTH * (5 / 3)); // 3:5 aspect ratio
-  const ITEM_WIDTH = CARD_WIDTH + 12; // card + horizontal margin
-  const SECTION_HEIGHT = CARD_HEIGHT + 140; // card + header + dots + padding
-  // Keep ITEM_WIDTH stable in a ref so the interval always uses the current value
-  const itemWidthRef = useRef(ITEM_WIDTH);
+  const CARD_WIDTH = screenWidth - 64;
+  const CARD_HEIGHT = Math.round(CARD_WIDTH * 0.58);
+  const ITEM_WIDTH = CARD_WIDTH + 12;
+  const PADDING = (screenWidth - CARD_WIDTH) / 2 - 6;
+
+  const scrollX = useSharedValue(0);
+
+  const onScroll = useAnimatedScrollHandler({
+    onScroll: (e) => {
+      scrollX.value = e.contentOffset.x;
+    },
+  });
+
+  // Reset on mount
   useEffect(() => {
-    itemWidthRef.current = ITEM_WIDTH;
-  }, [ITEM_WIDTH]);
+    activeIndexRef.current = 0;
+    scrollX.value = 0;
+    scrollRef.current?.scrollTo({ x: 0, animated: false });
+  }, []);
 
-  // Reset index when component mounts so dot and scroll are always in sync
-  useEffect(() => {
-    reset();
-  }, [reset]);
-
-  const bgUri = useMemo(
-    () => items[activeIndex]?.spotlight_image || items[activeIndex]?.cover_image,
-    [activeIndex, items],
-  );
-
-  // Auto-scroll — only fires when the scroll view is idle
   const startAutoScroll = useCallback(() => {
     if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
     autoScrollTimer.current = setInterval(() => {
-      if (isScrollingRef.current) return; // skip if user is interacting
-      const nextIndex =
-        (useCarouselStore.getState().activeIndex + 1) % items.length;
-      useCarouselStore.getState().setActiveIndex(nextIndex);
+      if (isUserScrollingRef.current) return;
+      const next = (activeIndexRef.current + 1) % items.length;
+      activeIndexRef.current = next;
       scrollRef.current?.scrollTo({
-        x: nextIndex * itemWidthRef.current,
+        x: next * ITEM_WIDTH,
         animated: true,
       });
     }, 4000);
-  }, [items.length]);
+  }, [items.length, ITEM_WIDTH]);
 
   useEffect(() => {
     if (items.length > 1) startAutoScroll();
@@ -227,46 +253,52 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
     };
   }, [items.length, startAutoScroll]);
 
-  const handleScrollEnd = useCallback(
-    (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      isScrollingRef.current = false;
-      const offsetX = e.nativeEvent.contentOffset.x;
-      const newIndex = Math.round(offsetX / itemWidthRef.current);
-      const clampedIndex = Math.max(0, Math.min(newIndex, items.length - 1));
-      setActiveIndex(clampedIndex);
-    },
-    [items.length, setActiveIndex],
-  );
-
   const handleScrollBegin = useCallback(() => {
-    isScrollingRef.current = true;
+    isUserScrollingRef.current = true;
     if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
   }, []);
+
+  const handleScrollEnd = useCallback(
+    (e: any) => {
+      isUserScrollingRef.current = false;
+      const offsetX = e.nativeEvent.contentOffset.x;
+      const idx = Math.max(
+        0,
+        Math.min(Math.round(offsetX / ITEM_WIDTH), items.length - 1),
+      );
+      activeIndexRef.current = idx;
+      if (items.length > 1) startAutoScroll();
+    },
+    [items.length, ITEM_WIDTH, startAutoScroll],
+  );
 
   if (items.length === 0) return null;
 
   return (
-    <View style={{ height: SECTION_HEIGHT }} className="overflow-hidden">
-      {/* Dynamic blurred background */}
-      <DynamicBackground uri={bgUri} />
-      <View className="absolute inset-0 bg-black/40" />
-      <BlurView intensity={60} className="absolute inset-0" />
-
+    <View style={{ paddingTop: 12, paddingBottom: 4 }}>
       {/* Header */}
-      <View className="px-4 pt-4 pb-2">
-        <View className="flex-row items-center gap-2">
-          <Zap size={16} color="#f59e0b" fill="#f59e0b" />
-          <Text className="text-white text-lg font-bold">Spotlight</Text>
-        </View>
-        <Text className="text-white/50 text-xs mt-0.5">Promoted</Text>
+      <View
+        style={{
+          flexDirection: "row",
+          alignItems: "center",
+          gap: 6,
+          paddingHorizontal: 16,
+          marginBottom: 10,
+        }}
+      >
+        <Zap size={14} color="#f59e0b" fill="#f59e0b" />
+        <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
+          Spotlight
+        </Text>
+        <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+          · Promoted
+        </Text>
       </View>
 
-      {/* Carousel */}
-      <ScrollView
+      {/* Cards — Animated.ScrollView for scroll-driven dot animation */}
+      <Animated.ScrollView
         ref={scrollRef}
         horizontal
-        directionalLockEnabled
-        nestedScrollEnabled
         pagingEnabled={false}
         snapToInterval={ITEM_WIDTH}
         snapToAlignment="start"
@@ -274,12 +306,11 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
         disableIntervalMomentum
         scrollEnabled={items.length > 1}
         showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{
-          paddingHorizontal: (screenWidth - CARD_WIDTH) / 2 - 6,
-        }}
+        contentContainerStyle={{ paddingHorizontal: PADDING }}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         onScrollBeginDrag={handleScrollBegin}
         onMomentumScrollEnd={handleScrollEnd}
-        scrollEventThrottle={16}
       >
         {items.map((item) => (
           <SpotlightCard
@@ -289,10 +320,30 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
             cardHeight={CARD_HEIGHT}
           />
         ))}
-      </ScrollView>
+      </Animated.ScrollView>
 
-      {/* Dots */}
-      <DotIndicator count={items.length} activeIndex={activeIndex} />
+      {/* Scroll-driven dots */}
+      {items.length > 1 && (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 5,
+            marginTop: 12,
+          }}
+        >
+          {Array.from({ length: Math.min(items.length, 8) }).map((_, i) => (
+            <AnimatedDot
+              key={i}
+              index={i}
+              scrollX={scrollX}
+              itemWidth={ITEM_WIDTH}
+              count={items.length}
+            />
+          ))}
+        </View>
+      )}
     </View>
   );
 }
