@@ -5,6 +5,7 @@
 
 import { supabase } from "../supabase/client";
 import { getCurrentUserAuthId } from "./auth-helper";
+import { requireBetterAuthToken } from "../auth/identity";
 import type {
   SpotlightItem,
   SpotlightCampaign,
@@ -12,11 +13,23 @@ import type {
   CampaignPlacement,
 } from "@/src/events/promotion-types";
 
-const _rawSupabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const SUPABASE_URL =
-  typeof _rawSupabaseUrl === "string" && _rawSupabaseUrl.startsWith("https://")
-    ? _rawSupabaseUrl
-    : "https://npfjanxturvmjyevoyfo.supabase.co";
+async function getFunctionErrorMessage(
+  error: any,
+  fallback: string,
+): Promise<string> {
+  try {
+    const context = await error?.context?.json?.();
+    if (typeof context?.error === "string" && context.error.trim()) {
+      return context.error;
+    }
+  } catch {}
+
+  if (typeof error?.message === "string" && error.message.trim()) {
+    return error.message;
+  }
+
+  return fallback;
+}
 
 export const promotionsApi = {
   /**
@@ -101,35 +114,32 @@ export const promotionsApi = {
       const authId = await getCurrentUserAuthId();
       if (!authId) return { error: "Not authenticated" };
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token =
-        sessionData?.session?.access_token || (await getCurrentUserAuthId());
-
-      const res = await fetch(
-        `${SUPABASE_URL}/functions/v1/promotion-checkout`,
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke(
+        "promotion-checkout",
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
+          body: {
             event_id: params.eventId,
             city_id: params.cityId ?? null,
             duration: params.duration,
             placement: params.placement,
             start_now: params.startNow,
             organizer_id: authId,
-          }),
+          },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
+          },
         },
       );
 
-      const result = await res.json();
-
-      if (!res.ok) {
-        return { error: result.error || "Checkout failed" };
+      if (error) {
+        return {
+          error: await getFunctionErrorMessage(error, "Checkout failed"),
+        };
       }
 
+      const result = typeof data === "string" ? JSON.parse(data) : data;
       return result;
     } catch (error: any) {
       console.error("[Promotions] createPromotionCheckout error:", error);
@@ -145,21 +155,20 @@ export const promotionsApi = {
       const authId = await getCurrentUserAuthId();
       if (!authId) return { success: false };
 
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token || "";
-
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/promotion-cancel`, {
-        method: "POST",
+      const token = await requireBetterAuthToken();
+      const { error } = await supabase.functions.invoke("promotion-cancel", {
+        body: { campaign_id: campaignId },
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "x-auth-token": token,
         },
-        body: JSON.stringify({ campaign_id: campaignId }),
       });
 
-      const result = await res.json();
-      if (!res.ok) {
-        console.error("[Promotions] cancelCampaign error:", result.error);
+      if (error) {
+        console.error(
+          "[Promotions] cancelCampaign error:",
+          await getFunctionErrorMessage(error, "Failed to cancel campaign"),
+        );
         return { success: false };
       }
 
