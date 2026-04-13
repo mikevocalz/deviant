@@ -1,11 +1,10 @@
 /**
  * SpotlightCarousel — Promoted events horizontal pager.
  *
- * Design: wide landscape cards, smooth Reanimated scroll-driven dots,
- * no BlurView, no crossfading background — clean and fast.
+ * Design: tall poster-style cards (portrait), scroll-driven dots in DVNT colors.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -21,11 +20,14 @@ import Animated, {
 } from "react-native-reanimated";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { Zap, MapPin } from "lucide-react-native";
+import { Zap, MapPin, Calendar } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import type { SpotlightItem } from "@/src/events/promotion-types";
 
-// ── Spotlight Card ───────────────────────────────────────────────────────────
+// DVNT brand gradient stops for the dots
+const DVNT_DOT_COLORS = ["#8A40CF", "#3FDCFF", "#FF5BFC", "#f59e0b"];
+
+// ── Spotlight Card (Poster) ──────────────────────────────────────────────────
 
 function SpotlightCard({
   item,
@@ -54,15 +56,23 @@ function SpotlightCard({
           backgroundColor: "#1a1a1a",
         }}
       >
+        {/* Poster image — fills full height */}
         <Image
           source={{ uri: item.spotlight_image || item.cover_image }}
           style={{ width: "100%", height: "100%" }}
           contentFit="cover"
           cachePolicy="memory-disk"
         />
+
+        {/* Deep gradient from bottom */}
         <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.25)", "rgba(0,0,0,0.82)"]}
-          locations={[0.35, 0.6, 1]}
+          colors={[
+            "transparent",
+            "rgba(0,0,0,0.1)",
+            "rgba(0,0,0,0.55)",
+            "rgba(0,0,0,0.9)",
+          ]}
+          locations={[0.25, 0.5, 0.72, 1]}
           style={{
             position: "absolute",
             inset: 0,
@@ -70,24 +80,27 @@ function SpotlightCard({
             padding: 16,
           }}
         >
-          {/* Promoted badge */}
+          {/* Badges row */}
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
-              gap: 4,
-              marginBottom: 8,
+              gap: 6,
+              marginBottom: 10,
+              flexWrap: "wrap",
             }}
           >
             <View
               style={{
-                backgroundColor: "rgba(245,158,11,0.9)",
+                backgroundColor: "rgba(138,64,207,0.85)",
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 4,
                 paddingHorizontal: 8,
-                paddingVertical: 3,
+                paddingVertical: 4,
                 borderRadius: 8,
+                borderWidth: 1,
+                borderColor: "rgba(138,64,207,0.5)",
               }}
             >
               <Zap size={10} color="#fff" fill="#fff" />
@@ -105,53 +118,82 @@ function SpotlightCard({
             {item.category && (
               <View
                 style={{
-                  backgroundColor: "rgba(255,255,255,0.15)",
+                  backgroundColor: "rgba(255,255,255,0.12)",
                   paddingHorizontal: 8,
-                  paddingVertical: 3,
+                  paddingVertical: 4,
                   borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.15)",
                 }}
               >
-                <Text style={{ color: "#fff", fontSize: 10, fontWeight: "500" }}>
+                <Text
+                  style={{ color: "rgba(255,255,255,0.9)", fontSize: 10, fontWeight: "600" }}
+                >
                   {item.category}
                 </Text>
               </View>
             )}
           </View>
 
+          {/* Event title */}
           <Text
             style={{
               color: "#fff",
-              fontSize: 18,
-              fontWeight: "700",
-              lineHeight: 22,
-              marginBottom: 4,
+              fontSize: 20,
+              fontWeight: "800",
+              lineHeight: 24,
+              marginBottom: 8,
+              letterSpacing: -0.3,
             }}
             numberOfLines={2}
           >
             {item.title}
           </Text>
 
+          {/* Location + price row */}
           <View
-            style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 6,
+            }}
           >
-            <MapPin size={11} color="rgba(255,255,255,0.6)" />
+            <MapPin size={12} color="rgba(63,220,255,0.8)" />
             <Text
-              style={{ color: "rgba(255,255,255,0.6)", fontSize: 12 }}
+              style={{
+                color: "rgba(255,255,255,0.7)",
+                fontSize: 12,
+                flex: 1,
+              }}
               numberOfLines={1}
             >
               {item.location}
             </Text>
             {item.price != null && (
-              <Text
+              <View
                 style={{
-                  color: "#fff",
-                  fontSize: 12,
-                  fontWeight: "700",
-                  marginLeft: "auto",
+                  backgroundColor: item.price === 0
+                    ? "rgba(34,197,94,0.2)"
+                    : "rgba(138,64,207,0.25)",
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: item.price === 0
+                    ? "rgba(34,197,94,0.4)"
+                    : "rgba(138,64,207,0.4)",
                 }}
               >
-                {item.price === 0 ? "Free" : `$${item.price}`}
-              </Text>
+                <Text
+                  style={{
+                    color: item.price === 0 ? "#22C55E" : "#C084FC",
+                    fontSize: 12,
+                    fontWeight: "800",
+                  }}
+                >
+                  {item.price === 0 ? "FREE" : `$${item.price}`}
+                </Text>
+              </View>
             )}
           </View>
         </LinearGradient>
@@ -160,31 +202,31 @@ function SpotlightCard({
   );
 }
 
-// ── Animated Dot ─────────────────────────────────────────────────────────────
+// ── Animated Dot (DVNT colors) ───────────────────────────────────────────────
 
 function AnimatedDot({
   index,
   scrollX,
   itemWidth,
-  count,
+  dotColor,
 }: {
   index: number;
   scrollX: SharedValue<number>;
   itemWidth: number;
-  count: number;
+  dotColor: string;
 }) {
   const animatedStyle = useAnimatedStyle(() => {
-    const input = scrollX.value / itemWidth;
+    const input = itemWidth > 0 ? scrollX.value / itemWidth : 0;
     const width = interpolate(
       input,
       [index - 1, index, index + 1],
-      [5, 18, 5],
+      [5, 20, 5],
       "clamp",
     );
     const opacity = interpolate(
       input,
       [index - 1, index, index + 1],
-      [0.3, 1, 0.3],
+      [0.25, 1, 0.25],
       "clamp",
     );
     return { width, opacity };
@@ -196,7 +238,7 @@ function AnimatedDot({
         {
           height: 5,
           borderRadius: 3,
-          backgroundColor: "#fff",
+          backgroundColor: dotColor,
         },
         animatedStyle,
       ]}
@@ -213,8 +255,9 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
   const isUserScrollingRef = useRef(false);
   const activeIndexRef = useRef(0);
 
-  const CARD_WIDTH = screenWidth - 64;
-  const CARD_HEIGHT = Math.round(CARD_WIDTH * 0.58);
+  // Poster proportions: ~9:14 (like a movie poster)
+  const CARD_WIDTH = screenWidth - 80;
+  const CARD_HEIGHT = Math.round(CARD_WIDTH * 1.4);
   const ITEM_WIDTH = CARD_WIDTH + 12;
   const PADDING = (screenWidth - CARD_WIDTH) / 2 - 6;
 
@@ -226,7 +269,6 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
     },
   });
 
-  // Reset on mount
   useEffect(() => {
     activeIndexRef.current = 0;
     scrollX.value = 0;
@@ -243,7 +285,7 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
         x: next * ITEM_WIDTH,
         animated: true,
       });
-    }, 4000);
+    }, 4500);
   }, [items.length, ITEM_WIDTH]);
 
   useEffect(() => {
@@ -275,7 +317,7 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
   if (items.length === 0) return null;
 
   return (
-    <View style={{ paddingTop: 12, paddingBottom: 4 }}>
+    <View style={{ paddingTop: 12, paddingBottom: 8 }}>
       {/* Header */}
       <View
         style={{
@@ -283,19 +325,19 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
           alignItems: "center",
           gap: 6,
           paddingHorizontal: 16,
-          marginBottom: 10,
+          marginBottom: 12,
         }}
       >
-        <Zap size={14} color="#f59e0b" fill="#f59e0b" />
+        <Zap size={14} color="#8A40CF" fill="#8A40CF" />
         <Text style={{ color: "#fff", fontSize: 13, fontWeight: "700" }}>
           Spotlight
         </Text>
-        <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 12 }}>
+        <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12 }}>
           · Promoted
         </Text>
       </View>
 
-      {/* Cards — Animated.ScrollView for scroll-driven dot animation */}
+      {/* Poster cards */}
       <Animated.ScrollView
         ref={scrollRef}
         horizontal
@@ -322,15 +364,15 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
         ))}
       </Animated.ScrollView>
 
-      {/* Scroll-driven dots */}
+      {/* DVNT-colored scroll-driven dots */}
       {items.length > 1 && (
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
-            gap: 5,
-            marginTop: 12,
+            gap: 6,
+            marginTop: 14,
           }}
         >
           {Array.from({ length: Math.min(items.length, 8) }).map((_, i) => (
@@ -339,7 +381,7 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
               index={i}
               scrollX={scrollX}
               itemWidth={ITEM_WIDTH}
-              count={items.length}
+              dotColor={DVNT_DOT_COLORS[i % DVNT_DOT_COLORS.length]}
             />
           ))}
         </View>

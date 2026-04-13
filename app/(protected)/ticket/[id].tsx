@@ -377,6 +377,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     backgroundColor: "rgba(10,10,10,0.96)",
     paddingHorizontal: 16,
+    paddingTop: 10,
   },
   ticketActionsBar: {
     borderTopWidth: 1,

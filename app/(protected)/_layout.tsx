@@ -243,7 +243,7 @@ export default function ProtectedLayout() {
           options={{ ...fullScreenModalConfig, headerShown: true }}
         />
         <Stack.Screen
-          name="events/[id]/index"
+          name="events/[id]"
           options={({ route }) =>
             dvntEventTransition(
               String((route.params as any)?.id ?? ""),
