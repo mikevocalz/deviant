@@ -4,7 +4,7 @@
  * Scans QR codes from tickets and checks them in
  */
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -38,55 +38,62 @@ export function TicketQRScanner({
   const { colors } = useColorScheme();
   const showToast = useUIStore((s) => s.showToast);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
-  const [scannedCode, setScannedCode] = useState<string | null>(null);
+  // Refs for guards to avoid stale closures inside the barcode callback
+  const isCheckingInRef = useRef(false);
+  const scannedCodeRef = useRef<string | null>(null);
   const device = useCameraDevice("back");
+
+  const handleCheckIn = useCallback(
+    async (qrToken: string) => {
+      if (isCheckingInRef.current) return;
+      isCheckingInRef.current = true;
+      setIsCheckingIn(true);
+      try {
+        const result = await tickets.checkIn({ qrToken });
+
+        if ((result as any).alreadyCheckedIn) {
+          showToast(
+            "info",
+            "Already Checked In",
+            "This ticket was already checked in.",
+          );
+        } else if ((result as any).success) {
+          showToast("success", "Checked In", "Ticket successfully checked in!");
+          onCheckInSuccess?.();
+          setTimeout(() => {
+            scannedCodeRef.current = null;
+            isCheckingInRef.current = false;
+            setIsCheckingIn(false);
+          }, 2000);
+          return;
+        } else {
+          throw new Error((result as any).error || "Check-in failed");
+        }
+      } catch (error: any) {
+        console.error("[QRScanner] Check-in error:", error);
+        const errorMessage =
+          error?.error || error?.message || "Failed to check in ticket";
+        showToast("error", "Check-In Failed", errorMessage);
+      }
+      scannedCodeRef.current = null;
+      isCheckingInRef.current = false;
+      setIsCheckingIn(false);
+    },
+    [onCheckInSuccess, showToast],
+  );
 
   const codeScanner = useCodeScanner({
     codeTypes: ["qr"],
-    onCodeScanned: async (codes) => {
-      if (codes.length > 0 && !isCheckingIn && !scannedCode) {
+    onCodeScanned: (codes: { value?: string }[]) => {
+      if (codes.length > 0 && !isCheckingInRef.current && !scannedCodeRef.current) {
         const code = codes[0].value;
         if (code) {
-          setScannedCode(code);
-          await handleCheckIn(code);
+          scannedCodeRef.current = code;
+          void handleCheckIn(code);
         }
       }
     },
   });
-
-  const handleCheckIn = async (qrToken: string) => {
-    if (isCheckingIn) return;
-
-    setIsCheckingIn(true);
-    try {
-      const result = await tickets.checkIn({ qrToken });
-
-      if ((result as any).alreadyCheckedIn) {
-        showToast(
-          "info",
-          "Already Checked In",
-          "This ticket was already checked in.",
-        );
-      } else if ((result as any).success) {
-        showToast("success", "Checked In", "Ticket successfully checked in!");
-        onCheckInSuccess?.();
-        // Reset after a delay to allow scanning again
-        setTimeout(() => {
-          setScannedCode(null);
-          setIsCheckingIn(false);
-        }, 2000);
-      } else {
-        throw new Error((result as any).error || "Check-in failed");
-      }
-    } catch (error: any) {
-      console.error("[QRScanner] Check-in error:", error);
-      const errorMessage =
-        error?.error || error?.message || "Failed to check in ticket";
-      showToast("error", "Check-In Failed", errorMessage);
-      setScannedCode(null);
-      setIsCheckingIn(false);
-    }
-  };
 
   if (!device) {
     return (
