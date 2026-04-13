@@ -450,7 +450,8 @@ function EventDetailScreenContent() {
         };
       });
     }
-    return [];
+    // Fall back to synthetic tiers derived from event price/capacity
+    return buildTicketTiers(eventData);
   }, [safeEvent]);
 
   // Use real attendee avatars from batch payload, fall back to mock

@@ -210,6 +210,7 @@ function LiveCamera({
   const device = useCameraDevice("back");
   const barcodeScannerOutput = useBarcodeScannerOutput({
     barcodeFormats: ["qr-code"],
+    outputResolution: "full",
     onBarcodeScanned: onCodeScanned,
     onError: (error: Error) => {
       console.error("[Scanner] Barcode scan error:", error);

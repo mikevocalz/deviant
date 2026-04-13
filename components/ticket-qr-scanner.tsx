@@ -108,6 +108,7 @@ export function TicketQRScanner({
 
   const barcodeScannerOutput = useBarcodeScannerOutput({
     barcodeFormats: ["qr-code"],
+    outputResolution: "full",
     onBarcodeScanned,
     onError: (error) => {
       console.error("[QRScanner] Barcode scan error:", error);

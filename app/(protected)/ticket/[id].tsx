@@ -488,7 +488,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     minHeight: 68,
-    width: "100%",
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 18,
@@ -497,7 +496,9 @@ const styles = StyleSheet.create({
     borderColor: "rgba(63,220,255,0.14)",
   },
   walletBottomCta: {
-    marginTop: 6,
+    marginTop: 10,
+    marginBottom: 6,
+    marginHorizontal: 16,
     alignSelf: "stretch",
   },
   walletBannerPressed: {
