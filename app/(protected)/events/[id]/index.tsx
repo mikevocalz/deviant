@@ -1050,12 +1050,13 @@ function EventDetailScreenContent() {
           ) : null}
 
           {/* ── 3.5 WEATHER FORECAST ─────────────────────────────── */}
-          {(event.locationLat && event.locationLng) ||
-          (deviceLat != null && deviceLng != null) ? (
+          {event.locationLat && event.locationLng ? (
             <View style={s.section}>
               <WeatherModule
-                lat={event.locationLat ?? deviceLat!}
-                lng={event.locationLng ?? deviceLng!}
+                lat={event.locationLat}
+                lng={event.locationLng}
+                locationName={event.locationName || event.location}
+                eventDate={event.fullDate || undefined}
               />
             </View>
           ) : null}
