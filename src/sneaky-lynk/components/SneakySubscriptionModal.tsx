@@ -118,7 +118,10 @@ export function SneakySubscriptionModal({
           "sneaky-billing-checkout",
           {
             body: { plan_id: planId },
-            headers: { Authorization: `Bearer ${token}` },
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "x-auth-token": token,
+            },
           },
         );
 

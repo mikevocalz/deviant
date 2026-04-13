@@ -249,10 +249,13 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
       <ScrollView
         ref={scrollRef}
         horizontal
+        directionalLockEnabled
+        nestedScrollEnabled
         pagingEnabled={false}
         snapToInterval={ITEM_WIDTH}
         snapToAlignment="start"
         decelerationRate="fast"
+        scrollEnabled={items.length > 1}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: (screenWidth - CARD_WIDTH) / 2 - 6,

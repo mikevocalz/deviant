@@ -20,6 +20,7 @@ import Animated, { FadeIn, FadeInUp, FadeOut } from "react-native-reanimated";
 import { Lock, ExternalLink, X, Shield } from "lucide-react-native";
 import * as WebBrowser from "expo-web-browser";
 import { supabase } from "@/lib/supabase/client";
+import { requireBetterAuthToken } from "@/lib/auth/identity";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { isFeatureEnabled } from "@/lib/feature-flags";
@@ -46,11 +47,16 @@ export function SneakyPaywallModal({
     setIsLoading(true);
 
     try {
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke(
         "sneaky-access-checkout",
         {
           body: {
             session_id: sessionId,
+          },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
           },
         },
       );

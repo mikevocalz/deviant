@@ -138,7 +138,10 @@ function BillingScreenContent() {
         "sneaky-billing-portal",
         {
           body: {},
-          headers: { Authorization: `Bearer ${token}` },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
+          },
         },
       );
 

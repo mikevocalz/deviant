@@ -1,5 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
+import { getCurrentUserId as getCurrentUserIdAsync } from "../auth/identity";
 import {
   getCurrentUserId,
   getCurrentUserIdInt,
@@ -900,7 +901,7 @@ export const eventsApi = {
    */
   async likeEvent(eventId: string): Promise<boolean> {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdInt() ?? (await getCurrentUserIdAsync());
       if (!userId) throw new Error("Not authenticated");
 
       const { error } = await supabase.from(DB.eventLikes.table).upsert(
@@ -925,7 +926,7 @@ export const eventsApi = {
    */
   async unlikeEvent(eventId: string): Promise<boolean> {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdInt() ?? (await getCurrentUserIdAsync());
       if (!userId) throw new Error("Not authenticated");
 
       const { error } = await supabase
@@ -948,7 +949,7 @@ export const eventsApi = {
    */
   async isEventLiked(eventId: string): Promise<boolean> {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdInt() ?? (await getCurrentUserIdAsync());
       if (!userId) return false;
 
       const { data, error } = await supabase

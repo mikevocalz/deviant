@@ -335,20 +335,14 @@ function ViewTicketScreenContent() {
               { marginBottom: insets.bottom + 6 },
             ]}
           >
-            <View style={styles.walletBannerLeading}>
-              <View style={styles.walletIconWrap}>
-                {walletState === "loading" ? (
-                  <ActivityIndicator size="small" color={accent} />
-                ) : (
-                  <WalletCards size={22} color={accent} />
-                )}
-              </View>
-
-              <View style={styles.walletBannerTextWrap}>
-                <Text style={styles.walletBannerTitle}>{walletTitle}</Text>
-              </View>
+            <View style={styles.walletButtonContent}>
+              {walletState === "loading" ? (
+                <ActivityIndicator size="small" color={accent} />
+              ) : (
+                <WalletCards size={20} color={accent} />
+              )}
+              <Text style={styles.walletBannerTitle}>{walletTitle}</Text>
             </View>
-
           </Pressable>
         )}
       </View>
@@ -491,8 +485,7 @@ const styles = StyleSheet.create({
   walletBanner: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 8,
+    justifyContent: "center",
     minHeight: 68,
     width: "100%",
     paddingHorizontal: 16,
@@ -513,30 +506,18 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15,38,44,0.96)",
     borderColor: "rgba(63,220,255,0.26)",
   },
-  walletBannerLeading: {
-    flex: 1,
+  walletButtonContent: {
     minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
-  },
-  walletIconWrap: {
-    flexShrink: 0,
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "rgba(138,64,207,0.16)",
-    alignItems: "center",
     justifyContent: "center",
-  },
-  walletBannerTextWrap: {
-    flex: 1,
-    minWidth: 0,
+    gap: 10,
   },
   walletBannerTitle: {
     color: "#fff",
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: "700",
+    textAlign: "center",
   },
 });
 
