@@ -40,13 +40,11 @@ import type { SpotlightItem } from "@/src/events/promotion-types";
 interface SpotlightCarouselState {
   activeIndex: number;
   setActiveIndex: (i: number) => void;
-  reset: () => void;
 }
 
 const useCarouselStore = create<SpotlightCarouselState>((set) => ({
   activeIndex: 0,
   setActiveIndex: (i) => set({ activeIndex: i }),
-  reset: () => set({ activeIndex: 0 }),
 }));
 
 // ── Dynamic Background ───────────────────────────────────────────────────────
@@ -180,45 +178,31 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
   const { width: screenWidth } = useWindowDimensions();
   const activeIndex = useCarouselStore((s) => s.activeIndex);
   const setActiveIndex = useCarouselStore((s) => s.setActiveIndex);
-  const reset = useCarouselStore((s) => s.reset);
   const scrollRef = useRef<ScrollView>(null);
   const autoScrollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const isScrollingRef = useRef(false);
 
   const CARD_WIDTH = Math.round(screenWidth * 0.65);
   const CARD_HEIGHT = Math.round(CARD_WIDTH * (5 / 3)); // 3:5 aspect ratio
   const ITEM_WIDTH = CARD_WIDTH + 12; // card + horizontal margin
   const SECTION_HEIGHT = CARD_HEIGHT + 140; // card + header + dots + padding
-  // Keep ITEM_WIDTH stable in a ref so the interval always uses the current value
-  const itemWidthRef = useRef(ITEM_WIDTH);
-  useEffect(() => {
-    itemWidthRef.current = ITEM_WIDTH;
-  }, [ITEM_WIDTH]);
-
-  // Reset index when component mounts so dot and scroll are always in sync
-  useEffect(() => {
-    reset();
-  }, [reset]);
 
   const bgUri = useMemo(
     () => items[activeIndex]?.spotlight_image || items[activeIndex]?.cover_image,
     [activeIndex, items],
   );
 
-  // Auto-scroll — only fires when the scroll view is idle
+  // Auto-scroll
   const startAutoScroll = useCallback(() => {
     if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
     autoScrollTimer.current = setInterval(() => {
-      if (isScrollingRef.current) return; // skip if user is interacting
-      const nextIndex =
-        (useCarouselStore.getState().activeIndex + 1) % items.length;
+      const nextIndex = (useCarouselStore.getState().activeIndex + 1) % items.length;
       useCarouselStore.getState().setActiveIndex(nextIndex);
       scrollRef.current?.scrollTo({
-        x: nextIndex * itemWidthRef.current,
+        x: nextIndex * ITEM_WIDTH,
         animated: true,
       });
     }, 4000);
-  }, [items.length]);
+  }, [items.length, ITEM_WIDTH]);
 
   useEffect(() => {
     if (items.length > 1) startAutoScroll();
@@ -229,17 +213,17 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
 
   const handleScrollEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      isScrollingRef.current = false;
       const offsetX = e.nativeEvent.contentOffset.x;
-      const newIndex = Math.round(offsetX / itemWidthRef.current);
+      const newIndex = Math.round(offsetX / ITEM_WIDTH);
       const clampedIndex = Math.max(0, Math.min(newIndex, items.length - 1));
       setActiveIndex(clampedIndex);
+      // Restart auto-scroll after manual interaction
+      startAutoScroll();
     },
-    [items.length, setActiveIndex],
+    [ITEM_WIDTH, items.length, setActiveIndex, startAutoScroll],
   );
 
   const handleScrollBegin = useCallback(() => {
-    isScrollingRef.current = true;
     if (autoScrollTimer.current) clearInterval(autoScrollTimer.current);
   }, []);
 
@@ -269,8 +253,6 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
         snapToInterval={ITEM_WIDTH}
         snapToAlignment="start"
         decelerationRate="fast"
-        disableIntervalMomentum
-        scrollEnabled={items.length > 1}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{
           paddingHorizontal: (screenWidth - CARD_WIDTH) / 2 - 6,
