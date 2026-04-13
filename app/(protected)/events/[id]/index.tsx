@@ -420,21 +420,35 @@ function EventDetailScreenContent() {
     if (!eventData) return [];
     const dbTiers = eventData.ticketTiers;
     if (Array.isArray(dbTiers) && dbTiers.length > 0) {
-      return dbTiers.map((t: any, i: number) => ({
-        id: t.id,
-        name: t.name,
-        price: (t.price_cents || 0) / 100,
-        originalPrice: t.original_price_cents
-          ? t.original_price_cents / 100
-          : undefined,
-        description: t.description,
-        perks: t.perks || [],
-        remaining: t.remaining ?? 0,
-        maxPerOrder: t.max_per_order || 4,
-        isSoldOut: t.is_sold_out || false,
-        tier: t.tier || "ga",
-        glowColor: t.glow_color || "#3b82f6",
-      }));
+      const glowColors = ["#34A2DF", "#8A40CF", "#FF5BFC", "#f59e0b"];
+      return dbTiers.map((t: any, i: number) => {
+        // remaining may be pre-computed by RPC or we derive it from qty fields
+        const remaining =
+          t.remaining != null
+            ? t.remaining
+            : t.quantity_total != null
+              ? Math.max(0, (t.quantity_total || 0) - (t.quantity_sold || 0))
+              : 999; // unknown — treat as available
+        const isSoldOut =
+          t.is_sold_out != null
+            ? t.is_sold_out
+            : t.quantity_total != null && remaining === 0;
+        return {
+          id: t.id,
+          name: t.name,
+          price: (t.price_cents || 0) / 100,
+          originalPrice: t.original_price_cents
+            ? t.original_price_cents / 100
+            : undefined,
+          description: t.description,
+          perks: t.perks || [],
+          remaining,
+          maxPerOrder: t.max_per_order || t.max_per_user || 4,
+          isSoldOut,
+          tier: t.tier || (i === 0 ? "ga" : i === 1 ? "vip" : "table"),
+          glowColor: t.glow_color || glowColors[i % glowColors.length],
+        };
+      });
     }
     return [];
   }, [safeEvent]);
@@ -906,7 +920,9 @@ function EventDetailScreenContent() {
 
           {/* Floating chips */}
           <View style={s.heroChips}>
-            {event.price === 0 ? (
+            {(ticketTiers.length > 0
+              ? ticketTiers.every((t) => t.price === 0)
+              : event.price === 0) ? (
               <View style={[s.chip, s.chipFree]}>
                 <Text style={s.chipFreeText}>FREE</Text>
               </View>
