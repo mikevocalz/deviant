@@ -166,53 +166,13 @@ function ViewTicketScreenContent() {
     [upgradeLoading, dbTicket, showToast],
   );
 
-  // ── Loading state ──
-  if (isLoading && !ticket) {
-    return <ScreenSkeleton variant="detail" rows={6} />;
-  }
-
-  // ── Not found / error state ──
-  if (!ticket) {
-    return (
-      <View style={[styles.screen, { paddingTop: insets.top }]}>
-        <Pressable
-          onPress={() => router.back()}
-          hitSlop={16}
-          style={styles.backButton}
-        >
-          <ArrowLeft size={22} color="#fff" />
-        </Pressable>
-
-        <View style={styles.emptyContainer}>
-          <TicketX size={56} color="rgba(255,255,255,0.2)" />
-          <Text style={styles.emptyTitle}>Ticket Not Found</Text>
-          <Text style={styles.emptySubtitle}>
-            This ticket may have been removed or is no longer available.
-          </Text>
-          <Pressable
-            onPress={() => router.back()}
-            hitSlop={12}
-            style={styles.retryButton}
-          >
-            <RefreshCw size={16} color="#fff" />
-            <Text style={styles.retryText}>Go Back</Text>
-          </Pressable>
-        </View>
-      </View>
-    );
-  }
-
-  const tier = ticket.tier || "ga";
-  const accent = TIER_ACCENT[tier];
-  const isExpired = ticket.status === "expired";
-  const isRevoked = ticket.status === "revoked";
-  const isTransferPending = ticket.status === "transfer_pending";
+  // ── Wallet handler (MUST be before early returns — Rules of Hooks) ──
   const canAddToWallet =
-    ticket.status === "valid" &&
+    ticket?.status === "valid" &&
     (Platform.OS === "ios" || Platform.OS === "android");
 
   const handleAddToWallet = React.useCallback(async () => {
-    if (!canAddToWallet || walletState === "loading") return;
+    if (!canAddToWallet || walletState === "loading" || !ticket) return;
 
     setWalletState("loading");
     const result = await addToWallet(ticket);
@@ -254,6 +214,48 @@ function ViewTicketScreenContent() {
         ? "Wallet Ready"
         : "Add to Wallet";
   const bottomActionsPadding = canAddToWallet ? insets.bottom + 176 : 116;
+
+  // ── Loading state ──
+  if (isLoading && !ticket) {
+    return <ScreenSkeleton variant="detail" rows={6} />;
+  }
+
+  // ── Not found / error state ──
+  if (!ticket) {
+    return (
+      <View style={[styles.screen, { paddingTop: insets.top }]}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={16}
+          style={styles.backButton}
+        >
+          <ArrowLeft size={22} color="#fff" />
+        </Pressable>
+
+        <View style={styles.emptyContainer}>
+          <TicketX size={56} color="rgba(255,255,255,0.2)" />
+          <Text style={styles.emptyTitle}>Ticket Not Found</Text>
+          <Text style={styles.emptySubtitle}>
+            This ticket may have been removed or is no longer available.
+          </Text>
+          <Pressable
+            onPress={() => router.back()}
+            hitSlop={12}
+            style={styles.retryButton}
+          >
+            <RefreshCw size={16} color="#fff" />
+            <Text style={styles.retryText}>Go Back</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  const tier = ticket.tier || "ga";
+  const accent = TIER_ACCENT[tier];
+  const isExpired = ticket.status === "expired";
+  const isRevoked = ticket.status === "revoked";
+  const isTransferPending = ticket.status === "transfer_pending";
 
   return (
     <View style={styles.screen}>
