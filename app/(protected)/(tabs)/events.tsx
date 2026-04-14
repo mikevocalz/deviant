@@ -316,7 +316,7 @@ function EventsScreenContent() {
   const searchDebouncerRef = useRef(
     new Debouncer(
       (q: string) => {
-        setDebouncedSearch(q);
+        setDebouncedSearch(q.trim());
       },
       { wait: 400 },
     ),

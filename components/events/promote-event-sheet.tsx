@@ -92,14 +92,40 @@ export function PromoteEventSheet() {
     (c) => c.status === "active" || c.status === "pending",
   );
 
+  // Block re-purchase if campaign has > 24h remaining; allow extending if < 24h
+  const campaignEndsAt = activeCampaign?.ends_at ? new Date(activeCampaign.ends_at) : null;
+  const campaignHoursLeft = campaignEndsAt
+    ? (campaignEndsAt.getTime() - Date.now()) / (1000 * 60 * 60)
+    : null;
+  const isExpiringSoon = campaignHoursLeft !== null && campaignHoursLeft < 24;
+  const canExtend = !activeCampaign || isExpiringSoon;
+
   // Open/close sheet based on store visibility
+  // Guard: if opening but campaign is still active and not expiring soon, close immediately
+  const isPresentedRef = useRef(false);
   useEffect(() => {
     if (visible) {
-      sheetRef.current?.present();
+      if (!canExtend) {
+        // Already promoted with > 24h left — just close, don't show sheet
+        closeSheet();
+        showToast(
+          "info",
+          "Already Promoted",
+          campaignHoursLeft != null
+            ? `Active until ${campaignEndsAt!.toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`
+            : "This event is currently being promoted.",
+        );
+        return;
+      }
+      if (!isPresentedRef.current) {
+        isPresentedRef.current = true;
+        sheetRef.current?.present();
+      }
     } else {
+      isPresentedRef.current = false;
       sheetRef.current?.dismiss();
     }
-  }, [visible]);
+  }, [visible, canExtend]);
 
   const handleDismiss = useCallback(() => {
     closeSheet();
@@ -206,18 +232,28 @@ export function PromoteEventSheet() {
 
         {/* Active campaign status */}
         {activeCampaign && (
-          <View className="bg-green-500/10 border border-green-500/30 rounded-2xl p-4 mb-6">
+          <View
+            className={`border rounded-2xl p-4 mb-6 ${
+              isExpiringSoon
+                ? "bg-amber-500/10 border-amber-500/30"
+                : "bg-green-500/10 border-green-500/30"
+            }`}
+          >
             <View className="flex-row items-center gap-2 mb-1">
-              <Check size={16} color="#22c55e" />
-              <Text className="text-green-400 font-semibold text-sm">
-                {activeCampaign.status === "active"
-                  ? "Currently Promoted"
-                  : "Promotion Pending"}
+              <Check size={16} color={isExpiringSoon ? "#f59e0b" : "#22c55e"} />
+              <Text
+                className={`font-semibold text-sm ${isExpiringSoon ? "text-amber-400" : "text-green-400"}`}
+              >
+                {isExpiringSoon
+                  ? "Expiring Soon — Extend?"
+                  : activeCampaign.status === "active"
+                    ? "Currently Promoted"
+                    : "Promotion Pending"}
               </Text>
             </View>
             <Text className="text-white/50 text-xs">
               {activeCampaign.placement} • Ends{" "}
-              {new Date(activeCampaign.ends_at).toLocaleDateString("en-US", {
+              {campaignEndsAt?.toLocaleDateString("en-US", {
                 month: "short",
                 day: "numeric",
                 hour: "numeric",
@@ -349,13 +385,9 @@ export function PromoteEventSheet() {
 
         <Pressable
           onPress={handleCheckout}
-          disabled={isCheckingOut || !!activeCampaign}
+          disabled={isCheckingOut}
           className={`flex-row items-center justify-center gap-2 py-4 rounded-2xl ${
-            activeCampaign
-              ? "bg-white/10"
-              : isCheckingOut
-                ? "bg-amber-500/50"
-                : "bg-amber-500"
+            isCheckingOut ? "bg-amber-500/50" : "bg-amber-500"
           }`}
         >
           {isCheckingOut ? (
@@ -364,7 +396,7 @@ export function PromoteEventSheet() {
             <>
               <CreditCard size={18} color="#fff" />
               <Text className="text-white font-bold text-base">
-                {activeCampaign ? "Already Promoted" : "Boost Event"}
+                {isExpiringSoon ? "Extend Promotion" : "Boost Event"}
               </Text>
             </>
           )}

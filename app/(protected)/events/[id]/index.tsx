@@ -15,7 +15,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
-import { eventKeys } from "@/lib/hooks/use-events";
+import { eventKeys, useToggleEventLike } from "@/lib/hooks/use-events";
 import {
   getCurrentUserIdInt,
   getCurrentUserAuthId,
@@ -381,28 +381,27 @@ function EventDetailScreenContent() {
     }
   }, [eventData?.isLiked]);
 
-  const handleToggleLike = useCallback(async () => {
+  const toggleLikeMutation = useToggleEventLike();
+  const handleToggleLike = useCallback(() => {
     if (!eventId) return;
     const wasLiked = isLiked;
-    setIsLiked(!wasLiked);
-    try {
-      const result = await eventsApi.toggleEventLike(eventId);
-      setIsLiked(result.liked);
-      queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
-        old ? { ...old, isLiked: result.liked, likes: result.likes } : old,
-      );
-      if (result.liked && !wasLiked) {
-        showToast("success", "Saved", "Event added to your liked events");
-      }
-      // Invalidate liked events cache so profile updates
-      const uid = getCurrentUserIdInt();
-      if (uid)
-        queryClient.invalidateQueries({ queryKey: eventKeys.liked(uid) });
-    } catch (err) {
-      setIsLiked(wasLiked);
-      showToast("error", "Error", "Failed to update like");
-    }
-  }, [eventId, isLiked, showToast, queryClient]);
+    setIsLiked(!wasLiked); // local optimistic
+    toggleLikeMutation.mutate(
+      { eventId, isLiked: wasLiked },
+      {
+        onSuccess: (result) => {
+          setIsLiked(result.liked);
+          if (result.liked && !wasLiked) {
+            showToast("success", "Saved", "Event added to your liked events");
+          }
+        },
+        onError: () => {
+          setIsLiked(wasLiked);
+          showToast("error", "Error", "Failed to update like");
+        },
+      },
+    );
+  }, [eventId, isLiked, toggleLikeMutation, setIsLiked, showToast]);
 
   // NORMALIZATION: Create safeEvent with guaranteed non-null values
   // This prevents crashes if TanStack Query updates eventData to null during render
@@ -1051,11 +1050,11 @@ function EventDetailScreenContent() {
           ) : null}
 
           {/* ── 3.5 WEATHER FORECAST ─────────────────────────────── */}
-          {event.locationLat && event.locationLng ? (
+          {(event.locationLat && event.locationLng) || (event.location && deviceLat && deviceLng) ? (
             <View style={s.section}>
               <WeatherModule
-                lat={event.locationLat}
-                lng={event.locationLng}
+                lat={event.locationLat ?? deviceLat ?? 0}
+                lng={event.locationLng ?? deviceLng ?? 0}
                 locationName={event.locationName || event.location}
                 eventDate={event.fullDate || undefined}
               />
@@ -1361,15 +1360,15 @@ function EventDetailScreenContent() {
                   <View key={comment.id} style={s.commentRow}>
                     <Image
                       source={{
-                        uri: comment.avatar || comment.author?.avatar || "",
+                        uri: comment.user?.avatar || comment.avatar || comment.author?.avatar || "",
                       }}
                       style={s.commentAvatar}
                     />
                     <View style={{ flex: 1 }}>
                       <Text style={s.commentAuthor}>
-                        {comment.username ||
+                        {comment.user?.username ||
+                          comment.username ||
                           comment.author?.username ||
-                          comment.author?.name ||
                           "User"}
                       </Text>
                       <Text style={s.commentContent}>
@@ -1396,9 +1395,9 @@ function EventDetailScreenContent() {
                             ),
                           )}
                       </Text>
-                      {comment.createdAt && (
+                      {(comment.created_at || comment.createdAt) && (
                         <Text style={s.commentDate}>
-                          {new Date(comment.createdAt).toLocaleDateString(
+                          {new Date(comment.created_at || comment.createdAt).toLocaleDateString(
                             "en-US",
                             { month: "short", day: "numeric" },
                           )}

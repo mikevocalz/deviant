@@ -329,7 +329,7 @@ export function SpotlightSection({ items }: { items: SpotlightItem[] }) {
         }}
       >
         <Zap size={16} color="#8A40CF" fill="#8A40CF" />
-        <Text style={{ color: "#fff", fontSize: 20, fontFamily: "Oasis", letterSpacing: 0.5 }}>
+        <Text style={{ color: "#fff", fontSize: 20, fontFamily: "Republica-Minor", letterSpacing: 0.5 }}>
           Spotlight
         </Text>
         <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 13 }}>

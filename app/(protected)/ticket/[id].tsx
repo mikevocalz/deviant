@@ -19,6 +19,7 @@ import {
   TicketX,
   Shield,
   WalletCards,
+  TrendingUp,
 } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -37,6 +38,9 @@ import {
 import { ScreenSkeleton } from "@/components/ui/screen-skeleton";
 import { addToWallet } from "@/src/ticket/helpers";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { ticketTypesApi } from "@/lib/api/ticket-types";
+import { supabase } from "@/lib/supabase/client";
+import * as WebBrowser from "expo-web-browser";
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
   free: "#3FDCFF",
@@ -99,6 +103,68 @@ function ViewTicketScreenContent() {
   const [walletState, setWalletState] = React.useState<
     "idle" | "loading" | "success"
   >("idle");
+
+  // ── Upgrade tiers state ──
+  const [upgradeTiers, setUpgradeTiers] = React.useState<any[]>([]);
+  const [upgradeLoading, setUpgradeLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!dbTicket?.event_id || dbTicket.status !== "active") return;
+    ticketTypesApi.getByEvent(String(dbTicket.event_id)).then((tiers) => {
+      const paidCents = dbTicket.purchase_amount_cents ?? 0;
+      const higher = tiers.filter(
+        (t: any) =>
+          (t.is_active !== false) &&
+          (t.price_cents ?? 0) > paidCents &&
+          t.id !== dbTicket.ticket_type_id,
+      );
+      setUpgradeTiers(higher);
+    });
+  }, [dbTicket?.event_id, dbTicket?.purchase_amount_cents, dbTicket?.status]);
+
+  const handleUpgrade = React.useCallback(
+    async (newTypeId: string) => {
+      if (upgradeLoading || !dbTicket?.id) return;
+      setUpgradeLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(
+          `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/ticket-upgrade`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify({
+              ticket_id: dbTicket.id,
+              new_ticket_type_id: newTypeId,
+            }),
+          },
+        );
+        const data = await res.json();
+        if (data.error) {
+          showToast("error", "Upgrade Failed", data.error);
+          return;
+        }
+        if (data.url) {
+          await WebBrowser.openBrowserAsync(data.url, {
+            presentationStyle:
+              Platform.OS === "ios"
+                ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
+                : undefined,
+          });
+          showToast("success", "Upgrade Initiated", "Complete payment to upgrade your ticket.");
+        }
+      } catch (err: any) {
+        showToast("error", "Error", err.message || "Could not start upgrade");
+      } finally {
+        setUpgradeLoading(false);
+      }
+    },
+    [upgradeLoading, dbTicket, showToast],
+  );
 
   // ── Loading state ──
   if (isLoading && !ticket) {
@@ -311,12 +377,56 @@ function ViewTicketScreenContent() {
             </View>
           </View>
 
+          {/* ── 2.5 UPGRADE TIER ── */}
+          {ticket.status === "valid" && upgradeTiers.length > 0 && (
+            <View style={styles.upgradeSection}>
+              <View style={styles.upgradeHeader}>
+                <TrendingUp size={14} color="#8A40CF" />
+                <Text style={styles.upgradeTitle}>Upgrade Your Tier</Text>
+              </View>
+              {upgradeTiers.map((t: any) => {
+                const paidCents = dbTicket?.purchase_amount_cents ?? 0;
+                const diffCents = Math.max(0, (t.price_cents ?? 0) - paidCents);
+                const diffDollars = (diffCents / 100).toFixed(2);
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => handleUpgrade(t.id)}
+                    disabled={upgradeLoading}
+                    style={({ pressed }) => [
+                      styles.upgradeTierRow,
+                      pressed && { opacity: 0.75 },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.upgradeTierName}>{t.name}</Text>
+                      {t.description ? (
+                        <Text style={styles.upgradeTierDesc} numberOfLines={1}>
+                          {t.description}
+                        </Text>
+                      ) : null}
+                    </View>
+                    <View style={styles.upgradePriceBadge}>
+                      {upgradeLoading ? (
+                        <ActivityIndicator size="small" color="#8A40CF" />
+                      ) : (
+                        <Text style={styles.upgradePriceText}>
+                          +${diffDollars}
+                        </Text>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+            </View>
+          )}
+
           {/* ── 3. ACCESS DETAILS ── */}
           <TicketAccessDetails ticket={ticket} />
         </View>
       </ScrollView>
 
-      <View style={styles.bottomActionsWrap}>
+      <View style={[styles.bottomActionsWrap, { paddingBottom: insets.bottom + 12 }]}>
         <TicketActionsBar
           ticket={ticket}
           bottomInset={0}
@@ -332,7 +442,6 @@ function ViewTicketScreenContent() {
               styles.walletBottomCta,
               pressed && walletState !== "loading" && styles.walletBannerPressed,
               walletState === "success" && styles.walletBannerSuccess,
-              { marginBottom: insets.bottom + 6 },
             ]}
           >
             <View style={styles.walletButtonContent}>
@@ -496,9 +605,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(63,220,255,0.14)",
   },
   walletBottomCta: {
-    marginTop: 10,
-    marginBottom: 6,
-    marginHorizontal: 16,
+    marginTop: 14,
     alignSelf: "stretch",
   },
   walletBannerPressed: {
@@ -520,6 +627,66 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "700",
     textAlign: "center",
+  },
+  upgradeSection: {
+    marginHorizontal: 20,
+    marginBottom: 20,
+    backgroundColor: "rgba(138,64,207,0.06)",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(138,64,207,0.18)",
+    overflow: "hidden",
+  },
+  upgradeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(138,64,207,0.12)",
+  },
+  upgradeTitle: {
+    color: "#8A40CF",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  upgradeTierRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(138,64,207,0.08)",
+    gap: 12,
+  },
+  upgradeTierName: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  upgradeTierDesc: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  upgradePriceBadge: {
+    backgroundColor: "rgba(138,64,207,0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(138,64,207,0.3)",
+    minWidth: 64,
+    alignItems: "center",
+  },
+  upgradePriceText: {
+    color: "#C084FC",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });
 
