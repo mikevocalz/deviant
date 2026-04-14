@@ -31,12 +31,13 @@
  */
 
 import { useEffect, useRef } from "react";
-import {
-  preventScreenCaptureAsync,
-  allowScreenCaptureAsync,
-  addScreenshotListener,
-} from "expo-screen-capture";
 import { Platform } from "react-native";
+
+// expo-screen-capture requires a new native build to activate.
+// Stubbed here so OTA updates don't crash. Re-wire after next binary release.
+const preventScreenCaptureAsync = async () => {};
+const allowScreenCaptureAsync = async () => {};
+const addScreenshotListener = (_cb: () => void) => ({ remove: () => {} });
 
 // Module-level ref counter so nested / stacked screens don't fight each other
 let _activeCount = 0;
