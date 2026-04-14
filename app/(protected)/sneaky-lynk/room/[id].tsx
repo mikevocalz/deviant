@@ -76,6 +76,7 @@ import {
   DVNTLiquidGlassIconButton,
 } from "@/components/media/DVNTLiquidGlass";
 import { useRoomReactions } from "@/src/sneaky-lynk/hooks/useRoomReactions";
+import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureProtection";
 
 // ── Error Boundary (per-route) — surfaces real crash message ────────
 
@@ -366,6 +367,9 @@ function PreJoinScreen({
 // ── Router entry point ──────────────────────────────────────────────
 
 function SneakyLynkRoomScreenContent() {
+  // Prevent screen capture for the entire room lifecycle
+  useSneakyLynkCaptureProtection();
+
   const {
     id,
     title: paramTitle,

@@ -61,6 +61,7 @@ export interface LikedActivityRecord {
   createdAt: string;
   title: string;
   previewImage?: string;
+  videoUrl?: string;
   actor: {
     id: string;
     username: string;
@@ -266,14 +267,22 @@ async function getLikedActivityDirect(limit: number): Promise<{
     return { docs: [], totalDocs: 0 };
   }
 
-  const postMediaMap = new Map<string, string>();
+  const postMediaMap = new Map<string, string>();   // parentId → thumbnail/image URL
+  const postVideoMap = new Map<string, string>();    // parentId → video URL (for on-device thumbnail gen)
   for (const media of postMedia || []) {
     const parentId = String((media as any)[DB.postsMedia.parentId]);
     const mediaType = (media as any)[DB.postsMedia.type];
     const mediaUrl = (media as any)[DB.postsMedia.url] || "";
 
     if (mediaType === "thumbnail") {
+      // Explicit thumbnail row — always prefer this for the preview image
       postMediaMap.set(parentId, mediaUrl);
+      continue;
+    }
+
+    if (mediaType === "video") {
+      // Store video URL separately so VideoThumbnailImage can generate on-device
+      if (!postVideoMap.has(parentId)) postVideoMap.set(parentId, mediaUrl);
       continue;
     }
 
@@ -341,6 +350,7 @@ async function getLikedActivityDirect(limit: number): Promise<{
           "A post you liked",
         ),
         previewImage: postMediaMap.get(entityId) || "",
+        videoUrl: postVideoMap.get(entityId) || "",
         actor,
       } satisfies LikedActivityRecord;
     }),

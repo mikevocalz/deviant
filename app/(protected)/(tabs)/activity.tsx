@@ -1,6 +1,7 @@
 import { View, Text, Pressable, ScrollView } from "react-native";
 import { LegendList } from "@/components/list";
 import { Image } from "expo-image";
+import { VideoThumbnailImage } from "@/components/ui/video-thumbnail-image";
 import { Avatar } from "@/components/ui/avatar";
 import { useRouter } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -353,34 +354,39 @@ const LikedItem = memo(({ item, onPress, onUserPress }: LikedItemProps) => {
           </View>
         </View>
 
-        {item.previewImage ? (
-          <Image
-            source={{ uri: item.previewImage }}
-            style={{
-              width: 82,
-              height: 104,
-              borderRadius: 20,
-              backgroundColor: "rgba(255,255,255,0.08)",
-            }}
-          />
-        ) : (
-          <View
-            style={{
-              width: 82,
-              height: 104,
-              borderRadius: 20,
-              backgroundColor: "rgba(255,255,255,0.08)",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            {item.entityType === "event" ? (
-              <Calendar size={22} color={palette.accent} />
-            ) : (
-              <Heart size={22} color={palette.accent} fill={palette.accent} />
-            )}
-          </View>
-        )}
+        <View
+          style={{
+            width: 82,
+            height: 104,
+            borderRadius: 20,
+            overflow: "hidden",
+            backgroundColor: "rgba(255,255,255,0.08)",
+          }}
+        >
+          {item.previewImage ? (
+            <Image
+              source={{ uri: item.previewImage }}
+              style={{ width: 82, height: 104 }}
+              contentFit="cover"
+            />
+          ) : item.videoUrl ? (
+            <VideoThumbnailImage videoUrl={item.videoUrl} />
+          ) : (
+            <View
+              style={{
+                flex: 1,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              {item.entityType === "event" ? (
+                <Calendar size={22} color={palette.accent} />
+              ) : (
+                <Heart size={22} color={palette.accent} fill={palette.accent} />
+              )}
+            </View>
+          )}
+        </View>
       </View>
     </Pressable>
   );

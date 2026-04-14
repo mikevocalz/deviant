@@ -14,7 +14,7 @@
 
 import * as VideoThumbnails from "expo-video-thumbnails";
 
-const TIMEOUT_MS = 4000;
+const TIMEOUT_MS = 10000;
 const MAX_CACHE_SIZE = 200;
 
 const memoryCache = new Map<string, string>();
@@ -30,7 +30,7 @@ function isValidVideoUri(uri: string): boolean {
 
 async function generateThumbnail(uri: string): Promise<string | null> {
   return Promise.race<string | null>([
-    VideoThumbnails.getThumbnailAsync(uri, { time: 1500 })
+    VideoThumbnails.getThumbnailAsync(uri, { time: 0 })
       .then((r) => r.uri)
       .catch(() => null),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS)),

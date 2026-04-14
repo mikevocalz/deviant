@@ -42,9 +42,17 @@ function resolveLikedPreviewImage(post: Post | undefined): string {
   const firstMedia = post.media?.[0];
   if (!firstMedia) return "";
   if (firstMedia.type === "video") {
+    // thumbnail field is not set by transformPost; resolveVideoUrl handles the video path
     return firstMedia.thumbnail || "";
   }
   return firstMedia.thumbnail || firstMedia.url || "";
+}
+
+/** Returns the raw video URL for a post so VideoThumbnailImage can generate a frame. */
+function resolveVideoUrl(post: Post | undefined): string {
+  if (!post) return "";
+  const videoMedia = post.media?.find((m) => m.type === "video");
+  return videoMedia?.url || "";
 }
 
 function findPostInCache(
@@ -198,6 +206,7 @@ export function usePostLikeState(
               },
               title: truncateLikedTitle(post?.caption, "A post you liked"),
               previewImage: resolveLikedPreviewImage(post),
+              videoUrl: resolveVideoUrl(post),
               timeAgo: "Just now",
               createdAt,
             },

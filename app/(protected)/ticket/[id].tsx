@@ -19,7 +19,12 @@ import {
   TicketX,
   Shield,
   WalletCards,
+  TrendingUp,
+  ChevronRight,
+  Sparkles,
+  CheckCircle2,
 } from "lucide-react-native";
+import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -37,6 +42,10 @@ import {
 import { ScreenSkeleton } from "@/components/ui/screen-skeleton";
 import { addToWallet } from "@/src/ticket/helpers";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { ticketTypesApi } from "@/lib/api/ticket-types";
+import { supabase } from "@/lib/supabase/client";
+import { requireBetterAuthToken } from "@/lib/auth/identity";
+import * as WebBrowser from "expo-web-browser";
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
   free: "#3FDCFF",
@@ -100,6 +109,123 @@ function ViewTicketScreenContent() {
     "idle" | "loading" | "success"
   >("idle");
 
+  // ── Upgrade tiers state ──
+  const [upgradeTiers, setUpgradeTiers] = React.useState<any[]>([]);
+  const [upgradeLoading, setUpgradeLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!dbTicket?.event_id || dbTicket.status !== "active") return;
+    ticketTypesApi.getByEvent(String(dbTicket.event_id)).then((tiers) => {
+      const paidCents = dbTicket.purchase_amount_cents ?? 0;
+      const higher = tiers.filter(
+        (t: any) =>
+          (t.is_active !== false) &&
+          (t.price_cents ?? 0) > paidCents &&
+          t.id !== dbTicket.ticket_type_id,
+      );
+      setUpgradeTiers(higher);
+    });
+  }, [dbTicket?.event_id, dbTicket?.purchase_amount_cents, dbTicket?.status]);
+
+  const handleUpgrade = React.useCallback(
+    async (newTypeId: string) => {
+      if (upgradeLoading || !dbTicket?.id) return;
+      setUpgradeLoading(true);
+      try {
+        const token = await requireBetterAuthToken();
+        const { data, error } = await supabase.functions.invoke("ticket-upgrade", {
+          body: {
+            ticket_id: dbTicket.id,
+            new_ticket_type_id: newTypeId,
+          },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
+          },
+        });
+        if (error) {
+          const errMsg = error.message || String(error);
+          if (__DEV__) console.error("[ticket-upgrade] invoke error:", errMsg);
+          showToast("error", "Upgrade Failed", errMsg || "Could not start upgrade");
+          return;
+        }
+        const result = typeof data === "string" ? JSON.parse(data) : data;
+        if (__DEV__) console.log("[ticket-upgrade] result:", JSON.stringify(result));
+        if (result?.error) {
+          showToast("error", "Upgrade Failed", result.error);
+          return;
+        }
+        if (!result?.url) {
+          showToast("error", "Upgrade Failed", "No checkout URL returned");
+          return;
+        }
+        if (result?.url) {
+          await WebBrowser.openBrowserAsync(result.url, {
+            presentationStyle:
+              Platform.OS === "ios"
+                ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
+                : undefined,
+          });
+          showToast("success", "Upgrade Initiated", "Complete payment to upgrade your ticket.");
+        }
+      } catch (err: any) {
+        showToast("error", "Error", err.message || "Could not start upgrade");
+      } finally {
+        setUpgradeLoading(false);
+      }
+    },
+    [upgradeLoading, dbTicket, showToast],
+  );
+
+  // ── Wallet handler (MUST be before early returns — Rules of Hooks) ──
+  const canAddToWallet =
+    ticket?.status === "valid" &&
+    (Platform.OS === "ios" || Platform.OS === "android");
+
+  const handleAddToWallet = React.useCallback(async () => {
+    if (!canAddToWallet || walletState === "loading" || !ticket) return;
+
+    setWalletState("loading");
+    const result = await addToWallet(ticket);
+
+    if (result.success) {
+      setWalletState("success");
+      showToast(
+        "success",
+        "Wallet",
+        Platform.OS === "ios"
+          ? "Apple Wallet opened"
+          : "Google Wallet opened",
+      );
+      setTimeout(() => setWalletState("idle"), 2500);
+      return;
+    }
+
+    setWalletState("idle");
+
+    const errorMessage =
+      result.error === "not_authenticated"
+        ? "Please sign in again"
+        : result.error === "not_configured" ||
+            result.error === "not_implemented"
+          ? "Wallet is not configured yet"
+          : result.error === "apple_wallet_ios_only" ||
+              result.error === "google_wallet_android_only" ||
+              result.error === "unsupported_platform"
+            ? "Wallet is not available on this device"
+            : "Could not open wallet pass";
+
+    showToast("error", "Wallet", errorMessage);
+  }, [canAddToWallet, showToast, ticket, walletState]);
+
+  const walletTitle =
+    walletState === "loading"
+      ? "Opening Wallet"
+      : walletState === "success"
+        ? "Wallet Ready"
+        : "Add to Wallet";
+  const bottomActionsPadding = canAddToWallet ? insets.bottom + 176 : 116;
+
   // ── Loading state ──
   if (isLoading && !ticket) {
     return <ScreenSkeleton variant="detail" rows={6} />;
@@ -141,60 +267,6 @@ function ViewTicketScreenContent() {
   const isExpired = ticket.status === "expired";
   const isRevoked = ticket.status === "revoked";
   const isTransferPending = ticket.status === "transfer_pending";
-  const canAddToWallet =
-    ticket.status === "valid" &&
-    (Platform.OS === "ios" || Platform.OS === "android");
-
-  const handleAddToWallet = React.useCallback(async () => {
-    if (!canAddToWallet || walletState === "loading") return;
-
-    setWalletState("loading");
-    const result = await addToWallet(ticket);
-
-    if (result.success) {
-      setWalletState("success");
-      showToast(
-        "success",
-        "Wallet",
-        Platform.OS === "ios"
-          ? "Apple Wallet opened"
-          : "Google Wallet opened",
-      );
-      setTimeout(() => setWalletState("idle"), 2500);
-      return;
-    }
-
-    setWalletState("idle");
-
-    const errorMessage =
-      result.error === "not_authenticated"
-        ? "Please sign in again"
-        : result.error === "not_configured" ||
-            result.error === "not_implemented"
-          ? "Wallet is not configured yet"
-          : result.error === "apple_wallet_ios_only" ||
-              result.error === "google_wallet_android_only" ||
-              result.error === "unsupported_platform"
-            ? "Wallet is not available on this device"
-            : "Could not open wallet pass";
-
-    showToast("error", "Wallet", errorMessage);
-  }, [canAddToWallet, showToast, ticket, walletState]);
-
-  const walletTitle =
-    walletState === "success"
-      ? Platform.OS === "ios"
-        ? "Apple Wallet Ready"
-        : "Google Wallet Ready"
-      : Platform.OS === "ios"
-        ? "Add to Apple Wallet"
-        : "Add to Google Wallet";
-
-  const walletSubtitle =
-    walletState === "success"
-      ? "Your ticket pass opened successfully"
-      : "Keep your ticket one tap away on this device";
-  const bottomActionsPadding = canAddToWallet ? insets.bottom + 210 : 116;
 
   return (
     <View style={styles.screen}>
@@ -218,9 +290,10 @@ function ViewTicketScreenContent() {
           <TicketHeroCard ticket={ticket} />
         </View>
 
-        {/* ── Transfer Pending banner ── */}
-        {isTransferPending && (
-          <Motion.View
+        <View>
+          {/* ── Transfer Pending banner ── */}
+          {isTransferPending && (
+            <Motion.View
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: "spring", damping: 20, stiffness: 300 }}
@@ -237,91 +310,171 @@ function ViewTicketScreenContent() {
               Transfer pending — waiting for recipient to accept
             </Text>
           </Motion.View>
-        )}
+          )}
 
-        {/* ── Expired / Revoked banner ── */}
-        {(isExpired || isRevoked) && (
-          <Motion.View
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            style={[
-              styles.statusBanner,
-              {
-                backgroundColor: isRevoked
-                  ? "rgba(239,68,68,0.12)"
-                  : "rgba(163,163,163,0.1)",
-                borderColor: isRevoked
-                  ? "rgba(239,68,68,0.2)"
-                  : "rgba(163,163,163,0.15)",
-              },
-            ]}
-          >
-            <Shield size={16} color={isRevoked ? "#ef4444" : "#a3a3a3"} />
-            <Text
+          {/* ── Expired / Revoked banner ── */}
+          {(isExpired || isRevoked) && (
+            <Motion.View
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
               style={[
-                styles.statusBannerText,
-                { color: isRevoked ? "#ef4444" : "#a3a3a3" },
-              ]}
-            >
-              {isRevoked
-                ? "This ticket has been revoked"
-                : "This event has ended"}
-            </Text>
-          </Motion.View>
-        )}
-
-        {/* ── Tear line separator ── */}
-        <View style={styles.tearLine}>
-          <View style={styles.tearCircleLeft} />
-          {Array.from({ length: 24 }).map((_, i) => (
-            <View
-              key={i}
-              style={[styles.tearDash, { backgroundColor: `${accent}30` }]}
-            />
-          ))}
-          <View style={styles.tearCircleRight} />
-        </View>
-
-        {/* ── 2. QR CODE ZONE ── */}
-        <TicketQRCode ticket={ticket} />
-
-        {/* ── Transferable / Non-transferable label ── */}
-        <View style={styles.transferRow}>
-          <View
-            style={[
-              styles.transferBadge,
-              {
-                borderColor:
-                  (ticket.transferable ?? true)
-                    ? "rgba(63,220,255,0.2)"
-                    : "rgba(255,255,255,0.08)",
-              },
-            ]}
-          >
-            <Text
-              style={[
-                styles.transferText,
+                styles.statusBanner,
                 {
-                  color:
-                    (ticket.transferable ?? true)
-                      ? "#3FDCFF"
-                      : "rgba(255,255,255,0.25)",
+                  backgroundColor: isRevoked
+                    ? "rgba(239,68,68,0.12)"
+                    : "rgba(163,163,163,0.1)",
+                  borderColor: isRevoked
+                    ? "rgba(239,68,68,0.2)"
+                    : "rgba(163,163,163,0.15)",
                 },
               ]}
             >
-              {(ticket.transferable ?? true)
-                ? "Transferable"
-                : "Non-transferable"}
-            </Text>
-          </View>
-        </View>
+              <Shield size={16} color={isRevoked ? "#ef4444" : "#a3a3a3"} />
+              <Text
+                style={[
+                  styles.statusBannerText,
+                  { color: isRevoked ? "#ef4444" : "#a3a3a3" },
+                ]}
+              >
+                {isRevoked
+                  ? "This ticket has been revoked"
+                  : "This event has ended"}
+              </Text>
+            </Motion.View>
+          )}
 
-        {/* ── 3. ACCESS DETAILS ── */}
-        <TicketAccessDetails ticket={ticket} />
+          {/* ── Tear line separator ── */}
+          <View style={styles.tearLine}>
+            <View style={styles.tearCircleLeft} />
+            {Array.from({ length: 24 }).map((_, i) => (
+              <View
+                key={i}
+                style={[styles.tearDash, { backgroundColor: `${accent}30` }]}
+              />
+            ))}
+            <View style={styles.tearCircleRight} />
+          </View>
+
+          {/* ── 2. QR CODE ZONE ── */}
+          <TicketQRCode ticket={ticket} />
+
+          {/* ── Transferable / Non-transferable label ── */}
+          <View style={styles.transferRow}>
+            <View
+              style={[
+                styles.transferBadge,
+                {
+                  borderColor:
+                    (ticket.transferable ?? true)
+                      ? "rgba(63,220,255,0.2)"
+                      : "rgba(255,255,255,0.08)",
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.transferText,
+                  {
+                    color:
+                      (ticket.transferable ?? true)
+                        ? "#3FDCFF"
+                        : "rgba(255,255,255,0.25)",
+                  },
+                ]}
+              >
+                {(ticket.transferable ?? true)
+                  ? "Transferable"
+                  : "Non-transferable"}
+              </Text>
+            </View>
+          </View>
+
+          {/* ── 2.5 UPGRADE TIER ── */}
+          {ticket.status === "valid" && upgradeTiers.length > 0 && (
+            <View style={styles.upgradeSection}>
+              {/* Header row */}
+              <View style={styles.upgradeHeader}>
+                <View style={styles.upgradeIconWrap}>
+                  <Sparkles size={13} color="#C084FC" />
+                </View>
+                <Text style={styles.upgradeTitle}>Upgrade Available</Text>
+              </View>
+
+              {/* Current tier context */}
+              <View style={styles.upgradeCurrentRow}>
+                <Text style={styles.upgradeCurrentLabel}>Current tier</Text>
+                <View style={styles.upgradeCurrentBadge}>
+                  <Text style={styles.upgradeCurrentBadgeText}>
+                    {ticket.tierName}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Tier options */}
+              {upgradeTiers.map((t: any, idx: number) => {
+                const paidCents = dbTicket?.purchase_amount_cents ?? 0;
+                const newPriceCents = t.price_cents ?? 0;
+                const diffCents = Math.max(0, newPriceCents - paidCents);
+                const diffDollars = (diffCents / 100).toFixed(2);
+                const isLast = idx === upgradeTiers.length - 1;
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      handleUpgrade(t.id);
+                    }}
+                    disabled={upgradeLoading}
+                    style={({ pressed }) => [
+                      styles.upgradeTierRow,
+                      !isLast && styles.upgradeTierRowBorder,
+                      pressed && !upgradeLoading && { opacity: 0.72 },
+                    ]}
+                  >
+                    {/* Tier info */}
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={styles.upgradeTierName}>{t.name}</Text>
+                      {t.description ? (
+                        <Text style={styles.upgradeTierDesc} numberOfLines={2}>
+                          {t.description}
+                        </Text>
+                      ) : null}
+                      <Text style={styles.upgradeFullPrice}>
+                        Full price ${(newPriceCents / 100).toFixed(2)}
+                      </Text>
+                    </View>
+
+                    {/* CTA badge */}
+                    <View style={styles.upgradeCta}>
+                      {upgradeLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Text style={styles.upgradeCtaDiff}>+${diffDollars}</Text>
+                          <ChevronRight size={14} color="rgba(255,255,255,0.7)" />
+                        </>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
+
+              {/* Fine print */}
+              <View style={styles.upgradeFooter}>
+                <Text style={styles.upgradeFooterText}>
+                  You only pay the price difference · Non-refundable
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* ── 3. ACCESS DETAILS ── */}
+          <TicketAccessDetails ticket={ticket} />
+        </View>
       </ScrollView>
 
-      <View style={styles.bottomActionsWrap}>
+      <View style={[styles.bottomActionsWrap, { paddingBottom: insets.bottom + 12 }]}>
         <TicketActionsBar
           ticket={ticket}
           bottomInset={0}
@@ -333,34 +486,21 @@ function ViewTicketScreenContent() {
             onPress={handleAddToWallet}
             disabled={walletState === "loading"}
             style={({ pressed }) => [
-              styles.walletBanner,
-              styles.walletBottomCta,
-              pressed && walletState !== "loading" && styles.walletBannerPressed,
-              walletState === "success" && styles.walletBannerSuccess,
-              { marginBottom: insets.bottom + 8 },
+              styles.walletCta,
+              pressed && walletState !== "loading" && { opacity: 0.88 },
+              walletState === "success" && styles.walletCtaSuccess,
             ]}
           >
-            <View style={styles.walletIconWrap}>
+            <View style={[styles.walletCtaInner, walletState === "success" && { backgroundColor: "rgba(63,220,255,0.14)" }]}>
               {walletState === "loading" ? (
                 <ActivityIndicator size="small" color={accent} />
+              ) : walletState === "success" ? (
+                <CheckCircle2 size={20} color="#3FDCFF" />
               ) : (
-                <WalletCards size={22} color={accent} />
+                <WalletCards size={20} color={accent} />
               )}
-            </View>
-
-            <View style={styles.walletBannerTextWrap}>
-              <Text style={styles.walletBannerTitle}>{walletTitle}</Text>
-              <Text style={styles.walletBannerSubtitle}>{walletSubtitle}</Text>
-            </View>
-
-            <View
-              style={[
-                styles.walletBannerArrow,
-                walletState === "success" && styles.walletBannerArrowSuccess,
-              ]}
-            >
-              <Text style={styles.walletBannerArrowText}>
-                {walletState === "success" ? "✓" : "›"}
+              <Text style={[styles.walletCtaTitle, walletState === "success" && { color: "#3FDCFF" }]}>
+                {walletTitle}
               </Text>
             </View>
           </Pressable>
@@ -396,10 +536,13 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     backgroundColor: "rgba(10,10,10,0.96)",
+    paddingHorizontal: 16,
+    paddingTop: 10,
   },
   ticketActionsBar: {
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
+    marginHorizontal: -16,
   },
   heroWrap: {
     paddingHorizontal: 16,
@@ -500,67 +643,163 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  walletBanner: {
+  walletCta: {
+    marginTop: 6,
+    borderRadius: 18,
+    backgroundColor: "rgba(14,18,24,0.98)",
+    borderWidth: 1,
+    borderColor: "rgba(63,220,255,0.18)",
+    overflow: "hidden",
+  },
+  walletCtaSuccess: {
+    backgroundColor: "rgba(10,28,34,0.98)",
+    borderColor: "rgba(63,220,255,0.32)",
+  },
+  walletCtaInner: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "center",
+    gap: 10,
+    paddingVertical: 16,
+    borderRadius: 18,
+  },
+  walletCtaTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  upgradeSection: {
     marginHorizontal: 20,
-    marginTop: 12,
+    marginBottom: 20,
+    backgroundColor: "rgba(138,64,207,0.06)",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(138,64,207,0.18)",
+    overflow: "hidden",
+  },
+  upgradeHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(138,64,207,0.12)",
+  },
+  upgradeTitle: {
+    color: "#8A40CF",
+    fontSize: 12,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+  },
+  upgradeTierRow: {
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 14,
-    borderRadius: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(138,64,207,0.08)",
+    gap: 12,
+  },
+  upgradeTierName: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  upgradeTierDesc: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 12,
+    marginTop: 2,
+  },
+  upgradePriceBadge: {
     backgroundColor: "rgba(138,64,207,0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 10,
     borderWidth: 1,
-    borderColor: "rgba(138,64,207,0.25)",
+    borderColor: "rgba(138,64,207,0.3)",
+    minWidth: 64,
+    alignItems: "center",
   },
-  walletBottomCta: {
-    marginTop: 10,
+  upgradePriceText: {
+    color: "#C084FC",
+    fontSize: 13,
+    fontWeight: "700",
   },
-  walletBannerPressed: {
-    opacity: 0.88,
-  },
-  walletBannerSuccess: {
-    backgroundColor: "rgba(63,220,255,0.12)",
-    borderColor: "rgba(63,220,255,0.24)",
-  },
-  walletIconWrap: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
-    backgroundColor: "rgba(255,255,255,0.05)",
+  upgradeIconWrap: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    backgroundColor: "rgba(192,132,252,0.15)",
     alignItems: "center",
     justifyContent: "center",
   },
-  walletBannerTextWrap: {
-    flex: 1,
+  upgradeCurrentRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(138,64,207,0.1)",
   },
-  walletBannerTitle: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
-  },
-  walletBannerSubtitle: {
-    color: "rgba(255,255,255,0.5)",
+  upgradeCurrentLabel: {
+    color: "rgba(255,255,255,0.4)",
     fontSize: 12,
     fontWeight: "500",
-    marginTop: 1,
   },
-  walletBannerArrow: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "rgba(138,64,207,0.4)",
+  upgradeCurrentBadge: {
+    backgroundColor: "rgba(138,64,207,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(138,64,207,0.3)",
+  },
+  upgradeCurrentBadgeText: {
+    color: "#C084FC",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  upgradeTierRowBorder: {
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(138,64,207,0.08)",
+  },
+  upgradeCta: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(138,64,207,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "rgba(138,64,207,0.3)",
+    minWidth: 68,
     justifyContent: "center",
   },
-  walletBannerArrowSuccess: {
-    backgroundColor: "rgba(63,220,255,0.35)",
+  upgradeCtaDiff: {
+    color: "#C084FC",
+    fontSize: 13,
+    fontWeight: "800",
   },
-  walletBannerArrowText: {
-    color: "#fff",
-    fontSize: 18,
-    fontWeight: "700",
-    lineHeight: 20,
+  upgradeFullPrice: {
+    color: "rgba(255,255,255,0.25)",
+    fontSize: 11,
+    marginTop: 1,
+  },
+  upgradeFooter: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(138,64,207,0.08)",
+  },
+  upgradeFooterText: {
+    color: "rgba(255,255,255,0.25)",
+    fontSize: 11,
+    textAlign: "center",
   },
 });
 
