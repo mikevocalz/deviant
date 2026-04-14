@@ -46,6 +46,8 @@ import { ticketTypesApi } from "@/lib/api/ticket-types";
 import { supabase } from "@/lib/supabase/client";
 import { requireBetterAuthToken } from "@/lib/auth/identity";
 import * as WebBrowser from "expo-web-browser";
+import { WeatherStrip } from "@/components/events/weather-strip";
+import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
   free: "#3FDCFF",
@@ -98,6 +100,13 @@ function ViewTicketScreenContent() {
 
   const eventId = Array.isArray(id) ? (id[0] ?? "") : (id ?? "");
   const { data: dbTicket, isLoading, isError } = useMyTicketForEvent(eventId);
+
+  // Location for weather strip
+  const activeCity = useEventsLocationStore((s) => s.activeCity);
+  const deviceLat = useEventsLocationStore((s) => s.deviceLat);
+  const deviceLng = useEventsLocationStore((s) => s.deviceLng);
+  const weatherLat = activeCity?.lat ?? deviceLat ?? undefined;
+  const weatherLng = activeCity?.lng ?? deviceLng ?? undefined;
 
   // Also check Zustand store as fallback (for recently RSVPed tickets not yet in DB)
   const storeTicket = useTicketStore((s) => s.getTicketByEventId(eventId));
@@ -289,6 +298,9 @@ function ViewTicketScreenContent() {
         <View style={styles.heroWrap}>
           <TicketHeroCard ticket={ticket} />
         </View>
+
+        {/* ── Weather strip — event day forecast ── */}
+        <WeatherStrip lat={weatherLat} lng={weatherLng} />
 
         <View>
           {/* ── Transfer Pending banner ── */}

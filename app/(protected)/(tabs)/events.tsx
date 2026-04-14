@@ -59,7 +59,6 @@ import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
 import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { useEventsScreenStore } from "@/lib/stores/events-screen-store";
 import { CityPickerSheet } from "@/components/events/city-picker-sheet";
-import { WeatherStrip } from "@/components/events/weather-strip";
 import { useCities } from "@/lib/hooks/use-cities";
 import { EventCollectionRow } from "@/components/events/event-collection-row";
 import { EventsMapView } from "@/components/events/events-map-view";
@@ -741,9 +740,6 @@ function EventsScreenContent() {
             </Pressable>
           </View>
         </View>
-
-        {/* Weather Strip — shows skeleton while loading, never disappears */}
-        <WeatherStrip lat={weatherLat} lng={weatherLng} />
 
         {/* Active filter chips — show inline when filters are active */}
         {(activeFilters.length > 0 ||
