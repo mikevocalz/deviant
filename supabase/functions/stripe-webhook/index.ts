@@ -299,6 +299,50 @@ Deno.serve(async (req: Request) => {
           console.log(
             `[stripe-webhook] Granted sneaky access for session ${metadata.session_id}`,
           );
+        } else if (metadata.type === "ticket_upgrade") {
+          // ── Upgrade existing ticket to a higher tier ──────
+          const ticketId = metadata.ticket_id;
+          const newTicketTypeId = metadata.new_ticket_type_id;
+          const eventId = parseInt(metadata.event_id);
+          const amountCents = session.amount_total || 0;
+
+          // Fetch the new ticket type to get full price
+          const { data: newType } = await supabase
+            .from("ticket_types")
+            .select("price_cents")
+            .eq("id", newTicketTypeId)
+            .single();
+
+          // Update the existing ticket: new type + new amount + keep active
+          const { error: upgradeError } = await supabase
+            .from("tickets")
+            .update({
+              ticket_type_id: newTicketTypeId,
+              purchase_amount_cents: newType?.price_cents ?? amountCents,
+              stripe_checkout_session_id: session.id,
+              stripe_payment_intent_id: session.payment_intent,
+            })
+            .eq("id", ticketId);
+
+          if (upgradeError) {
+            console.error("[stripe-webhook] Ticket upgrade error:", upgradeError);
+            throw upgradeError;
+          }
+
+          // Increment quantity_sold on the new tier
+          const { data: tt } = await supabase
+            .from("ticket_types")
+            .select("quantity_sold")
+            .eq("id", newTicketTypeId)
+            .single();
+          await supabase
+            .from("ticket_types")
+            .update({ quantity_sold: (tt?.quantity_sold || 0) + 1 })
+            .eq("id", newTicketTypeId);
+
+          console.log(
+            `[stripe-webhook] Upgraded ticket ${ticketId} to type ${newTicketTypeId} for event ${eventId}`,
+          );
         }
         break;
       }

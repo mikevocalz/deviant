@@ -65,11 +65,10 @@ Deno.serve(async (req: Request) => {
     });
 
     // Verify user session
-    const sessionResult = await verifySession(req, supabase);
-    if (!sessionResult.userId) {
+    const authId = await verifySession(supabase, req);
+    if (!authId) {
       return json({ error: "Unauthorized" }, 401);
     }
-    const authId = sessionResult.userId;
 
     const { ticket_id, new_ticket_type_id } = await req.json();
     if (!ticket_id || !new_ticket_type_id) {
@@ -87,14 +86,8 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Ticket not found" }, 404);
     }
 
-    // Verify ownership
-    const { data: appUser } = await supabase
-      .from("users")
-      .select("auth_id")
-      .eq("auth_id", authId)
-      .single();
-
-    if (ticket.user_id !== authId && ticket.user_id !== appUser?.auth_id) {
+    // Verify ownership — ticket.user_id is the Better Auth userId string
+    if (String(ticket.user_id) !== String(authId)) {
       return json({ error: "Not your ticket" }, 403);
     }
 
