@@ -13,8 +13,6 @@ import {
   Heart,
   Plus,
   Ticket,
-  MapPin,
-  ChevronDown,
   Search,
   X,
   ArrowUpDown,
@@ -58,8 +56,6 @@ import { useScreenTrace } from "@/lib/perf/screen-trace";
 import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
 import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { useEventsScreenStore } from "@/lib/stores/events-screen-store";
-import { CityPickerSheet } from "@/components/events/city-picker-sheet";
-import { useCities } from "@/lib/hooks/use-cities";
 import { EventCollectionRow } from "@/components/events/event-collection-row";
 import { EventsMapView } from "@/components/events/events-map-view";
 import { EventFilterSheet } from "@/components/events/event-filter-sheet";
@@ -325,12 +321,8 @@ function EventsScreenContent() {
   const setSearchQuery = useEventsScreenStore((s) => s.setSearchQuery);
   const debouncedSearch = useEventsScreenStore((s) => s.debouncedSearch);
   const setDebouncedSearch = useEventsScreenStore((s) => s.setDebouncedSearch);
-  const cityPickerVisible = useEventsScreenStore((s) => s.cityPickerVisible);
   const showMapView = useEventsScreenStore((s) => s.showMapView);
   const toggleMapView = useEventsScreenStore((s) => s.toggleMapView);
-  const setCityPickerVisible = useEventsScreenStore(
-    (s) => s.setCityPickerVisible,
-  );
   const filterSheetVisible = useEventsScreenStore((s) => s.filterSheetVisible);
   const setFilterSheetVisible = useEventsScreenStore(
     (s) => s.setFilterSheetVisible,
@@ -362,69 +354,14 @@ function EventsScreenContent() {
     searchDebouncerRef.current.cancel();
   }, [setSearchQuery, setDebouncedSearch]);
 
-  // Location store
+  // Location store — used only for in_city filter
   const activeCity = useEventsLocationStore((s) => s.activeCity);
-  const setActiveCity = useEventsLocationStore((s) => s.setActiveCity);
   const deviceLat = useEventsLocationStore((s) => s.deviceLat);
   const deviceLng = useEventsLocationStore((s) => s.deviceLng);
-  const { data: allCities = [] } = useCities();
 
-  // Weather coords: prefer active city → device location
+  // Weather coords for WeatherFX ambient effects
   const weatherLat = activeCity?.lat ?? deviceLat ?? undefined;
   const weatherLng = activeCity?.lng ?? deviceLng ?? undefined;
-
-  // Fallback: if boot location hook didn't resolve a city yet,
-  // debounce 2s then set first DB city or reverse-geocode from device coords
-  const cityFallbackRef = useRef(
-    new Debouncer(
-      async () => {
-        const store = useEventsLocationStore.getState();
-        if (store.activeCity) return; // boot hook resolved in time
-
-        // Option A: DB cities available
-        const cities = allCities;
-        if (cities.length > 0) {
-          console.log("[Events] Fallback to first DB city:", cities[0].name);
-          store.setActiveCity(cities[0]);
-          return;
-        }
-
-        // Option B: device coords exist — reverse geocode
-        const { deviceLat: lat, deviceLng: lng } = store;
-        if (lat != null && lng != null) {
-          try {
-            const Location = await import("expo-location");
-            const [geo] = await Location.reverseGeocodeAsync({
-              latitude: lat,
-              longitude: lng,
-            });
-            if (geo?.city) {
-              console.log("[Events] Fallback reverse geocode:", geo.city);
-              store.setActiveCity({
-                id: -1,
-                name: geo.city,
-                state: geo.region ?? null,
-                country: geo.country ?? "US",
-                lat,
-                lng,
-                timezone: null,
-                slug: geo.city.toLowerCase().replace(/\s+/g, "-"),
-              });
-            }
-          } catch (e) {
-            console.warn("[Events] Fallback geocode failed:", e);
-          }
-        }
-      },
-      { wait: 2000 },
-    ),
-  );
-
-  useEffect(() => {
-    if (activeCity) return;
-    cityFallbackRef.current.maybeExecute();
-    return () => cityFallbackRef.current.cancel();
-  }, [activeCity, allCities]);
 
   // Build server-side filters from active pills + debounced search + categories
   const eventFilters = useMemo<EventFilters>(() => {
@@ -641,24 +578,6 @@ function EventsScreenContent() {
               </Text>
             </View>
             <View className="flex-row items-center gap-2">
-              {/* City Picker trigger */}
-              <Pressable
-                onPress={() => setCityPickerVisible(true)}
-                className="flex-row items-center gap-1.5 px-3.5 py-2 rounded-2xl border border-border bg-card"
-              >
-                <MapPin size={14} color="#3EA4E5" strokeWidth={2} />
-                <Text
-                  className="text-sm font-semibold text-foreground"
-                  numberOfLines={1}
-                >
-                  {activeCity?.name || "All Cities"}
-                </Text>
-                <ChevronDown
-                  size={14}
-                  color={colors.mutedForeground}
-                  strokeWidth={2}
-                />
-              </Pressable>
               <Motion.View
                 whileTap={{ scale: 0.9 }}
                 className="h-10 w-10 items-center justify-center rounded-xl bg-card border border-border"
@@ -803,11 +722,6 @@ function EventsScreenContent() {
               ))}
             </ScrollView>
           </View>
-        )}
-
-        {/* Spotlight Section — above tabs when items exist */}
-        {spotlightItems.length > 0 && !showMapView && (
-          <SpotlightSection items={spotlightItems} />
         )}
 
         {showMapView ? (
@@ -964,6 +878,10 @@ function EventsScreenContent() {
                         onScroll={scrollHandler}
                         scrollEventThrottle={16}
                       >
+                        {/* Spotlight — only on All Events tab */}
+                        {tabIndex === 1 && spotlightItems.length > 0 && (
+                          <SpotlightSection items={spotlightItems} />
+                        )}
                         {/* Curated collections — only on All Events tab, no search/filters */}
                         {tabIndex === 1 && showCollections && (
                           <View className="pt-4">
@@ -1023,12 +941,6 @@ function EventsScreenContent() {
           </>
         )}
       </Main>
-
-      {/* City Picker Bottom Sheet */}
-      <CityPickerSheet
-        visible={cityPickerVisible}
-        onDismiss={() => setCityPickerVisible(false)}
-      />
 
       {/* Event Filter Sheet */}
       <EventFilterSheet

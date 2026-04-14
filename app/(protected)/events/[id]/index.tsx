@@ -894,12 +894,6 @@ function EventDetailScreenContent() {
           <View>
             <Text style={s.eventTitle}>{event.title}</Text>
 
-            {/* Venue + City */}
-            <View style={s.venueRow}>
-              <MapPin size={16} color="#3FDCFF" />
-              <Text style={s.venueText}>{event.location}</Text>
-            </View>
-
             {/* Host */}
             <Pressable style={s.hostRow}>
               <Image

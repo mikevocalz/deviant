@@ -275,13 +275,20 @@ async function getLikedActivityDirect(limit: number): Promise<{
     const mediaUrl = (media as any)[DB.postsMedia.url] || "";
 
     if (mediaType === "thumbnail") {
-      // Explicit thumbnail row — always prefer this for the preview image
-      postMediaMap.set(parentId, mediaUrl);
+      // backfill-thumbnails stores video URLs with type="thumbnail" as placeholders.
+      // Detect these and route to postVideoMap so VideoThumbnailImage handles them;
+      // otherwise store as a real image previewImage.
+      const looksLikeVideo = /\.(mp4|mov|webm|mkv|avi)(\?|$)/i.test(mediaUrl);
+      if (looksLikeVideo) {
+        if (!postVideoMap.has(parentId)) postVideoMap.set(parentId, mediaUrl);
+      } else {
+        postMediaMap.set(parentId, mediaUrl);
+      }
       continue;
     }
 
     if (mediaType === "video") {
-      // Store video URL separately so VideoThumbnailImage can generate on-device
+      // Store video URL so VideoThumbnailImage can generate on-device thumbnail
       if (!postVideoMap.has(parentId)) postVideoMap.set(parentId, mediaUrl);
       continue;
     }
