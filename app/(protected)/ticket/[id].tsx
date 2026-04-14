@@ -607,7 +607,7 @@ const styles = StyleSheet.create({
     borderColor: "rgba(63,220,255,0.14)",
   },
   walletBottomCta: {
-    marginTop: 14,
+    marginTop: 6,
     alignSelf: "stretch",
   },
   walletBannerPressed: {

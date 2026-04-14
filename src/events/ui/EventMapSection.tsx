@@ -114,41 +114,38 @@ export function EventMapSection({
         />
       </View>
 
-      {/* Location row */}
-      <View style={{ padding: 14, gap: 12 }}>
-        <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12 }}>
-          <View
-            style={{
-              width: 40,
-              height: 40,
-              borderRadius: 12,
-              backgroundColor: ACCENT_BG,
-              alignItems: "center",
-              justifyContent: "center",
-              borderWidth: 1,
-              borderColor: ACCENT_BORDER,
-            }}
-          >
-            <MapPin size={20} color={ACCENT} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }}>
-              {displayName}
+      {/* Location row + Directions button in one row */}
+      <View style={{ padding: 14, flexDirection: "row", alignItems: "center", gap: 12 }}>
+        {/* MapPin icon */}
+        <View
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 12,
+            backgroundColor: ACCENT_BG,
+            alignItems: "center",
+            justifyContent: "center",
+            borderWidth: 1,
+            borderColor: ACCENT_BORDER,
+            flexShrink: 0,
+          }}
+        >
+          <MapPin size={20} color={ACCENT} />
+        </View>
+
+        {/* Venue name + address */}
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: "#fff", fontSize: 15, fontWeight: "600" }} numberOfLines={1}>
+            {displayName}
+          </Text>
+          {displayAddress ? (
+            <Text
+              style={{ color: "rgba(255,255,255,0.5)", fontSize: 12, marginTop: 2 }}
+              numberOfLines={1}
+            >
+              {displayAddress}
             </Text>
-            {displayAddress ? (
-              <Text
-                style={{ color: "rgba(255,255,255,0.5)", fontSize: 13, marginTop: 3 }}
-                numberOfLines={2}
-              >
-                {displayAddress}
-              </Text>
-            ) : null}
-            {location?.city ? (
-              <Text style={{ color: "rgba(255,255,255,0.35)", fontSize: 12, marginTop: 2 }}>
-                {[location.city, location.country].filter(Boolean).join(", ")}
-              </Text>
-            ) : null}
-          </View>
+          ) : null}
         </View>
 
         {/* Directions button */}
@@ -159,29 +156,30 @@ export function EventMapSection({
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "center",
-            gap: 8,
-            paddingVertical: 13,
-            paddingHorizontal: 16,
-            borderRadius: 14,
+            gap: 6,
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            borderRadius: 12,
             backgroundColor: isOpeningDirections ? ACCENT_BG : ACCENT,
             opacity: pressed ? 0.85 : 1,
             borderWidth: isOpeningDirections ? 1 : 0,
             borderColor: ACCENT_BORDER,
+            flexShrink: 0,
           })}
         >
           {isOpeningDirections ? (
             <ActivityIndicator size="small" color={ACCENT} />
           ) : (
-            <Navigation size={16} color="#fff" />
+            <Navigation size={15} color="#fff" />
           )}
           <Text
             style={{
               color: isOpeningDirections ? ACCENT : "#fff",
-              fontSize: 14,
+              fontSize: 13,
               fontWeight: "700",
             }}
           >
-            {isOpeningDirections ? "Opening Maps..." : "Directions"}
+            {isOpeningDirections ? "Opening…" : "Directions"}
           </Text>
         </Pressable>
       </View>
