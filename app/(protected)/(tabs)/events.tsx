@@ -818,7 +818,7 @@ function EventsScreenContent() {
                         className="flex-1"
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={{
-                          paddingBottom: 32,
+                          paddingBottom: insets.bottom + 32,
                         }}
                       >
                         {spotlightItems.length > 0 && !showMapView && (
@@ -838,7 +838,7 @@ function EventsScreenContent() {
                       <Animated.ScrollView
                         className="flex-1"
                         showsVerticalScrollIndicator={false}
-                        contentContainerStyle={{ paddingBottom: 16 }}
+                        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
                       >
                         {spotlightItems.length > 0 && !showMapView && (
                           <SpotlightSection items={spotlightItems} />
