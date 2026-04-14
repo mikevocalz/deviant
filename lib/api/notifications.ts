@@ -273,7 +273,13 @@ async function getLikedActivityDirect(limit: number): Promise<{
     const mediaUrl = (media as any)[DB.postsMedia.url] || "";
 
     if (mediaType === "thumbnail") {
+      // Explicit thumbnail row — always use this (overwrite any prior fallback)
       postMediaMap.set(parentId, mediaUrl);
+      continue;
+    }
+
+    if (mediaType === "video") {
+      // Never use raw video URLs as preview image — Image component can't render .mp4
       continue;
     }
 

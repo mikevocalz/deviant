@@ -40,6 +40,7 @@ import { addToWallet } from "@/src/ticket/helpers";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { ticketTypesApi } from "@/lib/api/ticket-types";
 import { supabase } from "@/lib/supabase/client";
+import { requireBetterAuthToken } from "@/lib/auth/identity";
 import * as WebBrowser from "expo-web-browser";
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
@@ -127,29 +128,28 @@ function ViewTicketScreenContent() {
       if (upgradeLoading || !dbTicket?.id) return;
       setUpgradeLoading(true);
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const token = session?.access_token;
-        const res = await fetch(
-          `${process.env.EXPO_PUBLIC_SUPABASE_URL}/functions/v1/ticket-upgrade`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              ...(token ? { Authorization: `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify({
-              ticket_id: dbTicket.id,
-              new_ticket_type_id: newTypeId,
-            }),
+        const token = await requireBetterAuthToken();
+        const { data, error } = await supabase.functions.invoke("ticket-upgrade", {
+          body: {
+            ticket_id: dbTicket.id,
+            new_ticket_type_id: newTypeId,
           },
-        );
-        const data = await res.json();
-        if (data.error) {
-          showToast("error", "Upgrade Failed", data.error);
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
+          },
+        });
+        if (error) {
+          showToast("error", "Upgrade Failed", error.message || "Could not start upgrade");
           return;
         }
-        if (data.url) {
-          await WebBrowser.openBrowserAsync(data.url, {
+        const result = typeof data === "string" ? JSON.parse(data) : data;
+        if (result?.error) {
+          showToast("error", "Upgrade Failed", result.error);
+          return;
+        }
+        if (result?.url) {
+          await WebBrowser.openBrowserAsync(result.url, {
             presentationStyle:
               Platform.OS === "ios"
                 ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
