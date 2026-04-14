@@ -85,6 +85,36 @@ logs/
 .cursor/
 .copilot/
 .qodo/
+.adal/
+.augment/
+.claude/
+.codebuddy/
+.commandcode/
+.continue/
+.crush/
+.factory/
+.goose/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.vibe/
+.zencoder/
+skills/
+
+# Build artifacts
+*.tgz
 
 
 # Misc
