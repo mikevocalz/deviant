@@ -4,7 +4,7 @@
  */
 
 import { View, Text, Pressable, ActivityIndicator, Platform } from "react-native";
-import { MapPin, Navigation } from "lucide-react-native";
+import { MapPin } from "lucide-react-native";
 import { DvntMap } from "@/src/components/map";
 import type { NormalizedLocation } from "@/lib/types/location";
 import { openDirections, hasValidCoordinates } from "@/lib/utils/location";
@@ -167,14 +167,12 @@ export function EventMapSection({
             flexShrink: 0,
           })}
         >
-          {isOpeningDirections ? (
-            <ActivityIndicator size="small" color={ACCENT} />
-          ) : (
-            <Navigation size={15} color="#fff" />
+          {isOpeningDirections && (
+            <ActivityIndicator size="small" color="#fff" />
           )}
           <Text
             style={{
-              color: isOpeningDirections ? ACCENT : "#fff",
+              color: "#fff",
               fontSize: 13,
               fontWeight: "700",
             }}

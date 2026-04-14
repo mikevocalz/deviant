@@ -70,6 +70,7 @@ export interface LikedActivity {
   };
   title: string;
   previewImage?: string;
+  videoUrl?: string;
   timeAgo: string;
   createdAt?: string;
 }
@@ -181,6 +182,7 @@ async function fetchLikedActivities(): Promise<LikedActivity[]> {
       item.title ||
       (item.entityType === "event" ? "An event you liked" : "A post you liked"),
     previewImage: item.previewImage || "",
+    videoUrl: item.videoUrl || "",
     timeAgo: notificationsApiClient.formatTimeAgo(
       item.createdAt || new Date().toISOString(),
     ),
