@@ -32,10 +32,10 @@ export default {
     assetBundlePatterns: ["**/*"],
     updates: {
       url: "https://u.expo.dev/5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
-      fallbackToCacheTimeout: 30000, // 30 seconds fallback to prevent crashes
-      checkAutomatically: "ON_LOAD",
+      fallbackToCacheTimeout: 0, // Launch immediately with cached bundle — JS hook handles update check
+      checkAutomatically: "ON_ERROR_RECOVERY",
       enableBsdiffPatchSupport: true,
-      waitBeforeLaunchMs: 5000, // 5 seconds to allow rollback detection
+      waitBeforeLaunchMs: 0, // Do not block launch waiting for OTA — avoids ErrorRecovery crash loop
       // Enhanced crash hardening
       // CRITICAL: Use appEnv (which reads APP_ENV from EAS profiles), NOT NODE_ENV
       // NODE_ENV defaults to "development" during Metro bundling even for production builds
