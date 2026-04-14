@@ -226,6 +226,9 @@ importers:
       expo-router:
         specifier: ^55.0.7
         version: 55.0.7(de52ad9e9d3470e6bcb29f598563584c)
+      expo-screen-capture:
+        specifier: ^55.0.13
+        version: 55.0.13(expo@55.0.8)(react@19.2.3)
       expo-screen-orientation:
         specifier: ^55.0.9
         version: 55.0.9(expo@55.0.8)(react-native@0.84.1(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.3))
@@ -3588,6 +3591,12 @@ packages:
         optional: true
       react-server-dom-webpack:
         optional: true
+
+  expo-screen-capture@55.0.13:
+    resolution: {integrity: sha512-wdSktx6hHJz8wiP1c96gNRc5TOVfBA6wd7GJJlADvLVL4OVKqfiUQ122Z6L6gBtELoXW23XOS/CB5rvRM8xjVA==}
+    peerDependencies:
+      expo: '*'
+      react: '*'
 
   expo-screen-orientation@55.0.9:
     resolution: {integrity: sha512-eWCBhSV+oCmAJKbG5x/pS8Go76vJmq0Q1uRYYsk+8JaOQvl6HDS7O4yofH5Oq8ic3IZ4Qxjnheisqwf08M4xnA==}
@@ -9889,6 +9898,11 @@ snapshots:
       - '@types/react-dom'
       - expo-font
       - supports-color
+
+  expo-screen-capture@55.0.13(expo@55.0.8)(react@19.2.3):
+    dependencies:
+      expo: 55.0.8(@babel/core@7.29.0)(@expo/dom-webview@55.0.3)(@expo/metro-runtime@55.0.6)(expo-router@55.0.7)(react-dom@19.2.0(react@19.2.3))(react-native-webview@13.16.1(react-native@0.84.1(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.3))(react@19.2.3))(react-native@0.84.1(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.3))(react@19.2.3)(typescript@5.9.3)
+      react: 19.2.3
 
   expo-screen-orientation@55.0.9(expo@55.0.8)(react-native@0.84.1(@babel/core@7.29.0)(@react-native/metro-config@0.84.1(@babel/core@7.29.0))(@types/react@19.2.14)(react@19.2.3)):
     dependencies:
