@@ -33,6 +33,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useColorScheme } from "@/lib/hooks";
 import { requireBetterAuthToken } from "@/lib/auth/identity";
 import { SneakySubscriptionModal } from "@/src/sneaky-lynk/components/SneakySubscriptionModal";
+import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureProtection";
 
 interface Subscription {
   plan_id: string;
@@ -53,6 +54,9 @@ const PLAN_LABELS: Record<
 };
 
 function BillingScreenContent() {
+  // Protect billing/subscription information from capture
+  useSneakyLynkCaptureProtection();
+
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { colors } = useColorScheme();

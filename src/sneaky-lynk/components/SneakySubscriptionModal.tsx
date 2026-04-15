@@ -31,6 +31,7 @@ import { supabase } from "@/lib/supabase/client";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { requireBetterAuthToken } from "@/lib/auth/identity";
+import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureProtection";
 
 interface Plan {
   id: string;
@@ -102,6 +103,9 @@ export function SneakySubscriptionModal({
   currentPlan = "free",
   reason = "upgrade",
 }: SneakySubscriptionModalProps) {
+  // Protect subscription tier/pricing information when visible
+  useSneakyLynkCaptureProtection();
+
   const authUser = useAuthStore((s) => s.user);
   const showToast = useUIStore((s) => s.showToast);
   const [loadingPlanId, setLoadingPlanId] = useState<string | null>(null);

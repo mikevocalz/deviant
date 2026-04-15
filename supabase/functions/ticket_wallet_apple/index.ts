@@ -641,7 +641,14 @@ Deno.serve(async (req) => {
         `serial ${serialNumber}, size ${pkpassData.length} bytes`,
     );
 
-    // ── 11. Return .pkpass binary ────────────────────────────
+    // ── 11. Update wallet_pass_updated_at timestamp ────────────
+    // This allows detecting stale passes after ticket upgrades
+    await supabase
+      .from("tickets")
+      .update({ wallet_pass_updated_at: new Date().toISOString() })
+      .eq("id", ticketId);
+
+    // ── 12. Return .pkpass binary ────────────────────────────
     return new Response(pkpassData, {
       status: 200,
       headers: {

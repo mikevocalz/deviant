@@ -128,7 +128,7 @@ function ViewTicketScreenContent() {
       const paidCents = dbTicket.purchase_amount_cents ?? 0;
       const higher = tiers.filter(
         (t: any) =>
-          (t.is_active !== false) &&
+          t.is_active !== false &&
           (t.price_cents ?? 0) > paidCents &&
           t.id !== dbTicket.ticket_type_id,
       );
@@ -142,24 +142,32 @@ function ViewTicketScreenContent() {
       setUpgradeLoading(true);
       try {
         const token = await requireBetterAuthToken();
-        const { data, error } = await supabase.functions.invoke("ticket-upgrade", {
-          body: {
-            ticket_id: dbTicket.id,
-            new_ticket_type_id: newTypeId,
+        const { data, error } = await supabase.functions.invoke(
+          "ticket-upgrade",
+          {
+            body: {
+              ticket_id: dbTicket.id,
+              new_ticket_type_id: newTypeId,
+            },
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "x-auth-token": token,
+            },
           },
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "x-auth-token": token,
-          },
-        });
+        );
         if (error) {
           const errMsg = error.message || String(error);
           if (__DEV__) console.error("[ticket-upgrade] invoke error:", errMsg);
-          showToast("error", "Upgrade Failed", errMsg || "Could not start upgrade");
+          showToast(
+            "error",
+            "Upgrade Failed",
+            errMsg || "Could not start upgrade",
+          );
           return;
         }
         const result = typeof data === "string" ? JSON.parse(data) : data;
-        if (__DEV__) console.log("[ticket-upgrade] result:", JSON.stringify(result));
+        if (__DEV__)
+          console.log("[ticket-upgrade] result:", JSON.stringify(result));
         if (result?.error) {
           showToast("error", "Upgrade Failed", result.error);
           return;
@@ -175,7 +183,11 @@ function ViewTicketScreenContent() {
                 ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
                 : undefined,
           });
-          showToast("success", "Upgrade Initiated", "Complete payment to upgrade your ticket.");
+          showToast(
+            "success",
+            "Upgrade Initiated",
+            "Complete payment to upgrade your ticket.",
+          );
         }
       } catch (err: any) {
         showToast("error", "Error", err.message || "Could not start upgrade");
@@ -185,6 +197,17 @@ function ViewTicketScreenContent() {
     },
     [upgradeLoading, dbTicket, showToast],
   );
+
+  // ── Wallet pass refresh detection ──
+  // Detect if ticket was upgraded after wallet pass was created
+  const needsWalletRefresh = React.useMemo(() => {
+    if (!dbTicket?.updated_at || !dbTicket?.wallet_pass_updated_at)
+      return false;
+    // If ticket was updated after wallet pass was created, suggest refresh
+    const ticketUpdated = new Date(dbTicket.updated_at).getTime();
+    const walletCreated = new Date(dbTicket.wallet_pass_updated_at).getTime();
+    return ticketUpdated > walletCreated;
+  }, [dbTicket?.updated_at, dbTicket?.wallet_pass_updated_at]);
 
   // ── Wallet handler (MUST be before early returns — Rules of Hooks) ──
   const canAddToWallet =
@@ -202,9 +225,7 @@ function ViewTicketScreenContent() {
       showToast(
         "success",
         "Wallet",
-        Platform.OS === "ios"
-          ? "Apple Wallet opened"
-          : "Google Wallet opened",
+        Platform.OS === "ios" ? "Apple Wallet opened" : "Google Wallet opened",
       );
       setTimeout(() => setWalletState("idle"), 2500);
       return;
@@ -305,22 +326,22 @@ function ViewTicketScreenContent() {
           {/* ── Transfer Pending banner ── */}
           {isTransferPending && (
             <Motion.View
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            style={[
-              styles.statusBanner,
-              {
-                backgroundColor: "rgba(138,64,207,0.12)",
-                borderColor: "rgba(138,64,207,0.2)",
-              },
-            ]}
-          >
-            <Shield size={16} color="#8A40CF" />
-            <Text style={[styles.statusBannerText, { color: "#8A40CF" }]}>
-              Transfer pending — waiting for recipient to accept
-            </Text>
-          </Motion.View>
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ type: "spring", damping: 20, stiffness: 300 }}
+              style={[
+                styles.statusBanner,
+                {
+                  backgroundColor: "rgba(138,64,207,0.12)",
+                  borderColor: "rgba(138,64,207,0.2)",
+                },
+              ]}
+            >
+              <Shield size={16} color="#8A40CF" />
+              <Text style={[styles.statusBannerText, { color: "#8A40CF" }]}>
+                Transfer pending — waiting for recipient to accept
+              </Text>
+            </Motion.View>
           )}
 
           {/* ── Expired / Revoked banner ── */}
@@ -462,8 +483,13 @@ function ViewTicketScreenContent() {
                         <ActivityIndicator size="small" color="#fff" />
                       ) : (
                         <>
-                          <Text style={styles.upgradeCtaDiff}>+${diffDollars}</Text>
-                          <ChevronRight size={14} color="rgba(255,255,255,0.7)" />
+                          <Text style={styles.upgradeCtaDiff}>
+                            +${diffDollars}
+                          </Text>
+                          <ChevronRight
+                            size={14}
+                            color="rgba(255,255,255,0.7)"
+                          />
                         </>
                       )}
                     </View>
@@ -485,12 +511,41 @@ function ViewTicketScreenContent() {
         </View>
       </ScrollView>
 
-      <View style={[styles.bottomActionsWrap, { paddingBottom: insets.bottom + 12 }]}>
+      <View
+        style={[
+          styles.bottomActionsWrap,
+          { paddingBottom: insets.bottom + 12 },
+        ]}
+      >
         <TicketActionsBar
           ticket={ticket}
           bottomInset={0}
           style={styles.ticketActionsBar}
         />
+
+        {/* Wallet refresh prompt after upgrade */}
+        {needsWalletRefresh && (
+          <Pressable
+            onPress={handleAddToWallet}
+            style={({ pressed }) => [
+              styles.walletRefreshBanner,
+              pressed && { opacity: 0.88 },
+            ]}
+          >
+            <View style={styles.walletRefreshInner}>
+              <Sparkles size={16} color="#C084FC" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.walletRefreshTitle}>
+                  Ticket upgraded — refresh wallet pass
+                </Text>
+                <Text style={styles.walletRefreshSubtitle}>
+                  Tap to update your wallet with the new tier
+                </Text>
+              </View>
+              <ChevronRight size={16} color="#C084FC" />
+            </View>
+          </Pressable>
+        )}
 
         {canAddToWallet && (
           <Pressable
@@ -502,7 +557,14 @@ function ViewTicketScreenContent() {
               walletState === "success" && styles.walletCtaSuccess,
             ]}
           >
-            <View style={[styles.walletCtaInner, walletState === "success" && { backgroundColor: "rgba(63,220,255,0.14)" }]}>
+            <View
+              style={[
+                styles.walletCtaInner,
+                walletState === "success" && {
+                  backgroundColor: "rgba(63,220,255,0.14)",
+                },
+              ]}
+            >
               {walletState === "loading" ? (
                 <ActivityIndicator size="small" color={accent} />
               ) : walletState === "success" ? (
@@ -510,7 +572,12 @@ function ViewTicketScreenContent() {
               ) : (
                 <WalletCards size={20} color={accent} />
               )}
-              <Text style={[styles.walletCtaTitle, walletState === "success" && { color: "#3FDCFF" }]}>
+              <Text
+                style={[
+                  styles.walletCtaTitle,
+                  walletState === "success" && { color: "#3FDCFF" },
+                ]}
+              >
                 {walletTitle}
               </Text>
             </View>
@@ -811,6 +878,33 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.25)",
     fontSize: 11,
     textAlign: "center",
+  },
+  // Wallet refresh banner (shown after ticket upgrade)
+  walletRefreshBanner: {
+    marginHorizontal: 16,
+    marginBottom: 12,
+    borderRadius: 14,
+    backgroundColor: "rgba(192,132,252,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(192,132,252,0.25)",
+    overflow: "hidden",
+  },
+  walletRefreshInner: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  walletRefreshTitle: {
+    color: "#C084FC",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  walletRefreshSubtitle: {
+    color: "rgba(192,132,252,0.70)",
+    fontSize: 11,
+    marginTop: 1,
   },
 });
 

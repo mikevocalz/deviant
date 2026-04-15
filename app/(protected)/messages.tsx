@@ -52,6 +52,7 @@ import {
 } from "@/src/sneaky-lynk/stores/lynk-history-store";
 import { LiveRoomCard } from "@/src/sneaky-lynk/ui/LiveRoomCard";
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
+import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureProtection";
 import { useFocusEffect } from "expo-router";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
@@ -71,7 +72,12 @@ interface ConversationItem {
   unread: boolean;
   isGroup?: boolean;
   groupName?: string;
-  members?: Array<{ id: string; authId?: string; username: string; avatar: string }>;
+  members?: Array<{
+    id: string;
+    authId?: string;
+    username: string;
+    avatar: string;
+  }>;
 }
 
 function GroupAvatarStack({
@@ -183,7 +189,8 @@ function ConversationRow({
               (currentUserAuthId &&
                 (member.authId === currentUserAuthId ||
                   member.id === currentUserAuthId)) ||
-              (!!currentUser?.username && member.username === currentUser.username),
+              (!!currentUser?.username &&
+                member.username === currentUser.username),
           );
 
           if (!currentUser || alreadyIncludesCurrentUser) {
@@ -238,7 +245,9 @@ function ConversationRow({
               disabled={isDeleting}
               style={[
                 conversationListStyles.deleteActionButton,
-                isDeleting ? conversationListStyles.deleteActionButtonDisabled : null,
+                isDeleting
+                  ? conversationListStyles.deleteActionButtonDisabled
+                  : null,
               ]}
             >
               <Trash2 size={18} color="#fff" />
@@ -310,7 +319,9 @@ function ConversationRow({
                       </Text>
                     </>
                   ) : (
-                    <Pressable onPress={() => onProfilePress(item.user.username)}>
+                    <Pressable
+                      onPress={() => onProfilePress(item.user.username)}
+                    >
                       <Text
                         style={[
                           conversationListStyles.titleText,
@@ -325,14 +336,20 @@ function ConversationRow({
                 </View>
 
                 {isGroup ? (
-                  <Text style={conversationListStyles.metaText} numberOfLines={1}>
+                  <Text
+                    style={conversationListStyles.metaText}
+                    numberOfLines={1}
+                  >
                     {memberCount} members
                     {item.members && item.members.length > 0
                       ? ` • ${item.members.map((m) => m.username).join(", ")}`
                       : ""}
                   </Text>
                 ) : (
-                  <Text style={conversationListStyles.metaText} numberOfLines={1}>
+                  <Text
+                    style={conversationListStyles.metaText}
+                    numberOfLines={1}
+                  >
                     {item.user.name || item.user.username} • Direct message
                   </Text>
                 )}
@@ -403,11 +420,7 @@ function ConversationList({
   currentUser: ReturnType<typeof useAuthStore.getState>["user"];
   deletingConversationId?: string | null;
 }) {
-  const renderConversationRow = ({
-    item,
-  }: {
-    item: ConversationItem;
-  }) => {
+  const renderConversationRow = ({ item }: { item: ConversationItem }) => {
     return (
       <ConversationRow
         item={item}
@@ -465,6 +478,9 @@ function SneakyLynkContent({
   router: ReturnType<typeof useRouter>;
   isActive: boolean;
 }) {
+  // Protect live room list (titles, topics, participant counts)
+  useSneakyLynkCaptureProtection();
+
   const localRooms = useLynkHistoryStore((s) => s.rooms);
   const endRoom = useLynkHistoryStore((s) => s.endRoom);
   const [dbRooms, setDbRooms] = useState<LynkRecord[]>([]);
@@ -1180,7 +1196,9 @@ function MessagesScreenContent() {
           messageKeys.conversations(currentUser.id),
           (old) =>
             Array.isArray(old)
-              ? old.filter((conversation) => String(conversation?.id) !== item.id)
+              ? old.filter(
+                  (conversation) => String(conversation?.id) !== item.id,
+                )
               : old,
         );
 
@@ -1188,7 +1206,9 @@ function MessagesScreenContent() {
           { queryKey: [...messageKeys.all(currentUser.id), "filtered"] },
           (old) =>
             Array.isArray(old)
-              ? old.filter((conversation) => String(conversation?.id) !== item.id)
+              ? old.filter(
+                  (conversation) => String(conversation?.id) !== item.id,
+                )
               : old,
         );
 
@@ -1219,9 +1239,7 @@ function MessagesScreenContent() {
         showToast(
           "success",
           item.isGroup ? "Left group" : "Deleted",
-          item.isGroup
-            ? "Removed from your messages"
-            : "Conversation removed",
+          item.isGroup ? "Removed from your messages" : "Conversation removed",
         );
       } catch (error) {
         console.error("[Messages] deleteConversation error:", error);

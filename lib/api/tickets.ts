@@ -13,6 +13,8 @@ export interface TicketRecord {
   checked_in_by: string | null;
   purchase_amount_cents: number | null;
   created_at: string;
+  updated_at?: string;
+  wallet_pass_updated_at?: string | null;
   // Joined fields
   ticket_type_name?: string;
   event_title?: string;
