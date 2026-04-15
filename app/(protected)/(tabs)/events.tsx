@@ -13,6 +13,7 @@ import {
   Heart,
   Plus,
   Ticket,
+  MapPin,
   Search,
   X,
   ArrowUpDown,
@@ -260,7 +261,7 @@ function EventCard({
                 </View>
                 <View className="bg-primary px-5 py-2 rounded-full">
                   <Text className="text-white text-base font-bold">
-                    {event.price === 0 ? "FREE" : `$${event.price}`}
+                    ${event.price}
                   </Text>
                 </View>
               </View>
@@ -524,6 +525,12 @@ function EventsScreenContent() {
               <Text className="text-2xl font-bold text-foreground mt-0.5">
                 Events
               </Text>
+              <View className="flex-row items-center gap-1.5 mt-1">
+                <MapPin size={12} color="#3EA4E5" strokeWidth={2} />
+                <Text className="text-xs font-medium text-muted-foreground">
+                  {activeCity?.name || "Finding events near you"}
+                </Text>
+              </View>
             </View>
             <View className="flex-row items-center gap-2">
               <Motion.View
@@ -565,8 +572,7 @@ function EventsScreenContent() {
               onChangeText={handleSearchChange}
               placeholder="Search events, venues, hosts..."
               placeholderTextColor={colors.mutedForeground}
-              className="flex-1 ml-3 text-sm text-foreground py-1"
-              style={{ lineHeight: 20 }}
+              className="flex-1 ml-3 text-sm text-foreground"
               autoCapitalize="none"
               autoCorrect={false}
               returnKeyType="search"
@@ -815,11 +821,9 @@ function EventsScreenContent() {
                           paddingBottom: insets.bottom + 32,
                         }}
                       >
-                        {tabIndex === 1 &&
-                          spotlightItems.length > 0 &&
-                          !showMapView && (
-                            <SpotlightSection items={spotlightItems} />
-                          )}
+                        {tabIndex === 1 && spotlightItems.length > 0 && !showMapView && (
+                          <SpotlightSection items={spotlightItems} />
+                        )}
                         <View
                           style={{
                             paddingHorizontal: 16,
@@ -834,15 +838,11 @@ function EventsScreenContent() {
                       <Animated.ScrollView
                         className="flex-1"
                         showsVerticalScrollIndicator={false}
-                        contentContainerStyle={{
-                          paddingBottom: insets.bottom + 32,
-                        }}
+                        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
                       >
-                        {tabIndex === 1 &&
-                          spotlightItems.length > 0 &&
-                          !showMapView && (
-                            <SpotlightSection items={spotlightItems} />
-                          )}
+                        {tabIndex === 1 && spotlightItems.length > 0 && !showMapView && (
+                          <SpotlightSection items={spotlightItems} />
+                        )}
                         <View
                           style={{
                             paddingTop: 16,
@@ -880,9 +880,7 @@ function EventsScreenContent() {
                               <View
                                 key={event.id}
                                 style={
-                                  isLargeScreen
-                                    ? { width: cardWidth }
-                                    : undefined
+                                  isLargeScreen ? { width: cardWidth } : undefined
                                 }
                               >
                                 <EventCard
@@ -915,6 +913,9 @@ function EventsScreenContent() {
         visible={filterSheetVisible}
         onDismiss={() => setFilterSheetVisible(false)}
       />
+
+      {/* Promote Event Sheet (organizer bottom sheet) */}
+      <PromoteEventSheet />
     </View>
   );
 }

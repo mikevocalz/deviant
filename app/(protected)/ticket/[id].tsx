@@ -23,9 +23,6 @@ import {
   ChevronRight,
   Sparkles,
   CheckCircle2,
-  X,
-  Check,
-  ArrowUpRight,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -51,8 +48,6 @@ import { requireBetterAuthToken } from "@/lib/auth/identity";
 import * as WebBrowser from "expo-web-browser";
 import { WeatherStrip } from "@/components/events/weather-strip";
 import { useEventsLocationStore } from "@/lib/stores/events-location-store";
-import { TicketTierCard } from "@/src/events/ui/TicketTierCard";
-import type { TicketTier } from "@/src/events/types";
 
 const TIER_ACCENT: Record<TicketTierLevel, string> = {
   free: "#3FDCFF",
@@ -126,9 +121,6 @@ function ViewTicketScreenContent() {
   // ── Upgrade tiers state ──
   const [upgradeTiers, setUpgradeTiers] = React.useState<any[]>([]);
   const [upgradeLoading, setUpgradeLoading] = React.useState(false);
-  const [selectedUpgradeTier, setSelectedUpgradeTier] =
-    React.useState<any>(null);
-  const [showUpgradeConfirm, setShowUpgradeConfirm] = React.useState(false);
 
   React.useEffect(() => {
     if (!dbTicket?.event_id || dbTicket.status !== "active") return;
@@ -144,92 +136,67 @@ function ViewTicketScreenContent() {
     });
   }, [dbTicket?.event_id, dbTicket?.purchase_amount_cents, dbTicket?.status]);
 
-  // Convert upgrade tiers to TicketTier format for card display
-  const upgradeTierCards: TicketTier[] = React.useMemo(() => {
-    return upgradeTiers.map((t: any) => ({
-      id: t.id,
-      name: t.name,
-      price: (t.price_cents ?? 0) / 100,
-      description: t.description || "",
-      perks: t.perks || [],
-      remaining: t.quantity_remaining ?? 100,
-      maxPerOrder: t.max_per_order ?? 10,
-      isSoldOut: t.is_sold_out || t.quantity_remaining <= 0,
-      tier: (t.tier || "ga") as TicketTier["tier"],
-      glowColor: t.glow_color || t.accent_color || "#34A2DF",
-    }));
-  }, [upgradeTiers]);
-
-  const handleSelectUpgradeTier = React.useCallback(
-    (tier: TicketTier) => {
-      const originalTier = upgradeTiers.find((t: any) => t.id === tier.id);
-      setSelectedUpgradeTier(originalTier);
-      setShowUpgradeConfirm(true);
+  const handleUpgrade = React.useCallback(
+    async (newTypeId: string) => {
+      if (upgradeLoading || !dbTicket?.id) return;
+      setUpgradeLoading(true);
+      try {
+        const token = await requireBetterAuthToken();
+        const { data, error } = await supabase.functions.invoke(
+          "ticket-upgrade",
+          {
+            body: {
+              ticket_id: dbTicket.id,
+              new_ticket_type_id: newTypeId,
+            },
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "x-auth-token": token,
+            },
+          },
+        );
+        if (error) {
+          const errMsg = error.message || String(error);
+          if (__DEV__) console.error("[ticket-upgrade] invoke error:", errMsg);
+          showToast(
+            "error",
+            "Upgrade Failed",
+            errMsg || "Could not start upgrade",
+          );
+          return;
+        }
+        const result = typeof data === "string" ? JSON.parse(data) : data;
+        if (__DEV__)
+          console.log("[ticket-upgrade] result:", JSON.stringify(result));
+        if (result?.error) {
+          showToast("error", "Upgrade Failed", result.error);
+          return;
+        }
+        if (!result?.url) {
+          showToast("error", "Upgrade Failed", "No checkout URL returned");
+          return;
+        }
+        if (result?.url) {
+          await WebBrowser.openBrowserAsync(result.url, {
+            presentationStyle:
+              Platform.OS === "ios"
+                ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
+                : undefined,
+          });
+          showToast(
+            "success",
+            "Upgrade Initiated",
+            "Complete payment to upgrade your ticket.",
+          );
+        }
+      } catch (err: any) {
+        showToast("error", "Error", err.message || "Could not start upgrade");
+      } finally {
+        setUpgradeLoading(false);
+      }
     },
-    [upgradeTiers],
+    [upgradeLoading, dbTicket, showToast],
   );
-
-  const handleConfirmUpgrade = React.useCallback(async () => {
-    if (!selectedUpgradeTier || !dbTicket?.id) return;
-    setUpgradeLoading(true);
-    setShowUpgradeConfirm(false);
-
-    try {
-      const token = await requireBetterAuthToken();
-      const { data, error } = await supabase.functions.invoke(
-        "ticket-upgrade",
-        {
-          body: {
-            ticket_id: dbTicket.id,
-            new_ticket_type_id: selectedUpgradeTier.id,
-          },
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "x-auth-token": token,
-          },
-        },
-      );
-      if (error) {
-        const errMsg = error.message || String(error);
-        if (__DEV__) console.error("[ticket-upgrade] invoke error:", errMsg);
-        showToast(
-          "error",
-          "Upgrade Failed",
-          errMsg || "Could not start upgrade",
-        );
-        return;
-      }
-      const result = typeof data === "string" ? JSON.parse(data) : data;
-      if (__DEV__)
-        console.log("[ticket-upgrade] result:", JSON.stringify(result));
-      if (result?.error) {
-        showToast("error", "Upgrade Failed", result.error);
-        return;
-      }
-      if (!result?.url) {
-        showToast("error", "Upgrade Failed", "No checkout URL returned");
-        return;
-      }
-      if (result?.url) {
-        await WebBrowser.openBrowserAsync(result.url, {
-          presentationStyle:
-            Platform.OS === "ios"
-              ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
-              : undefined,
-        });
-        showToast(
-          "success",
-          "Upgrade Initiated",
-          "Complete payment to upgrade your ticket.",
-        );
-      }
-    } catch (err: any) {
-      showToast("error", "Error", err.message || "Could not start upgrade");
-    } finally {
-      setUpgradeLoading(false);
-      setSelectedUpgradeTier(null);
-    }
-  }, [selectedUpgradeTier, dbTicket, showToast]);
 
   // ── Wallet pass refresh detection ──
   // Detect if ticket was upgraded after wallet pass was created
@@ -476,40 +443,64 @@ function ViewTicketScreenContent() {
                 </View>
               </View>
 
-              {/* Card-based tier selection */}
-              <View style={styles.upgradeCardsContainer}>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  contentContainerStyle={styles.upgradeCardsContent}
-                >
-                  {upgradeTierCards.map((tier) => (
-                    <View key={tier.id} style={styles.upgradeCardWrapper}>
-                      <TicketTierCard
-                        tier={tier}
-                        isSelected={selectedUpgradeTier?.id === tier.id}
-                        onSelect={handleSelectUpgradeTier}
-                      />
-                      {/* Price difference badge */}
-                      <View style={styles.upgradeDiffBadge}>
-                        <Text style={styles.upgradeDiffText}>
-                          +$
-                          {(
-                            (tier.price * 100 -
-                              (dbTicket?.purchase_amount_cents ?? 0)) /
-                            100
-                          ).toFixed(2)}
+              {/* Tier options */}
+              {upgradeTiers.map((t: any, idx: number) => {
+                const paidCents = dbTicket?.purchase_amount_cents ?? 0;
+                const newPriceCents = t.price_cents ?? 0;
+                const diffCents = Math.max(0, newPriceCents - paidCents);
+                const diffDollars = (diffCents / 100).toFixed(2);
+                const isLast = idx === upgradeTiers.length - 1;
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => {
+                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                      handleUpgrade(t.id);
+                    }}
+                    disabled={upgradeLoading}
+                    style={({ pressed }) => [
+                      styles.upgradeTierRow,
+                      !isLast && styles.upgradeTierRowBorder,
+                      pressed && !upgradeLoading && { opacity: 0.72 },
+                    ]}
+                  >
+                    {/* Tier info */}
+                    <View style={{ flex: 1, gap: 3 }}>
+                      <Text style={styles.upgradeTierName}>{t.name}</Text>
+                      {t.description ? (
+                        <Text style={styles.upgradeTierDesc} numberOfLines={2}>
+                          {t.description}
                         </Text>
-                      </View>
+                      ) : null}
+                      <Text style={styles.upgradeFullPrice}>
+                        Full price ${(newPriceCents / 100).toFixed(2)}
+                      </Text>
                     </View>
-                  ))}
-                </ScrollView>
-              </View>
+
+                    {/* CTA badge */}
+                    <View style={styles.upgradeCta}>
+                      {upgradeLoading ? (
+                        <ActivityIndicator size="small" color="#fff" />
+                      ) : (
+                        <>
+                          <Text style={styles.upgradeCtaDiff}>
+                            +${diffDollars}
+                          </Text>
+                          <ChevronRight
+                            size={14}
+                            color="rgba(255,255,255,0.7)"
+                          />
+                        </>
+                      )}
+                    </View>
+                  </Pressable>
+                );
+              })}
 
               {/* Fine print */}
               <View style={styles.upgradeFooter}>
                 <Text style={styles.upgradeFooterText}>
-                  Select a tier to upgrade · You only pay the price difference
+                  You only pay the price difference · Non-refundable
                 </Text>
               </View>
             </View>
@@ -593,88 +584,6 @@ function ViewTicketScreenContent() {
           </Pressable>
         )}
       </View>
-
-      {/* ── UPGRADE CONFIRMATION MODAL ── */}
-      {showUpgradeConfirm && selectedUpgradeTier && (
-        <View style={styles.confirmOverlay}>
-          <Motion.View
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ type: "spring", damping: 20, stiffness: 300 }}
-            style={styles.confirmCard}
-          >
-            {/* Header */}
-            <View style={styles.confirmHeader}>
-              <View style={styles.confirmIconWrap}>
-                <ArrowUpRight size={28} color="#C084FC" />
-              </View>
-              <Text style={styles.confirmTitle}>Confirm Upgrade</Text>
-              <Text style={styles.confirmSubtitle}>
-                Upgrade to {selectedUpgradeTier.name}
-              </Text>
-            </View>
-
-            {/* Details */}
-            <View style={styles.confirmDetails}>
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>Current Tier</Text>
-                <Text style={styles.confirmValue}>{ticket.tierName}</Text>
-              </View>
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>New Tier</Text>
-                <Text style={styles.confirmValue}>
-                  {selectedUpgradeTier.name}
-                </Text>
-              </View>
-              <View style={styles.confirmDivider} />
-              <View style={styles.confirmRow}>
-                <Text style={styles.confirmLabel}>Upgrade Cost</Text>
-                <Text style={styles.confirmTotal}>
-                  +$
-                  {(
-                    (selectedUpgradeTier.price_cents -
-                      (dbTicket?.purchase_amount_cents ?? 0)) /
-                    100
-                  ).toFixed(2)}
-                </Text>
-              </View>
-            </View>
-
-            {/* Buttons */}
-            <View style={styles.confirmButtons}>
-              <Pressable
-                onPress={handleConfirmUpgrade}
-                disabled={upgradeLoading}
-                style={[
-                  styles.confirmBtnPrimary,
-                  upgradeLoading && { opacity: 0.6 },
-                ]}
-              >
-                {upgradeLoading ? (
-                  <ActivityIndicator size="small" color="#fff" />
-                ) : (
-                  <>
-                    <Check size={18} color="#fff" />
-                    <Text style={styles.confirmBtnPrimaryText}>
-                      Confirm & Pay
-                    </Text>
-                  </>
-                )}
-              </Pressable>
-              <Pressable
-                onPress={() => {
-                  setShowUpgradeConfirm(false);
-                  setSelectedUpgradeTier(null);
-                }}
-                disabled={upgradeLoading}
-                style={styles.confirmBtnSecondary}
-              >
-                <Text style={styles.confirmBtnSecondaryText}>Cancel</Text>
-              </Pressable>
-            </View>
-          </Motion.View>
-        </View>
-      )}
     </View>
   );
 }
@@ -969,134 +878,6 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.25)",
     fontSize: 11,
     textAlign: "center",
-  },
-  // Card-based upgrade styles
-  upgradeCardsContainer: {
-    marginVertical: 12,
-  },
-  upgradeCardsContent: {
-    paddingHorizontal: 16,
-    gap: 12,
-  },
-  upgradeCardWrapper: {
-    position: "relative",
-  },
-  upgradeDiffBadge: {
-    position: "absolute",
-    top: 8,
-    right: 8,
-    backgroundColor: "rgba(138,64,207,0.9)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 8,
-    zIndex: 10,
-  },
-  upgradeDiffText: {
-    color: "#fff",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  // Confirmation modal
-  confirmOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.8)",
-    zIndex: 100,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 24,
-  },
-  confirmCard: {
-    backgroundColor: "#1a1a1f",
-    borderRadius: 24,
-    padding: 24,
-    width: "100%",
-    maxWidth: 360,
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
-  },
-  confirmHeader: {
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  confirmIconWrap: {
-    width: 56,
-    height: 56,
-    borderRadius: 20,
-    backgroundColor: "rgba(192,132,252,0.15)",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-  },
-  confirmTitle: {
-    color: "#fff",
-    fontSize: 20,
-    fontWeight: "700",
-    textAlign: "center",
-  },
-  confirmSubtitle: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 14,
-    textAlign: "center",
-    marginTop: 6,
-  },
-  confirmDetails: {
-    backgroundColor: "rgba(255,255,255,0.05)",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 20,
-  },
-  confirmRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingVertical: 8,
-  },
-  confirmLabel: {
-    color: "rgba(255,255,255,0.5)",
-    fontSize: 14,
-  },
-  confirmValue: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  confirmDivider: {
-    height: 1,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    marginVertical: 8,
-  },
-  confirmTotal: {
-    color: "#C084FC",
-    fontSize: 16,
-    fontWeight: "800",
-  },
-  confirmButtons: {
-    gap: 12,
-  },
-  confirmBtnPrimary: {
-    backgroundColor: "#8A40CF",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 8,
-  },
-  confirmBtnPrimaryText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "700",
-  },
-  confirmBtnSecondary: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    paddingVertical: 16,
-    borderRadius: 16,
-    alignItems: "center",
-  },
-  confirmBtnSecondaryText: {
-    color: "rgba(255,255,255,0.7)",
-    fontSize: 16,
-    fontWeight: "600",
   },
   // Wallet refresh banner (shown after ticket upgrade)
   walletRefreshBanner: {
