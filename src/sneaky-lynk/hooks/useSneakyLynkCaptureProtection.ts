@@ -32,11 +32,30 @@
 
 import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
-import {
-  preventScreenCaptureAsync,
-  allowScreenCaptureAsync,
-  addScreenshotListener,
-} from "expo-screen-capture";
+
+// Defensive imports: handle cases where expo-screen-capture isn't linked
+let preventScreenCaptureAsync: () => Promise<void> = async () => {};
+let allowScreenCaptureAsync: () => Promise<void> = async () => {};
+let addScreenshotListener: (_cb: () => void) => {
+  remove: () => void;
+} = () => ({ remove: () => {} });
+
+try {
+  const screenCapture = require("expo-screen-capture");
+  preventScreenCaptureAsync =
+    screenCapture.preventScreenCaptureAsync ?? preventScreenCaptureAsync;
+  allowScreenCaptureAsync =
+    screenCapture.allowScreenCaptureAsync ?? allowScreenCaptureAsync;
+  addScreenshotListener =
+    screenCapture.addScreenshotListener ?? addScreenshotListener;
+} catch {
+  // Module not available, use stubs
+  if (__DEV__) {
+    console.warn(
+      "[SneakyLynkCapture] expo-screen-capture not available, using stubs",
+    );
+  }
+}
 
 // Module-level ref counter so nested / stacked screens don't fight each other
 let _activeCount = 0;
@@ -53,7 +72,10 @@ async function _enableProtection(): Promise<void> {
   } catch (err) {
     // Non-fatal: log but don't crash. May fail if module not linked.
     if (__DEV__) {
-      console.warn("[SneakyLynkCapture] preventScreenCaptureAsync failed:", err);
+      console.warn(
+        "[SneakyLynkCapture] preventScreenCaptureAsync failed:",
+        err,
+      );
     }
   }
 }

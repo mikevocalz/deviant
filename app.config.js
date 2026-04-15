@@ -156,6 +156,7 @@ export default {
       "expo-audio",
       "expo-font",
       "expo-image",
+      "expo-screen-capture",
       "expo-web-browser",
       "@config-plugins/react-native-webrtc",
       [
