@@ -21,12 +21,15 @@ import { useEffect, useState } from "react";
 import { View, Text, Pressable, AppState } from "react-native";
 import * as LocalAuthentication from "expo-local-authentication";
 import * as SecureStore from "expo-secure-store";
+import Constants from "expo-constants";
 import { Fingerprint, AlertCircle } from "lucide-react-native";
 import { Motion } from "@legendapp/motion";
 import { useColorScheme } from "@/lib/hooks";
 import { useVideoRoomStore } from "@/src/video/stores/video-room-store";
 
 const BIOMETRIC_ENABLED_KEY = "biometric_auth_enabled";
+const DEV_BIOMETRIC_BYPASS =
+  __DEV__ || Constants.executionEnvironment !== "standalone";
 
 // ── Module-level guards — survive component remounts ──────────────────
 let sessionUnlocked = false;
@@ -140,6 +143,13 @@ export function BiometricLock() {
   const [error, setError] = useState<string | null>(null);
   const [biometricName, setBiometricName] = useState("Face ID");
 
+  useEffect(() => {
+    if (!DEV_BIOMETRIC_BYPASS) return;
+
+    sessionUnlocked = true;
+    setIsLocked(false);
+  }, []);
+
   // Wire up the module-level setter so external code can control lock state
   useEffect(() => {
     setLockedFn = setIsLocked;
@@ -151,6 +161,7 @@ export function BiometricLock() {
   // Single init — skipped if already done this session (survives remounts)
   useEffect(() => {
     if (initDone || sessionUnlocked) return;
+    if (DEV_BIOMETRIC_BYPASS) return;
     initDone = true;
     console.log("[BiometricLock] Init starting...");
 
@@ -213,7 +224,7 @@ export function BiometricLock() {
   };
 
   // CRITICAL: Never show biometric lock during an active call
-  if (!isLocked || sessionUnlocked || callActive) {
+  if (DEV_BIOMETRIC_BYPASS || !isLocked || sessionUnlocked || callActive) {
     return null;
   }
 

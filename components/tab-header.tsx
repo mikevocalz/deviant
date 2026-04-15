@@ -1,5 +1,5 @@
 import { View, Pressable, Text, Platform } from "react-native";
-import { Link, usePathname } from "expo-router";
+import { Link, usePathname, useRouter } from "expo-router";
 import { Search, MessageSquare } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import Logo from "@/components/logo";
@@ -9,7 +9,12 @@ import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 export function TabHeaderLogo() {
   const pathname = usePathname();
   const triggerScrollToTop = useFeedScrollStore((s) => s.triggerScrollToTop);
-  const isHome = pathname === "/" || pathname === "/(protected)/(tabs)";
+  const isHome =
+    pathname === "/" ||
+    pathname === "/(protected)/(tabs)" ||
+    pathname === "/(protected)/(tabs)/index" ||
+    pathname === "/(public)/(tabs)" ||
+    pathname === "/(public)/(tabs)/index";
   return (
     <Pressable
       onPress={() => {
@@ -19,6 +24,59 @@ export function TabHeaderLogo() {
     >
       <Logo width={100} height={36} />
     </Pressable>
+  );
+}
+
+export function PublicTabHeaderRight() {
+  const router = useRouter();
+
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 10,
+      }}
+    >
+      <Pressable
+        onPress={() => router.push("/(auth)/login" as any)}
+        hitSlop={12}
+        style={{ paddingHorizontal: 6, paddingVertical: 6 }}
+      >
+        <Text
+          style={{
+            color: "rgba(255,255,255,0.8)",
+            fontSize: 14,
+            fontWeight: "700",
+          }}
+        >
+          Sign in
+        </Text>
+      </Pressable>
+
+      <Pressable
+        onPress={() => router.push("/(auth)/signup" as any)}
+        hitSlop={12}
+        style={{
+          minHeight: 38,
+          paddingHorizontal: 14,
+          borderRadius: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: "#fff",
+        }}
+      >
+        <Text
+          style={{
+            color: "#000",
+            fontSize: 13,
+            fontWeight: "800",
+          }}
+        >
+          Join
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 

@@ -36,7 +36,7 @@ Deno.serve(async (req: Request) => {
   const t0 = Date.now();
 
   try {
-    const { user_id, viewer_id } = await req.json();
+    const { user_id, viewer_id, include_nsfw = false } = await req.json();
 
     if (!user_id) {
       return new Response(JSON.stringify({ error: "Missing user_id" }), {
@@ -78,6 +78,25 @@ Deno.serve(async (req: Request) => {
 
     // ── Fire ALL queries in parallel ──────────────────────────────
 
+    let profilePostsQuery = supabase
+      .from("posts")
+      .select(
+        `
+          id, created_at, content, post_kind, text_theme, is_nsfw, likes_count,
+          media:posts_media(type, url, "order")
+        `,
+      )
+      .eq("author_id", profileUserId)
+      .eq("visibility", "public");
+
+    if (!include_nsfw) {
+      profilePostsQuery = profilePostsQuery.or("is_nsfw.is.false,is_nsfw.is.null");
+    }
+
+    profilePostsQuery = profilePostsQuery
+      .order("created_at", { ascending: false })
+      .range(0, GRID_PAGE_SIZE - 1);
+
     const queries: Promise<any>[] = [
       // 1. Profile data
       supabase
@@ -93,18 +112,7 @@ Deno.serve(async (req: Request) => {
         .single(),
 
       // 2. First page of posts (grid thumbnails)
-      supabase
-        .from("posts")
-        .select(
-          `
-          id, created_at, content, post_kind, text_theme, is_nsfw, likes_count,
-          media:posts_media(type, url, "order")
-        `,
-        )
-        .eq("author_id", profileUserId)
-        .eq("visibility", "public")
-        .order("created_at", { ascending: false })
-        .range(0, GRID_PAGE_SIZE - 1),
+      profilePostsQuery,
     ];
 
     // 3. Relationship state (only if viewing another user's profile)

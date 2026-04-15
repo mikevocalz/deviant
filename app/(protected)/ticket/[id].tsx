@@ -301,7 +301,6 @@ function ViewTicketScreenContent() {
 
         {/* ── Weather strip — event day forecast ── */}
         <WeatherStrip lat={weatherLat} lng={weatherLng} />
-
         <View>
           {/* ── Transfer Pending banner ── */}
           {isTransferPending && (

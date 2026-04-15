@@ -50,28 +50,30 @@ export function CallerRingingStage({
 
       {/* Single identity card — centered */}
       <View style={[styles.identityCard, { paddingTop: insets.top + 60 }]}>
-        {recipientAvatar ? (
-          <Image source={{ uri: recipientAvatar }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatar, styles.avatarPlaceholder]}>
-            <Text style={styles.avatarInitial}>
-              {recipientName.charAt(0).toUpperCase()}
-            </Text>
+        <View style={styles.identitySurface}>
+          {recipientAvatar ? (
+            <Image source={{ uri: recipientAvatar }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarPlaceholder]}>
+              <Text style={styles.avatarInitial}>
+                {recipientName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          )}
+
+          <Text style={styles.name}>{recipientName}</Text>
+
+          <View style={styles.statusRow}>
+            <ActivityIndicator size="small" color="rgba(255,255,255,0.8)" />
+            <Text style={styles.statusText}>{statusLabel}</Text>
           </View>
-        )}
 
-        <Text style={styles.name}>{recipientName}</Text>
-
-        <View style={styles.statusRow}>
-          <ActivityIndicator size="small" color="rgba(255,255,255,0.8)" />
-          <Text style={styles.statusText}>{statusLabel}</Text>
+          {isAudioMode && (
+            <View style={styles.audioIcon}>
+              <Phone size={20} color="rgba(255,255,255,0.4)" />
+            </View>
+          )}
         </View>
-
-        {isAudioMode && (
-          <View style={styles.audioIcon}>
-            <Phone size={20} color="rgba(255,255,255,0.4)" />
-          </View>
-        )}
       </View>
     </View>
   );
@@ -90,10 +92,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingTop: 120,
   },
+  identitySurface: {
+    alignItems: "center",
+    borderRadius: 32,
+    paddingHorizontal: 28,
+    paddingVertical: 28,
+    backgroundColor: "rgba(11,11,14,0.56)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    minWidth: 250,
+  },
   avatar: {
     width: 100,
     height: 100,
-    borderRadius: 50,
+    borderRadius: 28,
     marginBottom: 16,
   },
   avatarPlaceholder: {
@@ -123,5 +135,9 @@ const styles = StyleSheet.create({
   },
   audioIcon: {
     marginTop: 16,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,255,255,0.08)",
   },
 });

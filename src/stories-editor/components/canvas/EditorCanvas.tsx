@@ -26,6 +26,7 @@ import {
   Group,
   Path,
   Skia,
+  Paragraph,
   Text as SkiaText,
   useFont,
   matchFont,
@@ -39,6 +40,8 @@ import {
   vec,
   Fill,
   LinearGradient,
+  FontWeight,
+  TextAlign,
 } from "@shopify/react-native-skia";
 import {
   CanvasElement,
@@ -76,6 +79,32 @@ import {
 const INTER_REGULAR = FONT_ASSETS["Inter-Regular"];
 const INTER_BOLD = FONT_ASSETS["Inter-Bold"];
 
+function toSkiaFontWeight(weight: ReturnType<typeof getSystemFontWeight>) {
+  switch (weight) {
+    case "300":
+      return FontWeight.Light;
+    case "600":
+      return FontWeight.SemiBold;
+    case "700":
+      return FontWeight.Bold;
+    case "800":
+      return FontWeight.ExtraBold;
+    default:
+      return FontWeight.Normal;
+  }
+}
+
+function toParagraphAlign(align: TextElement["textAlign"]) {
+  switch (align) {
+    case "left":
+      return TextAlign.Left;
+    case "right":
+      return TextAlign.Right;
+    default:
+      return TextAlign.Center;
+  }
+}
+
 // ---- Props ----
 
 interface EditorCanvasProps {
@@ -97,6 +126,7 @@ interface EditorCanvasProps {
   liveStrokeWidth?: number;
   // Debug overlay toggle (driven by PerfHUD visibility)
   showDebugOverlay?: boolean;
+  hideSelection?: boolean;
 }
 
 // ---- Component ----
@@ -118,6 +148,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = React.memo(
     liveStrokeColor,
     liveStrokeWidth,
     showDebugOverlay = false,
+    hideSelection = false,
   }) => {
     // Load media
     const backgroundImage = useImage(
@@ -231,7 +262,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = React.memo(
                 y={0}
                 width={CANVAS_WIDTH}
                 height={CANVAS_HEIGHT}
-                fit="contain"
+                fit="cover"
               />
             )}
 
@@ -278,7 +309,7 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = React.memo(
               <ElementRenderer
                 key={element.id}
                 element={element}
-                isSelected={element.id === selectedElementId}
+                isSelected={element.id === selectedElementId && !hideSelection}
               />
             ))}
           </Group>
@@ -624,11 +655,107 @@ const TextElementRenderer: React.FC<{
   const font = prefersSystemFont
     ? (systemFont ?? customFont)
     : (customFont ?? systemFont);
+  const resolvedColor = style === "typewriter" ? "#000000" : color || "#FFFFFF";
+
+  const richParagraph = useMemo(() => {
+    if (!prefersSystemFont || content.length === 0) return null;
+
+    const resolvedTextColor =
+      style === "gradient" ? color || "#FFFFFF" : resolvedColor;
+    const textStyle = {
+      color: Skia.Color(resolvedTextColor),
+      fontFamilies: [getSystemFontFamily()],
+      fontSize,
+      fontStyle: {
+        weight: toSkiaFontWeight(getSystemFontWeight(element.fontFamily)),
+      },
+      heightMultiplier: element.lineHeight ?? 1.25,
+      letterSpacing: element.letterSpacing ?? 0,
+      shadows:
+        style === "shadow" || style === "neon"
+          ? [
+              {
+                color: Skia.Color(
+                  element.shadowColor ||
+                    (style === "neon"
+                      ? color || "#FFFFFF"
+                      : "rgba(0,0,0,0.82)"),
+                ),
+                blurRadius:
+                  element.shadowBlur || (style === "neon" ? 18 : 8),
+                offset: vec(0, style === "neon" ? 0 : 4),
+              },
+            ]
+          : undefined,
+    };
+
+    const builder = Skia.ParagraphBuilder.Make({
+      textAlign: toParagraphAlign(textAlign),
+      textStyle,
+    });
+
+    builder.pushStyle(textStyle);
+    builder.addText(content);
+    builder.pop();
+
+    const paragraph = builder.build();
+    paragraph.layout(maxWidth);
+    return paragraph;
+  }, [
+    prefersSystemFont,
+    content,
+    style,
+    color,
+    resolvedColor,
+    fontSize,
+    element.fontFamily,
+    element.lineHeight,
+    element.letterSpacing,
+    element.shadowColor,
+    element.shadowBlur,
+    textAlign,
+    maxWidth,
+  ]);
   if (__DEV__) {
     console.log(
       `[TextRenderer] id=${element.id.slice(0, 6)} font="${element.fontFamily}" asset=${fontAsset != null} loaded=${font != null} fallback=${prefersSystemFont} content="${content.slice(0, 10)}" fs=${fontSize}`,
     );
   }
+
+  if (richParagraph) {
+    const blockWidth = Math.max(richParagraph.getLongestLine(), 0);
+    const blockHeight = Math.max(richParagraph.getHeight(), fontSize);
+    const blockTopY = -blockHeight / 2;
+    const paragraphX =
+      textAlign === "left"
+        ? -blockWidth / 2
+        : textAlign === "right"
+          ? blockWidth / 2 - maxWidth
+          : -maxWidth / 2;
+
+    return (
+      <Group transform={liveTransform} opacity={element.opacity}>
+        {backgroundColor && (
+          <RoundedRect
+            x={-blockWidth / 2 - 16}
+            y={blockTopY - 12}
+            width={blockWidth + 32}
+            height={blockHeight + 24}
+            r={8}
+            color={backgroundColor}
+          />
+        )}
+
+        <Paragraph
+          paragraph={richParagraph}
+          x={paragraphX}
+          y={blockTopY}
+          width={maxWidth}
+        />
+      </Group>
+    );
+  }
+
   if (!font) return null;
 
   // Font size correction
@@ -658,8 +785,6 @@ const TextElementRenderer: React.FC<{
 
   // Center the block vertically around the transform origin
   const blockTopY = -blockHeight / 2;
-
-  const resolvedColor = style === "typewriter" ? "#000000" : color || "#FFFFFF";
 
   // Per-line X offset based on alignment
   const lineX = (lw: number) => {
@@ -775,7 +900,10 @@ const ImageStickerContent: React.FC<{
   isSelected: boolean;
 }> = React.memo(({ element, isSelected }) => {
   if (element.category === "gif" && typeof element.source === "string") {
-    return <StaticImageStickerContent element={element} />;
+    // Animated GIF stickers are rendered by the dedicated RN overlay layer.
+    // Never render a second static Skia placeholder here or it can bake into
+    // saved image stories as a stale first frame behind the live GIF.
+    return null;
   }
 
   return <LiveImageStickerContent element={element} isSelected={isSelected} />;
@@ -828,36 +956,6 @@ const LiveImageStickerContent: React.FC<{
   );
 });
 
-const StaticImageStickerContent: React.FC<{
-  element: StickerElement;
-}> = React.memo(({ element }) => {
-  const { source, size, opacity, transform } = element;
-
-  const stickerImage = useImage(source);
-  if (!stickerImage) return null;
-
-  const halfSize = size / 2;
-  const staticTransform = [
-    { translateX: transform.translateX } as const,
-    { translateY: transform.translateY } as const,
-    { rotate: (transform.rotation * Math.PI) / 180 } as const,
-    { scale: transform.scale } as const,
-  ];
-
-  return (
-    <Group transform={staticTransform} opacity={opacity}>
-      <SkiaImage
-        image={stickerImage}
-        x={-halfSize}
-        y={-halfSize}
-        width={size}
-        height={size}
-        fit="contain"
-      />
-    </Group>
-  );
-});
-
 const EmojiStickerContent: React.FC<{
   element: StickerElement;
   isSelected: boolean;
@@ -871,7 +969,16 @@ const EmojiStickerContent: React.FC<{
   );
 
   // Use system font for better emoji glyph support
-  const font = useFont(INTER_REGULAR, size);
+  const font = useMemo(
+    () =>
+      matchFont({
+        fontFamily: getSystemFontFamily(),
+        fontSize: size,
+        fontWeight: "400",
+        fontStyle: "normal",
+      }),
+    [size],
+  );
 
   if (!font) return null;
 

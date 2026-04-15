@@ -15,6 +15,20 @@ const routerOrigin =
 
 const fishjamAppIdFallback = "28026441819941d78c40584fb830f851";
 
+// Conservative native hardening rollout:
+// - enable recent-app screenshot protection on iOS/Android
+// - intentionally leave SSL pinning unset until real production pin material exists
+// - keep iOS cache disabling off because it can impact offline/cached behavior
+const appSecurityPlugin = [
+  "@bam.tech/react-native-app-security",
+  {
+    preventRecentScreenshots: {
+      ios: { enabled: true },
+      android: { enabled: true },
+    },
+  },
+];
+
 export default {
   expo: {
     name: "DVNT",
@@ -137,6 +151,7 @@ export default {
       "./plugins/fix-wgpu-headers",
       "./plugins/with-cube-luts",
       "./plugins/disable-frame-processors",
+      "./plugins/fix-visioncamera-barcode-scanner-swift",
       "expo-asset",
       "expo-audio",
       "expo-font",
@@ -156,6 +171,7 @@ export default {
           origin: routerOrigin,
         },
       ],
+      appSecurityPlugin,
       "./plugins/with-swift5-compat",
       [
         "expo-build-properties",
@@ -234,7 +250,7 @@ export default {
       "expo-secure-store",
       "expo-sharing",
       [
-        "expo-share-intent",
+        "./plugins/with-share-intent-fixed",
         {
           iosActivationRules: {
             NSExtensionActivationSupportsWebURLWithMaxCount: 1,

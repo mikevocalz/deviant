@@ -172,8 +172,19 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
     const fileUri = tmpPath.startsWith("file://")
       ? tmpPath
       : `file://${tmpPath}`;
+    const fileInfo = await LegacyFileSystem.getInfoAsync(fileUri).catch(
+      () => null,
+    );
+
+    if (!fileInfo?.exists) {
+      return { success: false, error: "wallet_pass_unavailable" };
+    }
 
     try {
+      const canOpenFile = await Linking.canOpenURL(fileUri).catch(() => false);
+      if (!canOpenFile) {
+        throw new Error("wallet_file_open_unavailable");
+      }
       await Linking.openURL(fileUri);
     } catch (openError) {
       const canShare = await Sharing.isAvailableAsync();
@@ -181,7 +192,7 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
         throw openError;
       }
 
-      await Sharing.shareAsync(tmpPath, {
+      await Sharing.shareAsync(fileUri, {
         mimeType: "application/vnd.apple.pkpass",
         UTI: "com.apple.pkpass",
       });

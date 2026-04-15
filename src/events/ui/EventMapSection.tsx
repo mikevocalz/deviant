@@ -41,7 +41,6 @@ export function EventMapSection({
 
   if (!location && !fallbackAddress) return null;
 
-  // Address-only fallback (no coordinates)
   if (!hasCoords) {
     return (
       <View style={styles.card}>
@@ -60,10 +59,8 @@ export function EventMapSection({
     );
   }
 
-  // Full map card
   return (
     <View style={styles.card}>
-      {/* Map */}
       <View style={styles.mapWrap}>
         <DvntMap
           center={[location!.longitude, location!.latitude]}
@@ -79,14 +76,12 @@ export function EventMapSection({
           showControls={false}
           onMapReady={undefined}
         />
-        {/* Bottom gradient overlay for info row */}
         <LinearGradient
           colors={["transparent", "rgba(14,14,18,0.85)", "rgba(14,14,18,0.98)"]}
           locations={[0.3, 0.7, 1]}
           style={styles.mapGradient}
           pointerEvents="none"
         />
-        {/* Location info overlaid on map bottom */}
         <View style={styles.mapOverlay}>
           <View style={styles.infoRow}>
             <View style={styles.pinWrap}>
@@ -106,7 +101,6 @@ export function EventMapSection({
         </View>
       </View>
 
-      {/* Directions button */}
       <Pressable
         onPress={handleGetDirections}
         disabled={isOpeningDirections}
@@ -121,7 +115,7 @@ export function EventMapSection({
           <Navigation size={16} color="#0a0a0a" strokeWidth={2.5} />
         )}
         <Text style={styles.directionsBtnText}>
-          {isOpeningDirections ? "Opening Maps…" : "Get Directions"}
+          {isOpeningDirections ? "Opening Maps..." : "Get Directions"}
         </Text>
       </Pressable>
     </View>
@@ -203,7 +197,6 @@ const styles = StyleSheet.create({
   },
 });
 
-// Loading skeleton
 export function EventMapSectionSkeleton() {
   return (
     <View

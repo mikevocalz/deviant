@@ -1,26 +1,42 @@
+import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
+import { useEffect, useRef, useState } from "react";
 import {
-  View,
-  Text,
-  Image,
-  TouchableOpacity,
-  Dimensions,
-  ScrollView,
-} from "react-native";
-import { useRef, useState, useEffect } from "react";
-import { Camera, useCameraDevice } from "react-native-vision-camera";
+  Camera,
+  type CameraRef,
+  useCameraDevice,
+  useCameraPermission,
+  usePhotoOutput,
+} from "react-native-vision-camera";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Camera as CameraIcon, X } from "lucide-react-native";
 import { Button } from "@/components/ui";
 import { persistVerificationPhoto } from "@/lib/media";
 import { useVerificationStore } from "@/lib/stores/useVerificationStore";
 import { Canvas, Path, Line, Shadow } from "@shopify/react-native-skia";
-import { COPY } from "@/components/scanner/copy";
-import { getRandom } from "@/components/scanner/getRandomCopy";
 
 const PURPLE = "#8A40CF";
 const WHITE = "#FFFFFF";
 
-// Skia-based face frame with scanning animation
+function getFaceFrameMetrics(containerWidth: number, containerHeight: number) {
+  if (containerWidth === 0 || containerHeight === 0) return null;
+
+  const frameWidth = Math.max(188, Math.min(containerWidth - 48, 236));
+  const frameHeight = Math.min(containerHeight - 72, frameWidth * 1.34);
+  const offsetX = (containerWidth - frameWidth) / 2;
+  const preferredTop = containerHeight * 0.11;
+  const maxTop = Math.max(24, containerHeight - frameHeight - 44);
+  const offsetY = Math.min(Math.max(24, preferredTop), maxTop);
+
+  return {
+    frameWidth,
+    frameHeight,
+    offsetX,
+    offsetY,
+    eyeLineY: offsetY + frameHeight * 0.32,
+    chinGuideY: offsetY + frameHeight * 0.82,
+  };
+}
+
 function FaceFrameOverlay({
   isScanning,
   scanProgress,
@@ -32,39 +48,27 @@ function FaceFrameOverlay({
   containerWidth: number;
   containerHeight: number;
 }) {
-  const frameWidth = 200;
-  const frameHeight = 280;
-  const cornerLength = 40;
+  const metrics = getFaceFrameMetrics(containerWidth, containerHeight);
+  if (!metrics) return null;
+
+  const { frameWidth, frameHeight, offsetX, offsetY, eyeLineY, chinGuideY } =
+    metrics;
+  const cornerLength = 42;
   const strokeWidth = 4;
-  const borderRadius = 12;
-
-  // Center the frame within the container
-  const offsetX = (containerWidth - frameWidth) / 2;
-  const offsetY = (containerHeight - frameHeight) / 2;
-
+  const borderRadius = 16;
   const color = isScanning ? PURPLE : WHITE;
 
-  // Corner paths with rounded corners using quadratic bezier curves
-  // Top-left: vertical line down, curve, horizontal line right
   const topLeftPath = `M ${offsetX},${offsetY + cornerLength} L ${offsetX},${offsetY + borderRadius} Q ${offsetX},${offsetY} ${offsetX + borderRadius},${offsetY} L ${offsetX + cornerLength},${offsetY}`;
-  // Top-right: horizontal line left, curve, vertical line down
   const topRightPath = `M ${offsetX + frameWidth - cornerLength},${offsetY} L ${offsetX + frameWidth - borderRadius},${offsetY} Q ${offsetX + frameWidth},${offsetY} ${offsetX + frameWidth},${offsetY + borderRadius} L ${offsetX + frameWidth},${offsetY + cornerLength}`;
-  // Bottom-left: vertical line up, curve, horizontal line right
   const bottomLeftPath = `M ${offsetX},${offsetY + frameHeight - cornerLength} L ${offsetX},${offsetY + frameHeight - borderRadius} Q ${offsetX},${offsetY + frameHeight} ${offsetX + borderRadius},${offsetY + frameHeight} L ${offsetX + cornerLength},${offsetY + frameHeight}`;
-  // Bottom-right: horizontal line left, curve, vertical line up
   const bottomRightPath = `M ${offsetX + frameWidth - cornerLength},${offsetY + frameHeight} L ${offsetX + frameWidth - borderRadius},${offsetY + frameHeight} Q ${offsetX + frameWidth},${offsetY + frameHeight} ${offsetX + frameWidth},${offsetY + frameHeight - borderRadius} L ${offsetX + frameWidth},${offsetY + frameHeight - cornerLength}`;
-
-  // Scan line Y position
   const scanLineY = offsetY + (scanProgress / 100) * frameHeight;
-
-  if (containerWidth === 0 || containerHeight === 0) return null;
 
   return (
     <Canvas
-      style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+      style={StyleSheet.absoluteFill}
       pointerEvents="none"
     >
-      {/* Top-left corner */}
       <Path
         path={topLeftPath}
         color={color}
@@ -75,8 +79,6 @@ function FaceFrameOverlay({
       >
         {isScanning && <Shadow dx={0} dy={0} blur={10} color={PURPLE} />}
       </Path>
-
-      {/* Top-right corner */}
       <Path
         path={topRightPath}
         color={color}
@@ -87,8 +89,6 @@ function FaceFrameOverlay({
       >
         {isScanning && <Shadow dx={0} dy={0} blur={10} color={PURPLE} />}
       </Path>
-
-      {/* Bottom-left corner */}
       <Path
         path={bottomLeftPath}
         color={color}
@@ -99,8 +99,6 @@ function FaceFrameOverlay({
       >
         {isScanning && <Shadow dx={0} dy={0} blur={10} color={PURPLE} />}
       </Path>
-
-      {/* Bottom-right corner */}
       <Path
         path={bottomRightPath}
         color={color}
@@ -112,11 +110,27 @@ function FaceFrameOverlay({
         {isScanning && <Shadow dx={0} dy={0} blur={10} color={PURPLE} />}
       </Path>
 
-      {/* Animated scan line */}
+      {!isScanning && (
+        <>
+          <Line
+            p1={{ x: offsetX + 28, y: eyeLineY }}
+            p2={{ x: offsetX + frameWidth - 28, y: eyeLineY }}
+            color="rgba(255,255,255,0.28)"
+            strokeWidth={1.5}
+          />
+          <Line
+            p1={{ x: offsetX + 48, y: chinGuideY }}
+            p2={{ x: offsetX + frameWidth - 48, y: chinGuideY }}
+            color="rgba(255,255,255,0.16)"
+            strokeWidth={1}
+          />
+        </>
+      )}
+
       {isScanning && (
         <Line
-          p1={{ x: offsetX + 5, y: scanLineY }}
-          p2={{ x: offsetX + frameWidth - 5, y: scanLineY }}
+          p1={{ x: offsetX + 8, y: scanLineY }}
+          p2={{ x: offsetX + frameWidth - 8, y: scanLineY }}
           color={PURPLE}
           strokeWidth={2}
         >
@@ -129,7 +143,9 @@ function FaceFrameOverlay({
 
 export default function FaceScanTab() {
   const device = useCameraDevice("front");
-  const camRef = useRef<Camera>(null);
+  const photoOutput = usePhotoOutput();
+  const camRef = useRef<CameraRef>(null);
+  const { hasPermission, requestPermission } = useCameraPermission();
 
   const [capturedUri, setCapturedUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -141,26 +157,24 @@ export default function FaceScanTab() {
   const storedFaceUri = useVerificationStore((s) => s.faceImageUri);
   const setFaceImageUri = useVerificationStore((s) => s.setFaceImageUri);
   const setFaceComplete = useVerificationStore((s) => s.setFaceComplete);
-
-  const [currentPhrase, setCurrentPhrase] = useState(() =>
-    getRandom(COPY.en.okLight),
-  );
   const showToast = useUIStore((s) => s.showToast);
 
-  // Rotate phrase every 4 seconds (cycles through okLight phrases by default)
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentPhrase(getRandom(COPY.en.okLight));
-    }, 4000);
-    return () => clearInterval(interval);
-  }, []);
+  const frameMetrics = getFaceFrameMetrics(
+    cameraLayout.width,
+    cameraLayout.height,
+  );
 
-  // If already completed, show the stored image
+  useEffect(() => {
+    if (!hasPermission) {
+      void requestPermission();
+    }
+  }, [hasPermission, requestPermission]);
+
   if (faceComplete && storedFaceUri) {
     return (
       <View
         className="flex-1 bg-background rounded-2xl overflow-hidden"
-        style={{ minHeight: 300 }}
+        style={{ minHeight: 320 }}
       >
         <Image
           source={{ uri: storedFaceUri }}
@@ -174,15 +188,15 @@ export default function FaceScanTab() {
               setFaceImageUri("");
               setCapturedUri(null);
             }}
-            className="bg-black/50 rounded-full p-2"
+            className="bg-black/55 rounded-2xl p-2.5"
           >
             <X size={20} color="white" />
           </TouchableOpacity>
         </View>
         <View className="absolute bottom-4 left-0 right-0 items-center">
-          <View className="bg-primary/90 px-4 py-2 rounded-full">
+          <View className="bg-primary/90 px-4 py-2 rounded-2xl">
             <Text className="text-primary-foreground font-medium">
-              Face Captured ✓
+              Selfie Captured
             </Text>
           </View>
         </View>
@@ -194,9 +208,28 @@ export default function FaceScanTab() {
     return (
       <View
         className="flex-1 bg-card rounded-2xl items-center justify-center"
-        style={{ minHeight: 300 }}
+        style={{ minHeight: 320 }}
       >
         <Text className="text-muted">Camera not available</Text>
+      </View>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <View
+        className="flex-1 bg-card rounded-2xl items-center justify-center px-6"
+        style={{ minHeight: 320 }}
+      >
+        <Text className="text-foreground text-center font-semibold">
+          Camera permission required
+        </Text>
+        <Text className="text-muted text-center mt-2">
+          We need camera access to capture your verification selfie.
+        </Text>
+        <Button onPress={() => void requestPermission()} className="mt-4">
+          <Text className="text-primary-foreground">Grant Access</Text>
+        </Button>
       </View>
     );
   }
@@ -207,8 +240,7 @@ export default function FaceScanTab() {
       setIsScanning(true);
       setScanProgress(0);
 
-      // Animate scan progress over 2 seconds
-      const duration = 2000;
+      const duration = 1200;
       const startTime = Date.now();
 
       await new Promise<void>((resolve) => {
@@ -226,12 +258,11 @@ export default function FaceScanTab() {
         requestAnimationFrame(animate);
       });
 
-      // Take photo after scan completes
-      const photo = await camRef.current?.takePhoto({ flash: "off" });
-      if (!photo?.path) throw new Error("Unable to capture");
-      const uri = photo.path.startsWith("file://")
-        ? photo.path
-        : `file://${photo.path}`;
+      const photo = await photoOutput.capturePhoto({ flashMode: "off" }, {});
+      const filePath = await photo.saveToTemporaryFileAsync();
+      const uri = filePath.startsWith("file://")
+        ? filePath
+        : `file://${filePath}`;
       setCapturedUri(uri);
     } catch (e: any) {
       showToast("error", "Capture failed", e?.message);
@@ -257,23 +288,24 @@ export default function FaceScanTab() {
     }
   }
 
-  // Preview captured image
   if (capturedUri) {
     return (
-      <ScrollView
+      <View
         className="flex-1 bg-background rounded-2xl overflow-hidden"
-        contentContainerStyle={{ flexGrow: 1, minHeight: 300 }}
+        style={{ minHeight: 320 }}
       >
         <Image
           source={{ uri: capturedUri }}
           className="flex-1"
           resizeMode="cover"
-          style={{ minHeight: 250 }}
         />
 
         <View className="absolute bottom-6 left-0 right-0 px-6 gap-3">
-          <Text className="text-center text-white text-sm mb-2">
-            Make sure your face is clear and well lit
+          <Text className="text-center text-white text-sm">
+            Make sure your face is centered, clear, and well lit.
+          </Text>
+          <Text className="text-center text-white/70 text-xs">
+            This selfie is used only to confirm the ID belongs to you.
           </Text>
           <View className="flex-row gap-3">
             <Button
@@ -285,32 +317,28 @@ export default function FaceScanTab() {
             </Button>
             <Button onPress={confirm} disabled={busy} className="flex-1">
               <Text className="text-primary-foreground">
-                {busy ? "Saving..." : "Use This Photo"}
+                {busy ? "Saving..." : "Use This Selfie"}
               </Text>
             </Button>
           </View>
         </View>
-      </ScrollView>
+      </View>
     );
   }
 
-  // Camera view
   return (
     <View
       className="flex-1 rounded-2xl overflow-hidden"
-      style={{ minHeight: 380 }}
+      style={{ minHeight: 420 }}
     >
-      {/* Header */}
       <View className="justify-center flex-row items-center px-4 py-3 bg-card">
         <Text className="text-foreground text-center font-semibold">
           Face Verification
         </Text>
-        <View />
       </View>
 
-      {/* Camera */}
       <View
-        className="flex-1 bg-background flex-col"
+        className="flex-1 bg-background"
         onLayout={(e) =>
           setCameraLayout({
             width: e.nativeEvent.layout.width,
@@ -320,22 +348,25 @@ export default function FaceScanTab() {
       >
         <Camera
           ref={camRef}
-          style={{ flex: 1, aspectRatio: 16 / 9 }}
+          style={StyleSheet.absoluteFillObject}
           device={device}
           isActive
-          photo
+          outputs={[photoOutput]}
         />
 
-        {/* Status badge */}
-        <View className="absolute my-2 left-3">
-          <View className="bg-black/60 px-3 py-1 rounded-full">
+        <View className="absolute top-4 left-4 right-4 flex-row justify-between items-start">
+          <View className="bg-black/60 px-3 py-2 rounded-2xl">
             <Text className="text-white text-xs font-medium">
               {isScanning ? `Scanning ${Math.round(scanProgress)}%` : "Ready"}
             </Text>
           </View>
+          <View className="bg-black/45 px-3 py-2 rounded-2xl">
+            <Text className="text-white/85 text-xs font-medium">
+              Good light
+            </Text>
+          </View>
         </View>
 
-        {/* Skia face frame overlay with scanning animation */}
         <FaceFrameOverlay
           isScanning={isScanning}
           scanProgress={scanProgress}
@@ -343,36 +374,54 @@ export default function FaceScanTab() {
           containerHeight={cameraLayout.height}
         />
 
-        {/* Face guidance banner with rotating phrases */}
+        {!isScanning && frameMetrics && (
+          <View
+            pointerEvents="none"
+            style={[
+              styles.eyeGuide,
+              {
+                top: Math.max(frameMetrics.offsetY - 18, 16),
+                left: frameMetrics.offsetX + 28,
+              },
+            ]}
+          >
+            <Text style={styles.eyeGuideText}>Eyes on the line</Text>
+          </View>
+        )}
+
         {!isScanning && (
-          <View className="absolute left-0 right-0 bottom-3 px-6 items-center">
-            <View className="rounded-xl px-4 py-3 bg-black/40">
-              <Text className="text-white text-base text-center">
-                {currentPhrase}
+          <View className="absolute left-0 right-0 bottom-20 px-6 items-center">
+            <View className="rounded-2xl px-4 py-3 bg-black/42 border border-white/10 max-w-[320px]">
+              <Text className="text-white text-base text-center font-semibold">
+                Center your face inside the frame.
+              </Text>
+              <Text className="text-white/72 text-sm text-center mt-1">
+                Keep your eyes on the line. Remove hats if possible, hold still,
+                and use the same face you want matched to your ID.
               </Text>
             </View>
           </View>
         )}
 
-        {/* Bottom instruction */}
-        <View className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent mb-2">
-          <Text className="text-center text-white text-sm font-medium">
-            {isScanning ? "Hold still, scanning face..." : ""}
+        <View className="absolute bottom-4 left-0 right-0 px-6">
+          <Text className="text-center text-white/72 text-sm font-medium">
+            {isScanning
+              ? "Hold still while we capture your selfie."
+              : "Use the front camera with your full face inside the frame. This is not shown on your public profile."}
           </Text>
         </View>
       </View>
 
-      {/* Take Selfie button */}
-      <View className="p-2  bg-card ">
+      <View className="p-3 bg-card">
         <Button
           onPress={capture}
           disabled={busy || isScanning}
-          className="flex-row  items-center justify-center"
+          className="flex-row items-center justify-center"
         >
-          <View className="flex-row  mr-4 items-center">
+          <View className="flex-row mr-3 items-center">
             <CameraIcon size={20} color="white" style={{ marginRight: 2 }} />
           </View>
-          <Text className=" text-primary-foreground text-center tracking-wider font-extrabold">
+          <Text className="text-primary-foreground text-center tracking-wider font-extrabold">
             {isScanning ? "Scanning..." : busy ? "Capturing..." : "Take Selfie"}
           </Text>
         </Button>
@@ -380,3 +429,20 @@ export default function FaceScanTab() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  eyeGuide: {
+    position: "absolute",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  eyeGuideText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+});

@@ -5,7 +5,7 @@ import { Platform } from "react-native";
 import { toast } from "sonner-native";
 import { detectMediaKind } from "@/lib/media/detect-media-kind";
 import type { MediaKind } from "@/lib/media/types";
-import type { StoryAnimatedGifOverlay } from "@/lib/types";
+import type { StoryAnimatedGifOverlay, StoryOverlay } from "@/lib/types";
 
 export interface MediaAsset {
   id: string;
@@ -30,6 +30,7 @@ export interface MediaAsset {
     translateY: number;
   };
   storyAnimatedGifOverlays?: StoryAnimatedGifOverlay[];
+  storyOverlays?: StoryOverlay[];
 }
 
 export interface StoryMediaOptions {

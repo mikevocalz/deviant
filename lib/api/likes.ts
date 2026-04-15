@@ -1,6 +1,9 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { requireBetterAuthToken } from "../auth/identity";
+import {
+  hasAuthenticatedUser,
+  requireBetterAuthToken,
+} from "../auth/identity";
 
 interface ToggleLikeResponse {
   ok: boolean;
@@ -113,6 +116,7 @@ export const likesApi = {
   async getViewerLikedPostIds(postIds: number[]): Promise<Set<string>> {
     try {
       if (postIds.length === 0) return new Set();
+      if (!hasAuthenticatedUser()) return new Set();
       const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke<{
         postIds?: number[];

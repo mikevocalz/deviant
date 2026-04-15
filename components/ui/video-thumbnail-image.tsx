@@ -19,11 +19,13 @@ const thumbnailKeys = {
 interface VideoThumbnailImageProps {
   videoUrl: string;
   style?: any;
+  transition?: number;
 }
 
 export function VideoThumbnailImage({
   videoUrl,
   style,
+  transition = 200,
 }: VideoThumbnailImageProps) {
   const { data: thumbnailUri } = useQuery({
     queryKey: thumbnailKeys.forVideo(videoUrl),
@@ -40,6 +42,7 @@ export function VideoThumbnailImage({
         source={{ uri: thumbnailUri }}
         style={[{ width: "100%", height: "100%" }, style]}
         contentFit="cover"
+        transition={transition}
         cachePolicy="memory-disk"
       />
     );

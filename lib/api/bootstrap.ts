@@ -8,7 +8,7 @@
  */
 
 import { supabase } from "../supabase/client";
-import type { TextPostThemeKey } from "@/lib/types";
+import type { TextPostSlide, TextPostThemeKey } from "@/lib/types";
 
 export interface BootstrapFeedResponse {
   posts: BootstrapPost[];
@@ -24,6 +24,7 @@ export interface BootstrapPost {
   caption: string;
   kind?: "media" | "text";
   textTheme?: TextPostThemeKey | null;
+  textSlides?: TextPostSlide[];
   createdAt: string;
   isNSFW: boolean;
   location: string | null;
@@ -168,6 +169,7 @@ export const bootstrapApi = {
     userId: string;
     cursor?: number;
     limit?: number;
+    includeNSFW?: boolean;
   }): Promise<BootstrapFeedResponse | null> {
     try {
       const t0 = Date.now();
@@ -178,6 +180,7 @@ export const bootstrapApi = {
             user_id: params.userId,
             cursor: params.cursor || 0,
             limit: params.limit || 20,
+            include_nsfw: params.includeNSFW === true,
           },
         },
       );
@@ -202,6 +205,7 @@ export const bootstrapApi = {
   async profile(params: {
     userId: string;
     viewerId?: string;
+    includeNSFW?: boolean;
   }): Promise<BootstrapProfileResponse | null> {
     try {
       const { data, error } = await supabase.functions.invoke(
@@ -210,6 +214,7 @@ export const bootstrapApi = {
           body: {
             user_id: params.userId,
             viewer_id: params.viewerId,
+            include_nsfw: params.includeNSFW === true,
           },
         },
       );

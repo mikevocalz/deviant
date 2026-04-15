@@ -37,11 +37,13 @@ export interface StickerElement extends BaseElement {
   source: string | number; // emoji, URL, or require() asset ID
   category: StickerCategory;
   size: number;
+  assetId?: string;
 }
 
 export interface StickerInsertOptions {
   category?: StickerCategory;
   size?: number;
+  assetId?: string;
 }
 
 export type StickerCategory =

@@ -18,6 +18,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useAppStore } from "@/lib/stores/app-store";
 import { shareProfile } from "@/lib/utils/sharing";
 import { Motion } from "@legendapp/motion";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -336,6 +337,7 @@ function UserProfileScreenComponent() {
   }>();
   const router = useRouter();
   const { colors } = useColorScheme();
+  const nsfwEnabled = useAppStore((state) => state.nsfwEnabled);
   const currentUser = useAuthStore((state) => state.user);
   const queryClient = useQueryClient();
 
@@ -419,9 +421,17 @@ function UserProfileScreenComponent() {
     useProfilePosts(safeUsername || "");
 
   // Transform to masonry grid tiles
+  const visibleUserPosts = useMemo(
+    () =>
+      nsfwEnabled
+        ? userPostsRaw
+        : userPostsRaw.filter((post) => !post.isNSFW),
+    [userPostsRaw, nsfwEnabled],
+  );
+
   const userPosts: SafeGridTile[] = useMemo(
-    () => safeGridTiles(userPostsRaw),
-    [userPostsRaw],
+    () => safeGridTiles(visibleUserPosts),
+    [visibleUserPosts],
   );
 
   const {
@@ -602,14 +612,11 @@ function UserProfileScreenComponent() {
       );
       if (match?.id) {
         console.log("[Profile] Cache hit — navigating to chat:", match.id);
-        router.push({
-          pathname: "/(protected)/chat/[id]",
-          params: {
-            id: match.id,
-            peerUsername: user.username,
-            peerName: user.name || user.username,
-            peerAvatar: user.avatar || "",
-          },
+        navigateToChat(router, {
+          conversationId: String(match.id),
+          peerUsername: user.username,
+          peerName: user.name || user.username,
+          peerAvatar: user.avatar || "",
         });
         return;
       }
@@ -626,19 +633,20 @@ function UserProfileScreenComponent() {
       const { prefetchConversationResolution } =
         await import("@/lib/hooks/use-conversation-resolution");
 
-      // Fire prefetch (non-blocking) then navigate immediately
-      prefetchConversationResolution(queryClient, username);
+      const conversationId = await prefetchConversationResolution(
+        queryClient,
+        username,
+      );
 
-      router.push({
-        pathname: "/(protected)/chat/[id]",
-        params: {
-          id: username,
+      if (conversationId) {
+        navigateToChat(router, {
+          conversationId,
           peerUsername: username,
           peerName: user.name || username,
           peerAvatar: user.avatar || "",
-        },
-      });
-      return;
+        });
+        return;
+      }
     }
 
     // Fallback: no username — must call edge function (rare)
@@ -673,7 +681,7 @@ function UserProfileScreenComponent() {
         await messagesApiClient.getOrCreateConversation(identifier);
       if (conversationId) {
         navigateToChat(router, {
-          identifier: conversationId,
+          conversationId,
           peerAvatar: user.avatar,
           peerUsername: user.username,
           peerName: user.name || user.username,

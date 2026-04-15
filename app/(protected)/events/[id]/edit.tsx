@@ -57,6 +57,25 @@ import {
   LocationAutocompleteInstagram,
   type LocationData,
 } from "@/components/ui/location-autocomplete-instagram";
+import {
+  isRemoteMediaUri,
+  persistLocalMediaSelection,
+} from "@/lib/media/persist-local-selection";
+import { ticketTypesApi } from "@/lib/api/ticket-types";
+
+const TIER_LEVELS = ["free", "ga", "vip", "table"] as const;
+type TierLevel = (typeof TIER_LEVELS)[number];
+
+interface LocalTicketTier {
+  id?: string; // undefined = new (not yet saved)
+  name: string;
+  priceDollars: string; // user types dollars, we convert to cents
+  quantity: string;
+  maxPerOrder: string;
+  tier: TierLevel;
+  description: string;
+  isActive: boolean;
+}
 
 function EditEventScreenContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -91,6 +110,8 @@ function EditEventScreenContent() {
   const [perks, setPerks] = useState("");
   const [youtubeVideoUrl, setYoutubeVideoUrl] = useState("");
   const [ticketingEnabled, setTicketingEnabled] = useState(false);
+  const [ticketTiers, setTicketTiers] = useState<LocalTicketTier[]>([]);
+  const [originalTierIds, setOriginalTierIds] = useState<Set<string>>(new Set());
 
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -102,6 +123,26 @@ function EditEventScreenContent() {
   useEffect(() => {
     requestPermissions();
   }, [requestPermissions]);
+
+  const persistEventDraftAssets = useCallback(
+    async (
+      assets: Array<{
+        uri: string;
+        fileName?: string;
+        mimeType?: string;
+      }>,
+    ) =>
+      Promise.all(
+        assets.map((asset) =>
+          persistLocalMediaSelection(asset.uri, {
+            scope: "event-drafts/images",
+            fileName: asset.fileName,
+            mimeType: asset.mimeType,
+          }),
+        ),
+      ),
+    [],
+  );
 
   // Fetch event data
   useEffect(() => {
@@ -179,6 +220,24 @@ function EditEventScreenContent() {
         setTicketingEnabled(!!ev.ticketingEnabled);
 
         setOriginalData(ev);
+
+        // Load ticket tiers
+        const dbTiers = await ticketTypesApi.getByEvent(id);
+        const activeTiers = dbTiers.filter((t: any) => t.active !== false && t.is_active !== false);
+        setOriginalTierIds(new Set(activeTiers.map((t: any) => t.id)));
+        setTicketTiers(
+          activeTiers.map((t: any) => ({
+            id: t.id,
+            name: t.name || "",
+            priceDollars: t.price_cents != null ? String(t.price_cents / 100) : "0",
+            quantity: t.quantity_total != null ? String(t.quantity_total) : "100",
+            maxPerOrder: t.max_per_user != null ? String(t.max_per_user) : "4",
+            tier: (t.tier || "ga") as TierLevel,
+            description: t.description || "",
+            isActive: true,
+          })),
+        );
+
         setIsLoading(false);
       } catch (error: any) {
         console.error("[EditEvent] Fetch error:", error);
@@ -242,10 +301,18 @@ function EditEventScreenContent() {
       allowsMultipleSelection: remaining > 1,
     });
     if (result && result.length > 0) {
-      setEventImages((prev) =>
-        [...prev, ...result.map((r) => r.uri)].slice(0, 4),
-      );
-      setHasChanges(true);
+      try {
+        const persistedUris = await persistEventDraftAssets(result);
+        setEventImages((prev) => [...prev, ...persistedUris].slice(0, 4));
+        setHasChanges(true);
+      } catch (error) {
+        console.error("[EditEvent] Failed to persist selected images:", error);
+        showToast(
+          "error",
+          "Media Error",
+          "Failed to add the selected images. Please try again.",
+        );
+      }
     }
   };
 
@@ -327,12 +394,17 @@ function EditEventScreenContent() {
     try {
       // Upload new images if any are local URIs
       const uploadedImages: string[] = [];
-      const localImages = eventImages.filter(
-        (uri) => uri.startsWith("file://") || uri.startsWith("content://"),
+      const normalizedImages = await Promise.all(
+        eventImages.map((uri) =>
+          isRemoteMediaUri(uri)
+            ? Promise.resolve(uri)
+            : persistLocalMediaSelection(uri, { scope: "event-drafts/images" }),
+        ),
       );
-      const remoteImages = eventImages.filter(
-        (uri) => uri.startsWith("http://") || uri.startsWith("https://"),
-      );
+      setEventImages(normalizedImages);
+
+      const localImages = normalizedImages.filter((uri) => !isRemoteMediaUri(uri));
+      const remoteImages = normalizedImages.filter((uri) => isRemoteMediaUri(uri));
 
       if (localImages.length > 0) {
         // Convert string URIs to MediaFile format
@@ -443,6 +515,43 @@ function EditEventScreenContent() {
       showToast("success", "Saved", "Event updated successfully");
       setIsSaving(false);
       router.back();
+
+      // ── Background: persist ticket tiers ──
+      const tierPromises = ticketTiers.map(async (tier) => {
+        const priceCents = Math.round(parseFloat(tier.priceDollars || "0") * 100);
+        const qty = parseInt(tier.quantity || "100");
+        const maxPerUser = parseInt(tier.maxPerOrder || "4");
+
+        if (!tier.id) {
+          // New tier — create it
+          await ticketTypesApi.create({
+            eventId: id,
+            name: tier.name || "General Admission",
+            description: tier.description || undefined,
+            priceCents,
+            quantityTotal: qty,
+            maxPerUser,
+          });
+        } else {
+          // Existing tier — update it
+          await ticketTypesApi.update(tier.id, {
+            name: tier.name,
+            description: tier.description || null,
+            price_cents: priceCents,
+            quantity_total: qty,
+            max_per_user: maxPerUser,
+          });
+        }
+      });
+
+      // Deactivate removed tiers
+      const currentIds = new Set(ticketTiers.filter((t) => t.id).map((t) => t.id!));
+      const removedIds = [...originalTierIds].filter((id) => !currentIds.has(id));
+      const deactivatePromises = removedIds.map((tid) => ticketTypesApi.deactivate(tid));
+
+      Promise.all([...tierPromises, ...deactivatePromises]).catch((err) =>
+        console.error("[EditEvent] Tier sync error:", err),
+      );
 
       // ── Background: persist to server ──
       eventsApi.updateEvent(id, updateData).then(
@@ -940,6 +1049,253 @@ function EditEventScreenContent() {
             trackColor={{ false: colors.border, true: colors.primary }}
           />
         </View>
+
+        {/* Ticket Tiers */}
+        {ticketingEnabled && (
+          <View className="mb-4">
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+              <Text className="text-sm font-medium text-foreground">
+                Ticket Tiers
+              </Text>
+              <Pressable
+                onPress={() => {
+                  setTicketTiers((prev) => [
+                    ...prev,
+                    {
+                      name: "General Admission",
+                      priceDollars: "0",
+                      quantity: "100",
+                      maxPerOrder: "4",
+                      tier: "ga",
+                      description: "",
+                      isActive: true,
+                    },
+                  ]);
+                  setHasChanges(true);
+                }}
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 4,
+                  backgroundColor: "rgba(138,64,207,0.15)",
+                  paddingHorizontal: 12,
+                  paddingVertical: 6,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: "rgba(138,64,207,0.3)",
+                }}
+              >
+                <Plus size={14} color="#8A40CF" />
+                <Text style={{ color: "#8A40CF", fontSize: 13, fontWeight: "600" }}>
+                  Add Tier
+                </Text>
+              </Pressable>
+            </View>
+
+            {ticketTiers.length === 0 && (
+              <Text style={{ color: colors.mutedForeground, fontSize: 13, textAlign: "center", paddingVertical: 16 }}>
+                No ticket tiers yet. Tap "Add Tier" to create one.
+              </Text>
+            )}
+
+            {ticketTiers.map((tier, idx) => (
+              <View
+                key={idx}
+                style={{
+                  backgroundColor: colors.card,
+                  borderRadius: 14,
+                  padding: 16,
+                  marginBottom: 10,
+                  borderWidth: 1,
+                  borderColor:
+                    tier.tier === "vip" ? "rgba(138,64,207,0.3)"
+                    : tier.tier === "table" ? "rgba(255,91,252,0.3)"
+                    : tier.tier === "free" ? "rgba(63,220,255,0.3)"
+                    : "rgba(52,162,223,0.3)",
+                }}
+              >
+                {/* Tier level selector */}
+                <View style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}>
+                  {TIER_LEVELS.map((lvl) => (
+                    <Pressable
+                      key={lvl}
+                      onPress={() => {
+                        const updated = [...ticketTiers];
+                        updated[idx] = { ...updated[idx], tier: lvl };
+                        if (lvl === "free") updated[idx].priceDollars = "0";
+                        setTicketTiers(updated);
+                        setHasChanges(true);
+                      }}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 6,
+                        borderRadius: 8,
+                        alignItems: "center",
+                        backgroundColor: tier.tier === lvl
+                          ? lvl === "vip" ? "#8A40CF"
+                            : lvl === "table" ? "#FF5BFC"
+                            : lvl === "free" ? "#3FDCFF"
+                            : "#34A2DF"
+                          : "transparent",
+                        borderWidth: 1,
+                        borderColor: tier.tier === lvl ? "transparent" : colors.border,
+                      }}
+                    >
+                      <Text style={{
+                        color: tier.tier === lvl ? "#fff" : colors.mutedForeground,
+                        fontSize: 11,
+                        fontWeight: "600",
+                        textTransform: "uppercase",
+                      }}>
+                        {lvl}
+                      </Text>
+                    </Pressable>
+                  ))}
+                </View>
+
+                {/* Name */}
+                <TextInput
+                  value={tier.name}
+                  onChangeText={(v) => {
+                    const updated = [...ticketTiers];
+                    updated[idx] = { ...updated[idx], name: v };
+                    setTicketTiers(updated);
+                    setHasChanges(true);
+                  }}
+                  placeholder="Tier name"
+                  placeholderTextColor={colors.mutedForeground}
+                  style={{
+                    color: colors.foreground,
+                    fontSize: 15,
+                    fontWeight: "600",
+                    marginBottom: 10,
+                    paddingVertical: 4,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                  }}
+                />
+
+                {/* Price + Quantity row */}
+                <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 11, marginBottom: 4 }}>
+                      Price ($)
+                    </Text>
+                    <TextInput
+                      value={tier.priceDollars}
+                      onChangeText={(v) => {
+                        const updated = [...ticketTiers];
+                        updated[idx] = { ...updated[idx], priceDollars: v };
+                        setTicketTiers(updated);
+                        setHasChanges(true);
+                      }}
+                      placeholder="0"
+                      placeholderTextColor={colors.mutedForeground}
+                      keyboardType="decimal-pad"
+                      editable={tier.tier !== "free"}
+                      style={{
+                        color: tier.tier === "free" ? colors.mutedForeground : colors.foreground,
+                        fontSize: 15,
+                        fontWeight: "600",
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        backgroundColor: "rgba(255,255,255,0.05)",
+                        borderRadius: 8,
+                      }}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 11, marginBottom: 4 }}>
+                      Quantity
+                    </Text>
+                    <TextInput
+                      value={tier.quantity}
+                      onChangeText={(v) => {
+                        const updated = [...ticketTiers];
+                        updated[idx] = { ...updated[idx], quantity: v };
+                        setTicketTiers(updated);
+                        setHasChanges(true);
+                      }}
+                      placeholder="100"
+                      placeholderTextColor={colors.mutedForeground}
+                      keyboardType="number-pad"
+                      style={{
+                        color: colors.foreground,
+                        fontSize: 15,
+                        fontWeight: "600",
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        backgroundColor: "rgba(255,255,255,0.05)",
+                        borderRadius: 8,
+                      }}
+                    />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: colors.mutedForeground, fontSize: 11, marginBottom: 4 }}>
+                      Max/Order
+                    </Text>
+                    <TextInput
+                      value={tier.maxPerOrder}
+                      onChangeText={(v) => {
+                        const updated = [...ticketTiers];
+                        updated[idx] = { ...updated[idx], maxPerOrder: v };
+                        setTicketTiers(updated);
+                        setHasChanges(true);
+                      }}
+                      placeholder="4"
+                      placeholderTextColor={colors.mutedForeground}
+                      keyboardType="number-pad"
+                      style={{
+                        color: colors.foreground,
+                        fontSize: 15,
+                        fontWeight: "600",
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        backgroundColor: "rgba(255,255,255,0.05)",
+                        borderRadius: 8,
+                      }}
+                    />
+                  </View>
+                </View>
+
+                {/* Description */}
+                <TextInput
+                  value={tier.description}
+                  onChangeText={(v) => {
+                    const updated = [...ticketTiers];
+                    updated[idx] = { ...updated[idx], description: v };
+                    setTicketTiers(updated);
+                    setHasChanges(true);
+                  }}
+                  placeholder="Perks description (optional)"
+                  placeholderTextColor={colors.mutedForeground}
+                  multiline
+                  style={{
+                    color: colors.foreground,
+                    fontSize: 13,
+                    paddingVertical: 6,
+                    marginBottom: 10,
+                    borderBottomWidth: 1,
+                    borderBottomColor: colors.border,
+                    minHeight: 36,
+                  }}
+                />
+
+                {/* Remove */}
+                <Pressable
+                  onPress={() => {
+                    setTicketTiers((prev) => prev.filter((_, i) => i !== idx));
+                    setHasChanges(true);
+                  }}
+                  style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4 }}
+                >
+                  <X size={14} color="#ef4444" />
+                  <Text style={{ color: "#ef4444", fontSize: 12 }}>Remove tier</Text>
+                </Pressable>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* YouTube Video URL */}
         <View className="mb-4">

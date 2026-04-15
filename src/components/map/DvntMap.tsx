@@ -6,7 +6,7 @@
  * back if the native module is unavailable.
  */
 
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -120,16 +120,15 @@ function DvntMapInner({
 }: DvntMapProps) {
   const { colors } = useColorScheme();
   const mapRef = useRef<any>(null);
+  const hasReportedReadyRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Convert center to {latitude, longitude}
-  const initialRegion = useMemo(
+  const cameraPosition = useMemo(
     () => ({
-      ...toLatLng(center),
-      latitudeDelta: 0.01, // Zoom level ~15
-      longitudeDelta: 0.01,
+      coordinates: toLatLng(center),
+      zoom: zoom || 15,
     }),
-    [center],
+    [center, zoom],
   );
 
   // Stable callback for marker press
@@ -145,14 +144,49 @@ function DvntMapInner({
 
   // Recenter map
   const handleRecenter = useCallback(() => {
-    mapRef.current?.animateToRegion?.(initialRegion, 500);
-  }, [initialRegion]);
+    mapRef.current?.setCameraPosition?.(
+      Platform.OS === "android"
+        ? { ...cameraPosition, duration: 350 }
+        : cameraPosition,
+    );
+  }, [cameraPosition]);
 
-  // Map ready callback
-  const handleMapReady = useCallback(() => {
+  const finishLoading = useCallback(() => {
     setIsLoading(false);
-    onMapReady?.();
+    if (!hasReportedReadyRef.current) {
+      hasReportedReadyRef.current = true;
+      onMapReady?.();
+    }
   }, [onMapReady]);
+
+  const handleMapLoaded = useCallback(() => {
+    finishLoading();
+  }, [finishLoading]);
+
+  const handleCameraMove = useCallback(() => {
+    finishLoading();
+  }, [finishLoading]);
+
+  useEffect(() => {
+    hasReportedReadyRef.current = false;
+    setIsLoading(true);
+
+    const config =
+      Platform.OS === "android"
+        ? { ...cameraPosition, duration: 0 }
+        : cameraPosition;
+
+    mapRef.current?.setCameraPosition?.(config);
+
+    // AppleMaps.View does not expose a "map loaded" callback, so we need a
+    // small fallback to avoid a permanent loading state on iOS.
+    const timeoutId = setTimeout(
+      finishLoading,
+      Platform.OS === "ios" ? 700 : 1500,
+    );
+
+    return () => clearTimeout(timeoutId);
+  }, [cameraPosition, finishLoading]);
 
   // Bail out if no native module
   const MapView = Platform.OS === "android" ? GoogleMapsView : AppleMapsView;
@@ -163,15 +197,11 @@ function DvntMapInner({
   }
 
   return (
-    <View className={`flex-1 ${className || ""}`}>
-      {isLoading && <MapLoading />}
+    <View className={`flex-1 overflow-hidden ${className || ""}`}>
       <MapView
         ref={mapRef}
         style={{ flex: 1 }}
-        initialCameraPosition={{
-          coordinates: toLatLng(center),
-          zoom: zoom || 15,
-        }}
+        cameraPosition={cameraPosition}
         markers={markers.map((marker) => ({
           id: marker.id,
           coordinates: toLatLng(marker.coordinate),
@@ -180,7 +210,8 @@ function DvntMapInner({
           color: getMarkerColor(marker.icon),
         }))}
         onMarkerPress={handleMarkerPress}
-        onMapReady={handleMapReady}
+        onCameraMove={handleCameraMove}
+        {...(Platform.OS === "android" ? { onMapLoaded: handleMapLoaded } : {})}
         uiSettings={{
           myLocationButtonEnabled: false,
           compassEnabled: false,
@@ -190,6 +221,14 @@ function DvntMapInner({
           showsUserLocation: showUserLocation,
         }}
       />
+      {isLoading && (
+        <View
+          className="absolute inset-0 items-center justify-center bg-card/80"
+          pointerEvents="none"
+        >
+          <MapLoading />
+        </View>
+      )}
 
       {/* Overlay Controls */}
       {showControls && (

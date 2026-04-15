@@ -11,10 +11,15 @@
  * Controls are rendered by CallControls, which is mode-aware.
  */
 
-import { useCallback, useEffect, useRef } from "react";
-import { AppState } from "react-native";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { startPIP, stopPIP } from "@fishjam-cloud/react-native-client";
+import {
+  BottomSheetBackdrop,
+  BottomSheetModal,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
 import { useVideoCall } from "@/lib/hooks/use-video-call";
 import { useVideoRoomStore } from "@/src/video/stores/video-room-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -30,12 +35,15 @@ import { CallerRingingStage } from "./stages/CallerRingingStage";
 import { ReceiverConnectingStage } from "./stages/ReceiverConnectingStage";
 import { InCallVideoStage } from "./stages/InCallVideoStage";
 import { InCallAudioStage } from "./stages/InCallAudioStage";
+import { GroupCallStage } from "./stages/GroupCallStage";
+import { ReconnectingStage } from "./stages/ReconnectingStage";
 import {
   EndedStage,
   ErrorStage,
   PermsDeniedStage,
 } from "./stages/TerminalStages";
 import { DevHud } from "./DevHud";
+import { ConnectionBanner } from "@/src/video/ui/ConnectionBanner";
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -56,6 +64,8 @@ export interface CallScreenProps {
   recipientName: string;
   /** Recipient avatar URL */
   recipientAvatar?: string;
+  /** Explicit route-level group-call hint */
+  isGroupCall?: boolean;
   /** Open device settings (for perms denied) */
   onOpenSettings: () => void;
 }
@@ -63,12 +73,15 @@ export interface CallScreenProps {
 export function CallScreen({
   recipientName,
   recipientAvatar,
+  isGroupCall = false,
   onOpenSettings,
 }: CallScreenProps) {
   const router = useRouter();
   const showToast = useUIStore((s) => s.showToast);
   const pipViewRef = useRef<any>(null);
+  const participantsSheetRef = useRef<BottomSheetModal>(null);
   const muteDebounceRef = useRef(false);
+  const localUser = useVideoRoomStore((s) => s.localUser);
 
   const {
     callPhase,
@@ -84,6 +97,7 @@ export function CallScreen({
     callDuration,
     error,
     errorCode,
+    connectionStatus,
     micPermission,
     isAudioMode,
     leaveCall,
@@ -97,6 +111,7 @@ export function CallScreen({
   const setSpeakerOn = useVideoRoomStore((s) => s.setSpeakerOn);
   const setIsPiPActive = useVideoRoomStore((s) => s.setIsPiPActive);
   const roomId = useVideoRoomStore((s) => s.roomId);
+  const sheetSnapPoints = useMemo(() => ["38%"], []);
 
   // ── Derive UI mode ──────────────────────────────────────────────────
   const mode: CallUiMode = deriveCallUiMode({
@@ -104,8 +119,10 @@ export function CallScreen({
     phase: callPhase,
     callType,
     remoteJoined: participants.length > 0,
+    connectionStatus,
   });
   const statusLabel = getStatusLabel(mode);
+  const effectiveIsGroupCall = isGroupCall || participants.length > 1;
 
   // ── Stage model ─────────────────────────────────────────────────────
   const remotePeer = participants[0] ?? null;
@@ -119,6 +136,31 @@ export function CallScreen({
   // Use recipientName from props, fall back to remote peer metadata
   const displayName = recipientName || remotePeer?.username || "Unknown";
   const displayAvatar = recipientAvatar || remotePeer?.avatar;
+  const participantRows = useMemo(
+    () => [
+      {
+        id: "local",
+        label: localUser?.displayName || localUser?.username || "You",
+        role: localUser?.role || "host",
+        isLocal: true,
+        isMicOn: !isMuted,
+        isCameraOn: hasLocalVideo,
+      },
+      ...participants.map((participant) => ({
+        id: participant.odId || participant.userId,
+        label:
+          participant.displayName ||
+          participant.username ||
+          participant.anonLabel ||
+          "Guest",
+        role: participant.role,
+        isLocal: false,
+        isMicOn: participant.isMicOn,
+        isCameraOn: participant.isCameraOn,
+      })),
+    ],
+    [hasLocalVideo, isMuted, localUser, participants],
+  );
 
   // ── Auto-dismiss call ended ─────────────────────────────────────────
   const handleDismiss = useCallback(() => {
@@ -203,6 +245,10 @@ export function CallScreen({
     router.back();
   }, [leaveCall, resetCallEnded, router]);
 
+  const handleOpenParticipants = useCallback(() => {
+    participantsSheetRef.current?.present();
+  }, []);
+
   // ═══════════════════════════════════════════════════════════════════
   // RENDER — exactly ONE stage per mode
   // ═══════════════════════════════════════════════════════════════════
@@ -255,6 +301,19 @@ export function CallScreen({
         );
 
       case "IN_CALL_VIDEO":
+        if (effectiveIsGroupCall) {
+          return (
+            <GroupCallStage
+              title={recipientName || "Group Call"}
+              participants={participants}
+              localStream={localStream}
+              hasLocalVideo={hasLocalVideo}
+              callType="video"
+              callDuration={callDuration}
+              onOpenParticipants={handleOpenParticipants}
+            />
+          );
+        }
         return (
           <InCallVideoStage
             remoteVideoStream={remoteVideoStream}
@@ -270,11 +329,32 @@ export function CallScreen({
         );
 
       case "IN_CALL_AUDIO":
+        if (effectiveIsGroupCall) {
+          return (
+            <GroupCallStage
+              title={recipientName || "Group Call"}
+              participants={participants}
+              localStream={localStream}
+              hasLocalVideo={hasLocalVideo}
+              callType="audio"
+              callDuration={callDuration}
+              onOpenParticipants={handleOpenParticipants}
+            />
+          );
+        }
         return (
           <InCallAudioStage
             recipientName={displayName}
             recipientAvatar={displayAvatar}
             callDuration={callDuration}
+          />
+        );
+
+      case "RECONNECTING":
+        return (
+          <ReconnectingStage
+            title={effectiveIsGroupCall ? recipientName || "Group Call" : displayName}
+            participantCount={participantRows.length}
           />
         );
     }
@@ -295,13 +375,84 @@ export function CallScreen({
         isSpeakerOn={isSpeakerOn}
         isVideoOff={isVideoOff}
         isAudioMode={isAudioMode}
+        showParticipantsButton={false}
+        participantCount={participantRows.length}
         onToggleMute={handleToggleMute}
         onToggleSpeaker={handleToggleSpeaker}
         onToggleVideo={handleToggleVideo}
         onSwitchCamera={handleSwitchCamera}
         onEndCall={handleEndCall}
         onEscalateToVideo={handleEscalateToVideo}
+        onOpenParticipants={handleOpenParticipants}
       />
+
+      {connectionStatus !== "connected" && mode !== "RECONNECTING" && (
+          <View style={styles.bannerWrap}>
+            <ConnectionBanner
+              connectionState={{
+                status: connectionStatus,
+                error: error || undefined,
+              }}
+            />
+          </View>
+        )}
+
+      {effectiveIsGroupCall && (
+        <BottomSheetModal
+          ref={participantsSheetRef}
+          snapPoints={sheetSnapPoints}
+          backdropComponent={(props) => (
+            <BottomSheetBackdrop
+              {...props}
+              appearsOnIndex={0}
+              disappearsOnIndex={-1}
+              opacity={0.45}
+            />
+          )}
+          backgroundStyle={styles.sheetBackground}
+          handleIndicatorStyle={styles.sheetHandle}
+        >
+          <BottomSheetView style={styles.sheetContent}>
+            <Text style={styles.sheetTitle}>Participants</Text>
+            {participantRows.map((participant) => (
+              <View key={participant.id} style={styles.participantRow}>
+                <View style={styles.participantIdentity}>
+                  <Text style={styles.participantName}>{participant.label}</Text>
+                  <Text style={styles.participantRole}>
+                    {participant.isLocal ? "You" : participant.role}
+                  </Text>
+                </View>
+                <View style={styles.participantStateRow}>
+                  <View
+                    style={[
+                      styles.participantStatePill,
+                      participant.isMicOn
+                        ? styles.participantStateOn
+                        : styles.participantStateOff,
+                    ]}
+                  >
+                    <Text style={styles.participantStateText}>
+                      {participant.isMicOn ? "Mic on" : "Muted"}
+                    </Text>
+                  </View>
+                  <View
+                    style={[
+                      styles.participantStatePill,
+                      participant.isCameraOn
+                        ? styles.participantStateOn
+                        : styles.participantStateOff,
+                    ]}
+                  >
+                    <Text style={styles.participantStateText}>
+                      {participant.isCameraOn ? "Camera on" : "Camera off"}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </BottomSheetView>
+        </BottomSheetModal>
+      )}
 
       <DevHud
         mode={mode}
@@ -318,3 +469,75 @@ export function CallScreen({
     </>
   );
 }
+
+const styles = StyleSheet.create({
+  bannerWrap: {
+    position: "absolute",
+    top: 56,
+    left: 16,
+    right: 16,
+    zIndex: 30,
+  },
+  sheetBackground: {
+    backgroundColor: "#0E0E12",
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+  },
+  sheetHandle: {
+    backgroundColor: "rgba(255,255,255,0.24)",
+    width: 44,
+  },
+  sheetContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 32,
+    gap: 12,
+  },
+  sheetTitle: {
+    color: "#fff",
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  participantRow: {
+    borderRadius: 22,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    gap: 10,
+  },
+  participantIdentity: {
+    gap: 2,
+  },
+  participantName: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  participantRole: {
+    color: "rgba(255,255,255,0.54)",
+    fontSize: 12,
+    fontWeight: "600",
+    textTransform: "capitalize",
+  },
+  participantStateRow: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  participantStatePill: {
+    borderRadius: 14,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  participantStateOn: {
+    backgroundColor: "rgba(34,197,94,0.18)",
+  },
+  participantStateOff: {
+    backgroundColor: "rgba(255,255,255,0.08)",
+  },
+  participantStateText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+});

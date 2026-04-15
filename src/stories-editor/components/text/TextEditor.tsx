@@ -345,8 +345,11 @@ export const TextEditor: React.FC<TextEditorProps> = ({
 
   // ---- Responsive sizes ----
   const hp = screenWidth * 0.04; // horizontal padding
-  const colorDotSize = Math.max(32, screenWidth * 0.09);
-  const tabHeight = 44;
+  const colorDotSize = Math.max(28, Math.min(34, screenWidth * 0.078));
+  const tabHeight = 40;
+  const railHeight = 88;
+  const swatchTileSize = 52;
+  const swatchTileRadius = 14;
 
   // ---- Tab definitions ----
   const TABS: { id: TextEditorTab; label: string }[] = [
@@ -583,7 +586,8 @@ export const TextEditor: React.FC<TextEditorProps> = ({
             borderTopLeftRadius: 20,
             borderTopRightRadius: 20,
             borderCurve: "continuous" as any,
-            paddingTop: 12,
+            paddingTop: 10,
+            minHeight: 152,
           },
           bottomPanelAnimatedStyle,
         ]}
@@ -593,7 +597,7 @@ export const TextEditor: React.FC<TextEditorProps> = ({
           style={{
             flexDirection: "row",
             marginHorizontal: hp,
-            marginBottom: 12,
+            marginBottom: 10,
             backgroundColor: "rgba(255,255,255,0.06)",
             borderRadius: 12,
             padding: 3,
@@ -631,173 +635,18 @@ export const TextEditor: React.FC<TextEditorProps> = ({
         </View>
 
         {/* Tab content */}
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{
-            paddingHorizontal: hp,
-            gap: 10,
-            minHeight: 80,
-            alignItems: "center",
-          }}
-          keyboardShouldPersistTaps="always"
-        >
-          {/* ---- Style tab ---- */}
-          {activeTab === "style" &&
-            TEXT_STYLE_PRESETS.map((preset) => {
-              const isActive = selectedStyle === preset.id;
-              return (
-                <Pressable
-                  key={preset.id}
-                  onPress={() => setSelectedStyle(preset.id)}
-                  style={{
-                    alignItems: "center",
-                    gap: 6,
-                    minWidth: 64,
-                    transform: [{ scale: isActive ? 1.08 : 1 }],
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 14,
-                      backgroundColor: isActive
-                        ? "rgba(62,164,229,0.2)"
-                        : "rgba(255,255,255,0.08)",
-                      borderWidth: isActive ? 2 : 0,
-                      borderColor: "#3EA4E5",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text
-                      style={[
-                        {
-                          color: "#fff",
-                          fontSize: 18,
-                          fontWeight: "700",
-                        },
-                        preset.hasBackground && {
-                          backgroundColor:
-                            preset.defaultBackgroundColor || "#333",
-                          paddingHorizontal: 6,
-                          paddingVertical: 2,
-                          borderRadius: 3,
-                          overflow: "hidden",
-                        },
-                        preset.hasShadow && {
-                          textShadowColor: preset.defaultShadowColor || "#000",
-                          textShadowRadius: 4,
-                        },
-                        preset.id === "typewriter" && {
-                          color: "#000",
-                          backgroundColor: "#FFF",
-                        },
-                      ]}
-                    >
-                      Aa
-                    </Text>
-                  </View>
-                  <Text
-                    style={{
-                      color: isActive ? "#3EA4E5" : "rgba(255,255,255,0.4)",
-                      fontSize: 10,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {preset.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-
-          {/* ---- Font tab ---- */}
-          {activeTab === "font" &&
-            TEXT_FONTS.map((font) => {
-              const isActive = selectedFont === font.fontFamily;
-              return (
-                <Pressable
-                  key={font.id}
-                  onPress={() => setSelectedFont(font.fontFamily)}
-                  style={{
-                    alignItems: "center",
-                    gap: 6,
-                    minWidth: 72,
-                    transform: [{ scale: isActive ? 1.08 : 1 }],
-                  }}
-                >
-                  <View
-                    style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: 14,
-                      backgroundColor: isActive
-                        ? "rgba(62,164,229,0.2)"
-                        : "rgba(255,255,255,0.08)",
-                      borderWidth: isActive ? 2 : 0,
-                      borderColor: "#3EA4E5",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: "#fff",
-                        fontSize: 24,
-                        fontWeight: "700",
-                        fontFamily: font.fontFamily,
-                      }}
-                    >
-                      Aa
-                    </Text>
-                  </View>
-                  <Text
-                    style={{
-                      color: isActive ? "#3EA4E5" : "rgba(255,255,255,0.4)",
-                      fontSize: 10,
-                      fontWeight: "600",
-                    }}
-                  >
-                    {font.name}
-                  </Text>
-                </Pressable>
-              );
-            })}
-
-          {/* ---- Color tab ---- */}
-          {activeTab === "color" &&
-            DRAWING_COLORS.map((c) => {
-              const isActive = selectedColor === c;
-              return (
-                <Pressable
-                  key={c}
-                  onPress={() => setSelectedColor(c)}
-                  style={{
-                    width: colorDotSize,
-                    height: colorDotSize,
-                    borderRadius: colorDotSize / 2,
-                    backgroundColor: c,
-                    borderWidth: isActive ? 3 : 2,
-                    borderColor: isActive ? "#fff" : "rgba(255,255,255,0.15)",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    transform: [{ scale: isActive ? 1.15 : 1 }],
-                  }}
-                >
-                  {isActive && <Check size={16} color="#fff" strokeWidth={3} />}
-                </Pressable>
-              );
-            })}
-
-          {/* ---- Typography tab ---- */}
-          {activeTab === "typography" && (
+        {activeTab === "typography" ? (
+          <View
+            style={{
+              paddingHorizontal: hp,
+              paddingBottom: 4,
+            }}
+          >
             <View
               style={{
                 flexDirection: "column",
-                gap: 16,
+                gap: 14,
                 width: "100%",
-                paddingHorizontal: 4,
               }}
             >
               {/* Line Height */}
@@ -929,8 +778,171 @@ export const TextEditor: React.FC<TextEditorProps> = ({
                 </Pressable>
               </View>
             </View>
-          )}
-        </ScrollView>
+          </View>
+        ) : (
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={{ maxHeight: railHeight }}
+            contentContainerStyle={{
+              paddingLeft: hp,
+              paddingRight: hp + 6,
+              gap: 10,
+              minHeight: railHeight,
+              alignItems: "center",
+              paddingBottom: 4,
+            }}
+            keyboardShouldPersistTaps="always"
+          >
+          {/* ---- Style tab ---- */}
+          {activeTab === "style" &&
+            TEXT_STYLE_PRESETS.map((preset) => {
+              const isActive = selectedStyle === preset.id;
+              return (
+                <Pressable
+                  key={preset.id}
+                  onPress={() => setSelectedStyle(preset.id)}
+                  style={{
+                    alignItems: "center",
+                    gap: 6,
+                    minWidth: 60,
+                    transform: [{ scale: isActive ? 1.08 : 1 }],
+                  }}
+                >
+                  <View
+                    style={{
+                      width: swatchTileSize,
+                      height: swatchTileSize,
+                      borderRadius: swatchTileRadius,
+                      backgroundColor: isActive
+                        ? "rgba(62,164,229,0.2)"
+                        : "rgba(255,255,255,0.08)",
+                      borderWidth: isActive ? 2 : 0,
+                      borderColor: "#3EA4E5",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text
+                      style={[
+                        {
+                          color: "#fff",
+                          fontSize: 18,
+                          fontWeight: "700",
+                        },
+                        preset.hasBackground && {
+                          backgroundColor:
+                            preset.defaultBackgroundColor || "#333",
+                          paddingHorizontal: 6,
+                          paddingVertical: 2,
+                          borderRadius: 3,
+                          overflow: "hidden",
+                        },
+                        preset.hasShadow && {
+                          textShadowColor: preset.defaultShadowColor || "#000",
+                          textShadowRadius: 4,
+                        },
+                        preset.id === "typewriter" && {
+                          color: "#000",
+                          backgroundColor: "#FFF",
+                        },
+                      ]}
+                    >
+                      Aa
+                    </Text>
+                  </View>
+                  <Text
+                    style={{
+                      color: isActive ? "#3EA4E5" : "rgba(255,255,255,0.4)",
+                      fontSize: 10,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {preset.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+
+          {/* ---- Font tab ---- */}
+          {activeTab === "font" &&
+            TEXT_FONTS.map((font) => {
+              const isActive = selectedFont === font.fontFamily;
+              return (
+                <Pressable
+                  key={font.id}
+                  onPress={() => setSelectedFont(font.fontFamily)}
+                  style={{
+                    alignItems: "center",
+                    gap: 6,
+                    minWidth: 64,
+                    transform: [{ scale: isActive ? 1.08 : 1 }],
+                  }}
+                >
+                  <View
+                    style={{
+                      width: swatchTileSize,
+                      height: swatchTileSize,
+                      borderRadius: swatchTileRadius,
+                      backgroundColor: isActive
+                        ? "rgba(62,164,229,0.2)"
+                        : "rgba(255,255,255,0.08)",
+                      borderWidth: isActive ? 2 : 0,
+                      borderColor: "#3EA4E5",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 24,
+                        fontWeight: "700",
+                        fontFamily: font.fontFamily,
+                      }}
+                    >
+                      Aa
+                    </Text>
+                  </View>
+                  <Text
+                    style={{
+                      color: isActive ? "#3EA4E5" : "rgba(255,255,255,0.4)",
+                      fontSize: 10,
+                      fontWeight: "600",
+                    }}
+                  >
+                    {font.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+
+          {/* ---- Color tab ---- */}
+          {activeTab === "color" &&
+            DRAWING_COLORS.map((c) => {
+              const isActive = selectedColor === c;
+              return (
+                <Pressable
+                  key={c}
+                  onPress={() => setSelectedColor(c)}
+                  style={{
+                    width: colorDotSize,
+                    height: colorDotSize,
+                    borderRadius: Math.max(10, colorDotSize * 0.34),
+                    backgroundColor: c,
+                    borderWidth: isActive ? 3 : 2,
+                    borderColor: isActive ? "#fff" : "rgba(255,255,255,0.15)",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    transform: [{ scale: isActive ? 1.15 : 1 }],
+                  }}
+                >
+                  {isActive && <Check size={16} color="#fff" strokeWidth={3} />}
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        )}
       </Animated.View>
     </Animated.View>
   );

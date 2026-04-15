@@ -64,6 +64,7 @@ interface RightIslandMenuProps {
   onRedo: () => void;
   canUndo: boolean;
   canRedo: boolean;
+  allowedModes?: EditorMode[];
 }
 
 const TOOLS: { id: EditorMode; Icon: typeof Type; label: string }[] = [
@@ -98,12 +99,27 @@ const AnimatedArrow = ({ isOpen }: { isOpen: SharedValue<number> }) => {
 };
 
 export const RightIslandMenu: React.FC<RightIslandMenuProps> = React.memo(
-  ({ mode, onModeChange, onUndo, onRedo, canUndo, canRedo }) => {
+  ({
+    mode,
+    onModeChange,
+    onUndo,
+    onRedo,
+    canUndo,
+    canRedo,
+    allowedModes,
+  }) => {
     const { height: screenH } = useWindowDimensions();
     const isOpen = useSharedValue(0); // 0 = collapsed, 1 = expanded
+    const visibleTools = React.useMemo(
+      () =>
+        allowedModes?.length
+          ? TOOLS.filter((tool) => allowedModes.includes(tool.id))
+          : TOOLS,
+      [allowedModes],
+    );
 
     // Total panel height: tools + undo/redo row + padding
-    const panelH = TOOLS.length * OPTION_HEIGHT + OPTION_HEIGHT + 32;
+    const panelH = visibleTools.length * OPTION_HEIGHT + OPTION_HEIGHT + 32;
 
     const hapticFeedback = useCallback(() => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -311,7 +327,7 @@ export const RightIslandMenu: React.FC<RightIslandMenuProps> = React.memo(
             </View>
 
             {/* Tool options */}
-            {TOOLS.map((tool) => {
+            {visibleTools.map((tool) => {
               const isActive = mode === tool.id;
               return (
                 <Pressable

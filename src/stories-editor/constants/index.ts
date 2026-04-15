@@ -650,6 +650,16 @@ export const IMAGE_STICKER_PACKS: ImageStickerPack[] = [
   },
 ];
 
+const IMAGE_STICKERS_BY_ID = new Map(
+  IMAGE_STICKER_PACKS.flatMap((pack) =>
+    pack.stickers.map((sticker) => [sticker.id, sticker.source] as const),
+  ),
+);
+
+export function getImageStickerSourceById(id: string): number | null {
+  return IMAGE_STICKERS_BY_ID.get(id) ?? null;
+}
+
 // ---- Effect Filters (Skia ColorMatrix) ----
 // Pure Skia ColorMatrix-based effects — no .cube file parsing needed.
 // Each uses a 4×5 color matrix, same as LUT_FILTERS above.

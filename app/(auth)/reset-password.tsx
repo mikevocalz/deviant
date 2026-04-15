@@ -1,137 +1,127 @@
-import { useState, useEffect } from "react";
-import { View, Text } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, Pressable, Linking } from "react-native";
 import { toast } from "sonner-native";
 import { useForm } from "@tanstack/react-form";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { FormInput } from "@/components/form";
 import { Button } from "@/components/ui/button";
+import { router, useGlobalSearchParams } from "expo-router";
 import {
-  router,
-  useLocalSearchParams,
-  useGlobalSearchParams,
-} from "expo-router";
-import { authClient, getSession } from "@/lib/auth-client";
-import { Check } from "lucide-react-native";
+  AlertCircle,
+  ArrowLeft,
+  Check,
+  LifeBuoy,
+  ShieldCheck,
+} from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import * as Linking from "expo-linking";
+import { getSession, submitPasswordReset } from "@/lib/auth-client";
+import { AppTrace, getErrorMessage } from "@/lib/diagnostics/app-trace";
+
+const SUPPORT_EMAIL = "DeviantEventsDC@gmail.com";
+
+type ResetStatus = "checking" | "ready" | "success" | "invalid";
 
 export default function ResetPasswordScreen() {
+  const [status, setStatus] = useState<ResetStatus>("checking");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [resetComplete, setResetComplete] = useState(false);
-  const [isValidating, setIsValidating] = useState(true);
+  const params = useGlobalSearchParams<{ token?: string; error?: string }>();
   const { colors } = useColorScheme();
 
-  // Get params from deep link or route
-  const params = useGlobalSearchParams();
-
-  // Validate the reset token on mount
   useEffect(() => {
-    const validateToken = async () => {
+    const validateResetState = async () => {
       try {
-        if (__DEV__) console.log("[ResetPassword] Params:", params);
-
-        // Check if we have a valid session (should be set by deep link handler)
         const session = await getSession();
-        const sessionError = !session;
-
-        if (sessionError) {
-          console.error("[ResetPassword] Session error:", sessionError);
-          toast.error("Invalid Link", {
-            description:
-              "This password reset link is invalid or expired. Please request a new one.",
-          });
-          setTimeout(() => {
-            router.replace("/(auth)/forgot-password");
-          }, 2000);
+        if (session) {
+          setStatus("ready");
+          AppTrace.trace("RECOVERY", "reset_link_ready");
           return;
         }
 
-        if (!session) {
-          console.error("[ResetPassword] No session found");
-          if (__DEV__)
-            console.log(
-              "[ResetPassword] This usually means the deep link wasn't properly handled",
-            );
-          toast.error("Session Missing", {
-            description: "Please request a new password reset link.",
-          });
-          setTimeout(() => {
-            router.replace("/(auth)/forgot-password");
-          }, 2000);
-          return;
-        }
-
-        if (__DEV__)
-          console.log(
-            "[ResetPassword] Valid session found, user can reset password",
-          );
-        setIsValidating(false);
+        setStatus("invalid");
+        AppTrace.warn("RECOVERY", "reset_link_invalid");
       } catch (error) {
         console.error("[ResetPassword] Validation error:", error);
-        toast.error("Error", {
-          description: "Something went wrong. Please try again.",
+        setStatus("invalid");
+        AppTrace.error("RECOVERY", "reset_link_validation_failed", {
+          error: getErrorMessage(error),
         });
-        setTimeout(() => {
-          router.replace("/(auth)/forgot-password");
-        }, 2000);
       }
     };
 
-    validateToken();
-  }, [params]);
+    void validateResetState();
+  }, [params.token, params.error]);
 
   const form = useForm({
     defaultValues: { password: "", confirmPassword: "" },
     onSubmit: async ({ value }) => {
       setIsSubmitting(true);
+      const startedAt = Date.now();
+      AppTrace.trace("RECOVERY", "reset_submit_started");
 
       try {
-        if (__DEV__) console.log("[ResetPassword] Updating password...");
+        const response = await submitPasswordReset(value.password);
 
-        const { error } = await authClient.resetPassword({
-          newPassword: value.password,
-        });
-
-        if (error) {
-          console.error("[ResetPassword] Error:", error);
-          toast.error("Error", {
-            description: error.message || "Failed to reset password",
+        if (response?.error) {
+          AppTrace.warn("RECOVERY", "reset_submit_failed", {
+            elapsedMs: Date.now() - startedAt,
+            error:
+              response.error.message ||
+              "We couldn’t update your password. Please try again.",
           });
-          setIsSubmitting(false);
+          toast.error("Reset failed", {
+            description:
+              response.error.message ||
+              "We couldn’t update your password. Please try again.",
+          });
           return;
         }
 
-        if (__DEV__)
-          console.log("[ResetPassword] Password updated successfully");
-        setResetComplete(true);
-        toast.success("Success!", {
-          description: "Your password has been reset",
+        setStatus("success");
+        AppTrace.trace("RECOVERY", "reset_submit_success", {
+          elapsedMs: Date.now() - startedAt,
+        });
+        toast.success("Password updated", {
+          description: "Your new password is set.",
         });
 
-        // Redirect to login after 2 seconds
         setTimeout(() => {
           router.replace("/(auth)/login");
-        }, 2000);
+        }, 1800);
       } catch (error: any) {
-        console.error("[ResetPassword] Error:", error);
-        toast.error("Error", {
-          description: error?.message || "Something went wrong",
+        AppTrace.error("RECOVERY", "reset_submit_failed_exception", {
+          elapsedMs: Date.now() - startedAt,
+          error: getErrorMessage(error),
         });
+        toast.error("Reset failed", {
+          description:
+            error?.message ||
+            "We couldn’t update your password. Please try again.",
+        });
+      } finally {
+        setIsSubmitting(false);
       }
-
-      setIsSubmitting(false);
     },
   });
 
-  if (isValidating) {
+  const openSupportEmail = async () => {
+    const subject = encodeURIComponent("DVNT Password Reset Help");
+    const body = encodeURIComponent(
+      "I need help completing a DVNT password reset.",
+    );
+    await Linking.openURL(`mailto:${SUPPORT_EMAIL}?subject=${subject}&body=${body}`);
+  };
+
+  if (status === "checking") {
     return (
-      <View className="flex-1 bg-background items-center justify-center">
-        <Text className="text-muted-foreground">Validating reset link...</Text>
+      <View className="flex-1 bg-background items-center justify-center px-8">
+        <Text className="text-base text-muted-foreground text-center">
+          Validating your recovery link…
+        </Text>
       </View>
     );
   }
 
-  if (resetComplete) {
+  if (status === "success") {
     return (
       <View className="flex-1 bg-background">
         <KeyboardAwareScrollView
@@ -142,19 +132,80 @@ export default function ResetPasswordScreen() {
             paddingHorizontal: 24,
           }}
         >
-          <View className="items-center gap-6">
-            <View className="w-20 h-20 rounded-full bg-primary/10 items-center justify-center">
-              <Check size={40} color={colors.primary} />
+          <View className="gap-6 items-center">
+            <View className="w-20 h-20 rounded-[24px] bg-primary/10 items-center justify-center">
+              <Check size={36} color={colors.primary} />
             </View>
 
-            <View className="items-center gap-2">
+            <View className="gap-2 items-center">
               <Text className="text-2xl font-bold text-foreground text-center">
-                Password Reset!
+                Password updated
               </Text>
-              <Text className="text-muted-foreground text-center">
-                Your password has been successfully reset. Redirecting to
-                login...
+              <Text className="text-muted-foreground text-center leading-6">
+                You’re heading back to sign in with your new password now.
               </Text>
+            </View>
+          </View>
+        </KeyboardAwareScrollView>
+      </View>
+    );
+  }
+
+  if (status === "invalid") {
+    return (
+      <View className="flex-1 bg-background">
+        <KeyboardAwareScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{
+            flexGrow: 1,
+            justifyContent: "center",
+            paddingHorizontal: 24,
+          }}
+        >
+          <View className="gap-6 items-center">
+            <View className="w-20 h-20 rounded-[24px] bg-destructive/10 items-center justify-center">
+              <AlertCircle size={36} color={colors.destructive} />
+            </View>
+
+            <View className="gap-2 items-center">
+              <Text className="text-2xl font-bold text-foreground text-center">
+                This link is no longer valid
+              </Text>
+              <Text className="text-muted-foreground text-center leading-6">
+                Recovery links expire and only the newest one works. Request a
+                fresh email to continue.
+              </Text>
+            </View>
+
+            <View className="w-full rounded-3xl border border-white/10 bg-white/5 p-4 gap-3">
+              <View className="flex-row items-start gap-3">
+                <ShieldCheck size={18} color={colors.primary} />
+                <Text className="flex-1 text-sm text-muted-foreground leading-5">
+                  We did not reset anything. Your account stays protected until
+                  you complete recovery with a valid link.
+                </Text>
+              </View>
+              <View className="flex-row items-start gap-3">
+                <LifeBuoy size={18} color={colors.primary} />
+                <Text className="flex-1 text-sm text-muted-foreground leading-5">
+                  If the reset email still doesn’t work, contact {SUPPORT_EMAIL}
+                  for beta support.
+                </Text>
+              </View>
+            </View>
+
+            <View className="w-full gap-3">
+              <Button onPress={() => router.replace("/(auth)/forgot-password")}>
+                Request a new recovery link
+              </Button>
+              <Button variant="secondary" onPress={() => router.replace("/(auth)/login")}>
+                Back to sign in
+              </Button>
+              <Pressable onPress={openSupportEmail} className="items-center py-2">
+                <Text className="text-sm text-primary font-medium">
+                  Need manual help? Contact support
+                </Text>
+              </Pressable>
             </View>
           </View>
         </KeyboardAwareScrollView>
@@ -168,23 +219,37 @@ export default function ResetPasswordScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={{
           flexGrow: 1,
-          justifyContent: "center",
           paddingHorizontal: 24,
+          paddingTop: 56,
         }}
         keyboardShouldPersistTaps="handled"
       >
         <View className="gap-8">
-          {/* Header */}
-          <View className="gap-2">
-            <Text className="text-3xl font-bold text-foreground">
-              Reset Password
-            </Text>
-            <Text className="text-muted-foreground">
-              Enter your new password below
-            </Text>
+          <View className="gap-4">
+            <Pressable onPress={() => router.replace("/(auth)/login")} className="self-start">
+              <ArrowLeft size={24} color={colors.foreground} />
+            </Pressable>
+
+            <View className="gap-2">
+              <Text className="text-3xl font-bold text-foreground">
+                Create a new password
+              </Text>
+              <Text className="text-muted-foreground leading-6">
+                Choose a strong password you haven’t used for DVNT before.
+              </Text>
+            </View>
           </View>
 
-          {/* Form */}
+          <View className="rounded-3xl border border-white/10 bg-white/5 p-4 gap-3">
+            <View className="flex-row items-start gap-3">
+              <ShieldCheck size={18} color={colors.primary} />
+              <Text className="flex-1 text-sm text-muted-foreground leading-5">
+                This link already passed DVNT’s recovery check. Saving here will
+                replace your old password immediately.
+              </Text>
+            </View>
+          </View>
+
           <View className="gap-4">
             <FormInput
               form={form}
@@ -211,9 +276,9 @@ export default function ResetPasswordScreen() {
               validators={{
                 onChangeListenTo: ["password"],
                 onChange: ({ value, fieldApi }: any) => {
-                  const pwd = fieldApi.form.getFieldValue("password");
+                  const password = fieldApi.form.getFieldValue("password");
                   if (!value) return "Please confirm your password";
-                  if (value !== pwd) return "Passwords do not match";
+                  if (value !== password) return "Passwords do not match";
                   return undefined;
                 },
               }}
@@ -223,9 +288,8 @@ export default function ResetPasswordScreen() {
               onPress={form.handleSubmit}
               disabled={isSubmitting}
               loading={isSubmitting}
-              className="mt-4"
             >
-              {isSubmitting ? "Resetting..." : "Reset Password"}
+              {isSubmitting ? "Saving password..." : "Save new password"}
             </Button>
           </View>
         </View>

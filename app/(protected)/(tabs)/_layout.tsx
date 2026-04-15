@@ -1,20 +1,50 @@
 import { View, Platform } from "react-native";
-import { useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { Plus } from "lucide-react-native";
 import { CenterButton } from "@/components/center-button";
+import {
+  SpicyToggleFAB,
+  supportsNativeTabsBottomAccessory,
+} from "@/components/spicy-toggle-fab";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import "@/lib/perf/tab-prefetches"; // Register prefetch functions for tab navigation
+
+function isHomeTabPathname(pathname: string): boolean {
+  return (
+    pathname === "/" ||
+    pathname === "/index" ||
+    pathname === "/(protected)/(tabs)" ||
+    pathname === "/(protected)/(tabs)/index"
+  );
+}
+
+function HomeSpicyToggleAccessory() {
+  const pathname = usePathname();
+  const placement = NativeTabs.BottomAccessory.usePlacement();
+
+  if (!isHomeTabPathname(pathname)) {
+    return null;
+  }
+
+  return <SpicyToggleFAB accessoryPlacement={placement} />;
+}
 
 export default function TabsLayout() {
   const triggerScrollToTop = useFeedScrollStore((s) => s.triggerScrollToTop);
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const supportsBottomAccessory = supportsNativeTabsBottomAccessory();
 
   return (
     <View style={{ flex: 1 }}>
       <NativeTabs minimizeBehavior="onScrollDown">
+        {supportsBottomAccessory ? (
+          <NativeTabs.BottomAccessory>
+            <HomeSpicyToggleAccessory />
+          </NativeTabs.BottomAccessory>
+        ) : null}
         <NativeTabs.Trigger
           name="index"
           listeners={{

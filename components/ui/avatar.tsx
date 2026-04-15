@@ -27,6 +27,8 @@ export interface AvatarProps {
   variant?: AvatarVariant;
   /** Additional style overrides */
   style?: object;
+  /** Image transition duration in ms */
+  transition?: number;
 }
 
 const FALLBACK_BG = "#3EA4E5";
@@ -50,6 +52,7 @@ function AvatarComponent({
   size = "md",
   variant = "roundedSquare",
   style,
+  transition = 200,
 }: AvatarProps) {
   // Resolve size to number
   const sizeValue = typeof size === "number" ? size : AvatarSizes[size];
@@ -116,7 +119,7 @@ function AvatarComponent({
             height: sizeValue,
           }}
           contentFit="cover"
-          transition={200}
+          transition={transition}
           cachePolicy="memory-disk"
         />
       )}

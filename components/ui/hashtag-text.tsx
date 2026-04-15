@@ -12,6 +12,7 @@ import { MENTION_COLOR, HASHTAG_COLOR } from "@/src/constants/mentions";
 interface HashtagTextProps {
   text: string;
   onHashtagPress?: (hashtag: string) => void;
+  onMentionPress?: (username: string) => void;
   style?: any;
   textStyle?: any;
   color?: string; // Explicit text color - REQUIRED for visibility
@@ -30,6 +31,7 @@ const DEFAULT_TEXT_COLOR = "rgb(255, 255, 255)";
 export function HashtagText({
   text,
   onHashtagPress,
+  onMentionPress,
   style,
   textStyle,
   color = DEFAULT_TEXT_COLOR,
@@ -101,6 +103,10 @@ export function HashtagText({
   };
 
   const handleMentionPress = (username: string) => {
+    if (onMentionPress) {
+      onMentionPress(username);
+      return;
+    }
     router.push(`/(protected)/profile/${username}` as any);
   };
 

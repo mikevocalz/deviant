@@ -143,6 +143,77 @@ function getCurrentMentionQuery(
   return match ? match[1] : null;
 }
 
+function areMediaArraysEqual(
+  a: MediaAttachment[] | undefined,
+  b: MediaAttachment[] | undefined,
+): boolean {
+  if (!a?.length && !b?.length) return true;
+  if ((a?.length || 0) !== (b?.length || 0)) return false;
+
+  return (a || []).every((item, index) => {
+    const other = b?.[index];
+    return (
+      !!other &&
+      item.type === other.type &&
+      item.uri === other.uri &&
+      item.width === other.width &&
+      item.height === other.height &&
+      item.duration === other.duration
+    );
+  });
+}
+
+function areReactionsEqual(
+  a: MessageReaction[] | undefined,
+  b: MessageReaction[] | undefined,
+): boolean {
+  if (!a?.length && !b?.length) return true;
+  if ((a?.length || 0) !== (b?.length || 0)) return false;
+
+  return (a || []).every((item, index) => {
+    const other = b?.[index];
+    return (
+      !!other &&
+      item.emoji === other.emoji &&
+      item.userId === other.userId &&
+      item.username === other.username
+    );
+  });
+}
+
+function areMessagesEqual(a: Message[], b: Message[]): boolean {
+  if (a.length !== b.length) return false;
+
+  return a.every((message, index) => {
+    const other = b[index];
+    if (!other) return false;
+
+    return (
+      message.id === other.id &&
+      message.text === other.text &&
+      message.sender === other.sender &&
+      message.senderId === other.senderId &&
+      message.time === other.time &&
+      message.readAt === other.readAt &&
+      message.status === other.status &&
+      message.clientMessageId === other.clientMessageId &&
+      message.storyReply?.storyId === other.storyReply?.storyId &&
+      message.storyReply?.storyMediaUrl === other.storyReply?.storyMediaUrl &&
+      message.storyReply?.storyUsername === other.storyReply?.storyUsername &&
+      message.storyReply?.storyAvatar === other.storyReply?.storyAvatar &&
+      message.storyReply?.isExpired === other.storyReply?.isExpired &&
+      message.sharedPost?.postId === other.sharedPost?.postId &&
+      message.sharedPost?.authorUsername === other.sharedPost?.authorUsername &&
+      message.sharedPost?.authorAvatar === other.sharedPost?.authorAvatar &&
+      message.sharedPost?.caption === other.sharedPost?.caption &&
+      message.sharedPost?.mediaUrl === other.sharedPost?.mediaUrl &&
+      message.sharedPost?.mediaType === other.sharedPost?.mediaType &&
+      areMediaArraysEqual(message.media, other.media) &&
+      areReactionsEqual(message.reactions, other.reactions)
+    );
+  });
+}
+
 // Module-level timestamp for isSending staleness check
 let _sendStartedAt = 0;
 
@@ -297,10 +368,16 @@ export const useChatStore = create<ChatState>((set, get) => ({
         const pendingOptimistic = optimistic.filter(
           (m) => !serverIds.has(m.id),
         );
+        const nextMessages = [...localMessages, ...pendingOptimistic];
+
+        if (areMessagesEqual(existing, nextMessages)) {
+          return state;
+        }
+
         return {
           messages: {
             ...state.messages,
-            [conversationId]: [...localMessages, ...pendingOptimistic],
+            [conversationId]: nextMessages,
           },
         };
       });

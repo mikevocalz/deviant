@@ -16,7 +16,14 @@ import { useForYouEvents } from "@/lib/hooks/use-events";
 import type { Event } from "@/lib/hooks/use-events";
 import { FeedSkeleton } from "@/components/skeletons";
 import { useAppStore } from "@/lib/stores/app-store";
-import { useMemo, useEffect, useRef, useCallback, memo } from "react";
+import {
+  useMemo,
+  useEffect,
+  useRef,
+  useCallback,
+  memo,
+  type ReactNode,
+} from "react";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { StoriesBar } from "@/components/stories/stories-bar";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -33,6 +40,7 @@ import { storyKeys } from "@/lib/hooks/use-stories";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
 import {
   prefetchImages,
+  prefetchImagesBlocking,
   extractFeedImageUrls,
 } from "@/lib/perf/image-prefetch";
 import {
@@ -49,6 +57,7 @@ import { sharePost } from "@/lib/utils/sharing";
 import { useCreateStory, useStories } from "@/lib/hooks/use-stories";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useFocusEffect } from "expo-router";
+import type { PublicGateReason } from "@/lib/access/public-gates";
 
 type FeedPostItem = { _type: "post"; data: Post };
 type FeedEventItem = { _type: "event"; data: Event };
@@ -68,10 +77,14 @@ const EMPTY_MEDIA: import("@/lib/types").PostMediaItem[] = [];
 const AnimatedFeedPost = memo(function AnimatedFeedPost({
   item,
   onShowLikes,
+  guestMode,
+  onGuestGate,
 }: {
   item: Post;
   index: number;
   onShowLikes?: (postId: string) => void;
+  guestMode?: boolean;
+  onGuestGate?: (reason: PublicGateReason) => void;
 }) {
   return (
     <View style={{ paddingVertical: 12 }}>
@@ -91,6 +104,8 @@ const AnimatedFeedPost = memo(function AnimatedFeedPost({
         location={item.location}
         isNSFW={item.isNSFW}
         onShowLikes={onShowLikes}
+        guestMode={guestMode}
+        onGuestGate={onGuestGate}
       />
     </View>
   );
@@ -214,7 +229,15 @@ function GradientRefreshIndicator({ refreshing }: { refreshing: boolean }) {
   );
 }
 
-export function Feed() {
+export function Feed({
+  guestMode = false,
+  headerContent = null,
+  onGuestGate,
+}: {
+  guestMode?: boolean;
+  headerContent?: ReactNode;
+  onGuestGate?: (reason: PublicGateReason) => void;
+}) {
   const router = useRouter();
   const showToast = useUIStore((s) => s.showToast);
   const deletePostMutation = useDeletePost();
@@ -241,7 +264,7 @@ export function Feed() {
   // Perf: Bootstrap hydrates the TanStack cache BEFORE individual queries run.
   // When perf_bootstrap_feed flag is ON, a single edge function call populates
   // the feed cache, so useInfiniteFeedPosts returns data instantly from cache.
-  useBootstrapFeed();
+  const bootstrapFeed = useBootstrapFeed();
   const trace = useScreenTrace("Feed");
 
   const {
@@ -253,10 +276,15 @@ export function Feed() {
     isFetchingNextPage,
     refetch,
     isRefetching,
-  } = useInfiniteFeedPosts();
+  } = useInfiniteFeedPosts({
+    enabled: bootstrapFeed.shouldEnableFeedQuery,
+  });
 
-  // Stories load in background - don't block feed
-  useStories();
+  const {
+    data: stories = [],
+    isFetched: storiesFetched,
+    isError: storiesErrored,
+  } = useStories();
 
   // CRITICAL: Get queryClient and viewerId for seeding likeState cache
   const queryClient = useQueryClient();
@@ -267,6 +295,7 @@ export function Feed() {
   useBookmarks();
 
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
+  const effectiveNsfwEnabled = !guestMode && nsfwEnabled;
   const nsfwLoaded = useAppStore((s) => s.nsfwLoaded);
   const loadNsfwSetting = useAppStore((s) => s.loadNsfwSetting);
   const { setActivePostId } = useFeedPostUIStore();
@@ -281,18 +310,18 @@ export function Feed() {
   }, [scrollToTopTrigger]);
 
   useEffect(() => {
-    loadNsfwSetting();
+    loadNsfwSetting("feed_mount");
   }, [loadNsfwSetting]);
 
   useFocusEffect(
     useCallback(() => {
-      loadNsfwSetting();
+      loadNsfwSetting("feed_focus");
     }, [loadNsfwSetting]),
   );
 
   useEffect(() => {
-    prevNsfwEnabled.current = nsfwEnabled;
-  }, [nsfwEnabled]);
+    prevNsfwEnabled.current = effectiveNsfwEnabled;
+  }, [effectiveNsfwEnabled]);
 
   const allPosts = useMemo(() => {
     if (!data?.pages) return [];
@@ -309,33 +338,47 @@ export function Feed() {
 
   // Perf: Prefetch first page images BEFORE showing content (prevents waterfall)
   useEffect(() => {
-    if (allPosts.length > 0 && !firstPageImagesPrefetched) {
-      const firstPagePosts = allPosts.slice(0, 10); // First page
+    if (allPosts.length === 0 || firstPageImagesPrefetched) return;
+
+    let cancelled = false;
+
+    const warmInitialFeed = async () => {
+      const firstPagePosts = allPosts.slice(0, 8);
       const urls = extractFeedImageUrls(firstPagePosts);
 
       if (urls.length > 0) {
-        // Prefetch using expo-image (non-blocking)
-        prefetchImages(urls);
-
-        // Also prefetch off-screen posts
-        const offScreenPosts = allPosts.slice(10);
-        if (offScreenPosts.length > 0) {
-          const offScreenUrls = extractFeedImageUrls(offScreenPosts);
-          prefetchImages(offScreenUrls);
-        }
+        await prefetchImagesBlocking(urls);
       }
 
-      // Mark as prefetched immediately - images load progressively
+      if (cancelled) return;
+
+      const offScreenPosts = allPosts.slice(8);
+      if (offScreenPosts.length > 0) {
+        const offScreenUrls = extractFeedImageUrls(offScreenPosts);
+        prefetchImages(offScreenUrls);
+      }
+
       setFirstPageImagesPrefetched(true);
       if (trace.elapsed() < 50) trace.markCacheHit();
       trace.markUsable();
 
-      // Eager prefetch comments for first 5 posts
       allPosts.slice(0, 5).forEach((post) => {
         if (post?.id) prefetchComments(queryClient, post.id);
       });
-    }
-  }, [allPosts.length > 0, firstPageImagesPrefetched]); // eslint-disable-line react-hooks/exhaustive-deps
+    };
+
+    void warmInitialFeed();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    allPosts,
+    firstPageImagesPrefetched,
+    queryClient,
+    setFirstPageImagesPrefetched,
+    trace,
+  ]);
 
   // CRITICAL: Seed like states from feed data
   // The custom /api/posts/feed endpoint now returns isLiked and likesCount per post
@@ -370,12 +413,16 @@ export function Feed() {
   }, [allPosts, viewerId, queryClient]);
 
   const filteredPosts = useMemo(() => {
-    if (nsfwEnabled) return allPosts;
+    if (effectiveNsfwEnabled) return allPosts;
     return allPosts.filter((post) => !post.isNSFW);
-  }, [allPosts, nsfwEnabled]);
+  }, [allPosts, effectiveNsfwEnabled]);
 
   // Fetch events for inline feed cards
-  const { data: forYouEvents } = useForYouEvents();
+  const {
+    data: forYouEvents,
+    isFetched: eventsFetched,
+    isError: eventsErrored,
+  } = useForYouEvents();
 
   // Interleave event cards every EVENT_INTERVAL posts
   const feedItems: FeedItem[] = useMemo(() => {
@@ -395,17 +442,25 @@ export function Feed() {
   const renderItem = useCallback(
     ({ item, index }: { item: FeedItem; index: number }) => {
       if (item._type === "event") {
-        return <FeedEventCard event={item.data} />;
+        return (
+          <FeedEventCard
+            event={item.data}
+            guestMode={guestMode}
+            onRequireAuth={onGuestGate}
+          />
+        );
       }
       return (
         <AnimatedFeedPost
           item={item.data}
           index={index}
           onShowLikes={handleShowLikes}
+          guestMode={guestMode}
+          onGuestGate={onGuestGate}
         />
       );
     },
-    [handleShowLikes],
+    [guestMode, handleShowLikes, onGuestGate],
   );
 
   const keyExtractor = useCallback((item: FeedItem, index: number) => {
@@ -588,7 +643,17 @@ export function Feed() {
   }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);
 
   // Simple loading state - show skeleton during initial load OR when no data yet
-  const isActuallyLoading = isLoading || !nsfwLoaded || allPosts.length === 0;
+  const storiesReady = guestMode || storiesFetched || storiesErrored;
+  const eventsReady = eventsFetched || eventsErrored;
+  const feedResolved = !isLoading;
+  const criticalImagesReady =
+    allPosts.length === 0 ? true : firstPageImagesPrefetched;
+  const isActuallyLoading =
+    !feedResolved ||
+    !nsfwLoaded ||
+    !storiesReady ||
+    !eventsReady ||
+    !criticalImagesReady;
 
   if (__DEV__) {
     useEffect(() => {
@@ -633,10 +698,17 @@ export function Feed() {
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
         ListHeaderComponent={() => (
-          <>
-            <View style={{ height: 40 }} />
-            <StoriesBar />
-          </>
+          guestMode ? (
+            <>{headerContent}</>
+          ) : (
+            <>
+              <View style={{ height: 40 }} />
+              <StoriesBar
+                stories={stories}
+                isLoadingOverride={!storiesReady && !guestMode}
+              />
+            </>
+          )
         )}
         ListFooterComponent={renderFooter}
         ListEmptyComponent={shouldShowEmptyState ? ListEmpty : undefined}
@@ -647,38 +719,42 @@ export function Feed() {
       />
 
       {/* Sheets lifted from FeedPost — rendered outside FlatList so they aren't clipped by cell boundaries */}
-      <PostActionSheet
-        visible={!!actionSheetPostId}
-        onClose={() => setActionSheetPostId(null)}
-        isOwner={actionIsOwner}
-        onEdit={handleActionEdit}
-        onDelete={handleActionDelete}
-        onShareToStory={handleActionShareToStory}
-        onShare={handleActionShare}
-      />
+      {!guestMode && (
+        <PostActionSheet
+          visible={!!actionSheetPostId}
+          onClose={() => setActionSheetPostId(null)}
+          isOwner={actionIsOwner}
+          onEdit={handleActionEdit}
+          onDelete={handleActionDelete}
+          onShareToStory={handleActionShareToStory}
+          onShare={handleActionShare}
+        />
+      )}
 
-      <ShareToInboxSheet
-        visible={!!shareSheetPostId}
-        onClose={() => setShareSheetPostId(null)}
-        post={
-          sharePost_
-            ? {
-                id: sharePost_.id,
-                authorUsername: sharePost_.author?.username || "",
-                authorAvatar: sharePost_.author?.avatar || "",
-                caption:
-                  sharePost_.kind === "text"
-                    ? resolveTextPostPresentation(
-                        sharePost_.textSlides,
-                        sharePost_.caption,
-                      ).previewText
-                    : sharePost_.caption,
-                mediaUrl: sharePost_.media?.[0]?.url,
-                mediaType: sharePost_.media?.[0]?.type,
-              }
-            : null
-        }
-      />
+      {!guestMode && (
+        <ShareToInboxSheet
+          visible={!!shareSheetPostId}
+          onClose={() => setShareSheetPostId(null)}
+          post={
+            sharePost_
+              ? {
+                  id: sharePost_.id,
+                  authorUsername: sharePost_.author?.username || "",
+                  authorAvatar: sharePost_.author?.avatar || "",
+                  caption:
+                    sharePost_.kind === "text"
+                      ? resolveTextPostPresentation(
+                          sharePost_.textSlides,
+                          sharePost_.caption,
+                        ).previewText
+                      : sharePost_.caption,
+                  mediaUrl: sharePost_.media?.[0]?.url,
+                  mediaType: sharePost_.media?.[0]?.type,
+                }
+              : null
+          }
+        />
+      )}
     </>
   );
 }

@@ -48,6 +48,49 @@ export const authClient = createAuthClient({
 // Export hooks and methods
 export const { signIn, signUp, signOut, useSession, getSession } = authClient;
 
+type BetterAuthRecoveryClient = typeof authClient & {
+  forgetPassword?: (args: { email: string; redirectTo: string }) => Promise<{
+    error?: { message?: string } | null;
+  }>;
+  resetPassword?: (args: { newPassword: string }) => Promise<{
+    error?: { message?: string } | null;
+  }>;
+  sendVerificationEmail?: (args: { email: string }) => Promise<{
+    error?: { message?: string } | null;
+  }>;
+};
+
+const recoveryClient = authClient as BetterAuthRecoveryClient;
+
+export const AUTH_RECOVERY_REDIRECT = "dvnt://auth/reset";
+
+export async function requestPasswordReset(email: string) {
+  if (!recoveryClient.forgetPassword) {
+    throw new Error("Password reset is not available in this client build");
+  }
+
+  return recoveryClient.forgetPassword({
+    email,
+    redirectTo: AUTH_RECOVERY_REDIRECT,
+  });
+}
+
+export async function submitPasswordReset(newPassword: string) {
+  if (!recoveryClient.resetPassword) {
+    throw new Error("Password reset is not available in this client build");
+  }
+
+  return recoveryClient.resetPassword({ newPassword });
+}
+
+export async function resendVerificationEmail(email: string) {
+  if (!recoveryClient.sendVerificationEmail) {
+    throw new Error("Email verification resend is not available in this client build");
+  }
+
+  return recoveryClient.sendVerificationEmail({ email });
+}
+
 // Reference to the global query client (set by the app)
 let globalQueryClient: QueryClient | null = null;
 

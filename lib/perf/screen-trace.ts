@@ -18,6 +18,7 @@
 
 import { useRef, useEffect, useCallback } from "react";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { AppTrace } from "@/lib/diagnostics/app-trace";
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -62,6 +63,14 @@ function ensureFlushTimer() {
 function recordMetric(metric: ScreenMetric) {
   metricBuffer.push(metric);
   ensureFlushTimer();
+
+  AppTrace.trace("PERF", "screen_metric", {
+    screen: metric.screen,
+    ttucMs: metric.ttucMs ?? -1,
+    cacheHit: metric.cacheHit,
+    requestCount: metric.requestCount,
+    renderCount: metric.renderCount,
+  });
 
   // Immediate log in dev for fast iteration
   if (__DEV__) {

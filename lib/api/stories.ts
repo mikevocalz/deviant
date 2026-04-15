@@ -9,7 +9,105 @@ import {
   requireBetterAuthToken,
   getCurrentUserId as getIdentityUserId,
 } from "../auth/identity";
-import type { StoryAnimatedGifOverlay } from "../types";
+import type { StoryAnimatedGifOverlay, StoryOverlay } from "../types";
+
+function parseStoryOverlayRow(
+  row: any,
+): { storyId: string; overlay: StoryOverlay } | null {
+  const storyId = String(row?._parent_id || "");
+  const data = (row?.data || {}) as Record<string, unknown>;
+  const type = String(row?.type || "");
+  const base = {
+    id: String(row?.id),
+    x: Number(data.x ?? 0.5),
+    y: Number(data.y ?? 0.5),
+    scale: Number(data.scale ?? 1),
+    rotation: Number(data.rotation ?? 0),
+    opacity: Number(data.opacity ?? 1),
+  };
+
+  if (!storyId) return null;
+
+  switch (type) {
+    case "animated_gif": {
+      const url = String(data.url || "");
+      if (!url) return null;
+      return {
+        storyId,
+        overlay: {
+          ...base,
+          type: "animated_gif",
+          url,
+          sizeRatio: Number(data.sizeRatio ?? 0.2),
+        },
+      };
+    }
+    case "emoji": {
+      const emoji = String(data.emoji || "");
+      if (!emoji) return null;
+      return {
+        storyId,
+        overlay: {
+          ...base,
+          type: "emoji",
+          emoji,
+          sizeRatio: Number(data.sizeRatio ?? 0.18),
+        },
+      };
+    }
+    case "text": {
+      const content = String(data.content || "");
+      if (!content) return null;
+      return {
+        storyId,
+        overlay: {
+          ...base,
+          type: "text",
+          content,
+          color: String(data.color || "#FFFFFF"),
+          backgroundColor:
+            typeof data.backgroundColor === "string"
+              ? String(data.backgroundColor)
+              : undefined,
+          fontFamily:
+            typeof data.fontFamily === "string"
+              ? String(data.fontFamily)
+              : undefined,
+          fontSizeRatio: Number(data.fontSizeRatio ?? 0.11),
+          maxWidthRatio: Number(data.maxWidthRatio ?? 0.8),
+          textAlign:
+            data.textAlign === "left" ||
+            data.textAlign === "right" ||
+            data.textAlign === "center"
+              ? data.textAlign
+              : "center",
+        },
+      };
+    }
+    case "sticker": {
+      const source =
+        data.source === "asset" || data.source === "url" ? data.source : "url";
+      const assetId =
+        typeof data.assetId === "string" ? String(data.assetId) : undefined;
+      const url = typeof data.url === "string" ? String(data.url) : undefined;
+      if (source === "asset" && !assetId) return null;
+      if (source === "url" && !url) return null;
+      return {
+        storyId,
+        overlay: {
+          ...base,
+          type: "sticker",
+          source,
+          assetId,
+          url,
+          sizeRatio: Number(data.sizeRatio ?? 0.2),
+        },
+      };
+    }
+    default:
+      return null;
+  }
+}
 
 interface CreateStoryResponse {
   ok: boolean;
@@ -79,56 +177,50 @@ export const storiesApi = {
       const visibleStoryIds = visibleStories.map((story: any) =>
         String(story[DB.stories.id]),
       );
-      const stickerOverlaysByStoryId = new Map<
-        string,
-        StoryAnimatedGifOverlay[]
-      >();
-
-      if (visibleStoryIds.length > 0) {
-        const { data: stickerRows, error: stickerError } = await supabase
-          .from("stories_stickers")
-          .select("id, _parent_id, type, data")
-          .eq("type", "animated_gif")
-          .in("_parent_id", visibleStoryIds)
-          .order("_order", { ascending: true });
-
-        if (stickerError) {
-          console.warn(
-            "[Stories] Failed to load animated story stickers:",
-            stickerError,
-          );
-        } else {
-          for (const row of stickerRows || []) {
-            const storyId = String((row as any)._parent_id);
-            const data = ((row as any).data || {}) as Record<string, unknown>;
-            const overlay: StoryAnimatedGifOverlay = {
-              id: String((row as any).id),
-              url: String(data.url || ""),
-              x: Number(data.x ?? 0.5),
-              y: Number(data.y ?? 0.5),
-              sizeRatio: Number(data.sizeRatio ?? 0.2),
-              scale: Number(data.scale ?? 1),
-              rotation: Number(data.rotation ?? 0),
-            };
-            if (!overlay.url) continue;
-            const existing = stickerOverlaysByStoryId.get(storyId) || [];
-            existing.push(overlay);
-            stickerOverlaysByStoryId.set(storyId, existing);
-          }
-        }
-      }
-
-      // Fetch author data separately since author_id is UUID
       const authorIds = [
         ...new Set(visibleStories.map((s: any) => s[DB.stories.authorId])),
       ];
 
-      const { data: authors } = await supabase
-        .from(DB.users.table)
-        .select(
-          `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
-        )
-        .in(DB.users.authId, authorIds);
+      const [stickerRowsResult, authorsResult] = await Promise.all([
+        visibleStoryIds.length > 0
+          ? supabase
+              .from("stories_stickers")
+              .select("id, _parent_id, type, data")
+              .in("_parent_id", visibleStoryIds)
+              .order("_order", { ascending: true })
+          : Promise.resolve({ data: [], error: null } as const),
+        authorIds.length > 0
+          ? supabase
+              .from(DB.users.table)
+              .select(
+                `${DB.users.id}, ${DB.users.authId}, ${DB.users.username}, avatar:${DB.users.avatarId}(url)`,
+              )
+              .in(DB.users.authId, authorIds)
+          : Promise.resolve({ data: [], error: null } as const),
+      ]);
+
+      const storyOverlaysByStoryId = new Map<string, StoryOverlay[]>();
+
+      if (stickerRowsResult.error) {
+        console.warn(
+          "[Stories] Failed to load animated story stickers:",
+          stickerRowsResult.error,
+        );
+      } else {
+        for (const row of stickerRowsResult.data || []) {
+          const parsed = parseStoryOverlayRow(row);
+          if (!parsed) continue;
+          const existing = storyOverlaysByStoryId.get(parsed.storyId) || [];
+          existing.push(parsed.overlay);
+          storyOverlaysByStoryId.set(parsed.storyId, existing);
+        }
+      }
+
+      if (authorsResult.error) {
+        throw authorsResult.error;
+      }
+
+      const authors = authorsResult.data;
 
       const authorsMap = new Map(
         (authors || []).map((a: any) => [a[DB.users.authId], a]),
@@ -173,8 +265,19 @@ export const storiesApi = {
           const isGif =
             mimeType === "image/gif" || mediaUrl.toLowerCase().endsWith(".gif");
           const thumbnailUrl = story.thumbnail?.url || undefined;
-          const animatedGifOverlays =
-            stickerOverlaysByStoryId.get(String(story[DB.stories.id])) || [];
+          const storyOverlays =
+            storyOverlaysByStoryId.get(String(story[DB.stories.id])) || [];
+          const animatedGifOverlays: StoryAnimatedGifOverlay[] = storyOverlays
+            .filter((overlay) => overlay.type === "animated_gif")
+            .map((overlay) => ({
+              id: overlay.id,
+              url: overlay.url,
+              x: overlay.x,
+              y: overlay.y,
+              sizeRatio: overlay.sizeRatio,
+              scale: overlay.scale,
+              rotation: overlay.rotation,
+            }));
           storiesByAuthor.get(authorId).items.push({
             id: String(story[DB.stories.id]),
             url: mediaUrl,
@@ -183,6 +286,7 @@ export const storiesApi = {
             duration: isVideo ? 30000 : 5000,
             visibility,
             animatedGifOverlays,
+            storyOverlays,
             header: {
               heading: author?.[DB.users.username] || "unknown",
               subheading: formatTimeAgo(story[DB.stories.createdAt]),
@@ -219,6 +323,7 @@ export const storiesApi = {
       textColor?: string;
       backgroundColor?: string;
       animatedGifOverlays?: StoryAnimatedGifOverlay[];
+      storyOverlays?: StoryOverlay[];
     }>;
     visibility?: "public" | "close_friends";
   }) {
@@ -255,6 +360,7 @@ export const storiesApi = {
               mediaKey: item.storageKey,
               thumbnailUrl,
               thumbnailKey: item.thumbnailKey,
+              storyOverlays: item.storyOverlays || [],
               animatedGifOverlays: item.animatedGifOverlays || [],
             },
             headers: { Authorization: `Bearer ${token}` },
@@ -393,13 +499,16 @@ export const storyTagsApi = {
    */
   async getTagsForStory(storyId: string): Promise<StoryTag[]> {
     try {
+      const storyIdInt = parseInt(storyId, 10);
+      if (Number.isNaN(storyIdInt)) return [];
+
       // Step 1: fetch tags (no FK to users, so no embedded select)
       const { data: tags, error } = await supabase
         .from(DB.storyTags.table)
         .select(
           `${DB.storyTags.id}, ${DB.storyTags.storyId}, ${DB.storyTags.taggedUserId}, ${DB.storyTags.xPosition}, ${DB.storyTags.yPosition}`,
         )
-        .eq(DB.storyTags.storyId, parseInt(storyId));
+        .eq(DB.storyTags.storyId, storyIdInt);
 
       if (error) throw error;
       if (!tags || tags.length === 0) return [];
@@ -595,10 +704,13 @@ export const storyViewsApi = {
    */
   async getViewerCount(storyId: string): Promise<number> {
     try {
+      const storyIdInt = parseInt(storyId, 10);
+      if (Number.isNaN(storyIdInt)) return 0;
+
       const { count, error } = await supabase
         .from(DB.storyViews.table)
         .select("*", { count: "exact", head: true })
-        .eq(DB.storyViews.storyId, parseInt(storyId));
+        .eq(DB.storyViews.storyId, storyIdInt);
 
       if (error) throw error;
       return count || 0;

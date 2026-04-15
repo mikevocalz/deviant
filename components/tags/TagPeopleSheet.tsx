@@ -6,21 +6,24 @@
  * Uses TanStack Debouncer for search input (project standard: no setTimeout).
  */
 
-import React, { useCallback, useRef, useEffect } from "react";
+import React, { useCallback, useRef, useEffect, useMemo } from "react";
 import {
   View,
   Text,
-  TextInput,
   Pressable,
   ScrollView,
   StyleSheet,
-  Platform,
 } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
 import { X, Search, Check } from "lucide-react-native";
 import { create } from "zustand";
 import { Debouncer } from "@tanstack/react-pacer";
+import BottomSheet, {
+  BottomSheetBackdrop,
+  BottomSheetTextInput,
+  BottomSheetView,
+} from "@gorhom/bottom-sheet";
+import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import { postTagsApi } from "@/lib/api/post-tags";
 import { Avatar } from "@/components/ui/avatar";
 
@@ -73,6 +76,8 @@ export const TagPeopleSheet: React.FC<TagPeopleSheetProps> = React.memo(
       setIsSearching,
       reset,
     } = useTagPeopleSheetStore();
+    const sheetRef = useRef<BottomSheet>(null);
+    const snapPoints = useMemo(() => ["82%"], []);
 
     // TanStack Debouncer for search
     const searchDebouncerRef = useRef(
@@ -104,8 +109,39 @@ export const TagPeopleSheet: React.FC<TagPeopleSheetProps> = React.memo(
 
     // Reset on close
     useEffect(() => {
-      if (!visible) reset();
+      if (visible) {
+        sheetRef.current?.snapToIndex(0);
+        return;
+      }
+
+      searchDebouncerRef.current.cancel();
+      sheetRef.current?.close();
+      reset();
     }, [visible, reset]);
+
+    const handleSheetChange = useCallback(
+      (index: number) => {
+        if (index === -1 && visible) {
+          searchDebouncerRef.current.cancel();
+          reset();
+          onClose();
+        }
+      },
+      [onClose, reset, visible],
+    );
+
+    const renderBackdrop = useCallback(
+      (props: BottomSheetBackdropProps) => (
+        <BottomSheetBackdrop
+          {...props}
+          disappearsOnIndex={-1}
+          appearsOnIndex={0}
+          opacity={0.6}
+          pressBehavior="close"
+        />
+      ),
+      [],
+    );
 
     const isSelected = useCallback(
       (userId: number) => selectedUsers.some((u) => u.id === userId),
@@ -133,114 +169,117 @@ export const TagPeopleSheet: React.FC<TagPeopleSheetProps> = React.memo(
     if (!visible) return null;
 
     return (
-      <View style={styles.overlay}>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          style={styles.sheetContainer}
-        >
-          <View style={styles.sheet}>
-            {/* Header */}
-            <View style={styles.header}>
-              <Pressable onPress={onClose} hitSlop={12}>
-                <X size={24} color="#fff" />
-              </Pressable>
-              <Text style={styles.title}>Tag People</Text>
-              <Pressable onPress={onClose} hitSlop={12}>
-                <Text style={styles.doneText}>Done</Text>
-              </Pressable>
-            </View>
-
-            {/* Search input */}
-            <View style={styles.searchContainer}>
-              <Search size={16} color="#999" style={{ marginRight: 8 }} />
-              <TextInput
-                value={query}
-                onChangeText={handleQueryChange}
-                placeholder="Search people..."
-                placeholderTextColor="#666"
-                style={styles.searchInput}
-                autoCapitalize="none"
-                autoCorrect={false}
-                autoFocus
-              />
-              {query.length > 0 && (
-                <Pressable onPress={() => handleQueryChange("")} hitSlop={8}>
-                  <X size={16} color="#999" />
-                </Pressable>
-              )}
-            </View>
-
-            {/* Selected chips */}
-            {selectedUsers.length > 0 && (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.chipsRow}
-                contentContainerStyle={styles.chipsContent}
-              >
-                {selectedUsers.map((user) => (
-                  <Pressable
-                    key={user.id}
-                    onPress={() => handleRemoveUser(user.id)}
-                    style={styles.chip}
-                  >
-                    <Avatar
-                      uri={user.avatar}
-                      username={user.username}
-                      size={24}
-                      variant="roundedSquare"
-                    />
-                    <Text style={styles.chipText}>{user.username}</Text>
-                    <X size={12} color="#999" />
-                  </Pressable>
-                ))}
-              </ScrollView>
-            )}
-
-            {/* Results list */}
-            <ScrollView
-              style={styles.resultsList}
-              keyboardShouldPersistTaps="handled"
-            >
-              {results.map((user) => {
-                const selected = isSelected(user.id);
-                return (
-                  <Pressable
-                    key={user.id}
-                    onPress={() => handleToggleUser(user)}
-                    style={styles.resultRow}
-                  >
-                    <Avatar
-                      uri={user.avatar}
-                      username={user.username}
-                      size={44}
-                      variant="roundedSquare"
-                    />
-                    <Text style={styles.resultUsername}>{user.username}</Text>
-                    {selected && (
-                      <View style={styles.checkCircle}>
-                        <Check size={14} color="#fff" strokeWidth={3} />
-                      </View>
-                    )}
-                  </Pressable>
-                );
-              })}
-
-              {isSearching && (
-                <Text style={styles.statusText}>Searching...</Text>
-              )}
-              {!isSearching && query.length > 0 && results.length === 0 && (
-                <Text style={styles.statusText}>No users found</Text>
-              )}
-              {query.length === 0 && selectedUsers.length === 0 && (
-                <Text style={styles.statusText}>
-                  Search for people to tag in this post
-                </Text>
-              )}
-            </ScrollView>
+      <BottomSheet
+        ref={sheetRef}
+        index={0}
+        snapPoints={snapPoints}
+        enablePanDownToClose
+        onChange={handleSheetChange}
+        backdropComponent={renderBackdrop}
+        backgroundStyle={styles.sheet}
+        handleIndicatorStyle={styles.handle}
+        keyboardBehavior="interactive"
+        keyboardBlurBehavior="restore"
+        android_keyboardInputMode="adjustResize"
+      >
+        <BottomSheetView style={styles.sheetContent}>
+          <View style={styles.header}>
+            <Pressable onPress={onClose} hitSlop={12}>
+              <X size={24} color="#fff" />
+            </Pressable>
+            <Text style={styles.title}>Tag People</Text>
+            <Pressable onPress={onClose} hitSlop={12}>
+              <Text style={styles.doneText}>Done</Text>
+            </Pressable>
           </View>
-        </KeyboardAvoidingView>
-      </View>
+
+          <View style={styles.searchContainer}>
+            <Search size={16} color="#999" style={{ marginRight: 8 }} />
+            <BottomSheetTextInput
+              value={query}
+              onChangeText={handleQueryChange}
+              placeholder="Search people..."
+              placeholderTextColor="#666"
+              style={styles.searchInput}
+              autoCapitalize="none"
+              autoCorrect={false}
+              autoFocus
+              returnKeyType="search"
+            />
+            {query.length > 0 && (
+              <Pressable onPress={() => handleQueryChange("")} hitSlop={8}>
+                <X size={16} color="#999" />
+              </Pressable>
+            )}
+          </View>
+
+          {selectedUsers.length > 0 && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={styles.chipsRow}
+              contentContainerStyle={styles.chipsContent}
+            >
+              {selectedUsers.map((user) => (
+                <Pressable
+                  key={user.id}
+                  onPress={() => handleRemoveUser(user.id)}
+                  style={styles.chip}
+                >
+                  <Avatar
+                    uri={user.avatar}
+                    username={user.username}
+                    size={24}
+                    variant="roundedSquare"
+                  />
+                  <Text style={styles.chipText}>{user.username}</Text>
+                  <X size={12} color="#999" />
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+
+          <ScrollView
+            style={styles.resultsList}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={styles.resultsContent}
+          >
+            {results.map((user) => {
+              const selected = isSelected(user.id);
+              return (
+                <Pressable
+                  key={user.id}
+                  onPress={() => handleToggleUser(user)}
+                  style={styles.resultRow}
+                >
+                  <Avatar
+                    uri={user.avatar}
+                    username={user.username}
+                    size={44}
+                    variant="roundedSquare"
+                  />
+                  <Text style={styles.resultUsername}>{user.username}</Text>
+                  {selected && (
+                    <View style={styles.checkCircle}>
+                      <Check size={14} color="#fff" strokeWidth={3} />
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })}
+
+            {isSearching && <Text style={styles.statusText}>Searching...</Text>}
+            {!isSearching && query.length > 0 && results.length === 0 && (
+              <Text style={styles.statusText}>No users found</Text>
+            )}
+            {query.length === 0 && selectedUsers.length === 0 && (
+              <Text style={styles.statusText}>
+                Search for people to tag in this post
+              </Text>
+            )}
+          </ScrollView>
+        </BottomSheetView>
+      </BottomSheet>
     );
   },
 );
@@ -254,16 +293,17 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     zIndex: 100,
   },
-  sheetContainer: {
+  sheetContent: {
     flex: 1,
-    justifyContent: "flex-end",
   },
   sheet: {
     backgroundColor: "#1a1a1a",
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
-    maxHeight: "80%",
-    paddingBottom: 34,
+  },
+  handle: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    width: 44,
   },
   header: {
     flexDirection: "row",
@@ -327,6 +367,9 @@ const styles = StyleSheet.create({
   resultsList: {
     flex: 1,
     minHeight: 200,
+  },
+  resultsContent: {
+    paddingBottom: 34,
   },
   resultRow: {
     flexDirection: "row",

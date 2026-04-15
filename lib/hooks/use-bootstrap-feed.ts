@@ -15,12 +15,12 @@
  * 5. Return stories data for the StoriesBar
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useAppStore } from "@/lib/stores/app-store";
 import { isFeatureEnabled } from "@/lib/feature-flags";
 import { bootstrapApi, type BootstrapFeedResponse } from "@/lib/api/bootstrap";
-import { postsApi } from "@/lib/api/posts";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { messageKeys } from "@/lib/hooks/use-messages";
 import { seedLikeState } from "@/lib/hooks/usePostLikeState";
@@ -30,7 +30,6 @@ import {
   normalizeTextPostTheme,
   resolveTextPostPresentation,
 } from "@/lib/posts/text-post";
-import type { Post } from "@/lib/types";
 
 /**
  * Hydrate TanStack Query cache from bootstrap response.
@@ -56,7 +55,7 @@ function hydrateFromBootstrap(
       const textPresentation =
         kind === "text"
           ? resolveTextPostPresentation(
-              [{ id: `${p.id}-slide-0`, order: 0, content: p.caption || "" }],
+              p.textSlides,
               p.caption,
             )
           : { textSlides: [], caption: "", previewText: "" };
@@ -131,46 +130,12 @@ function hydrateFromBootstrap(
   );
 }
 
-async function hydrateBootstrapTextPosts(
+function getCachedFeedItems(
   queryClient: ReturnType<typeof useQueryClient>,
-  posts: BootstrapFeedResponse["posts"],
-) {
-  const textPostIds = posts
-    .filter((post) => post.kind === "text")
-    .map((post) => post.id)
-    .filter(Boolean);
-
-  if (textPostIds.length === 0) return;
-
-  const resolvedPosts = await Promise.allSettled(
-    textPostIds.map((postId) => postsApi.getPostById(postId)),
-  );
-
-  const hydratedPosts = new Map<string, Post>();
-  for (const result of resolvedPosts) {
-    if (result.status !== "fulfilled" || !result.value) continue;
-    hydratedPosts.set(result.value.id, result.value);
-  }
-
-  if (hydratedPosts.size === 0) return;
-
-  hydratedPosts.forEach((post, postId) => {
-    queryClient.setQueryData(postKeys.detail(postId), post);
-  });
-
-  queryClient.setQueryData(postKeys.feedInfinite(), (current: any) => {
-    if (!current?.pages) return current;
-
-    return {
-      ...current,
-      pages: current.pages.map((page: any) => ({
-        ...page,
-        data: Array.isArray(page?.data)
-          ? page.data.map((post: Post) => hydratedPosts.get(post.id) ?? post)
-          : page?.data,
-      })),
-    };
-  });
+): unknown[] {
+  const existingFeed = queryClient.getQueryData(postKeys.feedInfinite()) as any;
+  if (!Array.isArray(existingFeed?.pages)) return [];
+  return existingFeed.pages.flatMap((page: any) => page?.data || []);
 }
 
 /**
@@ -183,23 +148,45 @@ async function hydrateBootstrapTextPosts(
 export function useBootstrapFeed() {
   const queryClient = useQueryClient();
   const userId = useAuthStore((s) => s.user?.id) || "";
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
   const hasRun = useRef(false);
   const isBootstrapping = useRef(false);
+  const [bootstrapState, setBootstrapState] = useState<{
+    key: string;
+    status: "idle" | "bootstrapping" | "ready";
+  }>({
+    key: "",
+    status: "idle",
+  });
   const trace = useScreenTrace("Feed");
 
   const enabled = isFeatureEnabled("perf_bootstrap_feed");
+  const canBootstrap = enabled && !!userId;
+  const bootstrapKey = canBootstrap ? `${userId}:${nsfwEnabled}` : "disabled";
+  const hasCachedFeed = getCachedFeedItems(queryClient).length > 0;
+  const status =
+    bootstrapState.key === bootstrapKey ? bootstrapState.status : "idle";
 
   useEffect(() => {
-    if (!enabled || !userId || hasRun.current || isBootstrapping.current)
+    if (bootstrapState.key !== bootstrapKey) {
+      hasRun.current = false;
+      isBootstrapping.current = false;
+      setBootstrapState({
+        key: bootstrapKey,
+        status: canBootstrap ? "idle" : "ready",
+      });
       return;
+    }
+
+    if (!canBootstrap) {
+      return;
+    }
+
+    if (hasRun.current || isBootstrapping.current) return;
 
     // Check if we already have fresh feed data from MMKV cache
-    const existingFeed = queryClient.getQueryData(
-      postKeys.feedInfinite(),
-    ) as any;
-    const cachedItems = Array.isArray(existingFeed?.pages)
-      ? existingFeed.pages.flatMap((page: any) => page?.data || [])
-      : [];
+    const existingFeed = queryClient.getQueryData(postKeys.feedInfinite()) as any;
+    const cachedItems = getCachedFeedItems(queryClient);
 
     if (
       existingFeed &&
@@ -210,6 +197,7 @@ export function useBootstrapFeed() {
       trace.markUsable();
       console.log("[BootstrapFeed] Cache hit — skipping bootstrap call");
       hasRun.current = true;
+      setBootstrapState({ key: bootstrapKey, status: "ready" });
       return;
     }
 
@@ -227,11 +215,12 @@ export function useBootstrapFeed() {
     // Mark as bootstrapping to prevent duplicate calls
     hasRun.current = true;
     isBootstrapping.current = true;
+    setBootstrapState({ key: bootstrapKey, status: "bootstrapping" });
 
     // Fire bootstrap request
     console.log("[BootstrapFeed] No cached data, running bootstrap");
     bootstrapApi
-      .feed({ userId })
+      .feed({ userId, includeNSFW: nsfwEnabled })
       .then((data) => {
         isBootstrapping.current = false;
 
@@ -239,21 +228,36 @@ export function useBootstrapFeed() {
           console.warn(
             "[BootstrapFeed] Bootstrap failed — falling back to individual queries",
           );
+          setBootstrapState({ key: bootstrapKey, status: "ready" });
           return;
         }
 
         hydrateFromBootstrap(queryClient, userId, data);
-        void hydrateBootstrapTextPosts(queryClient, data.posts);
         trace.markUsable();
+        setBootstrapState({ key: bootstrapKey, status: "ready" });
       })
       .catch((error) => {
         isBootstrapping.current = false;
+        setBootstrapState({ key: bootstrapKey, status: "ready" });
         console.error("[BootstrapFeed] Bootstrap error:", error);
       });
-  }, [enabled, userId, queryClient, trace]);
+  }, [
+    bootstrapKey,
+    bootstrapState.key,
+    canBootstrap,
+    nsfwEnabled,
+    queryClient,
+    trace,
+    userId,
+  ]);
+
+  const shouldEnableFeedQuery =
+    !canBootstrap || hasCachedFeed || status === "ready";
 
   return {
     enabled,
-    isBootstrapping: isBootstrapping.current,
+    isBootstrapping:
+      canBootstrap && !hasCachedFeed && status === "bootstrapping",
+    shouldEnableFeedQuery,
   };
 }

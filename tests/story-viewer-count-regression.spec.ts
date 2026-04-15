@@ -131,4 +131,20 @@ describe("Story Viewer Count — query config INVARIANTS", () => {
     const REQUIRED_INVALIDATION_KEY = ["story-views"]; // storyViewKeys.all
     expect(REQUIRED_INVALIDATION_KEY).toEqual(["story-views"]);
   });
+
+  it("demo/non-persisted story ids must not be treated as viewer-count ids", () => {
+    const ids = [
+      "123",
+      "dev-story-item-image",
+      "temp-1743",
+      "42-item-0",
+      undefined,
+    ];
+
+    const persistedOnly = ids.filter(
+      (id): id is string => !!id && /^\d+$/.test(id),
+    );
+
+    expect(persistedOnly).toEqual(["123"]);
+  });
 });

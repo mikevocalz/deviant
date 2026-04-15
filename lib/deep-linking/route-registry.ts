@@ -44,11 +44,25 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     label: "Reset Password",
   },
   {
+    urlPattern: "/reset-password",
+    routerPath: "/(auth)/reset-password",
+    auth: "public",
+    paramsSchema: tokenSchema,
+    label: "Reset Password (legacy alias)",
+  },
+  {
     urlPattern: "/auth/verify",
     routerPath: "/(auth)/verify-email",
     auth: "public",
     paramsSchema: tokenSchema,
     label: "Verify Email",
+  },
+  {
+    urlPattern: "/verify-email",
+    routerPath: "/(auth)/verify-email",
+    auth: "public",
+    paramsSchema: tokenSchema,
+    label: "Verify Email (legacy alias)",
   },
   {
     urlPattern: "/auth/callback",

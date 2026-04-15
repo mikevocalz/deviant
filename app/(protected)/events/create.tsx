@@ -58,9 +58,9 @@ import { Badge } from "@/components/ui/badge";
 import { Text as UIText } from "@/components/ui/text";
 import { Progress } from "@/components/ui/progress";
 import {
-  LocationAutocompleteInstagram,
+  LocationAutocompleteV3,
   type LocationData,
-} from "@/components/ui/location-autocomplete-instagram";
+} from "@/components/ui/location-autocomplete-v3";
 import { useCreateEvent } from "@/lib/hooks/use-events";
 import {
   ticketTypesApi,
@@ -70,6 +70,10 @@ import { YouTubeEmbed, extractVideoId } from "@/components/youtube-embed";
 import { usersApi } from "@/lib/api/users";
 import { Avatar } from "@/components/ui/avatar";
 import { Debouncer } from "@tanstack/react-pacer";
+import {
+  isRemoteMediaUri,
+  persistLocalMediaSelection,
+} from "@/lib/media/persist-local-selection";
 
 type VisibilityOption = "public" | "private" | "link_only";
 type AgeRestriction = "none" | "18+" | "21+";
@@ -253,6 +257,27 @@ function CreateEventScreenContent() {
     requestPermissions();
   }, [requestPermissions]);
 
+  const persistEventDraftAssets = useCallback(
+    async (
+      assets: Array<{
+        uri: string;
+        fileName?: string;
+        mimeType?: string;
+      }>,
+      scope: string,
+    ) =>
+      Promise.all(
+        assets.map((asset) =>
+          persistLocalMediaSelection(asset.uri, {
+            scope,
+            fileName: asset.fileName,
+            mimeType: asset.mimeType,
+          }),
+        ),
+      ),
+    [],
+  );
+
   // Debounced co-organizer search
   const coOrgSearchDebouncer = useMemo(
     () =>
@@ -290,9 +315,20 @@ function CreateEventScreenContent() {
       allowsMultipleSelection: remaining > 1,
     });
     if (result && result.length > 0) {
-      setEventImages((prev) =>
-        [...prev, ...result.map((r) => r.uri)].slice(0, 4),
-      );
+      try {
+        const persistedUris = await persistEventDraftAssets(
+          result,
+          "event-drafts/images",
+        );
+        setEventImages((prev) => [...prev, ...persistedUris].slice(0, 4));
+      } catch (error) {
+        console.error("[CreateEvent] Failed to persist selected images:", error);
+        showToast(
+          "error",
+          "Media Error",
+          "Failed to add the selected images. Please try again.",
+        );
+      }
     }
   };
 
@@ -364,13 +400,34 @@ function CreateEventScreenContent() {
       let additionalImageUrls: string[] = [];
 
       if (eventImages.length > 0) {
-        const mediaFiles = eventImages.map((uri) => ({
-          uri,
-          type: "image" as const,
-        }));
+        const normalizedImageEntries = await Promise.all(
+          eventImages.map(async (uri) => {
+            if (isRemoteMediaUri(uri)) {
+              return { uri, kind: "remote" as const };
+            }
 
-        console.log("[CreateEvent] Uploading media files:", mediaFiles.length);
-        const uploadResults = await uploadMultiple(mediaFiles);
+            return {
+              uri: await persistLocalMediaSelection(uri, {
+                scope: "event-drafts/images",
+              }),
+              kind: "local" as const,
+            };
+          }),
+        );
+
+        const normalizedImageUris = normalizedImageEntries.map((entry) => entry.uri);
+        setEventImages(normalizedImageUris);
+
+        const localMediaFiles = normalizedImageEntries
+          .filter((entry) => entry.kind === "local")
+          .map((entry) => ({
+            uri: entry.uri,
+            type: "image" as const,
+          }));
+
+        console.log("[CreateEvent] Uploading media files:", localMediaFiles.length);
+        const uploadResults =
+          localMediaFiles.length > 0 ? await uploadMultiple(localMediaFiles) : [];
         const failedUploads = uploadResults.filter((r) => !r.success);
 
         if (failedUploads.length > 0) {
@@ -379,18 +436,28 @@ function CreateEventScreenContent() {
           showToast(
             "error",
             "Upload Error",
-            "Failed to upload images. Please try again.",
+            failedUploads[0]?.error ||
+              "Failed to upload images. Please try again.",
           );
           return;
         }
 
-        // First image is the main event image
-        mainEventImageUrl = uploadResults[0]?.url || "";
-        // Remaining images are additional images
-        additionalImageUrls = uploadResults
-          .slice(1)
-          .map((r) => r.url)
+        let localUploadIndex = 0;
+        const finalImageUrls = normalizedImageEntries
+          .map((entry) => {
+            if (entry.kind === "remote") {
+              return entry.uri;
+            }
+
+            const upload = uploadResults[localUploadIndex++];
+            return upload?.url || "";
+          })
           .filter(Boolean);
+
+        // First image is the main event image
+        mainEventImageUrl = finalImageUrls[0] || "";
+        // Remaining images are additional images
+        additionalImageUrls = finalImageUrls.slice(1);
         console.log(
           "[CreateEvent] Upload successful - Main:",
           mainEventImageUrl,
@@ -403,11 +470,25 @@ function CreateEventScreenContent() {
       let flyerImageUrl = "";
       if (store.flyerImage) {
         console.log("[CreateEvent] Uploading flyer image");
-        const flyerResults = await uploadMultiple([
-          { uri: store.flyerImage, type: "image" as const },
-        ]);
-        if (flyerResults[0]?.success) {
-          flyerImageUrl = flyerResults[0].url;
+        const normalizedFlyerUri = await persistLocalMediaSelection(
+          store.flyerImage,
+          {
+            scope: "event-drafts/flyers",
+          },
+        );
+        if (normalizedFlyerUri !== store.flyerImage) {
+          store.setFlyerImage(normalizedFlyerUri);
+        }
+
+        if (isRemoteMediaUri(normalizedFlyerUri)) {
+          flyerImageUrl = normalizedFlyerUri;
+        } else {
+          const flyerResults = await uploadMultiple([
+            { uri: normalizedFlyerUri, type: "image" as const },
+          ]);
+          if (flyerResults[0]?.success) {
+            flyerImageUrl = flyerResults[0].url;
+          }
         }
       }
 
@@ -515,7 +596,7 @@ function CreateEventScreenContent() {
       showToast(
         "error",
         "Error",
-        "An unexpected error occurred. Please try again.",
+        error?.message || "An unexpected error occurred. Please try again.",
       );
     }
   };
@@ -583,7 +664,7 @@ function CreateEventScreenContent() {
           paddingBottom: insets.bottom + 20,
         }}
         showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
         keyboardDismissMode="on-drag"
         bottomOffset={100}
         enabled={true}
@@ -904,26 +985,27 @@ function CreateEventScreenContent() {
               <Text className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">
                 Location
               </Text>
-              <LocationAutocompleteInstagram
-                value={location}
-                placeholder="Search venue or address"
-                onLocationSelect={(data: LocationData) => {
-                  setLocation(data.name);
-                  setLocationData(data);
-                }}
-                onTextChange={(text: string) => {
-                  // Update location as user types (enables form validation)
-                  setLocation(text);
-                  // Clear coordinates since we only have text, not a selected place
-                  if (!text) {
+              <View style={{ zIndex: 1000, position: "relative" }}>
+                <LocationAutocompleteV3
+                  value={location}
+                  placeholder="Search venue or address"
+                  onLocationSelect={(data: LocationData) => {
+                    setLocation(data.name);
+                    setLocationData(data);
+                  }}
+                  onTextChange={(text: string) => {
+                    // Keep step validation in sync with inline typing.
+                    setLocation(text);
+                    if (!text.trim()) {
+                      setLocationData(null);
+                    }
+                  }}
+                  onClear={() => {
+                    setLocation("");
                     setLocationData(null);
-                  }
-                }}
-                onClear={() => {
-                  setLocation("");
-                  setLocationData(null);
-                }}
-              />
+                  }}
+                />
+              </View>
 
               {locationData?.latitude && locationData?.longitude && (
                 <View
@@ -1004,20 +1086,18 @@ function CreateEventScreenContent() {
                         className="flex-1 py-2.5 rounded-xl items-center"
                         style={{
                           backgroundColor: isActive
-                            ? `${colors.primary}20`
+                            ? colors.primary
                             : "rgba(255,255,255,0.04)",
                           borderWidth: 1,
                           borderColor: isActive
-                            ? `${colors.primary}60`
+                            ? colors.primary
                             : "rgba(255,255,255,0.08)",
                         }}
                       >
                         <Text
                           className="text-xs font-semibold"
                           style={{
-                            color: isActive
-                              ? colors.primary
-                              : colors.mutedForeground,
+                            color: isActive ? "#fff" : colors.mutedForeground,
                           }}
                         >
                           {labels[opt]}
@@ -1053,20 +1133,18 @@ function CreateEventScreenContent() {
                         className="flex-1 py-2.5 rounded-xl items-center"
                         style={{
                           backgroundColor: isActive
-                            ? `${colors.primary}20`
+                            ? colors.primary
                             : "rgba(255,255,255,0.04)",
                           borderWidth: 1,
                           borderColor: isActive
-                            ? `${colors.primary}60`
+                            ? colors.primary
                             : "rgba(255,255,255,0.08)",
                         }}
                       >
                         <Text
                           className="text-xs font-semibold"
                           style={{
-                            color: isActive
-                              ? colors.primary
-                              : colors.mutedForeground,
+                            color: isActive ? "#fff" : colors.mutedForeground,
                           }}
                         >
                           {labels[opt]}
@@ -1222,7 +1300,23 @@ function CreateEventScreenContent() {
                       maxSelection: 1,
                     });
                     if (result && result.length > 0) {
-                      store.setFlyerImage(result[0].uri);
+                      try {
+                        const [persistedFlyerUri] = await persistEventDraftAssets(
+                          result,
+                          "event-drafts/flyers",
+                        );
+                        store.setFlyerImage(persistedFlyerUri);
+                      } catch (error) {
+                        console.error(
+                          "[CreateEvent] Failed to persist flyer image:",
+                          error,
+                        );
+                        showToast(
+                          "error",
+                          "Media Error",
+                          "Failed to add the flyer image. Please try again.",
+                        );
+                      }
                     }
                   }}
                   className="bg-card rounded-2xl items-center justify-center border-2 border-dashed border-border self-start"

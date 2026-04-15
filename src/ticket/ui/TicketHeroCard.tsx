@@ -13,6 +13,7 @@ import type { Ticket, TicketTierLevel } from "@/lib/stores/ticket-store";
 
 interface TicketHeroCardProps {
   ticket: Ticket;
+  sharedBoundTag?: string;
 }
 
 const TIER_CONFIG: Record<
@@ -79,6 +80,7 @@ function formatTime(dateString: string) {
 
 export const TicketHeroCard = memo(function TicketHeroCard({
   ticket,
+  sharedBoundTag: _sharedBoundTag,
 }: TicketHeroCardProps) {
   const tier = ticket.tier || "ga";
   const config = TIER_CONFIG[tier];
@@ -198,9 +200,9 @@ export const TicketHeroCard = memo(function TicketHeroCard({
         )}
 
         {/* Promoter */}
-        {ticket.promoter && (
-          <Text style={styles.promoterText}>Guest of @{ticket.promoter}</Text>
-        )}
+      {ticket.promoter && (
+        <Text style={styles.promoterText}>Guest of @{ticket.promoter}</Text>
+      )}
       </View>
     </View>
   );

@@ -62,6 +62,16 @@ export async function getBetterAuthToken(): Promise<string | null> {
   return getAuthToken();
 }
 
+export function hasAuthenticatedUser(): boolean {
+  const { authStatus, isAuthenticated, user } = useAuthStore.getState();
+
+  if (authStatus === "loading") {
+    return Boolean(isAuthenticated || user?.id);
+  }
+
+  return Boolean(authStatus === "authenticated" && (isAuthenticated || user?.id));
+}
+
 /**
  * Get the Better Auth access token, throwing if not available.
  * Use this when authentication is required.
@@ -74,6 +84,10 @@ export async function getBetterAuthToken(): Promise<string | null> {
  * @returns The Better Auth token string
  */
 export async function requireBetterAuthToken(): Promise<string> {
+  if (!hasAuthenticatedUser()) {
+    throw new Error("Not authenticated - request skipped before token refresh");
+  }
+
   const token = await getBetterAuthToken();
   if (token) return token;
 

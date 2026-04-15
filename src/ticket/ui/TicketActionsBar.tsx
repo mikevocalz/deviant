@@ -70,7 +70,9 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   // ── Calendar ──
   const handleCalendar = useCallback(async () => {
     if (calendarState === "loading") return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+      () => {},
+    );
     setCalendarState("loading");
 
     const result = await addTicketToCalendar(ticket);
@@ -99,7 +101,9 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   // ── Share ──
   const handleShare = useCallback(async () => {
     if (shareState === "loading") return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+      () => {},
+    );
     setShareState("loading");
 
     const result = await shareTicket(ticket);
@@ -145,7 +149,9 @@ export const TicketActionsBar = memo(function TicketActionsBar({
 
   const handleTransfer = useCallback(() => {
     if (transferState === "loading") return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
+      () => {},
+    );
     setTransferUsername("");
     setShowTransferModal(true);
   }, [transferState]);

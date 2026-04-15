@@ -25,7 +25,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
 import { useDeepLinkStore } from "@/lib/stores/deep-link-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Platform, View, Pressable, Text } from "react-native";
+import { Platform, View, Pressable, Text, ActivityIndicator } from "react-native";
 import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { screenPrefetch } from "@/lib/prefetch";
@@ -35,6 +35,7 @@ import {
 } from "@/lib/routes/post-routes";
 import { setQueryClient } from "@/lib/auth-client";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { FeedSkeleton } from "@/components/skeletons";
 import { enforceListPolicy } from "@/lib/guards/list-guard";
 import { LikesSheetProvider } from "@/src/features/likes/LikesSheetController";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -50,6 +51,9 @@ import {
   getBootDiagnostics,
 } from "@/lib/boot-guard";
 import { SafeModeBanner } from "@/components/safe-mode-banner";
+import { PublicGateSheet } from "@/components/access/PublicGateSheet";
+import { DeviceTestBridge } from "@/components/dev/DeviceTestBridge";
+import { AppTrace } from "@/lib/diagnostics/app-trace";
 
 // CRITICAL: Check for OTA update and clear stale cache BEFORE creating QueryClient
 // This prevents crashes from incompatible persisted cache after OTA updates
@@ -101,6 +105,8 @@ export default function RootLayout() {
   const loadAuthState = useAuthStore((s) => s.loadAuthState);
   const authStatus = useAuthStore((s) => s.authStatus);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hasSeenOnboarding = useAuthStore((s) => s.hasSeenOnboarding);
+  const userId = useAuthStore((s) => s.user?.id);
   const {
     appReady,
     splashAnimationFinished,
@@ -137,6 +143,11 @@ export default function RootLayout() {
   useEffect(() => {
     if (splashAnimationFinished && authStatus !== "loading") {
       markBootCompleted();
+      AppTrace.trace("BOOT", "boot_completed", {
+        authStatus,
+        isAuthenticated,
+        safeMode: isSafeMode(),
+      });
       if (isSafeMode()) {
         console.warn(
           "[RootLayout] Boot completed in SAFE MODE",
@@ -144,7 +155,25 @@ export default function RootLayout() {
         );
       }
     }
-  }, [splashAnimationFinished, authStatus]);
+  }, [splashAnimationFinished, authStatus, isAuthenticated]);
+
+  useEffect(() => {
+    AppTrace.setContext({
+      authStatus,
+      isAuthenticated,
+      userId,
+    });
+  }, [authStatus, isAuthenticated, userId]);
+
+  useEffect(() => {
+    if (authStatus === "loading") return;
+    AppTrace.trace("AUTH", "auth_state_resolved", {
+      authStatus,
+      isAuthenticated,
+      hasSeenOnboarding,
+      hasUser: Boolean(userId),
+    });
+  }, [authStatus, hasSeenOnboarding, isAuthenticated, userId]);
 
   // ── Share Intent — receive content from other apps ──────────────────
   // Initialize push notifications
@@ -263,12 +292,19 @@ export default function RootLayout() {
     fetch(`${SUPABASE_URL}/rest/v1/users?limit=1`, {
       headers: { apikey: process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "" },
     })
-      .then((res) =>
-        console.log("[RootLayout] Supabase Health OK - Status:", res.status),
-      )
-      .catch((err) => console.error("[RootLayout] Supabase Health FAIL:", err));
+      .then((res) => {
+        console.log("[RootLayout] Supabase Health OK - Status:", res.status);
+        AppTrace.trace("BOOT", "supabase_health_ok", { status: res.status });
+      })
+      .catch((err) => {
+        console.error("[RootLayout] Supabase Health FAIL:", err);
+        AppTrace.error("BOOT", "supabase_health_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
 
     // Load auth state — single call, no retry loop
+    AppTrace.trace("AUTH", "auth_load_started");
     loadAuthState();
   }, [loadAuthState]);
 
@@ -434,6 +470,14 @@ export default function RootLayout() {
                               options={{ animation: "none" }}
                             />
                           </Stack.Protected>
+                          <Stack.Protected
+                            guard={!isAuthenticated && hasSeenOnboarding}
+                          >
+                            <Stack.Screen
+                              name="(public)"
+                              options={{ animation: "none" }}
+                            />
+                          </Stack.Protected>
                           <Stack.Protected guard={isAuthenticated}>
                             <Stack.Screen
                               name="(protected)"
@@ -442,7 +486,7 @@ export default function RootLayout() {
                             <Stack.Screen
                               name="settings"
                               options={{
-                                headerShown: true,
+                                headerShown: false,
                                 presentation: "fullScreenModal",
                                 animation: "slide_from_bottom",
                                 animationDuration: 300,
@@ -465,11 +509,15 @@ export default function RootLayout() {
                         {isAuthenticated && <BiometricLock />}
                         {/* Safe Mode Banner — shown when boot guard detects crash loop */}
                         {isSafeMode() && <SafeModeBanner />}
+                        {__DEV__ && <DeviceTestBridge />}
+                        <PublicGateSheet />
                         {/* Spotify share sheet — renders when a Spotify link is received */}
                         <SpotifyShareSheet />
                         {/* Auth loading overlay — covers content but does NOT unmount navigation.
                           Skip when opened from share intent so user sees content instead of black. */}
-                        {!authSettled && !openedFromShareIntent && (
+                        {!authSettled &&
+                          !openedFromShareIntent &&
+                          !isAuthenticated && (
                           <View
                             style={{
                               position: "absolute",
@@ -481,7 +529,24 @@ export default function RootLayout() {
                               zIndex: 10000,
                             }}
                             pointerEvents="auto"
-                          />
+                          >
+                            {userId ? (
+                              <FeedSkeleton />
+                            ) : (
+                              <View
+                                style={{
+                                  flex: 1,
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                <ActivityIndicator
+                                  size="small"
+                                  color="#3FDCFF"
+                                />
+                              </View>
+                            )}
+                          </View>
                         )}
                       </View>
                       <PortalHost />

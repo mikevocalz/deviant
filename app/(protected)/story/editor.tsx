@@ -7,14 +7,45 @@ import { useEditorStore } from "@/src/stories-editor/stores/editor-store";
 import type { EditorMode } from "@/src/stories-editor";
 import { useStoryFlowStore } from "@/lib/stores/story-flow-store";
 import { useStoryEditorResultStore } from "@/lib/stores/story-editor-result-store";
-import type { StoryAnimatedGifOverlay } from "@/lib/types";
+import type { StoryAnimatedGifOverlay, StoryOverlay } from "@/lib/types";
+
+const DEV_TEXT_STORY_CONTENT = "After hours 🪩✨\nMeet me in the mirror room";
+const DEV_TEXT_STORY_COLOR = "#FFF8FE";
+
+function seedDevTextEditor(openColorTab: boolean) {
+  if (!__DEV__) return;
+
+  const editor = useEditorStore.getState();
+  editor.setTextEditElementId(null);
+  editor.setTextEditContent(DEV_TEXT_STORY_CONTENT);
+  editor.setTextEditFont("Inter-Bold");
+  editor.setTextEditColor(DEV_TEXT_STORY_COLOR);
+  editor.setTextEditStyle("classic");
+  editor.setTextEditAlign("center");
+  editor.setTextEditFontSize(132);
+  editor.setTextEditLetterSpacing(0);
+  editor.setTextEditLineHeight(1.18);
+  editor.setTextEditorTab(openColorTab ? "color" : "style");
+  editor.setMode("text");
+}
 
 function StoryEditorRouteContent() {
-  const { uri, type, initialMode, index } = useLocalSearchParams<{
+  const {
+    uri,
+    type,
+    initialMode,
+    index,
+    autoDoneTextOnly,
+    demoTextSeed,
+    demoTextOpenColor,
+  } = useLocalSearchParams<{
     uri: string;
     type: string;
     initialMode?: string;
     index?: string;
+    autoDoneTextOnly?: string;
+    demoTextSeed?: string;
+    demoTextOpenColor?: string;
   }>();
   const router = useRouter();
 
@@ -54,6 +85,18 @@ function StoryEditorRouteContent() {
     useStoryFlowStore.getState().transitionTo(targetState);
   }, [initialMode, type]);
 
+  useEffect(() => {
+    if (!(demoTextSeed === "1" && initialMode === "text")) {
+      return;
+    }
+
+    const timer = setTimeout(() => {
+      seedDevTextEditor(demoTextOpenColor === "1");
+    }, 320);
+
+    return () => clearTimeout(timer);
+  }, [demoTextOpenColor, demoTextSeed, initialMode]);
+
   const handleClose = () => {
     // Navigate FIRST, then defer reset so the text-only BackgroundPicker
     // doesn't flash during the back animation. The useLayoutEffect reset
@@ -84,11 +127,15 @@ function StoryEditorRouteContent() {
 
   const handleSave = (result: {
     editedUri: string;
+    mediaType: "image" | "video";
+    storyOverlays: StoryOverlay[];
     animatedGifOverlays: StoryAnimatedGifOverlay[];
   }) => {
     useStoryEditorResultStore.getState().setResult({
       uri: result.editedUri,
       index: Number.parseInt(index ?? "0", 10) || 0,
+      mediaType: result.mediaType,
+      storyOverlays: result.storyOverlays,
       animatedGifOverlays: result.animatedGifOverlays,
     });
     useStoryFlowStore.getState().transitionTo("HUB");
@@ -103,6 +150,7 @@ function StoryEditorRouteContent() {
       onClose={handleClose}
       onSave={handleSave}
       initialMode={initialMode as EditorMode | undefined}
+      autoCompleteTextOnly={autoDoneTextOnly === "1"}
     />
   );
 }

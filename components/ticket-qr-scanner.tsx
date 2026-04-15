@@ -4,7 +4,7 @@
  * Scans QR codes from tickets and checks them in
  */
 
-import React, { useRef, useState, useEffect } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -15,8 +15,12 @@ import {
 import {
   Camera,
   useCameraDevice,
-  useCodeScanner,
+  useCameraPermission,
 } from "react-native-vision-camera";
+import {
+  type Barcode,
+  useBarcodeScannerOutput,
+} from "react-native-vision-camera-barcode-scanner";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X, ScanLine } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
@@ -38,55 +42,78 @@ export function TicketQRScanner({
   const { colors } = useColorScheme();
   const showToast = useUIStore((s) => s.showToast);
   const [isCheckingIn, setIsCheckingIn] = useState(false);
-  const [scannedCode, setScannedCode] = useState<string | null>(null);
+  // Refs for guards to avoid stale closures inside the barcode callback
+  const isCheckingInRef = useRef(false);
+  const scannedCodeRef = useRef<string | null>(null);
   const device = useCameraDevice("back");
+  const { hasPermission, requestPermission } = useCameraPermission();
 
-  const codeScanner = useCodeScanner({
-    codeTypes: ["qr"],
-    onCodeScanned: async (codes) => {
-      if (codes.length > 0 && !isCheckingIn && !scannedCode) {
-        const code = codes[0].value;
+  useEffect(() => {
+    if (!hasPermission) {
+      void requestPermission();
+    }
+  }, [hasPermission, requestPermission]);
+
+  const handleCheckIn = useCallback(
+    async (qrToken: string) => {
+      if (isCheckingInRef.current) return;
+      isCheckingInRef.current = true;
+      setIsCheckingIn(true);
+      try {
+        const result = await tickets.checkIn({ qrToken });
+
+        if ((result as any).alreadyCheckedIn) {
+          showToast(
+            "info",
+            "Already Checked In",
+            "This ticket was already checked in.",
+          );
+        } else if ((result as any).success) {
+          showToast("success", "Checked In", "Ticket successfully checked in!");
+          onCheckInSuccess?.();
+          setTimeout(() => {
+            scannedCodeRef.current = null;
+            isCheckingInRef.current = false;
+            setIsCheckingIn(false);
+          }, 2000);
+          return;
+        } else {
+          throw new Error((result as any).error || "Check-in failed");
+        }
+      } catch (error: any) {
+        console.error("[QRScanner] Check-in error:", error);
+        const errorMessage =
+          error?.error || error?.message || "Failed to check in ticket";
+        showToast("error", "Check-In Failed", errorMessage);
+      }
+      scannedCodeRef.current = null;
+      isCheckingInRef.current = false;
+      setIsCheckingIn(false);
+    },
+    [onCheckInSuccess, showToast],
+  );
+
+  const onBarcodeScanned = useCallback(
+    (barcodes: Barcode[]) => {
+      if (barcodes.length > 0 && !isCheckingInRef.current && !scannedCodeRef.current) {
+        const code = barcodes[0]?.rawValue;
         if (code) {
-          setScannedCode(code);
-          await handleCheckIn(code);
+          scannedCodeRef.current = code;
+          void handleCheckIn(code);
         }
       }
     },
+    [handleCheckIn],
+  );
+
+  const barcodeScannerOutput = useBarcodeScannerOutput({
+    barcodeFormats: ["qr-code"],
+    outputResolution: "full",
+    onBarcodeScanned,
+    onError: (error) => {
+      console.error("[QRScanner] Barcode scan error:", error);
+    },
   });
-
-  const handleCheckIn = async (qrToken: string) => {
-    if (isCheckingIn) return;
-
-    setIsCheckingIn(true);
-    try {
-      const result = await tickets.checkIn({ qrToken });
-
-      if ((result as any).alreadyCheckedIn) {
-        showToast(
-          "info",
-          "Already Checked In",
-          "This ticket was already checked in.",
-        );
-      } else if ((result as any).success) {
-        showToast("success", "Checked In", "Ticket successfully checked in!");
-        onCheckInSuccess?.();
-        // Reset after a delay to allow scanning again
-        setTimeout(() => {
-          setScannedCode(null);
-          setIsCheckingIn(false);
-        }, 2000);
-      } else {
-        throw new Error((result as any).error || "Check-in failed");
-      }
-    } catch (error: any) {
-      console.error("[QRScanner] Check-in error:", error);
-      const errorMessage =
-        error?.error || error?.message || "Failed to check in ticket";
-      showToast("error", "Check-In Failed", errorMessage);
-      setScannedCode(null);
-      setIsCheckingIn(false);
-    }
-  };
 
   if (!device) {
     return (
@@ -104,6 +131,41 @@ export function TicketQRScanner({
           <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
             Camera not available
           </Text>
+        </View>
+      </View>
+    );
+  }
+
+  if (!hasPermission) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <View
+          style={[
+            styles.header,
+            {
+              paddingTop: insets.top + 12,
+              backgroundColor: colors.background,
+            },
+          ]}
+        >
+          <Pressable onPress={onClose} hitSlop={12}>
+            <X size={24} color={colors.foreground} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: colors.foreground }]}>
+            Scan Ticket QR Code
+          </Text>
+          <View style={{ width: 24 }} />
+        </View>
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: colors.mutedForeground }]}>
+            Camera permission is required to scan tickets
+          </Text>
+          <Pressable
+            onPress={() => void requestPermission()}
+            style={styles.permissionButton}
+          >
+            <Text style={styles.permissionButtonText}>Grant Permission</Text>
+          </Pressable>
         </View>
       </View>
     );
@@ -136,7 +198,7 @@ export function TicketQRScanner({
           style={StyleSheet.absoluteFill}
           device={device}
           isActive={!isCheckingIn}
-          codeScanner={codeScanner}
+          outputs={[barcodeScannerOutput]}
         />
 
         {/* Scanning Overlay */}
@@ -291,6 +353,28 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     textAlign: "center",
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+  },
+  errorText: {
+    fontSize: 16,
+    textAlign: "center",
+  },
+  permissionButton: {
+    marginTop: 16,
+    borderRadius: 14,
+    backgroundColor: "#8A40CF",
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+  },
+  permissionButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
   checkingInContainer: {
     alignItems: "center",
     gap: 12,
@@ -298,13 +382,5 @@ const styles = StyleSheet.create({
   checkingInText: {
     fontSize: 16,
     fontWeight: "500",
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  errorText: {
-    fontSize: 16,
   },
 });

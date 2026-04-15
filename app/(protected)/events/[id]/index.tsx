@@ -15,7 +15,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
-import { eventKeys } from "@/lib/hooks/use-events";
+import { eventKeys, useToggleEventLike } from "@/lib/hooks/use-events";
 import {
   getCurrentUserIdInt,
   getCurrentUserAuthId,
@@ -67,13 +67,13 @@ import {
 import { ticketsApi } from "@/lib/api/tickets";
 import { ticketKeys } from "@/lib/hooks/use-tickets";
 import * as WebBrowser from "expo-web-browser";
-import * as Calendar from "expo-calendar";
 import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
 import { useCreateEventReview } from "@/lib/hooks/use-event-reviews";
 import { EventRatingModal } from "@/components/event-rating-modal";
 import { StarRatingDisplay } from "react-native-star-rating-widget";
 import { shareEvent } from "@/lib/utils/sharing";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { SafeCalendar as Calendar } from "@/lib/safe-native-modules";
 import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
 import { useTicketCheckout } from "@/lib/hooks/use-ticket-checkout";
 import { MENTION_COLOR } from "@/src/constants/mentions";
@@ -101,8 +101,35 @@ import { DVNTLiquidGlassIconButton } from "@/components/media/DVNTLiquidGlass";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 420;
+const DEFAULT_EVENT_DURATION_MS = 3 * 60 * 60 * 1000;
 
 // ── Helpers ──────────────────────────────────────────────────────────
+
+function buildCalendarWindow(
+  startValue?: string | null,
+  endValue?: string | null,
+) {
+  const fallbackStart = new Date();
+  const parsedStart = startValue ? new Date(startValue) : fallbackStart;
+  const startDate = Number.isFinite(parsedStart.getTime())
+    ? parsedStart
+    : fallbackStart;
+  const parsedEnd = endValue ? new Date(endValue) : null;
+  const endDate =
+    parsedEnd &&
+    Number.isFinite(parsedEnd.getTime()) &&
+    parsedEnd.getTime() > startDate.getTime()
+      ? parsedEnd
+      : new Date(startDate.getTime() + DEFAULT_EVENT_DURATION_MS);
+
+  return { startDate, endDate };
+}
+
+type CalendarRecord = {
+  id: string;
+  allowsModifications?: boolean;
+  source?: { name?: string };
+};
 
 function buildTicketTiers(event: EventDetail): TicketTier[] {
   const price = event.price || 0;
@@ -354,26 +381,27 @@ function EventDetailScreenContent() {
     }
   }, [eventData?.isLiked]);
 
-  const handleToggleLike = useCallback(async () => {
+  const toggleLikeMutation = useToggleEventLike();
+  const handleToggleLike = useCallback(() => {
     if (!eventId) return;
     const wasLiked = isLiked;
-    setIsLiked(!wasLiked);
-    try {
-      if (wasLiked) {
-        await eventsApi.unlikeEvent(eventId);
-      } else {
-        await eventsApi.likeEvent(eventId);
-        showToast("success", "Saved", "Event added to your liked events");
-      }
-      // Invalidate liked events cache so profile updates
-      const uid = getCurrentUserIdInt();
-      if (uid)
-        queryClient.invalidateQueries({ queryKey: eventKeys.liked(uid) });
-    } catch (err) {
-      setIsLiked(wasLiked);
-      showToast("error", "Error", "Failed to update like");
-    }
-  }, [eventId, isLiked, showToast, queryClient]);
+    setIsLiked(!wasLiked); // local optimistic
+    toggleLikeMutation.mutate(
+      { eventId, isLiked: wasLiked },
+      {
+        onSuccess: (result) => {
+          setIsLiked(result.liked);
+          if (result.liked && !wasLiked) {
+            showToast("success", "Saved", "Event added to your liked events");
+          }
+        },
+        onError: () => {
+          setIsLiked(wasLiked);
+          showToast("error", "Error", "Failed to update like");
+        },
+      },
+    );
+  }, [eventId, isLiked, toggleLikeMutation, setIsLiked, showToast]);
 
   // NORMALIZATION: Create safeEvent with guaranteed non-null values
   // This prevents crashes if TanStack Query updates eventData to null during render
@@ -391,23 +419,38 @@ function EventDetailScreenContent() {
     if (!eventData) return [];
     const dbTiers = eventData.ticketTiers;
     if (Array.isArray(dbTiers) && dbTiers.length > 0) {
-      return dbTiers.map((t: any, i: number) => ({
-        id: t.id,
-        name: t.name,
-        price: (t.price_cents || 0) / 100,
-        originalPrice: t.original_price_cents
-          ? t.original_price_cents / 100
-          : undefined,
-        description: t.description,
-        perks: t.perks || [],
-        remaining: t.remaining ?? 0,
-        maxPerOrder: t.max_per_order || 4,
-        isSoldOut: t.is_sold_out || false,
-        tier: t.tier || "ga",
-        glowColor: t.glow_color || "#3b82f6",
-      }));
+      const glowColors = ["#34A2DF", "#8A40CF", "#FF5BFC", "#f59e0b"];
+      return dbTiers.map((t: any, i: number) => {
+        // remaining may be pre-computed by RPC or we derive it from qty fields
+        const remaining =
+          t.remaining != null
+            ? t.remaining
+            : t.quantity_total != null
+              ? Math.max(0, (t.quantity_total || 0) - (t.quantity_sold || 0))
+              : 999; // unknown — treat as available
+        const isSoldOut =
+          t.is_sold_out != null
+            ? t.is_sold_out
+            : t.quantity_total != null && remaining === 0;
+        return {
+          id: t.id,
+          name: t.name,
+          price: (t.price_cents || 0) / 100,
+          originalPrice: t.original_price_cents
+            ? t.original_price_cents / 100
+            : undefined,
+          description: t.description,
+          perks: t.perks || [],
+          remaining,
+          maxPerOrder: t.max_per_order || t.max_per_user || 4,
+          isSoldOut,
+          tier: t.tier || (i === 0 ? "ga" : i === 1 ? "vip" : "table"),
+          glowColor: t.glow_color || glowColors[i % glowColors.length],
+        };
+      });
     }
-    return [];
+    // Fall back to synthetic tiers derived from event price/capacity
+    return buildTicketTiers(eventData);
   }, [safeEvent]);
 
   // Use real attendee avatars from batch payload, fall back to mock
@@ -699,6 +742,19 @@ function EventDetailScreenContent() {
 
   const handleAddToCalendar = useCallback(async () => {
     if (!eventData) return;
+    if (
+      !Calendar?.requestCalendarPermissionsAsync ||
+      !Calendar?.getCalendarsAsync ||
+      !Calendar?.createEventAsync
+    ) {
+      showToast(
+        "error",
+        "Calendar Unavailable",
+        "Calendar support is not available in this build",
+      );
+      return;
+    }
+
     try {
       const { status } = await Calendar.requestCalendarPermissionsAsync();
       if (status !== "granted") {
@@ -712,13 +768,14 @@ function EventDetailScreenContent() {
 
       // Get default calendar
       const calendars = await Calendar.getCalendarsAsync(
-        Calendar.EntityTypes.EVENT,
+        Calendar.EntityTypes?.EVENT,
       );
       const defaultCal =
         calendars.find(
-          (c) => c.allowsModifications && c.source?.name === "iCloud",
+          (c: CalendarRecord) =>
+            c.allowsModifications && c.source?.name === "iCloud",
         ) ||
-        calendars.find((c) => c.allowsModifications) ||
+        calendars.find((c: CalendarRecord) => c.allowsModifications) ||
         calendars[0];
 
       if (!defaultCal) {
@@ -730,18 +787,18 @@ function EventDetailScreenContent() {
         return;
       }
 
-      const startDate = new Date(eventData.fullDate || eventData.date);
-      const endDate = eventData.endDate
-        ? new Date(eventData.endDate)
-        : new Date(startDate.getTime() + 3 * 60 * 60 * 1000); // default 3h
+      const { startDate, endDate } = buildCalendarWindow(
+        eventData.fullDate || eventData.date,
+        eventData.endDate,
+      );
 
       await Calendar.createEventAsync(defaultCal.id, {
-        title: eventData.title,
+        title: eventData.title || "Event",
         startDate,
         endDate,
         location: eventData.location || eventData.locationName || "",
         notes: eventData.description || "",
-        timeZone: "America/New_York",
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
       showToast(
@@ -837,15 +894,17 @@ function EventDetailScreenContent() {
         {/* ── 1. HERO SECTION ──────────────────────────────────── */}
         <View style={s.heroWrapper}>
           {/* Parallax hero image */}
-          <Animated.View style={[s.heroImageContainer, heroParallaxStyle]}>
-            <Image
-              source={{ uri: event.image }}
-              style={s.heroImage}
-              contentFit="cover"
-              transition={200}
-              cachePolicy="memory-disk"
-            />
-          </Animated.View>
+          <View style={s.heroImageContainer}>
+            <Animated.View style={[s.heroImageContainer, heroParallaxStyle]}>
+              <Image
+                source={{ uri: event.image }}
+                style={s.heroImage}
+                contentFit="cover"
+                transition={200}
+                cachePolicy="memory-disk"
+              />
+            </Animated.View>
+          </View>
 
           {/* Dark gradient overlay */}
           <LinearGradient
@@ -861,7 +920,9 @@ function EventDetailScreenContent() {
 
           {/* Floating chips */}
           <View style={s.heroChips}>
-            {event.price === 0 ? (
+            {(ticketTiers.length > 0
+              ? ticketTiers.every((t) => t.price === 0)
+              : event.price === 0) ? (
               <View style={[s.chip, s.chipFree]}>
                 <Text style={s.chipFreeText}>FREE</Text>
               </View>
@@ -983,12 +1044,13 @@ function EventDetailScreenContent() {
           ) : null}
 
           {/* ── 3.5 WEATHER FORECAST ─────────────────────────────── */}
-          {(event.locationLat && event.locationLng) ||
-          (deviceLat != null && deviceLng != null) ? (
+          {(event.locationLat && event.locationLng) || (event.location && deviceLat && deviceLng) ? (
             <View style={s.section}>
               <WeatherModule
-                lat={event.locationLat ?? deviceLat!}
-                lng={event.locationLng ?? deviceLng!}
+                lat={event.locationLat ?? deviceLat ?? 0}
+                lng={event.locationLng ?? deviceLng ?? 0}
+                locationName={event.locationName || event.location}
+                eventDate={event.fullDate || undefined}
               />
             </View>
           ) : null}
@@ -1292,15 +1354,15 @@ function EventDetailScreenContent() {
                   <View key={comment.id} style={s.commentRow}>
                     <Image
                       source={{
-                        uri: comment.avatar || comment.author?.avatar || "",
+                        uri: comment.user?.avatar || comment.avatar || comment.author?.avatar || "",
                       }}
                       style={s.commentAvatar}
                     />
                     <View style={{ flex: 1 }}>
                       <Text style={s.commentAuthor}>
-                        {comment.username ||
+                        {comment.user?.username ||
+                          comment.username ||
                           comment.author?.username ||
-                          comment.author?.name ||
                           "User"}
                       </Text>
                       <Text style={s.commentContent}>
@@ -1327,9 +1389,9 @@ function EventDetailScreenContent() {
                             ),
                           )}
                       </Text>
-                      {comment.createdAt && (
+                      {(comment.created_at || comment.createdAt) && (
                         <Text style={s.commentDate}>
-                          {new Date(comment.createdAt).toLocaleDateString(
+                          {new Date(comment.created_at || comment.createdAt).toLocaleDateString(
                             "en-US",
                             { month: "short", day: "numeric" },
                           )}

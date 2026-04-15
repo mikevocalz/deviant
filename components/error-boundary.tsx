@@ -14,6 +14,7 @@
 import React, { Component, ErrorInfo, ReactNode } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { AlertTriangle, RefreshCw, Home, ArrowLeft } from "lucide-react-native";
+import { AppTrace } from "@/lib/diagnostics/app-trace";
 
 interface Props {
   children: ReactNode;
@@ -83,6 +84,22 @@ export class ErrorBoundary extends Component<Props, State> {
     }
     console.error(`[ErrorBoundary] ================================`);
 
+    AppTrace.error("CRASH", "error_boundary_caught", {
+      screen: screenName,
+      message: error.message,
+      userId: debugContext.userId,
+      routeParams: debugContext.routeParams
+        ? JSON.stringify(debugContext.routeParams).slice(0, 300)
+        : undefined,
+      queryKeys: debugContext.queryKeys?.join(",").slice(0, 300),
+      componentStack: errorInfo.componentStack
+        ?.trim()
+        .split("\n")
+        .slice(0, 5)
+        .join(" | ")
+        .slice(0, 500),
+    });
+
     this.setState({ errorInfo });
 
     // Call optional error handler
@@ -109,6 +126,9 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   handleRetry = () => {
+    AppTrace.trace("CRASH", "error_boundary_retry", {
+      screen: this.props.screenName || "Unknown",
+    });
     this.setState({
       hasError: false,
       error: null,

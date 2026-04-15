@@ -12,12 +12,18 @@
  * - ENDED only when phase === 'call_ended'.
  */
 
-import type { CallPhase, CallRole, CallType } from "@/src/video/stores/video-room-store";
+import type {
+  CallPhase,
+  CallRole,
+  CallType,
+} from "@/src/video/stores/video-room-store";
+import type { ConnectionState } from "@/src/video/types";
 
 export type CallUiMode =
   | "CALLER_DIALING"
   | "CALLER_RINGING"
   | "RECEIVER_CONNECTING"
+  | "RECONNECTING"
   | "IN_CALL_VIDEO"
   | "IN_CALL_AUDIO"
   | "ENDED"
@@ -29,15 +35,19 @@ export interface DeriveCallUiModeInput {
   phase: CallPhase;
   callType: CallType;
   remoteJoined: boolean;
+  connectionStatus?: ConnectionState["status"];
 }
 
 export function deriveCallUiMode(input: DeriveCallUiModeInput): CallUiMode {
-  const { role, phase, callType, remoteJoined } = input;
+  const { role, phase, callType, connectionStatus } = input;
 
   // Terminal states — role-independent
   if (phase === "perms_denied") return "PERMS_DENIED";
   if (phase === "error") return "ERROR";
   if (phase === "call_ended") return "ENDED";
+  if (phase === "reconnecting" || connectionStatus === "reconnecting") {
+    return "RECONNECTING";
+  }
 
   // Connected — both sides joined, media flowing
   if (phase === "connected") {
@@ -70,6 +80,8 @@ export function getStatusLabel(mode: CallUiMode): string {
       return "Ringing…";
     case "RECEIVER_CONNECTING":
       return "Connecting…";
+    case "RECONNECTING":
+      return "Reconnecting…";
     case "IN_CALL_VIDEO":
     case "IN_CALL_AUDIO":
       return "";

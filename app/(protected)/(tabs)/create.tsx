@@ -55,6 +55,7 @@ import {
   TEXT_POST_MAX_LENGTH,
   serializeTextSlidesForMutation,
 } from "@/lib/posts/text-post";
+import { AppTrace, getErrorMessage } from "@/lib/diagnostics/app-trace";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
@@ -62,7 +63,6 @@ const ASPECT_RATIO = 4 / 5;
 
 const MAX_PHOTOS = 4;
 const MAX_VIDEO_DURATION = 60;
-const MIN_CAPTION_LENGTH = 10;
 function VideoPreview({ uri, duration }: { uri: string; duration?: number }) {
   const [isPlaying, setIsPlaying] = useState(false);
   const player = useVideoPlayer(uri, (p) => {
@@ -206,7 +206,7 @@ function CreateScreenContent() {
 
   const isValid = isTextPost
     ? areTextSlidesValid
-    : selectedMedia.length > 0 && caption.trim().length >= MIN_CAPTION_LENGTH;
+    : selectedMedia.length > 0;
 
   const validateMedia = useCallback(
     (media: MediaAsset[]): MediaAsset[] => {
@@ -375,6 +375,9 @@ function CreateScreenContent() {
   const handleSetPostKind = useCallback(
     (nextKind: "media" | "text") => {
       if (nextKind === postKind) return;
+      AppTrace.trace("POST", "composer_kind_changed", {
+        kind: nextKind,
+      });
       setPostKind(nextKind);
       if (nextKind === "text") {
         if (selectedMedia.length > 0) {
@@ -418,6 +421,7 @@ function CreateScreenContent() {
     const normalizedTextSlides = currentTextSlides.map((slide) =>
       slide.content.trim(),
     );
+    const startedAt = Date.now();
 
     console.log("[Create] handlePost called!");
     console.log("[Create] isUploading:", isUploading);
@@ -429,12 +433,29 @@ function CreateScreenContent() {
     // Prevent double submission — ref check is synchronous (survives rapid taps)
     if (isSubmittingRef.current || isSubmitLocked || isCreating || isUploading) {
       console.log("[Create] Already submitting, ignoring");
+      AppTrace.warn("POST", "submit_blocked_inflight", {
+        postKind: currentPostKind,
+        isCreating,
+        isUploading,
+        submitLocked: isSubmitLocked,
+      });
       return;
     }
+    AppTrace.trace("POST", "submit_started", {
+      postKind: currentPostKind,
+      mediaCount: currentSelectedMedia.length,
+      captionLength: trimmedCaption.length,
+      tagCount: currentTags.length,
+      hasLocation: Boolean(currentLocation),
+      isNSFW: isTextSubmission ? false : currentIsNSFW,
+    });
     isSubmittingRef.current = true;
     setIsSubmitLocked(true);
 
     if (!isTextSubmission && currentSelectedMedia.length === 0) {
+      AppTrace.warn("POST", "submit_blocked_no_media", {
+        postKind: currentPostKind,
+      });
       showToast(
         "error",
         "No Media",
@@ -449,6 +470,9 @@ function CreateScreenContent() {
       isTextSubmission &&
       normalizedTextSlides.some((slide) => slide.length === 0)
     ) {
+      AppTrace.warn("POST", "submit_blocked_empty_slide", {
+        slideCount: normalizedTextSlides.length,
+      });
       showToast(
         "error",
         "Empty Slide",
@@ -463,21 +487,13 @@ function CreateScreenContent() {
       isTextSubmission &&
       normalizedTextSlides.some((slide) => slide.length > TEXT_POST_MAX_LENGTH)
     ) {
+      AppTrace.warn("POST", "submit_blocked_text_too_long", {
+        slideCount: normalizedTextSlides.length,
+      });
       showToast(
         "error",
         "Too Long",
         `Text posts are limited to ${TEXT_POST_MAX_LENGTH} characters.`,
-      );
-      isSubmittingRef.current = false;
-      setIsSubmitLocked(false);
-      return;
-    }
-
-    if (!isTextSubmission && trimmedCaption.length < MIN_CAPTION_LENGTH) {
-      showToast(
-        "error",
-        "Caption Too Short",
-        `Please write at least ${MIN_CAPTION_LENGTH} characters. Currently: ${trimmedCaption.length}`,
       );
       isSubmittingRef.current = false;
       setIsSubmitLocked(false);
@@ -524,6 +540,10 @@ function CreateScreenContent() {
 
       if (!isTextSubmission) {
         console.log("[Create] Uploading media to CDN...");
+        AppTrace.trace("POST", "media_upload_started", {
+          mediaCount: mediaFiles.length,
+          hasVideo: mediaFiles.some((item) => item.type === "video"),
+        });
         let uploadResults;
         try {
           uploadResults = await uploadMultiple(mediaFiles);
@@ -533,6 +553,10 @@ function CreateScreenContent() {
           );
         } catch (uploadError) {
           console.error("[Create] Upload threw error:", uploadError);
+          AppTrace.error("POST", "media_upload_failed", {
+            elapsedMs: Date.now() - startedAt,
+            error: getErrorMessage(uploadError),
+          });
           showToast(
             "error",
             "Upload Failed",
@@ -546,6 +570,10 @@ function CreateScreenContent() {
         const failedUploads = uploadResults.filter((r) => !r.success);
         if (failedUploads.length > 0) {
           console.error("[Create] Upload failures:", failedUploads);
+          AppTrace.error("POST", "media_upload_partial_failure", {
+            elapsedMs: Date.now() - startedAt,
+            failedUploads: failedUploads.length,
+          });
           showToast(
             "error",
             "Upload Error",
@@ -604,6 +632,12 @@ function CreateScreenContent() {
         {
           onSuccess: async (newPost) => {
             console.log("[Create] Post created successfully:", newPost?.id);
+            AppTrace.trace("POST", "submit_success", {
+              elapsedMs: Date.now() - startedAt,
+              postKind: currentPostKind,
+              mediaCount: postMedia.length,
+              hasLocation: Boolean(currentLocation),
+            });
 
             // Save placed tags to backend (fire-and-forget)
             if (
@@ -638,6 +672,11 @@ function CreateScreenContent() {
               "[Create] Error details:",
               JSON.stringify(error, null, 2),
             );
+            AppTrace.error("POST", "submit_failed", {
+              elapsedMs: Date.now() - startedAt,
+              error: getErrorMessage(error),
+              postKind: currentPostKind,
+            });
             isSubmittingRef.current = false;
             const errorMessage =
               error?.message ||
@@ -650,6 +689,11 @@ function CreateScreenContent() {
       );
     } catch (error) {
       console.error("[Create] Unexpected error:", error);
+      AppTrace.error("POST", "submit_failed_unexpected", {
+        elapsedMs: Date.now() - startedAt,
+        error: getErrorMessage(error),
+        postKind: currentPostKind,
+      });
       isSubmittingRef.current = false;
       setIsSubmitLocked(false);
       showToast("error", "Error", "Something went wrong. Please try again.");
@@ -776,7 +820,7 @@ function CreateScreenContent() {
                 key: "media",
                 label: "Media post",
                 icon: ImageIcon,
-                description: "Photos or video with caption",
+                description: "Photos or one video. Caption optional.",
               },
               {
                 key: "text",
@@ -859,7 +903,7 @@ function CreateScreenContent() {
             <UserMentionAutocomplete
               value={caption}
               onChangeText={setCaption}
-              placeholder="Write a caption... (use @ to mention users)"
+              placeholder="Got a look, a moment, or a vibe? Caption optional."
               multiline
               maxLength={2200}
               style={{
@@ -872,6 +916,16 @@ function CreateScreenContent() {
                 fontSize: 12,
                 color: "#666",
                 marginTop: 8,
+                lineHeight: 18,
+              }}
+            >
+              Caption optional. Add context, @mentions, or leave it visual.
+            </Text>
+            <Text
+              style={{
+                fontSize: 12,
+                color: "#666",
+                marginTop: 6,
                 textAlign: "right",
               }}
             >

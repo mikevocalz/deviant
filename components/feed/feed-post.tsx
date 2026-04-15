@@ -93,6 +93,8 @@ import { Volume2, VolumeX } from "lucide-react-native";
 import {
   resolveRenderableTextPostPresentation,
 } from "@/lib/posts/text-post";
+import type { PublicGateReason } from "@/lib/access/public-gates";
+import { shouldHydrateFeedTextSlides } from "@/lib/feed/text-hydration";
 
 const CARD_HORIZONTAL_MARGIN = 4;
 const CARD_BORDER_WIDTH = 1;
@@ -118,6 +120,8 @@ interface FeedPostProps {
   location?: string;
   isNSFW?: boolean;
   onShowLikes?: (postId: string) => void;
+  guestMode?: boolean;
+  onGuestGate?: (reason: PublicGateReason) => void;
 }
 
 // ─────────────────────────────── helpers ────────────────────────────────────
@@ -165,6 +169,8 @@ function FeedPostComponent({
   location,
   isNSFW,
   onShowLikes: _onShowLikes,
+  guestMode = false,
+  onGuestGate,
 }: FeedPostProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
@@ -226,12 +232,13 @@ function FeedPostComponent({
     [caption, textSlides],
   );
   const initialTextSlides = initialTextPresentation.textSlides;
-  const shouldHydrateTextSlides =
-    isTextPost &&
-    !!id &&
-    ((typeof textSlideCount === "number" &&
-      textSlideCount > initialTextSlides.length) ||
-      initialTextSlides.length <= 1);
+  const shouldHydrateTextSlides = shouldHydrateFeedTextSlides({
+    isTextPost,
+    id,
+    textSlideCount,
+    initialTextSlidesLength: initialTextSlides.length,
+    caption,
+  });
   const { data: hydratedTextPost } = useQuery({
     queryKey: ["feedTextPostSlides", id],
     queryFn: () => postsApi.getPostById(id),
@@ -276,11 +283,12 @@ function FeedPostComponent({
         return url;
       }
     }
-    return "";
+    return null;
   }, [isVideo, media]);
+  const hasPlayableVideo = Boolean(isVideo && videoUrl);
 
   const player = useVideoPlayer(videoUrl, (p) => {
-    if (p && videoUrl && isMountedRef.current) {
+    if (p && hasPlayableVideo && isMountedRef.current) {
       try {
         p.loop = false;
         p.muted = isMuted;
@@ -293,14 +301,14 @@ function FeedPostComponent({
 
   // Mute sync
   useEffect(() => {
-    if (isVideo && player && videoUrl) {
+    if (hasPlayableVideo && player) {
       safeMute(player, isMountedRef, isMuted, "FeedPost");
     }
-  }, [isVideo, player, isMuted, videoUrl, isMountedRef]);
+  }, [hasPlayableVideo, player, isMuted, isMountedRef]);
 
   // Play/pause based on focus + active + not fullscreen
   useEffect(() => {
-    if (!isVideo || !player) return;
+    if (!hasPlayableVideo || !player) return;
     if (isSafeToOperate()) {
       if (isFocused && isActivePost) {
         safePlay(player, isMountedRef, "FeedPost");
@@ -309,11 +317,11 @@ function FeedPostComponent({
       }
     }
     return () => {
-      if (isVideo && player) cleanupPlayer(player, "FeedPost");
+      if (hasPlayableVideo && player) cleanupPlayer(player, "FeedPost");
     };
   }, [
     isFocused,
-    isVideo,
+    hasPlayableVideo,
     player,
     isActivePost,
     id,
@@ -323,7 +331,7 @@ function FeedPostComponent({
 
   // Poll seek bar progress
   useEffect(() => {
-    if (!isVideo || !player) return;
+    if (!hasPlayableVideo || !player) return;
     const interval = safeInterval(() => {
       if (!isSafeToOperate()) return;
       const ct = safeGetCurrentTime(player, isMountedRef, "FeedPost");
@@ -332,7 +340,7 @@ function FeedPostComponent({
     }, 250);
     return () => clearSafeInterval(interval);
   }, [
-    isVideo,
+    hasPlayableVideo,
     player,
     id,
     setVideoState,
@@ -349,27 +357,57 @@ function FeedPostComponent({
     [player, isMountedRef],
   );
 
+  const openGuestGate = useCallback(
+    (reason: PublicGateReason) => {
+      onGuestGate?.(reason);
+    },
+    [onGuestGate],
+  );
+
   const handleVideoPress = useCallback(() => {
+    if (guestMode) {
+      openGuestGate("post");
+      return;
+    }
     if (!isSafeToOperate() || !id) return;
     navigateToPost(router, queryClient, id);
-  }, [id, router, queryClient, isSafeToOperate]);
+  }, [guestMode, id, isSafeToOperate, openGuestGate, queryClient, router]);
 
   const handleLike = useCallback(() => {
+    if (guestMode) {
+      openGuestGate("engage");
+      return;
+    }
     if (isLikePending) return;
     setLikeAnimating(id, true);
     toggleLike();
     setTimeout(() => setLikeAnimating(id, false), 300);
-  }, [id, isLikePending, setLikeAnimating, toggleLike]);
+  }, [
+    guestMode,
+    id,
+    isLikePending,
+    openGuestGate,
+    setLikeAnimating,
+    toggleLike,
+  ]);
 
   const handleSave = useCallback(() => {
+    if (guestMode) {
+      openGuestGate("engage");
+      return;
+    }
     const isSaved = bookmarkStore.isBookmarked(id);
     toggleBookmarkMutation.mutate({ postId: id, isBookmarked: isSaved });
-  }, [id, bookmarkStore, toggleBookmarkMutation]);
+  }, [guestMode, id, bookmarkStore, openGuestGate, toggleBookmarkMutation]);
 
   const handleCommentsPress = useCallback(() => {
+    if (guestMode) {
+      openGuestGate("comments");
+      return;
+    }
     if (!id) return;
     router.push(`/(protected)/comments/${id}` as any);
-  }, [id, router]);
+  }, [guestMode, id, openGuestGate, router]);
 
   const textSlideWidth = mediaSize - 32;
 
@@ -394,6 +432,10 @@ function FeedPostComponent({
   );
 
   const handlePostPress = useCallback(() => {
+    if (guestMode) {
+      openGuestGate("post");
+      return;
+    }
     if (!id) return;
     if (postTags.length > 0) {
       toggleTags(id);
@@ -411,6 +453,8 @@ function FeedPostComponent({
     toggleTags,
     tagProgress,
     queryClient,
+    guestMode,
+    openGuestGate,
   ]);
 
   const handleProfilePress = useCallback(() => {
@@ -423,6 +467,7 @@ function FeedPostComponent({
       viewerId: currentUserId,
       router,
       queryClient,
+      guestMode,
     });
   }, [
     router,
@@ -430,21 +475,75 @@ function FeedPostComponent({
     author?.id,
     author?.avatar,
     currentUserId,
+    guestMode,
     queryClient,
   ]);
+
+  const handleCaptionHashtagPress = useCallback(
+    (hashtag: string) => {
+      if (guestMode) {
+        router.push({
+          pathname: "/(public)/search",
+          params: { query: `#${hashtag}` },
+        } as any);
+        return;
+      }
+
+      router.push({
+        pathname: "/(protected)/search",
+        params: { query: `#${hashtag}` },
+      } as any);
+    },
+    [guestMode, router],
+  );
+
+  const handleCaptionMentionPress = useCallback(
+    (mentionUsername: string) => {
+      routeToProfile({
+        targetUserId: undefined,
+        targetUsername: mentionUsername,
+        targetName: mentionUsername,
+        viewerId: currentUserId,
+        router,
+        queryClient,
+        guestMode,
+      });
+    },
+    [currentUserId, guestMode, queryClient, router],
+  );
 
   const isFullscreen = useFeedPostUIStore(
     (s) => s.getVideoState(id).isFullscreen,
   );
   const handleFullscreenToggle = useCallback(() => {
+    if (guestMode) {
+      openGuestGate("post");
+      return;
+    }
     setVideoState(id, { isFullscreen: !isFullscreen });
-  }, [id, isFullscreen, setVideoState]);
+  }, [guestMode, id, isFullscreen, openGuestGate, setVideoState]);
+
+  const handleMorePress = useCallback(() => {
+    if (guestMode) {
+      openGuestGate("post");
+      return;
+    }
+    setActionSheetPostId(id);
+  }, [guestMode, id, openGuestGate, setActionSheetPostId]);
+
+  const handleSharePress = useCallback(() => {
+    if (guestMode) {
+      openGuestGate("messages");
+      return;
+    }
+    setShareSheetPostId(id);
+  }, [guestMode, id, openGuestGate, setShareSheetPostId]);
 
   const isBookmarked = bookmarkStore.isBookmarked(id);
   const commentCount = Array.isArray(comments) ? comments.length : comments;
 
   // ── bottom overlay bottom offset: shift up if video (seek bar takes 24px at very bottom) ──
-  const socialBottom = isVideo ? 34 : 14;
+  const socialBottom = hasPlayableVideo ? 34 : 14;
 
   // ── render ──
 
@@ -521,7 +620,7 @@ function FeedPostComponent({
                   <TextPostBadgeLogo width={102} height={22} />
                 </View>
                 <Pressable
-                  onPress={() => setActionSheetPostId(id)}
+                  onPress={handleMorePress}
                   hitSlop={12}
                   style={{
                     width: 38,
@@ -630,7 +729,7 @@ function FeedPostComponent({
                   </Text>
                 </Pressable>
 
-                <Pressable onPress={() => setShareSheetPostId(id)} hitSlop={8}>
+                <Pressable onPress={handleSharePress} hitSlop={8}>
                   <Send size={20} color="#fff" />
                 </Pressable>
 
@@ -671,6 +770,8 @@ function FeedPostComponent({
                   </Text>
                   <HashtagText
                     text={textPostCaption}
+                    onHashtagPress={handleCaptionHashtagPress}
+                    onMentionPress={handleCaptionMentionPress}
                     textStyle={{
                       fontSize: 14,
                       lineHeight: 20,
@@ -697,71 +798,91 @@ function FeedPostComponent({
           >
             {/* ── Media content ── */}
             {isVideo ? (
-              <Pressable
-                onPress={handleVideoPress}
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                style={{ width: "100%", height: "100%" }}
-              >
-                <View
-                  pointerEvents="none"
+              hasPlayableVideo ? (
+                <Pressable
+                  onPress={handleVideoPress}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
                   style={{ width: "100%", height: "100%" }}
                 >
-                  <VideoView
-                    ref={videoViewRef}
-                    player={player}
+                  <View
+                    pointerEvents="none"
                     style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                    nativeControls={false}
-                  />
-                </View>
-              </Pressable>
+                  >
+                    <VideoView
+                      ref={videoViewRef}
+                      player={player}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                      nativeControls={false}
+                    />
+                  </View>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={handlePostPress}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  style={{ width: "100%", height: "100%" }}
+                >
+                  <View
+                    style={{ width: "100%", height: "100%" }}
+                    className="bg-muted items-center justify-center"
+                  >
+                    <Text className="text-muted-foreground text-xs">
+                      Video unavailable
+                    </Text>
+                  </View>
+                </Pressable>
+              )
             ) : hasMultipleMedia ? (
               <>
-                <ScrollView
-                  horizontal
-                  pagingEnabled
-                  showsHorizontalScrollIndicator={false}
-                  onScroll={handleScroll}
-                  scrollEventThrottle={16}
-                >
-                  {media.map((medium, index) => {
-                    const isValidUrl =
-                      medium.url &&
-                      (medium.url.startsWith("http://") ||
-                        medium.url.startsWith("https://"));
-                    return (
-                      <Pressable
-                        key={index}
-                        onPress={handlePostPress}
-                        onPressIn={handlePressIn}
-                        onPressOut={handlePressOut}
-                      >
-                        {isValidUrl ? (
-                          <DVNTMediaRenderer
-                            item={medium}
-                            width={cardInnerWidthRef.current}
-                            height={PORTRAIT_HEIGHT}
-                            contentFit="cover"
-                            showBadge={index === 0}
-                          />
-                        ) : (
-                          <View
-                            style={{
-                              width: cardInnerWidthRef.current,
-                              height: PORTRAIT_HEIGHT,
-                            }}
-                            className="bg-muted items-center justify-center"
-                          >
-                            <Text className="text-muted-foreground text-xs">
-                              No image
-                            </Text>
-                          </View>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
+                <View style={{ width: "100%", height: "100%" }}>
+                  <ScrollView
+                    horizontal
+                    pagingEnabled
+                    showsHorizontalScrollIndicator={false}
+                    onScroll={handleScroll}
+                    scrollEventThrottle={16}
+                  >
+                    {media.map((medium, index) => {
+                      const isValidUrl =
+                        medium.url &&
+                        (medium.url.startsWith("http://") ||
+                          medium.url.startsWith("https://"));
+                      return (
+                        <Pressable
+                          key={index}
+                          onPress={handlePostPress}
+                          onPressIn={handlePressIn}
+                          onPressOut={handlePressOut}
+                        >
+                          {isValidUrl ? (
+                            <DVNTMediaRenderer
+                              item={medium}
+                              width={cardInnerWidthRef.current}
+                              height={PORTRAIT_HEIGHT}
+                              contentFit="cover"
+                              showBadge={index === 0}
+                            />
+                          ) : (
+                            <View
+                              style={{
+                                width: cardInnerWidthRef.current,
+                                height: PORTRAIT_HEIGHT,
+                              }}
+                              className="bg-muted items-center justify-center"
+                            >
+                              <Text className="text-muted-foreground text-xs">
+                                No image
+                              </Text>
+                            </View>
+                          )}
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+                </View>
               </>
             ) : (
               <Pressable
@@ -799,6 +920,7 @@ function FeedPostComponent({
                 postId={id}
                 mediaIndex={currentSlide}
                 tagProgress={tagProgress}
+                guestMode={guestMode}
               />
             )}
 
@@ -872,7 +994,7 @@ function FeedPostComponent({
 
             {/* TOP-RIGHT: More menu */}
             <Pressable
-              onPress={() => setActionSheetPostId(id)}
+              onPress={handleMorePress}
               style={{ position: "absolute", top: 0, right: 0, zIndex: 50 }}
               hitSlop={12}
             >
@@ -882,7 +1004,7 @@ function FeedPostComponent({
             </Pressable>
 
             {/* Video: mute button top-right (above more menu area, or swap position) */}
-            {isVideo && (
+            {hasPlayableVideo && (
               <Pressable
                 onPress={toggleMute}
                 style={{ position: "absolute", top: 56, right: 12, zIndex: 50 }}
@@ -977,7 +1099,7 @@ function FeedPostComponent({
                 />
 
                 {/* Share */}
-                <Pressable hitSlop={8} onPress={() => setShareSheetPostId(id)}>
+                <Pressable hitSlop={8} onPress={handleSharePress}>
                   <Send size={22} color="#fff" />
                 </Pressable>
 
@@ -1023,7 +1145,7 @@ function FeedPostComponent({
             </View>
 
             {/* BOTTOM-RIGHT: Expand (video only) */}
-            {isVideo && (
+            {hasPlayableVideo && (
               <Pressable
                 onPress={handleFullscreenToggle}
                 style={{
@@ -1041,7 +1163,7 @@ function FeedPostComponent({
             )}
 
             {/* SEEK BAR — always visible for video, 4px from bottom */}
-            {isVideo && (
+            {hasPlayableVideo && (
               <DVNTSeekBar
                 currentTime={videoCurrentTime}
                 duration={videoDuration}
@@ -1061,7 +1183,7 @@ function FeedPostComponent({
       {/* Sheets (CommentsSheet, PostActionSheet, ShareToInboxSheet) rendered at Feed level */}
 
       {/* Custom fullscreen modal for video */}
-      {isVideo && isFullscreen && (
+      {hasPlayableVideo && isFullscreen && (
         <Modal
           visible
           animationType="fade"

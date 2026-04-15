@@ -10,10 +10,11 @@ interface AnimatedGifStickerLayerProps {
   elements: StickerElement[];
   surface: RenderSurface;
   selectedElementId: string | null;
+  showSelection?: boolean;
 }
 
 export const AnimatedGifStickerLayer: React.FC<AnimatedGifStickerLayerProps> =
-  React.memo(({ elements, surface, selectedElementId }) => {
+  React.memo(({ elements, surface, selectedElementId, showSelection = true }) => {
     const gifElements = useMemo(
       () =>
         [...elements]
@@ -34,7 +35,7 @@ export const AnimatedGifStickerLayer: React.FC<AnimatedGifStickerLayerProps> =
             key={element.id}
             element={element}
             surface={surface}
-            isSelected={element.id === selectedElementId}
+            isSelected={showSelection && element.id === selectedElementId}
           />
         ))}
       </View>

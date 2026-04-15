@@ -54,7 +54,7 @@ export function useAppResume() {
       lastRefreshRef.current = now;
 
       console.log("[AppResume] App resumed — refreshing critical data");
-      useAppStore.getState().loadNsfwSetting();
+      useAppStore.getState().loadNsfwSetting("app_resume");
 
       // Silent background refresh — no loading states, no UI flicker
       // TanStack Query handles the cache update → components re-render once

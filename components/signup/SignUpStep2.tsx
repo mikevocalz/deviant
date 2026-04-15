@@ -8,8 +8,13 @@ import {
   ScrollView,
   InteractionManager,
 } from "react-native";
-import { router } from "expo-router";
-import { Camera as VisionCamera } from "react-native-vision-camera";
+import { router, useLocalSearchParams } from "expo-router";
+import {
+  getCameraPermission,
+  getMicrophonePermission,
+  requestCameraPermission,
+  requestMicrophonePermission,
+} from "react-native-vision-camera";
 import {
   Button,
   Tabs,
@@ -41,6 +46,7 @@ import {
   UNDERAGE_ERROR_MESSAGE,
   AGE_VERIFICATION_FAILED_MESSAGE,
 } from "@/lib/utils/age-verification";
+import { AppTrace, getErrorMessage } from "@/lib/diagnostics/app-trace";
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -86,13 +92,30 @@ export function SignUpStep2() {
   } = useVerificationStore();
   const { setUser } = useAuthStore();
   const showToast = useUIStore((s) => s.showToast);
-  const [activeTab, setActiveTab] = useState<"id" | "selfie">("id");
+  const { verificationTab } = useLocalSearchParams<{
+    verificationTab?: string;
+  }>();
+  const [activeTab, setActiveTab] = useState<"id" | "selfie">(
+    verificationTab === "selfie" ? "selfie" : "id",
+  );
   const [isVerifying, setIsVerifying] = useState(false);
   const [permissionsGranted, setPermissionsGranted] = useState(false);
   const [matchConfidence, setMatchConfidence] = useState<number | null>(null);
   const [dobMismatch, setDobMismatch] = useState<string | null>(null);
   const [failedAttempts, setFailedAttempts] = useState(0);
+  const [manualReviewSubmitted, setManualReviewSubmitted] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    if (verificationTab === "selfie") {
+      setActiveTab("selfie");
+      return;
+    }
+
+    if (verificationTab === "id") {
+      setActiveTab("id");
+    }
+  }, [verificationTab]);
 
   // Record terms acceptance - calls API directly
   const recordTermsAcceptance = async (userId: string, email: string) => {
@@ -128,6 +151,11 @@ export function SignUpStep2() {
   // Create account after verification succeeds
   const createAccount = async () => {
     setIsSubmitting(true);
+    const startedAt = Date.now();
+    AppTrace.trace("SIGNUP", "account_create_started", {
+      verified: idVerification.isVerified,
+      reviewPending: manualReviewSubmitted,
+    });
 
     console.log("[SignUp] Creating account with Better Auth...");
     console.log("[SignUp] Email:", formData.email);
@@ -150,6 +178,10 @@ export function SignUpStep2() {
 
       if (error) {
         console.error("[SignUp] Better Auth error:", error);
+        AppTrace.error("SIGNUP", "account_create_auth_failed", {
+          elapsedMs: Date.now() - startedAt,
+          error: error.message || "Better Auth signup failed",
+        });
         toast.error("Registration Failed", {
           description: error.message || "Could not create account",
         });
@@ -158,6 +190,9 @@ export function SignUpStep2() {
 
       if (!data?.user) {
         console.error("[SignUp] No user returned from Better Auth");
+        AppTrace.error("SIGNUP", "account_create_missing_user", {
+          elapsedMs: Date.now() - startedAt,
+        });
         toast.error("Registration Failed", {
           description: "Could not create account",
         });
@@ -227,7 +262,7 @@ export function SignUpStep2() {
           website: "",
           location: "",
           hashtags: [],
-          isVerified: true,
+          isVerified: Boolean(idVerification.isVerified),
           postsCount: 0,
           followersCount: 0,
           followingCount: 0,
@@ -255,7 +290,11 @@ export function SignUpStep2() {
       );
 
       toast.success("Welcome to DVNT!", {
-        description: "Your account has been created and verified.",
+        description: "Your account is ready.",
+      });
+      AppTrace.trace("SIGNUP", "account_create_success", {
+        elapsedMs: Date.now() - startedAt,
+        syncedProfile: Boolean(profile),
       });
 
       resetSignup();
@@ -263,6 +302,10 @@ export function SignUpStep2() {
       router.replace("/(protected)/(tabs)" as any);
     } catch (error: any) {
       console.error("[Signup] Error:", error);
+      AppTrace.error("SIGNUP", "account_create_failed", {
+        elapsedMs: Date.now() - startedAt,
+        error: getErrorMessage(error),
+      });
 
       let errorMsg = "Please try again";
       if (error?.message) {
@@ -306,6 +349,7 @@ export function SignUpStep2() {
       setVerified(false);
       setMatchConfidence(null);
       setDobMismatch(null);
+      setManualReviewSubmitted(false);
 
       // Extract and compare DOB from parsed ID
       if (parsedId?.dob) {
@@ -340,6 +384,7 @@ export function SignUpStep2() {
       setFaceImage(faceImageUri);
       setVerified(false);
       setMatchConfidence(null);
+      setManualReviewSubmitted(false);
     }
   }, [faceImageUri]);
 
@@ -356,13 +401,17 @@ export function SignUpStep2() {
   const checkAndRequestPermissions = async () => {
     try {
       console.log("[SignUpStep2] Starting permission check...");
+      AppTrace.trace("VERIFICATION", "permissions_check_started", {
+        platform: Platform.OS,
+      });
 
       // Request camera via VisionCamera
-      let cameraStatus = await VisionCamera.getCameraPermissionStatus();
+      let cameraStatus = getCameraPermission();
       console.log("[SignUpStep2] Initial camera status:", cameraStatus);
 
-      if (cameraStatus !== "granted") {
-        cameraStatus = await VisionCamera.requestCameraPermission();
+      if (cameraStatus !== "authorized") {
+        const granted = await requestCameraPermission();
+        cameraStatus = granted ? "authorized" : getCameraPermission();
         console.log(
           "[SignUpStep2] Camera permission after request:",
           cameraStatus,
@@ -402,10 +451,11 @@ export function SignUpStep2() {
       } else {
         // iOS - try to get mic but don't block on it
         try {
-          let micStatus = await VisionCamera.getMicrophonePermissionStatus();
+          let micStatus = getMicrophonePermission();
           console.log("[SignUpStep2] iOS mic status:", micStatus);
-          if (micStatus !== "granted") {
-            micStatus = await VisionCamera.requestMicrophonePermission();
+          if (micStatus !== "authorized") {
+            const granted = await requestMicrophonePermission();
+            micStatus = granted ? "authorized" : getMicrophonePermission();
             console.log("[SignUpStep2] iOS mic after request:", micStatus);
           }
         } catch (micError) {
@@ -415,11 +465,18 @@ export function SignUpStep2() {
 
       // Only camera is strictly required
       console.log("[SignUpStep2] Final camera status:", cameraStatus);
-      if (cameraStatus === "granted") {
+      if (cameraStatus === "authorized") {
         console.log("[SignUpStep2] Camera granted - enabling verification");
         setPermissionsGranted(true);
+        AppTrace.trace("VERIFICATION", "permissions_ready", {
+          platform: Platform.OS,
+        });
       } else {
         console.log("[SignUpStep2] Camera NOT granted");
+        AppTrace.warn("VERIFICATION", "camera_permission_missing", {
+          platform: Platform.OS,
+          cameraStatus,
+        });
         showToast(
           "error",
           "Camera Required",
@@ -428,31 +485,58 @@ export function SignUpStep2() {
       }
     } catch (error) {
       console.error("[SignUpStep2] Permission request error:", error);
+      AppTrace.error("VERIFICATION", "permissions_check_failed", {
+        platform: Platform.OS,
+        error: getErrorMessage(error),
+      });
       showToast("error", "Permission Error", String(error));
     }
   };
 
   const requestPermissions = async () => {
     try {
-      const cameraPermission = await VisionCamera.requestCameraPermission();
-      const microphonePermission =
-        await VisionCamera.requestMicrophonePermission();
+      AppTrace.trace("VERIFICATION", "permissions_request_started", {
+        platform: Platform.OS,
+      });
+      const cameraPermission = await requestCameraPermission();
+
+      let microphonePermission: boolean | undefined;
+      try {
+        microphonePermission = await requestMicrophonePermission();
+      } catch (micError) {
+        console.log(
+          "[SignUpStep2] Optional microphone permission failed:",
+          micError,
+        );
+      }
 
       console.log("Requested permissions:", {
         camera: cameraPermission,
         mic: microphonePermission,
       });
 
-      if (
-        cameraPermission === "granted" &&
-        microphonePermission === "granted"
-      ) {
+      if (cameraPermission) {
         setPermissionsGranted(true);
+        AppTrace.trace("VERIFICATION", "permissions_request_granted", {
+          platform: Platform.OS,
+        });
       } else {
-        showToast("error", "Please grant permissions in Settings");
+        AppTrace.warn("VERIFICATION", "permissions_request_denied", {
+          platform: Platform.OS,
+          cameraPermission,
+        });
+        showToast(
+          "error",
+          "Camera Required",
+          "Please grant camera access in Settings to continue verification.",
+        );
       }
     } catch (error) {
       console.error("Permission request error:", error);
+      AppTrace.error("VERIFICATION", "permissions_request_failed", {
+        platform: Platform.OS,
+        error: getErrorMessage(error),
+      });
       showToast("error", "Failed to request permissions");
     }
   };
@@ -468,6 +552,10 @@ export function SignUpStep2() {
 
     if (!idVerification.idImage || !idVerification.faceImage) {
       console.log("[SignUpStep2] Missing images");
+      AppTrace.warn("VERIFICATION", "verify_blocked_missing_images", {
+        hasIdImage: Boolean(idVerification.idImage),
+        hasFaceImage: Boolean(idVerification.faceImage),
+      });
       showToast(
         "error",
         "Missing Images",
@@ -478,6 +566,9 @@ export function SignUpStep2() {
 
     if (idVerification.isOver18 === false) {
       console.log("[SignUpStep2] Under 18");
+      AppTrace.warn("VERIFICATION", "verify_blocked_underage", {
+        extractedUnder18: true,
+      });
       showToast(
         "error",
         "Age Restriction",
@@ -487,6 +578,9 @@ export function SignUpStep2() {
     }
 
     if (dobMismatch) {
+      AppTrace.warn("VERIFICATION", "verify_blocked_dob_mismatch", {
+        hasDobMismatch: true,
+      });
       showToast(
         "error",
         "Date of Birth Mismatch",
@@ -497,6 +591,11 @@ export function SignUpStep2() {
 
     setIsVerifying(true);
     setMatchConfidence(null);
+    const attempt = failedAttempts + 1;
+    AppTrace.trace("VERIFICATION", "verify_started", {
+      attempt,
+      platform: Platform.OS,
+    });
     console.log("[SignUpStep2] Starting verification process...");
     console.log("[SignUpStep2] Platform:", Platform.OS);
 
@@ -512,6 +611,10 @@ export function SignUpStep2() {
       if (result.match) {
         setVerified(true);
         setFailedAttempts(0);
+        AppTrace.trace("VERIFICATION", "verify_success", {
+          attempt,
+          confidence: Number(result.confidence.toFixed(1)),
+        });
         console.log("[SignUpStep2] Verification successful");
         showToast(
           "success",
@@ -521,6 +624,10 @@ export function SignUpStep2() {
       } else {
         const attempts = failedAttempts + 1;
         setFailedAttempts(attempts);
+        AppTrace.warn("VERIFICATION", "verify_failed_match", {
+          attempt: attempts,
+          confidence: Number(result.confidence.toFixed(1)),
+        });
         console.log(`[SignUpStep2] Verification failed (attempt ${attempts})`);
 
         if (attempts >= 2) {
@@ -545,22 +652,20 @@ export function SignUpStep2() {
       // Count SDK errors as failed attempts so "Submit for Manual Review" unlocks
       const attempts = failedAttempts + 1;
       setFailedAttempts(attempts);
+      AppTrace.error("VERIFICATION", "verify_failed_error", {
+        attempt: attempts,
+        error: getErrorMessage(error),
+      });
       console.log(`[SignUpStep2] SDK error (attempt ${attempts})`);
 
-      // After 2+ failures of ANY type, auto-mark for manual review (both platforms)
+      // After repeated failures, surface the manual-review path but do not
+      // mark the user verified locally.
       if (attempts >= 2) {
-        console.log(
-          "[SignUpStep2] Auto-marking for manual review after repeated failures",
-        );
-        setVerified(true);
-        setMatchConfidence(0); // Flag as needing manual review
         showToast(
-          "success",
-          "Verification Submitted",
-          "Your documents have been submitted for review. You can continue signing up.",
+          "error",
+          "Verification Needs Review",
+          "We couldn't confirm a match. You can submit for manual review below, but verified access stays locked until approval.",
         );
-        setIsVerifying(false);
-        return;
       }
 
       const errorMessage = error.message || "Verification failed";
@@ -610,8 +715,8 @@ export function SignUpStep2() {
             </Text>
           </View>
           <Text className="text-sm text-muted mb-4">
-            Camera and microphone access are required to scan your ID and
-            capture a selfie for verification.
+            Camera access is required to scan your ID and take a selfie.
+            Microphone access is optional.
           </Text>
           <Button onPress={requestPermissions}>Grant Permissions</Button>
           <Button
@@ -645,9 +750,72 @@ export function SignUpStep2() {
         <Text className="text-xl font-semibold text-foreground">
           Identity Verification
         </Text>
-        <Text className="text-sm text-zinc-500w text-center">
-          Scan your ID document and capture a selfie for verification
+        <Text className="text-sm text-zinc-500 text-center">
+          Verification keeps DVNT for real adults, reduces fake profiles, and
+          unlocks the private parts of the app.
         </Text>
+      </View>
+
+      <View className="rounded-3xl border border-white/10 bg-white/5 p-4 gap-4">
+        <View className="gap-1">
+          <Text className="text-[11px] font-extrabold tracking-[1px] text-[#34A2DF]">
+            WHY DVNT ASKS FOR THIS
+          </Text>
+          <Text className="text-base font-semibold text-foreground">
+            Your ID and selfie are for trust, not for your public profile.
+          </Text>
+        </View>
+
+        <View className="gap-2">
+          <View className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+            <Text className="text-sm font-semibold text-foreground">
+              Used only for age and identity
+            </Text>
+            <Text className="mt-1 text-sm leading-5 text-zinc-400">
+              DVNT uses your ID to confirm you are 18+ and that a real person is
+              joining the community.
+            </Text>
+          </View>
+
+          <View className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+            <Text className="text-sm font-semibold text-foreground">
+              Not shown publicly. Not kept as profile content.
+            </Text>
+            <Text className="mt-1 text-sm leading-5 text-zinc-400">
+              Your public profile uses your chosen name and photos. Verification
+              captures are not shown on your profile and are deleted after the
+              verification process completes.
+            </Text>
+          </View>
+
+          <View className="rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+            <Text className="text-sm font-semibold text-foreground">
+              Verification unlocks the private layer
+            </Text>
+            <Text className="mt-1 text-sm leading-5 text-zinc-400">
+              Verified users can send DMs, comment, access spicy content, host
+              events, and join more intentional spaces like Sneaky Lynk.
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View className="rounded-3xl border border-[#34A2DF]/20 bg-[#34A2DF]/10 p-4 gap-3">
+        <Text className="text-sm font-semibold text-foreground">
+          What happens next
+        </Text>
+        <View className="gap-2">
+          <Text className="text-sm leading-5 text-zinc-300">
+            1. Scan a valid government-issued ID.
+          </Text>
+          <Text className="text-sm leading-5 text-zinc-300">
+            2. Take a selfie so DVNT can confirm the ID belongs to you.
+          </Text>
+          <Text className="text-sm leading-5 text-zinc-300">
+            3. If the match is unclear, you can request review. Verified access
+            stays locked until approval.
+          </Text>
+        </View>
       </View>
 
       {idVerification.isOver18 === false && (
@@ -751,23 +919,40 @@ export function SignUpStep2() {
             <Button
               variant="outline"
               onPress={() => {
-                setVerified(true);
-                setMatchConfidence(0);
+                setManualReviewSubmitted(true);
+                AppTrace.warn("VERIFICATION", "manual_review_requested", {
+                  attempts: failedAttempts,
+                });
                 showToast(
-                  "success",
+                  "info",
                   "Submitted for Review",
-                  "Your documents have been submitted. You can continue signing up.",
+                  "Review requested. Verified features stay locked until a reviewer approves it.",
                 );
               }}
+              disabled={manualReviewSubmitted}
               className="w-full flex-row items-center justify-center border-yellow-500/50"
             >
               <ShieldAlert size={16} className="text-yellow-500 mr-2" />
               <Text className="text-foreground font-semibold">
-                Submit for Manual Review
+                {manualReviewSubmitted
+                  ? "Manual Review Requested"
+                  : "Submit for Manual Review"}
               </Text>
             </Button>
           </View>
         )}
+
+      {manualReviewSubmitted && !idVerification.isVerified && (
+        <View className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4">
+          <Text className="font-medium text-foreground">
+            Review Pending
+          </Text>
+          <Text className="mt-1 text-sm text-muted">
+            Your captures need a manual check. Do not promise verified access
+            until that review is approved.
+          </Text>
+        </View>
+      )}
 
       {idVerification.isVerified && (
         <View className="bg-primary rounded-lg p-4 flex-row items-center gap-3">

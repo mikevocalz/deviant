@@ -102,10 +102,15 @@ export function useFeedPosts() {
 }
 
 // Fetch feed posts with infinite scroll
-export function useInfiniteFeedPosts() {
+export function useInfiniteFeedPosts({
+  enabled = true,
+}: {
+  enabled?: boolean;
+} = {}) {
   return useInfiniteQuery({
     queryKey: postKeys.feedInfinite(),
     queryFn: ({ pageParam = 0 }) => postsApi.getFeedPostsPaginated(pageParam),
+    enabled,
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
     staleTime: STALE_TIMES.feed,
@@ -334,7 +339,7 @@ export function useSyncLikedPosts() {
   const viewerId = useAuthStore((state) => state.user?.id) || "";
 
   return useQuery({
-    queryKey: ["likedPosts"],
+    queryKey: ["likedPosts", viewerId || "__no_user__"],
     queryFn: async () => {
       const { usersApi } = await import("@/lib/api/users");
       const likedPosts = await usersApi.getLikedPosts();
@@ -376,6 +381,7 @@ export function useSyncLikedPosts() {
     },
     staleTime: STALE_TIMES.likedPosts,
     gcTime: GC_TIMES.standard,
+    enabled: !!viewerId,
   });
 }
 

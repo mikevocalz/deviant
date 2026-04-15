@@ -9,10 +9,21 @@ import { StoryRing } from "./story-ring";
 import { useStories } from "@/lib/hooks/use-stories";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { assertAvatarSource } from "@/lib/invariants/assertAvatarOwnership";
+import type { Story } from "@/lib/types";
 
-export function StoriesBar() {
+type StoriesBarProps = {
+  stories?: Story[];
+  isLoadingOverride?: boolean;
+};
+
+function StoriesBarContent({
+  stories,
+  isPending,
+}: {
+  stories: Story[];
+  isPending: boolean;
+}) {
   const router = useRouter();
-  const { data: stories = [], isLoading, isPending } = useStories();
   const user = useAuthStore((state) => state.user);
 
   const handleCreateStory = useCallback(() => {
@@ -238,3 +249,31 @@ export function StoriesBar() {
   );
 }
 
+function StoriesBarWithQuery() {
+  const storiesQuery = useStories();
+  return (
+    <StoriesBarContent
+      stories={storiesQuery.data ?? []}
+      isPending={storiesQuery.isPending}
+    />
+  );
+}
+
+export function StoriesBar({
+  stories: injectedStories,
+  isLoadingOverride,
+}: StoriesBarProps) {
+  if (
+    Array.isArray(injectedStories) ||
+    typeof isLoadingOverride === "boolean"
+  ) {
+    return (
+      <StoriesBarContent
+        stories={injectedStories ?? []}
+        isPending={Boolean(isLoadingOverride)}
+      />
+    );
+  }
+
+  return <StoriesBarWithQuery />;
+}

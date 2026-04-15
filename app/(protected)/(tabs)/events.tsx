@@ -13,6 +13,7 @@ import {
   Heart,
   Plus,
   Ticket,
+  MapPin,
   Search,
   X,
   ArrowUpDown,
@@ -32,12 +33,8 @@ import { useColorScheme } from "@/lib/hooks";
 import { useIsLargeScreen } from "@/lib/hooks/use-is-large-screen";
 import { LinearGradient } from "expo-linear-gradient";
 import { Motion } from "@legendapp/motion";
-import Animated, {
-  useAnimatedScrollHandler,
-  useSharedValue,
-  useAnimatedStyle,
-} from "react-native-reanimated";
-import { useRef, useCallback, useMemo, useEffect } from "react";
+import Animated from "react-native-reanimated";
+import { useRef, useCallback, useMemo } from "react";
 import { Debouncer } from "@tanstack/react-pacer";
 import { EventCardSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
@@ -65,12 +62,10 @@ import {
   useSpotlightFeed,
   usePromotedEventIds,
 } from "@/lib/hooks/use-promotions";
-import { useWeatherRefresh } from "@/src/features/weatherfx/hooks/useWeatherRefresh";
 
 function EventCard({
   event,
   index,
-  scrollY,
   colors,
   router,
   formatLikes,
@@ -81,7 +76,6 @@ function EventCard({
 }: {
   event: Event;
   index: number;
-  scrollY: any;
   colors: any;
   router: any;
   formatLikes: (likes: number) => string;
@@ -95,14 +89,6 @@ function EventCard({
   const handleLike = useCallback(() => {
     toggleLike.mutate({ eventId: event.id, isLiked: event.isLiked ?? false });
   }, [event.id, event.isLiked, toggleLike]);
-
-  const animatedImageStyle = useAnimatedStyle(() => {
-    "worklet";
-    const translateY = (scrollY.value - index * (cardHeight + 20)) * -0.15;
-    return {
-      transform: [{ translateY }],
-    };
-  });
 
   return (
     <Motion.View
@@ -141,15 +127,12 @@ function EventCard({
           <View style={{ height: cardHeight }} className="w-full">
             {/* Parallax image layer */}
             <Animated.View
-              style={[
-                {
-                  width: "100%",
-                  height: cardHeight + 100,
-                  position: "absolute",
-                  top: -50,
-                },
-                animatedImageStyle,
-              ]}
+              style={{
+                width: "100%",
+                height: cardHeight + 100,
+                position: "absolute",
+                top: -50,
+              }}
             >
               <Image
                 source={{ uri: event.image }}
@@ -293,7 +276,6 @@ function EventCard({
 function EventsScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
-  const scrollY = useSharedValue(0);
   const insets = useSafeAreaInsets();
   const queryClient = useQueryClient();
   const pagerRef = useRef<any>(null);
@@ -334,7 +316,7 @@ function EventsScreenContent() {
   const searchDebouncerRef = useRef(
     new Debouncer(
       (q: string) => {
-        setDebouncedSearch(q);
+        setDebouncedSearch(q.trim());
       },
       { wait: 400 },
     ),
@@ -356,12 +338,6 @@ function EventsScreenContent() {
 
   // Location store — used only for in_city filter
   const activeCity = useEventsLocationStore((s) => s.activeCity);
-  const deviceLat = useEventsLocationStore((s) => s.deviceLat);
-  const deviceLng = useEventsLocationStore((s) => s.deviceLng);
-
-  // Weather coords for WeatherFX ambient effects
-  const weatherLat = activeCity?.lat ?? deviceLat ?? undefined;
-  const weatherLng = activeCity?.lng ?? deviceLng ?? undefined;
 
   // Build server-side filters from active pills + debounced search + categories
   const eventFilters = useMemo<EventFilters>(() => {
@@ -416,33 +392,6 @@ function EventsScreenContent() {
       })
       .filter((ev: any) => !ev._deduped);
   }, [events, promotedIds, spotlightEventIds]);
-
-  const soonestUpcomingEvent = useMemo(() => {
-    if (weatherLat == null || weatherLng == null) return null;
-    const now = new Date();
-    const upcoming = [...events, ...forYouEvents].filter(
-      (ev: Event) => ev.fullDate && new Date(ev.fullDate) > now,
-    );
-    if (upcoming.length === 0) return null;
-    upcoming.sort(
-      (a, b) =>
-        new Date(a.fullDate!).getTime() - new Date(b.fullDate!).getTime(),
-    );
-    const ev = upcoming[0];
-    return {
-      fullDate: ev.fullDate!,
-      locationLat: (ev as Event).locationLat ?? weatherLat,
-      locationLng: (ev as Event).locationLng ?? weatherLng,
-    };
-  }, [events, forYouEvents, weatherLat, weatherLng]);
-
-  useWeatherRefresh(weatherLat, weatherLng, soonestUpcomingEvent);
-
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      scrollY.value = event.contentOffset.y;
-    },
-  });
 
   const formatLikes = (likes: number) => {
     if (likes >= 1000) {
@@ -576,6 +525,12 @@ function EventsScreenContent() {
               <Text className="text-2xl font-bold text-foreground mt-0.5">
                 Events
               </Text>
+              <View className="flex-row items-center gap-1.5 mt-1">
+                <MapPin size={12} color="#3EA4E5" strokeWidth={2} />
+                <Text className="text-xs font-medium text-muted-foreground">
+                  {activeCity?.name || "Finding events near you"}
+                </Text>
+              </View>
             </View>
             <View className="flex-row items-center gap-2">
               <Motion.View
@@ -863,74 +818,85 @@ function EventsScreenContent() {
                         className="flex-1"
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={{
-                          padding: 16,
-                          paddingBottom: 32,
+                          paddingBottom: insets.bottom + 32,
                         }}
                       >
-                        <EventCardSkeleton />
-                        <EventCardSkeleton />
+                        {tabIndex === 1 && spotlightItems.length > 0 && !showMapView && (
+                          <SpotlightSection items={spotlightItems} />
+                        )}
+                        <View
+                          style={{
+                            paddingHorizontal: 16,
+                            paddingTop: 16,
+                          }}
+                        >
+                          <EventCardSkeleton />
+                          <EventCardSkeleton />
+                        </View>
                       </ScrollView>
                     ) : (
                       <Animated.ScrollView
                         className="flex-1"
                         showsVerticalScrollIndicator={false}
-                        contentContainerStyle={{ paddingBottom: 16 }}
-                        onScroll={scrollHandler}
-                        scrollEventThrottle={16}
+                        contentContainerStyle={{ paddingBottom: insets.bottom + 32 }}
                       >
-                        {/* Spotlight — only on All Events tab */}
-                        {tabIndex === 1 && spotlightItems.length > 0 && (
+                        {tabIndex === 1 && spotlightItems.length > 0 && !showMapView && (
                           <SpotlightSection items={spotlightItems} />
-                        )}
-                        {/* Curated collections — only on All Events tab, no search/filters */}
-                        {tabIndex === 1 && showCollections && (
-                          <View className="pt-4">
-                            <EventCollectionRow
-                              title="This Weekend"
-                              emoji="\uD83C\uDF89"
-                              events={collections.weekend}
-                            />
-                            <EventCollectionRow
-                              title="Trending"
-                              emoji="\uD83D\uDD25"
-                              events={collections.trending}
-                            />
-                            <EventCollectionRow
-                              title="New & Notable"
-                              emoji="\u2728"
-                              events={collections.fresh}
-                            />
-                          </View>
                         )}
                         <View
                           style={{
-                            paddingHorizontal: 16,
-                            flexDirection: isLargeScreen ? "row" : "column",
-                            flexWrap: isLargeScreen ? "wrap" : "nowrap",
-                            gap: gridGap,
+                            paddingTop: 16,
                           }}
                         >
-                          {filteredEvents.map((event, index) => (
-                            <View
-                              key={event.id}
-                              style={
-                                isLargeScreen ? { width: cardWidth } : undefined
-                              }
-                            >
-                              <EventCard
-                                event={event}
-                                index={index}
-                                scrollY={scrollY}
-                                colors={colors}
-                                router={router}
-                                formatLikes={formatLikes}
-                                cardWidth={cardWidth}
-                                cardHeight={cardHeight}
-                                compact={isLargeScreen}
-                                queryClient={queryClient}
+                          {/* Curated collections — only on All Events tab, no search/filters */}
+                          {tabIndex === 1 && showCollections && (
+                            <View>
+                              <EventCollectionRow
+                                title="This Weekend"
+                                emoji="\uD83C\uDF89"
+                                events={collections.weekend}
+                              />
+                              <EventCollectionRow
+                                title="Trending"
+                                emoji="\uD83D\uDD25"
+                                events={collections.trending}
+                              />
+                              <EventCollectionRow
+                                title="New & Notable"
+                                emoji="\u2728"
+                                events={collections.fresh}
                               />
                             </View>
-                          ))}
+                          )}
+                          <View
+                            style={{
+                              paddingHorizontal: 16,
+                              flexDirection: isLargeScreen ? "row" : "column",
+                              flexWrap: isLargeScreen ? "wrap" : "nowrap",
+                              gap: gridGap,
+                            }}
+                          >
+                            {filteredEvents.map((event, index) => (
+                              <View
+                                key={event.id}
+                                style={
+                                  isLargeScreen ? { width: cardWidth } : undefined
+                                }
+                              >
+                                <EventCard
+                                  event={event}
+                                  index={index}
+                                  colors={colors}
+                                  router={router}
+                                  formatLikes={formatLikes}
+                                  cardWidth={cardWidth}
+                                  cardHeight={cardHeight}
+                                  compact={isLargeScreen}
+                                  queryClient={queryClient}
+                                />
+                              </View>
+                            ))}
+                          </View>
                         </View>
                       </Animated.ScrollView>
                     )}

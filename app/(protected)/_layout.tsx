@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Stack, usePathname, useRouter } from "expo-router";
+import { usePathname, useRouter } from "expo-router";
 import { View, Text, Pressable, Platform } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Settings } from "lucide-react-native";
@@ -28,6 +28,14 @@ import { WeatherReanimatedOverlay } from "@/src/features/weatherfx/WeatherReanim
 import { useEventsTabVisibility } from "@/src/features/weatherfx/hooks/useEventsTabVisibility";
 // import { isWebGPUAvailable } from "@/src/gpu/GpuRuntime";
 import { useLiveSurface } from "@/src/live-surface";
+import { TransitionStack as Stack } from "@/lib/navigation/transition-stack";
+import {
+  dvntEventTransition,
+  dvntPostTransition,
+  dvntStoryTransition,
+  dvntTicketTransition,
+} from "@/lib/navigation/transition-options";
+import { useMotionTier } from "@/lib/navigation/use-motion-tier";
 
 const screenTransitionConfig = Platform.select({
   ios: {
@@ -117,6 +125,7 @@ function TabsHeader() {
 
 export default function ProtectedLayout() {
   const { colors } = useColorScheme();
+  const motionTier = useMotionTier();
   // Initialize CallKeep native call UI — registers listeners ONCE
   useCallKeepCoordinator();
   // Track current user's online/offline presence
@@ -214,11 +223,12 @@ export default function ProtectedLayout() {
         />
         <Stack.Screen
           name="post/[id]"
-          options={{
-            animation: "fade",
-            animationDuration: 300,
-            animationTypeForReplace: "push",
-          }}
+          options={({ route }) =>
+            dvntPostTransition(
+              String((route.params as any)?.id ?? ""),
+              motionTier,
+            )
+          }
         />
         <Stack.Screen
           name="profile/[username]"
@@ -233,21 +243,31 @@ export default function ProtectedLayout() {
           options={{ ...fullScreenModalConfig, headerShown: true }}
         />
         <Stack.Screen
-          name="events/[id]/index"
-          options={{
-            animation: "fade",
-            animationDuration: 300,
-          }}
+          name="events/[id]"
+          options={({ route }) =>
+            dvntEventTransition(
+              String((route.params as any)?.id ?? ""),
+              motionTier,
+            )
+          }
         />
         <Stack.Screen
           name="story/[id]"
-          options={{
-            headerShown: false,
-            presentation: "transparentModal",
-            animation: "fade",
-            animationDuration: 250,
-            contentStyle: { backgroundColor: "transparent" },
-          }}
+          options={({ route }) =>
+            dvntStoryTransition(
+              String((route.params as any)?.id ?? ""),
+              motionTier,
+            )
+          }
+        />
+        <Stack.Screen
+          name="ticket/[id]"
+          options={({ route }) =>
+            dvntTicketTransition(
+              String((route.params as any)?.id ?? ""),
+              motionTier,
+            )
+          }
         />
         <Stack.Screen
           name="story/create"

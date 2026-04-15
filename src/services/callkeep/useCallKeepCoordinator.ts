@@ -137,6 +137,7 @@ export function useCallKeepCoordinator(): void {
                   params: {
                     roomId,
                     callType,
+                    isGroup: signal?.is_group ? "true" : "false",
                     recipientUsername: signal?.caller_username || "Unknown",
                     recipientAvatar: signal?.caller_avatar || "",
                   },

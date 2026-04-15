@@ -9,20 +9,63 @@
 
 const {
   withProjectBuildGradle,
+  withSettingsGradle,
   withAndroidManifest,
 } = require("expo/config-plugins");
+
+const MAVEN_CENTRAL_MIRROR =
+  "maven { url 'https://maven-central.storage-download.googleapis.com/maven2/' }";
+
+function insertBefore(contents, needle, insertion) {
+  if (contents.includes(insertion) || !contents.includes(needle)) {
+    return contents;
+  }
+
+  return contents.replace(needle, `${insertion}\n${needle}`);
+}
+
+function insertAfter(contents, needle, insertion) {
+  if (contents.includes(insertion) || !contents.includes(needle)) {
+    return contents;
+  }
+
+  return contents.replace(needle, `${needle}\n${insertion}`);
+}
+
+/** Add Maven Central mirror to generated settings.gradle pluginManagement.repositories */
+function withGradleMirrorSettings(config) {
+  return withSettingsGradle(config, (config) => {
+    const contents = config.modResults.contents;
+
+    if (contents.includes("maven-central.storage-download.googleapis.com")) {
+      return config;
+    }
+
+    config.modResults.contents = insertAfter(
+      contents,
+      "pluginManagement {",
+      "  repositories {\n    maven { url = uri(\"https://maven-central.storage-download.googleapis.com/maven2/\") }\n    google()\n    gradlePluginPortal()\n    mavenCentral()\n  }",
+    );
+
+    return config;
+  });
+}
 
 /** Add Regula Maven repo to allprojects.repositories in build.gradle */
 function withRegulaMaven(config) {
   return withProjectBuildGradle(config, (config) => {
-    const contents = config.modResults.contents;
+    let contents = config.modResults.contents;
+
+    contents = insertBefore(contents, "    mavenCentral()", `    ${MAVEN_CENTRAL_MIRROR}`);
 
     if (!contents.includes("maven.regulaforensics.com")) {
-      config.modResults.contents = contents.replace(
+      contents = contents.replace(
         "maven { url 'https://www.jitpack.io' }",
         "maven { url 'https://www.jitpack.io' }\n    maven { url 'https://maven.regulaforensics.com/RegulaDocumentReader' }",
       );
     }
+
+    config.modResults.contents = contents;
 
     return config;
   });
@@ -83,6 +126,7 @@ function withCallKeepServiceType(config) {
 
 /** Combined plugin */
 function withAndroidFixes(config) {
+  config = withGradleMirrorSettings(config);
   config = withRegulaMaven(config);
   config = withAllowBackupFix(config);
   config = withCallKeepServiceType(config);

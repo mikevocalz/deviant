@@ -1,7 +1,13 @@
 import { View, Text, TouchableOpacity } from "react-native";
 import { Image } from "expo-image";
 import { useRef, useState, useEffect } from "react";
-import { Camera, useCameraDevice } from "react-native-vision-camera";
+import {
+  Camera,
+  type CameraRef,
+  useCameraDevice,
+  useCameraPermission,
+  usePhotoOutput,
+} from "react-native-vision-camera";
 // TextRecognition removed due to GoogleMLKit version conflict - see CLAUDE.md
 // TODO: Re-add OCR when compatible version is available
 import * as ImagePicker from "expo-image-picker";
@@ -28,9 +34,17 @@ export default function IdScanTab() {
   const [ocrText, setOcrText] = useState<string>("");
   const [extractedDob, setExtractedDob] = useState<string | null>(null);
 
-  const camRef = useRef<Camera>(null);
+  const photoOutput = usePhotoOutput();
+  const camRef = useRef<CameraRef>(null);
   const device = useCameraDevice("back");
+  const { hasPermission, requestPermission } = useCameraPermission();
   const showToast = useUIStore((s) => s.showToast);
+
+  useEffect(() => {
+    if (mode === "camera" && !hasPermission) {
+      void requestPermission();
+    }
+  }, [hasPermission, mode, requestPermission]);
 
   // Simulate scanning progress
   useEffect(() => {
@@ -55,6 +69,55 @@ export default function IdScanTab() {
   const setIdComplete = useVerificationStore((s) => s.setIdComplete);
   const setIdImageUri = useVerificationStore((s) => s.setIdImageUri);
   const setParsedId = useVerificationStore((s) => s.setParsedId);
+
+  const handleChooseFromLibrary = async () => {
+    try {
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+      if (status !== "granted") {
+        showToast(
+          "error",
+          "Permission Required",
+          "Please allow photo library access to upload your ID.",
+        );
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: false,
+        quality: 0.8,
+        selectionLimit: 1,
+      });
+
+      if (result.canceled) {
+        return;
+      }
+
+      const asset = result.assets?.[0];
+      if (!asset?.uri) {
+        showToast(
+          "error",
+          "Upload Failed",
+          "We couldn't load that image. Please try another one.",
+        );
+        return;
+      }
+
+      setOcrText("");
+      setExtractedDob(null);
+      setImageUri(asset.uri);
+      setMode("preview");
+    } catch (error: any) {
+      console.error("[IdScanTab] Library pick error:", error);
+      showToast(
+        "error",
+        "Upload Failed",
+        error?.message || "Failed to add image. Please try again.",
+      );
+    }
+  };
 
   // Handle scan completion in useEffect to avoid setState during render
   useEffect(() => {
@@ -148,11 +211,21 @@ export default function IdScanTab() {
 
         <View className="items-center gap-2">
           <Text className="text-lg font-semibold text-foreground">
-            Upload ID Document
+            Scan a valid government-issued ID
           </Text>
           <Text className="text-sm text-muted text-center">
-            Take a photo or choose an existing image of your government-issued
-            ID
+            We use your ID only to confirm you are 18+ and real. It is never
+            shown on your profile.
+          </Text>
+        </View>
+
+        <View className="w-full rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
+          <Text className="text-sm font-semibold text-foreground">
+            Before you capture
+          </Text>
+          <Text className="mt-1 text-sm leading-5 text-muted">
+            Use the front of your ID, keep all edges visible, and avoid glare or
+            blur.
           </Text>
         </View>
 
@@ -172,25 +245,8 @@ export default function IdScanTab() {
 
           <Button
             variant="outline"
-            onPress={async () => {
-              const result = await ImagePicker.launchImageLibraryAsync({
-                mediaTypes: ["images"],
-                allowsEditing: true,
-                aspect: [16, 10],
-                quality: 0.9,
-              });
-
-              if (!result.canceled && result.assets[0]) {
-                const uri = result.assets[0].uri;
-                setImageUri(uri);
-
-                // OCR temporarily disabled - TextRecognition package removed due to GoogleMLKit conflict
-                console.log(
-                  "[IdScanTab] OCR disabled - using manual verification",
-                );
-
-                setMode("preview");
-              }
+            onPress={() => {
+              void handleChooseFromLibrary();
             }}
             className="flex-row items-center justify-center gap-2"
           >
@@ -206,6 +262,32 @@ export default function IdScanTab() {
 
   // Camera mode
   if (mode === "camera") {
+    if (!hasPermission) {
+      return (
+        <View
+          className="flex-1 bg-card rounded-2xl items-center justify-center px-6"
+          style={{ minHeight: 300 }}
+        >
+          <Text className="text-foreground text-center font-semibold">
+            Camera permission required
+          </Text>
+          <Text className="text-muted text-center mt-2">
+            Allow camera access to capture your ID.
+          </Text>
+          <Button onPress={() => void requestPermission()} className="mt-4">
+            <Text className="text-primary-foreground">Grant Access</Text>
+          </Button>
+          <Button
+            variant="outline"
+            onPress={() => setMode("select")}
+            className="mt-3"
+          >
+            Go Back
+          </Button>
+        </View>
+      );
+    }
+
     if (!device) {
       return (
         <View
@@ -234,7 +316,7 @@ export default function IdScanTab() {
           style={{ flex: 1 }}
           device={device}
           isActive
-          photo
+          outputs={[photoOutput]}
         />
 
         {/* ID frame overlay */}
@@ -250,7 +332,7 @@ export default function IdScanTab() {
 
         <View className="absolute bottom-6 left-0 right-0 px-6 gap-3">
           <Text className="text-center text-white text-sm mb-2">
-            Position your ID within the frame
+            Position your ID inside the frame with all corners visible.
           </Text>
           <View className="flex-row gap-3">
             <Button
@@ -264,11 +346,11 @@ export default function IdScanTab() {
               onPress={async () => {
                 try {
                   setBusy(true);
-                  const photo = await camRef.current?.takePhoto();
-                  if (!photo?.path) throw new Error("Failed to capture");
-                  const uri = photo.path.startsWith("file://")
-                    ? photo.path
-                    : `file://${photo.path}`;
+                  const photo = await photoOutput.capturePhoto({}, {});
+                  const filePath = await photo.saveToTemporaryFileAsync();
+                  const uri = filePath.startsWith("file://")
+                    ? filePath
+                    : `file://${filePath}`;
                   setImageUri(uri);
                   setMode("preview");
                 } catch (e: any) {
@@ -305,7 +387,7 @@ export default function IdScanTab() {
 
         <View className="absolute bottom-6 left-0 right-0 px-6 gap-3">
           <Text className="text-center text-muted text-sm mb-2">
-            Make sure your ID is clearly visible
+            Make sure the photo is clear, readable, and free of glare.
           </Text>
           <View className="flex-row gap-3">
             <Button

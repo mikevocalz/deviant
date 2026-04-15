@@ -1,8 +1,8 @@
 /**
  * DvntMap — Web fallback
  *
- * MapLibre React Native doesn't support web. This renders a graceful
- * placeholder card instead of crashing. The events screen still works.
+ * Native maps aren't rendered on web. This shows a graceful placeholder
+ * card instead of failing. The events screen still works.
  */
 
 import React from "react";

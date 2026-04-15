@@ -22,10 +22,10 @@ The location autocomplete is currently not working because the Google Places API
 Replace the placeholder API key in `.env`:
 
 ```bash
-# Current (INVALID):
+# Example:
 EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=YOUR_GOOGLE_PLACES_API_KEY_HERE
 
-# Replace with your REAL API key:
+# Replace with your real API key:
 EXPO_PUBLIC_GOOGLE_PLACES_API_KEY=YOUR_REAL_API_KEY_HERE
 ```
 

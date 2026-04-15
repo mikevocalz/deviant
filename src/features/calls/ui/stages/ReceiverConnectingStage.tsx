@@ -38,8 +38,13 @@ export function ReceiverConnectingStage({
       <View style={[StyleSheet.absoluteFill, styles.overlay]} />
 
       <View style={[styles.center, { paddingTop: insets.top + 80 }]}>
-        <ActivityIndicator size="large" color="rgba(255,255,255,0.8)" />
-        <Text style={styles.text}>Connecting…</Text>
+        <View style={styles.card}>
+          <ActivityIndicator size="large" color="rgba(255,255,255,0.8)" />
+          <Text style={styles.text}>Connecting…</Text>
+          <Text style={styles.subtext}>
+            Preparing audio and video for this room.
+          </Text>
+        </View>
       </View>
     </View>
   );
@@ -59,9 +64,23 @@ const styles = StyleSheet.create({
     paddingTop: 160,
     gap: 16,
   },
+  card: {
+    borderRadius: 28,
+    paddingHorizontal: 24,
+    paddingVertical: 24,
+    alignItems: "center",
+    gap: 12,
+    backgroundColor: "rgba(11,11,14,0.58)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
   text: {
     color: "rgba(255,255,255,0.8)",
     fontSize: 20,
     fontWeight: "500",
+  },
+  subtext: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 14,
   },
 });

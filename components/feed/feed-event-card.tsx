@@ -14,21 +14,30 @@ import { useCallback, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import type { Event } from "@/lib/hooks/use-events";
+import type { PublicGateReason } from "@/lib/access/public-gates";
 
 const CARD_HEIGHT = 200;
 
 export const FeedEventCard = memo(function FeedEventCard({
   event,
+  guestMode = false,
+  onRequireAuth,
 }: {
   event: Event;
+  guestMode?: boolean;
+  onRequireAuth?: (reason: PublicGateReason) => void;
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
 
   const handlePress = useCallback(() => {
+    if (guestMode) {
+      onRequireAuth?.("events");
+      return;
+    }
     screenPrefetch.eventDetail(queryClient, event.id);
     router.push(`/(protected)/events/${event.id}` as any);
-  }, [event.id, queryClient, router]);
+  }, [event.id, guestMode, onRequireAuth, queryClient, router]);
 
   const attendeeCount =
     typeof event.attendees === "number"
@@ -48,11 +57,20 @@ export const FeedEventCard = memo(function FeedEventCard({
         >
           {/* Hero image */}
           {event.image ? (
-            <Image
-              source={{ uri: event.image }}
-              style={{ width: "100%", height: "100%", position: "absolute" }}
-              contentFit="cover"
-            />
+            <View
+              style={{
+                width: "100%",
+                height: "100%",
+                position: "absolute",
+                overflow: "hidden",
+              }}
+            >
+              <Image
+                source={{ uri: event.image }}
+                style={{ width: "100%", height: "100%", position: "absolute" }}
+                contentFit="cover"
+              />
+            </View>
           ) : null}
 
           {/* Gradient overlay */}

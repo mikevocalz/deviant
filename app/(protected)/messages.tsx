@@ -6,6 +6,10 @@ import {
   TouchableOpacity,
   RefreshControl,
   StyleSheet,
+  FlatList,
+  Alert,
+  type ViewStyle,
+  type TextStyle,
 } from "react-native";
 import { Avatar } from "@/components/ui/avatar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -20,9 +24,11 @@ import {
   Users,
   Radio,
   Plus,
+  Trash2,
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import { useCallback, useState, useRef, useMemo, useEffect } from "react";
+import ReanimatedSwipeable from "react-native-gesture-handler/ReanimatedSwipeable";
 import { MessagesSkeleton } from "@/components/skeletons";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
@@ -38,7 +44,7 @@ import {
 import { useQueryClient } from "@tanstack/react-query";
 import { navigateToChat } from "@/lib/navigation/chat-routes";
 import { usePresenceStore } from "@/lib/stores/presence-store";
-import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
+import { useUserPresence } from "@/lib/hooks/use-presence";
 import PagerView from "react-native-pager-view";
 import {
   useLynkHistoryStore,
@@ -54,6 +60,7 @@ import { screenPrefetch } from "@/lib/prefetch";
 import { useChatStore } from "@/lib/stores/chat-store";
 import { supabase } from "@/lib/supabase/client";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 
 interface ConversationItem {
   id: string;
@@ -64,7 +71,52 @@ interface ConversationItem {
   unread: boolean;
   isGroup?: boolean;
   groupName?: string;
-  members?: Array<{ id: string; username: string; avatar: string }>;
+  members?: Array<{ id: string; authId?: string; username: string; avatar: string }>;
+}
+
+function GroupAvatarStack({
+  members,
+  onPress,
+}: {
+  members: Array<{ id: string; username: string; avatar: string }>;
+  onPress: () => void;
+}) {
+  const previewMembers = members.slice(0, 4);
+  const inset = 5;
+
+  return (
+    <Pressable onPress={onPress} style={conversationListStyles.groupAvatarWrap}>
+      <View style={conversationListStyles.groupAvatarStack}>
+        {previewMembers.map((member, idx) => {
+          const positions = [
+            { top: inset, left: inset },
+            { top: inset, right: inset },
+            { bottom: inset, left: inset },
+            { bottom: inset, right: inset },
+          ] as const;
+          const position = positions[idx] ?? positions[0];
+
+          return (
+            <View
+              key={member.id || `${member.username}-${idx}`}
+              style={[
+                conversationListStyles.groupAvatarTile,
+                position,
+                { zIndex: previewMembers.length - idx },
+              ]}
+            >
+              <Avatar
+                uri={member.avatar}
+                username={member.username}
+                size={21}
+                variant="roundedSquare"
+              />
+            </View>
+          );
+        })}
+      </View>
+    </Pressable>
+  );
 }
 
 function PresenceDot({ oderpantId }: { oderpantId: string }) {
@@ -103,75 +155,118 @@ function formatTimeAgo(dateString?: string): string {
   return date.toLocaleDateString();
 }
 
-// Shared conversation list component
-function ConversationList({
-  conversations,
-  isRefreshing,
-  onRefresh,
+function ConversationRow({
+  item,
   onChatPress,
   onProfilePress,
   onMarkAsRead,
-  emptyTitle,
-  emptyDescription,
-  emptyIcon,
-  router,
+  onDeleteConversation,
+  currentUser,
+  isDeleting,
 }: {
-  conversations: ConversationItem[];
-  isRefreshing: boolean;
-  onRefresh: () => void;
+  item: ConversationItem;
   onChatPress: (id: string, item?: ConversationItem) => void;
   onProfilePress: (username: string) => void;
   onMarkAsRead?: (id: string) => void;
-  emptyTitle: string;
-  emptyDescription: string;
-  emptyIcon: typeof MessageSquare;
-  router: ReturnType<typeof useRouter>;
+  onDeleteConversation?: (item: ConversationItem) => void;
+  currentUser: ReturnType<typeof useAuthStore.getState>["user"];
+  isDeleting?: boolean;
 }) {
+  const swipeableRef = useRef<any>(null);
+  const isGroup = !!item.isGroup;
+  const stackMembers =
+    isGroup && item.members
+      ? (() => {
+          const currentUserAuthId = currentUser?.authId || currentUser?.id;
+          const alreadyIncludesCurrentUser = item.members.some(
+            (member) =>
+              (currentUserAuthId &&
+                (member.authId === currentUserAuthId ||
+                  member.id === currentUserAuthId)) ||
+              (!!currentUser?.username && member.username === currentUser.username),
+          );
+
+          if (!currentUser || alreadyIncludesCurrentUser) {
+            return item.members;
+          }
+
+          return [
+            ...item.members,
+            {
+              id: String(currentUser.id || currentUser.authId || "me"),
+              authId: currentUser.authId || currentUser.id,
+              username: currentUser.username || "you",
+              avatar: currentUser.avatar || "",
+            },
+          ];
+        })()
+      : item.members || [];
+  const memberCount = isGroup ? Math.max(stackMembers.length, 1) : 0;
+
+  const confirmDelete = useCallback(() => {
+    swipeableRef.current?.close?.();
+    if (!onDeleteConversation || isDeleting) return;
+
+    Alert.alert(
+      isGroup ? "Leave group?" : "Delete conversation?",
+      isGroup
+        ? "This removes the group from your messages list. Other members keep the conversation."
+        : "This removes the conversation from your messages list.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: isGroup ? "Leave" : "Delete",
+          style: "destructive",
+          onPress: () => onDeleteConversation(item),
+        },
+      ],
+    );
+  }, [isDeleting, isGroup, item, onDeleteConversation]);
+
   return (
-    <ScrollView
-      className="flex-1"
-      refreshControl={
-        <RefreshControl
-          refreshing={isRefreshing}
-          onRefresh={onRefresh}
-          tintColor="#3EA4E5"
-        />
-      }
-    >
-      {conversations.map((item) => (
-        <View
-          key={item.id}
-          className="flex-row items-center gap-3 border-b border-border px-4 py-3"
-        >
-          {item.isGroup && item.members && item.members.length > 1 ? (
+    <View style={conversationListStyles.rowWrap}>
+      <ReanimatedSwipeable
+        ref={swipeableRef}
+        enabled={!!onDeleteConversation && !isDeleting}
+        overshootRight={false}
+        rightThreshold={42}
+        friction={2}
+        renderRightActions={() => (
+          <View style={conversationListStyles.deleteActionWrap}>
             <Pressable
-              onPress={() => onChatPress(item.id, item)}
-              style={{ width: 56, height: 56 }}
+              onPress={confirmDelete}
+              disabled={isDeleting}
+              style={[
+                conversationListStyles.deleteActionButton,
+                isDeleting ? conversationListStyles.deleteActionButtonDisabled : null,
+              ]}
             >
-              <View style={{ width: 56, height: 56 }}>
-                {item.members.slice(0, 3).map((member, idx) => (
-                  <View
-                    key={member.id || idx}
-                    style={{
-                      position: "absolute",
-                      top: idx === 0 ? 0 : idx === 1 ? 4 : 20,
-                      left: idx === 0 ? 0 : idx === 1 ? 22 : 11,
-                      zIndex: 3 - idx,
-                    }}
-                  >
-                    <Avatar
-                      uri={member.avatar}
-                      username={member.username}
-                      size={32}
-                      variant="roundedSquare"
-                    />
-                  </View>
-                ))}
-              </View>
+              <Trash2 size={18} color="#fff" />
+              <Text style={conversationListStyles.deleteActionText}>
+                {isDeleting ? "Deleting" : "Delete"}
+              </Text>
             </Pressable>
+          </View>
+        )}
+      >
+        <View
+          style={[
+            conversationListStyles.rowCard,
+            isGroup
+              ? conversationListStyles.rowCardGroup
+              : conversationListStyles.rowCardDirect,
+            item.unread ? conversationListStyles.rowCardUnread : null,
+            isDeleting ? conversationListStyles.rowCardDeleting : null,
+          ]}
+        >
+          {isGroup && stackMembers.length > 1 ? (
+            <GroupAvatarStack
+              members={stackMembers}
+              onPress={() => onChatPress(item.id, item)}
+            />
           ) : (
             <Pressable onPress={() => onProfilePress(item.user.username)}>
-              <View className="relative">
+              <View style={conversationListStyles.directAvatarWrap}>
                 <Avatar
                   uri={item.user.avatar}
                   username={item.user.username}
@@ -189,50 +284,160 @@ function ConversationList({
               if (item.unread && onMarkAsRead) onMarkAsRead(item.id);
             }}
             delayLongPress={400}
-            activeOpacity={0.7}
-            className="flex-1"
+            activeOpacity={0.8}
+            style={conversationListStyles.rowContent}
+            disabled={isDeleting}
           >
-            <View className="flex-row items-center justify-between">
-              {item.isGroup ? (
-                <View className="flex-row items-center gap-1.5">
-                  <Users size={14} color="#8A40CF" />
-                  <Text
-                    className={`text-base text-foreground ${item.unread ? "font-bold" : "font-medium"}`}
-                  >
-                    {item.groupName || item.user.username}
-                  </Text>
+            <View style={conversationListStyles.rowTop}>
+              <View style={conversationListStyles.titleBlock}>
+                <View style={conversationListStyles.titleRow}>
+                  {isGroup ? (
+                    <>
+                      <View style={conversationListStyles.groupBadge}>
+                        <Users size={12} color="#CFA8FF" />
+                        <Text style={conversationListStyles.groupBadgeText}>
+                          Group
+                        </Text>
+                      </View>
+                      <Text
+                        style={[
+                          conversationListStyles.titleText,
+                          item.unread && conversationListStyles.titleTextUnread,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {item.groupName || item.user.username}
+                      </Text>
+                    </>
+                  ) : (
+                    <Pressable onPress={() => onProfilePress(item.user.username)}>
+                      <Text
+                        style={[
+                          conversationListStyles.titleText,
+                          item.unread && conversationListStyles.titleTextUnread,
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {item.user.username}
+                      </Text>
+                    </Pressable>
+                  )}
                 </View>
-              ) : (
-                <Pressable onPress={() => onProfilePress(item.user.username)}>
-                  <Text
-                    className={`text-base text-foreground ${item.unread ? "font-bold" : "font-medium"}`}
-                  >
-                    {item.user.username}
+
+                {isGroup ? (
+                  <Text style={conversationListStyles.metaText} numberOfLines={1}>
+                    {memberCount} members
+                    {item.members && item.members.length > 0
+                      ? ` • ${item.members.map((m) => m.username).join(", ")}`
+                      : ""}
                   </Text>
-                </Pressable>
-              )}
-              <Text
-                className={`text-xs ${item.unread ? "text-primary font-semibold" : "text-muted-foreground"}`}
-              >
-                {item.timeAgo}
-              </Text>
+                ) : (
+                  <Text style={conversationListStyles.metaText} numberOfLines={1}>
+                    {item.user.name || item.user.username} • Direct message
+                  </Text>
+                )}
+              </View>
+
+              <View style={conversationListStyles.metaRight}>
+                <Text
+                  style={[
+                    conversationListStyles.timeText,
+                    item.unread && conversationListStyles.timeTextUnread,
+                  ]}
+                >
+                  {item.timeAgo}
+                </Text>
+                {item.unread && (
+                  <View style={conversationListStyles.unreadPill}>
+                    <Text style={conversationListStyles.unreadPillText}>
+                      New
+                    </Text>
+                  </View>
+                )}
+              </View>
             </View>
-            {item.isGroup && item.members && item.members.length > 0 && (
-              <Text className="text-xs text-muted-foreground" numberOfLines={1}>
-                {item.members.map((m) => m.username).join(", ")}
-              </Text>
-            )}
+
             <Text
-              className={`text-sm mt-0.5 ${item.unread ? "text-foreground" : "text-muted-foreground"}`}
-              numberOfLines={1}
+              style={[
+                conversationListStyles.previewText,
+                item.unread && conversationListStyles.previewTextUnread,
+              ]}
+              numberOfLines={2}
             >
-              {item.lastMessage}
+              {item.lastMessage || "No messages yet"}
             </Text>
           </TouchableOpacity>
         </View>
-      ))}
+      </ReanimatedSwipeable>
+    </View>
+  );
+}
 
-      {conversations.length === 0 && (
+// Shared conversation list component
+function ConversationList({
+  conversations,
+  isRefreshing,
+  onRefresh,
+  onChatPress,
+  onProfilePress,
+  onMarkAsRead,
+  onDeleteConversation,
+  emptyTitle,
+  emptyDescription,
+  emptyIcon,
+  router,
+  currentUser,
+  deletingConversationId,
+}: {
+  conversations: ConversationItem[];
+  isRefreshing: boolean;
+  onRefresh: () => void;
+  onChatPress: (id: string, item?: ConversationItem) => void;
+  onProfilePress: (username: string) => void;
+  onMarkAsRead?: (id: string) => void;
+  onDeleteConversation?: (item: ConversationItem) => void;
+  emptyTitle: string;
+  emptyDescription: string;
+  emptyIcon: typeof MessageSquare;
+  router: ReturnType<typeof useRouter>;
+  currentUser: ReturnType<typeof useAuthStore.getState>["user"];
+  deletingConversationId?: string | null;
+}) {
+  const renderConversationRow = ({
+    item,
+  }: {
+    item: ConversationItem;
+  }) => {
+    return (
+      <ConversationRow
+        item={item}
+        onChatPress={onChatPress}
+        onProfilePress={onProfilePress}
+        onMarkAsRead={onMarkAsRead}
+        onDeleteConversation={onDeleteConversation}
+        currentUser={currentUser}
+        isDeleting={deletingConversationId === item.id}
+      />
+    );
+  };
+
+  return (
+    <FlatList
+      data={conversations}
+      keyExtractor={(item) => item.id}
+      renderItem={renderConversationRow}
+      refreshControl={
+        <RefreshControl
+          refreshing={isRefreshing}
+          onRefresh={onRefresh}
+          tintColor="#3EA4E5"
+        />
+      }
+      contentContainerStyle={[
+        conversationListStyles.listContent,
+        conversations.length === 0 && conversationListStyles.listContentEmpty,
+      ]}
+      ListEmptyComponent={
         <EmptyState
           icon={emptyIcon}
           title={emptyTitle}
@@ -245,8 +450,10 @@ function ConversationList({
             </Button>
           }
         />
-      )}
-    </ScrollView>
+      }
+      showsVerticalScrollIndicator={false}
+      keyboardShouldPersistTaps="handled"
+    />
   );
 }
 
@@ -525,15 +732,223 @@ const lynkStyles = StyleSheet.create({
   },
 });
 
+const conversationListStyles = StyleSheet.create<{
+  listContent: ViewStyle;
+  listContentEmpty: ViewStyle;
+  rowWrap: ViewStyle;
+  rowCard: ViewStyle;
+  rowCardDirect: ViewStyle;
+  rowCardGroup: ViewStyle;
+  rowCardUnread: ViewStyle;
+  rowCardDeleting: ViewStyle;
+  directAvatarWrap: ViewStyle;
+  groupAvatarWrap: ViewStyle;
+  groupAvatarStack: ViewStyle;
+  groupAvatarTile: ViewStyle;
+  rowContent: ViewStyle;
+  rowTop: ViewStyle;
+  titleBlock: ViewStyle;
+  titleRow: ViewStyle;
+  titleText: TextStyle;
+  titleTextUnread: TextStyle;
+  groupBadge: ViewStyle;
+  groupBadgeText: TextStyle;
+  metaText: TextStyle;
+  metaRight: ViewStyle;
+  timeText: TextStyle;
+  timeTextUnread: TextStyle;
+  unreadPill: ViewStyle;
+  unreadPillText: TextStyle;
+  previewText: TextStyle;
+  previewTextUnread: TextStyle;
+  deleteActionWrap: ViewStyle;
+  deleteActionButton: ViewStyle;
+  deleteActionButtonDisabled: ViewStyle;
+  deleteActionText: TextStyle;
+}>({
+  listContent: {
+    paddingHorizontal: 12,
+    paddingTop: 8,
+    paddingBottom: 32,
+    gap: 0,
+  },
+  listContentEmpty: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  rowWrap: {
+    marginBottom: 4,
+  },
+  rowCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+  },
+  rowCardDirect: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderColor: "rgba(255,255,255,0.06)",
+  },
+  rowCardGroup: {
+    backgroundColor: "rgba(138,64,207,0.08)",
+    borderColor: "rgba(138,64,207,0.18)",
+  },
+  rowCardUnread: {
+    borderColor: "rgba(62,164,229,0.28)",
+    backgroundColor: "rgba(255,255,255,0.045)",
+  },
+  rowCardDeleting: {
+    opacity: 0.68,
+  },
+  directAvatarWrap: {
+    position: "relative",
+  },
+  groupAvatarWrap: {
+    width: 56,
+    height: 56,
+  },
+  groupAvatarStack: {
+    width: 56,
+    height: 56,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  groupAvatarTile: {
+    position: "absolute",
+    width: 21,
+    height: 21,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  rowContent: {
+    flex: 1,
+    gap: 4,
+  },
+  rowTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  titleBlock: {
+    flex: 1,
+    gap: 4,
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  titleText: {
+    flexShrink: 1,
+    color: "#fff",
+    fontSize: 17,
+    fontWeight: "600",
+  },
+  titleTextUnread: {
+    fontWeight: "800",
+  },
+  groupBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    borderRadius: 12,
+    backgroundColor: "rgba(138,64,207,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(207,168,255,0.18)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  groupBadgeText: {
+    color: "#E6D4FF",
+    fontSize: 11,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 0.3,
+  },
+  metaText: {
+    color: "rgba(255,255,255,0.52)",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  metaRight: {
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  timeText: {
+    color: "rgba(255,255,255,0.44)",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  timeTextUnread: {
+    color: "#8EDBFF",
+  },
+  unreadPill: {
+    borderRadius: 12,
+    backgroundColor: "rgba(62,164,229,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(62,164,229,0.24)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  unreadPillText: {
+    color: "#B9EAFF",
+    fontSize: 10,
+    fontWeight: "800",
+    textTransform: "uppercase",
+    letterSpacing: 0.35,
+  },
+  previewText: {
+    color: "rgba(255,255,255,0.72)",
+    fontSize: 14,
+    lineHeight: 20,
+  },
+  previewTextUnread: {
+    color: "#fff",
+  },
+  deleteActionWrap: {
+    width: 96,
+    justifyContent: "center",
+    paddingLeft: 8,
+  },
+  deleteActionButton: {
+    flex: 1,
+    borderRadius: 18,
+    backgroundColor: "#D92D20",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  deleteActionButtonDisabled: {
+    backgroundColor: "rgba(217,45,32,0.72)",
+  },
+  deleteActionText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+  },
+});
+
 function MessagesScreenContent() {
   const router = useRouter();
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((s) => s.user);
+  const setMessagesUnread = useUnreadCountsStore((s) => s.setMessagesUnread);
+  const setSpamUnread = useUnreadCountsStore((s) => s.setSpamUnread);
   const queryClient = useQueryClient();
   const trace = useScreenTrace("Messages");
   useBootstrapMessages();
   const refreshMessageCounts = useRefreshMessageCounts();
+  const [deletingConversationId, setDeletingConversationId] = useState<
+    string | null
+  >(null);
 
   const { data: inboxUnreadCount = 0, spamCount: spamUnreadCount = 0 } =
     useUnreadMessageCount();
@@ -663,6 +1078,7 @@ function MessagesScreenContent() {
         groupName: conv.groupName,
         members: conv.members?.map((m) => ({
           id: m.id,
+          authId: m.authId,
           username: m.username,
           avatar: m.avatar,
         })),
@@ -705,12 +1121,8 @@ function MessagesScreenContent() {
 
   const handleChatPress = useCallback(
     (id: string, item?: ConversationItem) => {
-      // Prefetch chat messages before navigation
-      try {
-        useChatStore.getState().loadMessages(id);
-      } catch {}
       navigateToChat(router, {
-        identifier: id,
+        conversationId: id,
         peerAvatar: item?.user?.avatar,
         peerUsername: item?.user?.username,
         peerName: item?.user?.name,
@@ -747,6 +1159,92 @@ function MessagesScreenContent() {
     setActiveTab(index);
     pagerRef.current?.setPage(index);
   }, []);
+
+  const handleDeleteConversation = useCallback(
+    async (item: ConversationItem) => {
+      if (!currentUser?.id || deletingConversationId === item.id) return;
+
+      setDeletingConversationId(item.id);
+      try {
+        const result = await messagesApiClient.deleteConversation(item.id);
+        if (!result.ok) {
+          showToast(
+            "error",
+            "Delete failed",
+            "Couldn't remove that conversation",
+          );
+          return;
+        }
+
+        queryClient.setQueryData<any[]>(
+          messageKeys.conversations(currentUser.id),
+          (old) =>
+            Array.isArray(old)
+              ? old.filter((conversation) => String(conversation?.id) !== item.id)
+              : old,
+        );
+
+        queryClient.setQueriesData<any[]>(
+          { queryKey: [...messageKeys.all(currentUser.id), "filtered"] },
+          (old) =>
+            Array.isArray(old)
+              ? old.filter((conversation) => String(conversation?.id) !== item.id)
+              : old,
+        );
+
+        if (result.unread) {
+          setMessagesUnread(result.unread.inbox);
+          setSpamUnread(result.unread.spam);
+          queryClient.setQueryData(messageKeys.unreadCount(currentUser.id), {
+            inbox: result.unread.inbox,
+            spam: result.unread.spam,
+          });
+        }
+
+        await Promise.allSettled([
+          queryClient.invalidateQueries({
+            queryKey: messageKeys.conversations(currentUser.id),
+            refetchType: "active",
+          }),
+          queryClient.invalidateQueries({
+            queryKey: [...messageKeys.all(currentUser.id), "filtered"],
+            refetchType: "active",
+          }),
+          queryClient.invalidateQueries({
+            queryKey: messageKeys.unreadCount(currentUser.id),
+            refetchType: "active",
+          }),
+        ]);
+
+        showToast(
+          "success",
+          item.isGroup ? "Left group" : "Deleted",
+          item.isGroup
+            ? "Removed from your messages"
+            : "Conversation removed",
+        );
+      } catch (error) {
+        console.error("[Messages] deleteConversation error:", error);
+        showToast(
+          "error",
+          "Delete failed",
+          "Couldn't remove that conversation",
+        );
+      } finally {
+        setDeletingConversationId((current) =>
+          current === item.id ? null : current,
+        );
+      }
+    },
+    [
+      currentUser?.id,
+      deletingConversationId,
+      queryClient,
+      setMessagesUnread,
+      setSpamUnread,
+      showToast,
+    ],
+  );
 
   const handlePageSelected = useCallback(
     (e: { nativeEvent: { position: number } }) => {
@@ -886,10 +1384,13 @@ function MessagesScreenContent() {
             onChatPress={handleChatPress}
             onProfilePress={handleProfilePress}
             onMarkAsRead={handleMarkAsRead}
+            onDeleteConversation={handleDeleteConversation}
             emptyTitle="No Messages"
             emptyDescription="Messages from people you follow will appear here"
             emptyIcon={Inbox}
             router={router}
+            currentUser={currentUser}
+            deletingConversationId={deletingConversationId}
           />
         </View>
         <View key="requests" style={{ flex: 1 }}>
@@ -900,10 +1401,13 @@ function MessagesScreenContent() {
             onChatPress={handleChatPress}
             onProfilePress={handleProfilePress}
             onMarkAsRead={handleMarkAsRead}
+            onDeleteConversation={handleDeleteConversation}
             emptyTitle="No Message Requests"
             emptyDescription="Messages from people you don't follow will appear here"
             emptyIcon={ShieldAlert}
             router={router}
+            currentUser={currentUser}
+            deletingConversationId={deletingConversationId}
           />
         </View>
         <View key="lynks" style={{ flex: 1 }}>

@@ -51,6 +51,30 @@ export function prefetchImages(urls: string[]) {
 }
 
 /**
+ * Prefetch a small batch of critical images synchronously before first paint.
+ * Used sparingly for above-the-fold feed media to avoid visible waterfalling.
+ */
+export async function prefetchImagesBlocking(urls: string[]) {
+  if (!urls.length) return;
+
+  const batch = urls.slice(0, Math.min(MAX_PREFETCH_BATCH, 12)).filter(Boolean);
+  if (!batch.length) return;
+
+  try {
+    await Image.prefetch(batch);
+    if (__DEV__) {
+      console.log(
+        `[ImagePrefetch] expo-image: awaited ${batch.length} critical images`,
+      );
+    }
+  } catch (err) {
+    if (__DEV__) {
+      console.warn("[ImagePrefetch] expo-image blocking error:", err);
+    }
+  }
+}
+
+/**
  * Prefetch image URLs into React Native's built-in Image cache.
  * Required for 3rd-party components that use RN's Image (e.g. react-native-insta-story).
  * expo-image and RN Image have SEPARATE caches — prefetching one does NOT warm the other.

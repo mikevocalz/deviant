@@ -1,0 +1,121 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# Expo
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native builds
+ios/
+android/
+*.orig.*
+*.aab
+*.apks
+
+# Signing keys & certificates
+*.jks
+*.p8
+*.p12
+*.key
+*.keystore
+*.mobileprovision
+*.cer
+*.certSigningRequest
+
+# Metro bundler
+.metro-health-check*
+
+# Debug logs
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+pnpm-debug.log*
+android-build.log
+android-run.log
+
+# Device log dumps
+android-logcat*.txt
+android-crash-logs.txt
+live-logs.txt
+metro-sev0*.txt
+recent-logs.txt
+
+# macOS
+.DS_Store
+**/.DS_Store
+*.pem
+
+# Environment files
+.env
+.env.*
+.env*.local
+!.env.example
+
+# TypeScript
+*.tsbuildinfo
+
+# Build outputs
+build/
+out/
+
+# IDE & editors
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+coverage/
+.nyc_output/
+
+# Caches
+.cache/
+*.log
+logs/
+
+# Misc repo-local tool directories not needed for EAS uploads
+.adal/
+.agents/
+.augment/
+.claude/
+.codebuddy/
+.commandcode/
+.continue/
+.crush/
+.cursor/
+.factory/
+.goose/
+.iflow/
+.junie/
+.kilocode/
+.kiro/
+.kode/
+.mcpjam/
+.mux/
+.neovate/
+.openhands/
+.pi/
+.pochi/
+.qoder/
+.qwen/
+.roo/
+.trae/
+.vibe/
+.windsurf/
+.zencoder/
+.copilot/
+.qodo/
+
+# Local skill assets not needed by the app bundle
+skills/
+skills-lock.json
+react-native-wgpu-*.tgz
+
+# Misc
+.vercel
+Thumbs.db
+selfIdentity.plist

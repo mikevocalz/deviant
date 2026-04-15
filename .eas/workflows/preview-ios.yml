@@ -1,0 +1,11 @@
+name: Preview iOS
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  build_ios_preview:
+    type: build
+    params:
+      platform: ios
+      profile: preview

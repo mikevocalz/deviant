@@ -257,6 +257,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       source,
       category: options?.category ?? "emoji",
       size,
+      assetId: options?.assetId,
       opacity: 1,
       zIndex: getNextZIndex(get().elements),
       transform: {
