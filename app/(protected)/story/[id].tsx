@@ -146,8 +146,14 @@ function buildTextStoryPalette(backgroundColor?: string | null) {
   return {
     background: [rgbToHex(deep), rgbToHex(base), rgbToHex(lifted)] as const,
     card: rgbToRgba(mixStoryColor(base, { r: 6, g: 8, b: 14 }, 0.72), 0.84),
-    cardBorder: rgbToRgba(mixStoryColor(base, { r: 255, g: 255, b: 255 }, 0.2), 0.22),
-    innerHighlight: rgbToRgba(mixStoryColor(base, { r: 255, g: 255, b: 255 }, 0.36), 0.12),
+    cardBorder: rgbToRgba(
+      mixStoryColor(base, { r: 255, g: 255, b: 255 }, 0.2),
+      0.22,
+    ),
+    innerHighlight: rgbToRgba(
+      mixStoryColor(base, { r: 255, g: 255, b: 255 }, 0.36),
+      0.12,
+    ),
     accent: rgbToHex(electric),
     glowPrimary: rgbToRgba(electric, 0.26),
     glowSecondary: rgbToRgba(cyan, 0.2),
@@ -501,11 +507,7 @@ function StoryAnimatedGifOverlays({
   );
 }
 
-function StoryOverlayLayer({
-  overlays,
-}: {
-  overlays: StoryOverlay[];
-}) {
+function StoryOverlayLayer({ overlays }: { overlays: StoryOverlay[] }) {
   if (overlays.length === 0) return null;
 
   return (
@@ -579,7 +581,9 @@ function StoryOverlayLayer({
             width * overlay.fontSizeRatio * overlay.scale,
             18,
           );
-          const prefersSystemFont = shouldUseSystemFontFallback(overlay.content);
+          const prefersSystemFont = shouldUseSystemFontFallback(
+            overlay.content,
+          );
           return (
             <View
               key={overlay.id}
@@ -621,9 +625,7 @@ function StoryOverlayLayer({
             ? getImageStickerSourceById(overlay.assetId)
             : null;
         const imageSource =
-          overlay.source === "url"
-            ? { uri: overlay.url }
-            : assetSource;
+          overlay.source === "url" ? { uri: overlay.url } : assetSource;
 
         if (!imageSource) return null;
 
@@ -810,9 +812,9 @@ function StoryViewerScreenContent() {
   }, [id, setCurrentStoryId]);
 
   // Filter stories that have content
-  const availableStories = (devDemoStories.length ? devDemoStories : storiesData).filter(
-    (s) => s.items && s.items.length > 0,
-  );
+  const availableStories = (
+    devDemoStories.length ? devDemoStories : storiesData
+  ).filter((s) => s.items && s.items.length > 0);
   // Use loose equality to handle string/number comparison (URL params are strings, API IDs may be numbers)
   let currentStoryIndex = availableStories.findIndex(
     (s) => String(s.id) === String(currentStoryId),
@@ -1242,9 +1244,7 @@ function StoryViewerScreenContent() {
     data: viewerCount,
     isLoading: viewerCountLoading,
     isFetching: viewerCountFetching,
-  } = useStoryViewerCount(
-    isOwnStory ? persistedStoryItemId : undefined,
-  );
+  } = useStoryViewerCount(isOwnStory ? persistedStoryItemId : undefined);
 
   // Delete story mutation
   const deleteStoryMutation = useDeleteStory();
@@ -2071,7 +2071,8 @@ function StoryViewerScreenContent() {
                     justifyContent: "center",
                   }}
                 >
-                  {viewerCountLoading || (viewerCountFetching && viewerCount == null) ? (
+                  {viewerCountLoading ||
+                  (viewerCountFetching && viewerCount == null) ? (
                     <ActivityIndicator size="small" color="#fff" />
                   ) : (
                     <Text
@@ -2145,27 +2146,31 @@ function StoryViewerScreenContent() {
               {/* Emoji reactions row — hidden while typing */}
               {!isInputFocused && (
                 <View
+                  pointerEvents="auto"
                   style={{
                     flexDirection: "row",
                     justifyContent: "center",
                     gap: 8,
                     paddingHorizontal: 20,
                     marginBottom: 10,
+                    zIndex: 80,
                   }}
                 >
                   {REACTION_EMOJIS.map((emoji) => (
                     <Pressable
                       key={emoji}
                       onPress={() => handleQuickReaction(emoji)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                       style={{
-                        width: 42,
-                        height: 42,
-                        borderRadius: 21,
-                        backgroundColor: "rgba(40,40,40,0.7)",
+                        width: 46,
+                        height: 46,
+                        borderRadius: 23,
+                        backgroundColor: "rgba(40,40,40,0.8)",
                         borderWidth: 1,
-                        borderColor: "rgba(255,255,255,0.12)",
+                        borderColor: "rgba(255,255,255,0.15)",
                         alignItems: "center",
                         justifyContent: "center",
+                        zIndex: 81,
                       }}
                     >
                       <Text style={{ fontSize: 22 }}>{emoji}</Text>
