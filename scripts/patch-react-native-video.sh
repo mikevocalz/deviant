@@ -23,11 +23,17 @@ fi
 needs_nitro_patch=false
 needs_ios_patch=false
 
-if ! grep -q "duration: UInt64;" "$TYPE_FILE" 2>/dev/null || ! grep -q "registerAllNatives" "$ONLOAD_FILE" 2>/dev/null; then
+# Only patch if the unfixed 'bigint' type is still present.
+# beta.9+ already ships 'duration: number' (not bigint), so no patch is needed.
+if grep -q "duration: bigint;" "$TYPE_FILE" 2>/dev/null; then
+  needs_nitro_patch=true
+elif ! grep -q "registerAllNatives" "$ONLOAD_FILE" 2>/dev/null; then
   needs_nitro_patch=true
 fi
 
-if [ -f "$IOS_ASSET_INFO_FILE" ] && ! grep -q "let resolvedDuration: UInt64" "$IOS_ASSET_INFO_FILE" 2>/dev/null; then
+# Only patch if the old Int64 duration pattern is present.
+# beta.9+ already uses Double for duration, so no patch is needed.
+if [ -f "$IOS_ASSET_INFO_FILE" ] && grep -q "Int64(CMTimeGetSeconds" "$IOS_ASSET_INFO_FILE" 2>/dev/null; then
   needs_ios_patch=true
 fi
 

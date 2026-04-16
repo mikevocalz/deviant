@@ -90,11 +90,13 @@ import {
   withTiming,
 } from "react-native-reanimated";
 import { Volume2, VolumeX } from "lucide-react-native";
-import {
-  resolveRenderableTextPostPresentation,
-} from "@/lib/posts/text-post";
+import { resolveRenderableTextPostPresentation } from "@/lib/posts/text-post";
 import type { PublicGateReason } from "@/lib/access/public-gates";
 import { shouldHydrateFeedTextSlides } from "@/lib/feed/text-hydration";
+import { useTranslation } from "react-i18next";
+import { TranslateButton } from "@/components/ui/translate-button";
+import { useContentTranslation } from "@/lib/stores/translation-store";
+import { shouldShowTranslateButton } from "@/lib/utils/language-detection";
 
 const CARD_HORIZONTAL_MARGIN = 4;
 const CARD_BORDER_WIDTH = 1;
@@ -263,8 +265,31 @@ function FeedPostComponent({
   }, [hydratedTextPresentation.textSlides, initialTextSlides]);
   const textPostCaption =
     hydratedTextPresentation.caption || initialTextPresentation.caption;
-  const hasMultipleTextSlides =
-    isTextPost && resolvedTextSlides.length > 1;
+  const hasMultipleTextSlides = isTextPost && resolvedTextSlides.length > 1;
+
+  // Translation support
+  const { i18n } = useTranslation();
+  const targetLang = i18n.language;
+  const {
+    displayText: translatedCaption,
+    isTranslated: isCaptionTranslated,
+    translate: translateCaptionFn,
+    showOriginal: showOriginalCaption,
+    hasTranslation: hasCaptionTranslation,
+  } = useContentTranslation(
+    `post-${id}-caption`,
+    textPostCaption || "",
+    targetLang,
+  );
+
+  const handleTranslateCaption = useCallback(async () => {
+    await translateCaptionFn();
+  }, [translateCaptionFn]);
+  const showTranslateButton = shouldShowTranslateButton(
+    textPostCaption || "",
+    targetLang,
+  );
+
   const hasMedia = media && media.length > 0;
   const isVideo = !isTextPost && hasMedia && media[0]?.type === "video";
   const hasMultipleMedia =
@@ -755,30 +780,48 @@ function FeedPostComponent({
             </View>
             {textPostCaption ? (
               <View style={{ marginTop: 14 }}>
-                <Text
+                <View
                   style={{
-                    fontSize: 14,
-                    lineHeight: 20,
-                    color: "rgba(248,250,252,0.92)",
+                    flexDirection: "row",
+                    alignItems: "flex-start",
+                    justifyContent: "space-between",
+                    gap: 8,
                   }}
                 >
                   <Text
-                    style={{ fontWeight: "700", color: "#fff" }}
-                    onPress={handleProfilePress}
-                  >
-                    {author?.username || "Unknown User"}{" "}
-                  </Text>
-                  <HashtagText
-                    text={textPostCaption}
-                    onHashtagPress={handleCaptionHashtagPress}
-                    onMentionPress={handleCaptionMentionPress}
-                    textStyle={{
+                    style={{
+                      flex: 1,
                       fontSize: 14,
                       lineHeight: 20,
-                      color: "rgba(226,232,240,0.82)",
+                      color: "rgba(248,250,252,0.92)",
                     }}
-                  />
-                </Text>
+                  >
+                    <Text
+                      style={{ fontWeight: "700", color: "#fff" }}
+                      onPress={handleProfilePress}
+                    >
+                      {author?.username || "Unknown User"}{" "}
+                    </Text>
+                    <HashtagText
+                      text={translatedCaption}
+                      onHashtagPress={handleCaptionHashtagPress}
+                      onMentionPress={handleCaptionMentionPress}
+                      textStyle={{
+                        fontSize: 14,
+                        lineHeight: 20,
+                        color: "rgba(226,232,240,0.82)",
+                      }}
+                    />
+                  </Text>
+                  {showTranslateButton && (
+                    <TranslateButton
+                      onTranslate={handleTranslateCaption}
+                      isTranslated={isCaptionTranslated}
+                      onToggleOriginal={showOriginalCaption}
+                      size="sm"
+                    />
+                  )}
+                </View>
               </View>
             ) : null}
           </View>

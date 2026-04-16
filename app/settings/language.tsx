@@ -4,53 +4,43 @@ import { useRouter, useNavigation } from "expo-router";
 import { SettingsCloseButton } from "@/components/settings-back-button";
 import { Check } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
-import { mmkv } from "@/lib/mmkv-zustand";
 import { useEffect, useState, useLayoutEffect } from "react";
 import { toast } from "sonner-native";
-
-const LANGUAGE_STORAGE_KEY = "app_language_preference";
-
-const languages = [
-  { code: "en", name: "English", native: "English" },
-  { code: "es", name: "Spanish", native: "Español" },
-  { code: "fr", name: "French", native: "Français" },
-  { code: "de", name: "German", native: "Deutsch" },
-  { code: "it", name: "Italian", native: "Italiano" },
-  { code: "pt", name: "Portuguese", native: "Português" },
-  { code: "ja", name: "Japanese", native: "日本語" },
-  { code: "ko", name: "Korean", native: "한국어" },
-  { code: "zh", name: "Chinese", native: "中文" },
-  { code: "ar", name: "Arabic", native: "العربية" },
-];
+import { useTranslation } from "react-i18next";
+import {
+  supportedLanguages,
+  changeLanguage,
+  getCurrentLanguage,
+} from "@/lib/i18n";
 
 export default function LanguageScreen() {
   const router = useRouter();
   const navigation = useNavigation();
   const { colors } = useColorScheme();
-  const [selectedLanguage, setSelectedLanguage] = useState("en");
+  const { t, i18n } = useTranslation();
+  const [selectedLanguage, setSelectedLanguage] =
+    useState(getCurrentLanguage());
 
   useEffect(() => {
-    const stored = mmkv.getString(LANGUAGE_STORAGE_KEY);
-    if (stored) setSelectedLanguage(stored);
-  }, []);
+    setSelectedLanguage(i18n.language);
+  }, [i18n.language]);
 
-  const handleSelectLanguage = (code: string) => {
-    setSelectedLanguage(code);
-    mmkv.set(LANGUAGE_STORAGE_KEY, code);
-    if (code !== "en") {
-      toast.info("Language saved", {
-        description:
-          "Full translation support coming soon. English is currently the only fully supported language.",
+  const handleSelectLanguage = async (code: string) => {
+    const success = changeLanguage(code);
+    if (success) {
+      setSelectedLanguage(code);
+      toast.success(t("settings.language"), {
+        description: t("common.save"),
       });
     } else {
-      toast.success("Language saved");
+      toast.error(t("common.error"));
     }
   };
 
   useLayoutEffect(() => {
     navigation.setOptions({
       headerShown: true,
-      title: "Language",
+      title: t("settings.language"),
       headerBackButtonDisplayMode: "minimal",
       headerLeft: () => null,
       headerTintColor: colors.foreground,
@@ -63,7 +53,7 @@ export default function LanguageScreen() {
       headerShadowVisible: false,
       headerRight: () => <SettingsCloseButton />,
     });
-  }, [navigation, colors]);
+  }, [navigation, colors, t]);
 
   return (
     <View className="flex-1 bg-background">
@@ -73,37 +63,34 @@ export default function LanguageScreen() {
           showsVerticalScrollIndicator={false}
         >
           <Text className="mb-3 text-sm text-muted-foreground">
-            Select your preferred language for the app interface.
+            {t("settings.systemDefault")}
           </Text>
 
           <View className="rounded-lg border border-border bg-card">
-            {languages.map((language, index) => (
-              <View key={language.code}>
-                {index > 0 && <View className="mx-4 h-px bg-border" />}
-                <Pressable
-                  onPress={() => handleSelectLanguage(language.code)}
-                  className="flex-row items-center justify-between p-4 active:bg-secondary/50"
-                >
-                  <View>
-                    <Text className="font-semibold text-foreground">
-                      {language.name}
-                    </Text>
-                    <Text className="text-sm text-muted-foreground">
-                      {language.native}
-                    </Text>
-                  </View>
-                  {selectedLanguage === language.code && (
-                    <Check size={20} color={colors.primary} />
-                  )}
-                </Pressable>
-              </View>
-            ))}
+            {supportedLanguages.map(
+              (language: (typeof supportedLanguages)[0], index: number) => (
+                <View key={language.code}>
+                  {index > 0 && <View className="mx-4 h-px bg-border" />}
+                  <Pressable
+                    onPress={() => handleSelectLanguage(language.code)}
+                    className="flex-row items-center justify-between p-4 active:bg-secondary/50"
+                  >
+                    <View>
+                      <Text className="font-semibold text-foreground">
+                        {language.name}
+                      </Text>
+                      <Text className="text-sm text-muted-foreground">
+                        {language.native}
+                      </Text>
+                    </View>
+                    {selectedLanguage === language.code && (
+                      <Check size={20} color={colors.primary} />
+                    )}
+                  </Pressable>
+                </View>
+              ),
+            )}
           </View>
-
-          <Text className="mt-4 text-center text-xs text-muted-foreground">
-            English is currently the only fully supported language. More
-            translations coming soon.
-          </Text>
         </ScrollView>
       </Main>
     </View>
