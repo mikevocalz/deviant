@@ -29,7 +29,7 @@ import {
   MapPin,
   Image as ImageIcon,
   Plus,
-  Youtube,
+  Video,
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import DateTimePicker from "@react-native-community/datetimepicker";
@@ -635,7 +635,7 @@ export function EventEditSheet({
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>YouTube Video</Text>
           <View style={styles.inputWithIcon}>
-            <Youtube size={18} color="#71717a" />
+            <Video size={18} color="#71717a" />
             <TextInput
               value={youtubeVideoUrl}
               onChangeText={setYoutubeVideoUrl}

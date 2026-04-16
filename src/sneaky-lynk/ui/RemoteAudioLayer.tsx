@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { View } from "react-native";
 import { RTCView } from "@fishjam-cloud/react-native-client";
+import type { MediaStream } from "@fishjam-cloud/react-native-webrtc";
 import type { VideoParticipant } from "./VideoGrid";
 
 interface RemoteAudioLayerProps {
@@ -15,7 +16,7 @@ export function RemoteAudioLayer({ participants }: RemoteAudioLayerProps) {
           if (participant.isLocal || !participant.audioTrack) return null;
 
           const track = participant.audioTrack;
-          const MediaStreamCtor = globalThis.MediaStream as
+          const MediaStreamCtor = globalThis.MediaStream as unknown as
             | (new (tracks?: any[]) => MediaStream)
             | undefined;
           const mediaStream =

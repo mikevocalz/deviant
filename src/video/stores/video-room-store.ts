@@ -13,6 +13,7 @@
  */
 
 import { create } from "zustand";
+import type { MediaStream } from "@fishjam-cloud/react-native-webrtc";
 import type {
   VideoRoom,
   Participant,

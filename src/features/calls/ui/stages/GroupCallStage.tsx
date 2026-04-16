@@ -9,6 +9,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RTCView } from "@fishjam-cloud/react-native-client";
+import type { MediaStream } from "@fishjam-cloud/react-native-webrtc";
 import { Image } from "expo-image";
 import { CameraOff, MicOff, Users } from "lucide-react-native";
 import type { Participant } from "@/src/video/types";

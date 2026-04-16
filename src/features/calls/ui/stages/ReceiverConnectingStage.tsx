@@ -10,6 +10,7 @@
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RTCView } from "@fishjam-cloud/react-native-client";
+import type { MediaStream } from "@fishjam-cloud/react-native-webrtc";
 
 export interface ReceiverConnectingStageProps {
   localStream: MediaStream | null;

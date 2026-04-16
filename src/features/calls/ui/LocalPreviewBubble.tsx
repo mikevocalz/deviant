@@ -7,7 +7,6 @@
 
 import { useRef } from "react";
 import {
-  View,
   StyleSheet,
   Animated,
   PanResponder,
@@ -15,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RTCView } from "@fishjam-cloud/react-native-client";
+import type { MediaStream } from "@fishjam-cloud/react-native-webrtc";
 
 const BUBBLE_W = 110;
 const BUBBLE_H = 150;

@@ -37,7 +37,7 @@ import {
   Users,
   Tag,
   Eye,
-  Youtube,
+  Video,
   Shirt,
   DoorOpen,
   Music,
@@ -1311,7 +1311,7 @@ function EditEventScreenContent() {
               paddingHorizontal: 16,
             }}
           >
-            <Youtube size={18} color={colors.mutedForeground} />
+            <Video size={18} color={colors.mutedForeground} />
             <TextInput
               value={youtubeVideoUrl}
               onChangeText={setYoutubeVideoUrl}

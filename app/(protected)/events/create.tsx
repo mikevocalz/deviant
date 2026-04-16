@@ -29,7 +29,7 @@ import {
   DollarSign,
   Users,
   Plus,
-  Youtube,
+  Video,
   Globe,
   Shield,
   Wifi,
@@ -1167,7 +1167,7 @@ function CreateEventScreenContent() {
                 YouTube Video (Optional)
               </Text>
               <View className="flex-row items-center bg-card rounded-2xl px-4">
-                <Youtube size={20} color={colors.primary} />
+                <Video size={20} color={colors.primary} />
                 <TextInput
                   className="flex-1 ml-3 py-4 text-base text-foreground"
                   placeholder="Paste YouTube URL or video ID"

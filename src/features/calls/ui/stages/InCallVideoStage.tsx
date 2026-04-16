@@ -11,6 +11,7 @@ import { useEffect, useRef } from "react";
 import { View, Text, StyleSheet, Animated } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { RTCView, RTCPIPView } from "@fishjam-cloud/react-native-client";
+import type { MediaStream } from "@fishjam-cloud/react-native-webrtc";
 import { Image } from "expo-image";
 import { LocalPreviewBubble } from "../LocalPreviewBubble";
 
