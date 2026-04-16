@@ -174,22 +174,37 @@ export function useContentTranslation(
   };
 }
 
-// Native translation function using the expo module.
-// Throws on failure so callers can surface errors to the UI.
+// HTTP-based translation using MyMemory (free, no API key required).
+// Falls back gracefully and throws so callers can surface errors to the UI.
 async function translateText(
   text: string,
   targetLang: string,
 ): Promise<string> {
-  let nativeTranslate: ((text: string, src: string, tgt: string) => Promise<{ translatedText: string }>) | null = null;
+  const tgt = !targetLang || targetLang === "auto" ? "en" : targetLang;
+
+  // Trim to 500 chars to stay within MyMemory's free limit per request
+  const trimmed = text.length > 500 ? text.slice(0, 497) + "…" : text;
+
+  const url =
+    `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=%7C${encodeURIComponent(tgt)}`;
+
+  let data: any;
   try {
-    const mod = await import("@/modules/translation/src");
-    nativeTranslate = mod.translateText;
-  } catch {
-    throw new Error("Translation is not available in this build");
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    data = await res.json();
+  } catch (err: any) {
+    throw new Error(`Translation service unavailable: ${err?.message ?? ""}`);
   }
-  const result = await nativeTranslate(text, "auto", targetLang);
-  if (!result?.translatedText) {
-    throw new Error("Translation returned an empty result");
+
+  if (data?.responseStatus !== 200) {
+    throw new Error(
+      `Translation failed: ${data?.responseDetails ?? "unknown error"}`,
+    );
   }
-  return result.translatedText;
+
+  const translated: string | undefined = data?.responseData?.translatedText;
+  if (!translated) throw new Error("Translation returned an empty result");
+
+  return translated;
 }

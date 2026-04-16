@@ -43,12 +43,7 @@ export function TranslateButton({
     try {
       await onTranslate();
     } catch (err: any) {
-      const msg = err?.message || "";
-      if (msg.includes("not available in this build")) {
-        setError("Update app to translate");
-      } else {
-        setError(t("common.error"));
-      }
+      setError(t("common.error"));
     } finally {
       setIsLoading(false);
     }
