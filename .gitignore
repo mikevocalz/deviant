@@ -11,6 +11,12 @@ expo-env.d.ts
 # Native builds
 ios/
 android/
+# Un-ignore local Expo module native source files
+!modules/
+!modules/**/
+!modules/**/*.swift
+!modules/**/*.kt
+!modules/**/build.gradle
 *.orig.*
 *.aab
 *.apks
