@@ -144,12 +144,13 @@ export function useContentTranslation(
 
     store.setLoading(contentId, true);
     try {
-      // Placeholder for native translation API
-      // This will be replaced with actual native module call
       const translated = await translateText(originalText, targetLang);
       store.setTranslation(contentHash, translated);
       store.toggleTranslation(contentId);
       return translated;
+    } catch (err) {
+      // Do NOT cache or toggle on failure — surface the error to the UI
+      throw err;
     } finally {
       store.setLoading(contentId, false);
     }
@@ -173,20 +174,22 @@ export function useContentTranslation(
   };
 }
 
-// Native translation function using the expo module
+// Native translation function using the expo module.
+// Throws on failure so callers can surface errors to the UI.
 async function translateText(
   text: string,
   targetLang: string,
 ): Promise<string> {
+  let nativeTranslate: ((text: string, src: string, tgt: string) => Promise<{ translatedText: string }>) | null = null;
   try {
-    // Dynamic import to avoid issues if module not built yet
-    const { translateText: nativeTranslate } =
-      await import("@/modules/translation/src");
-    const result = await nativeTranslate(text, "auto", targetLang);
-    return result.translatedText;
-  } catch (error) {
-    console.error("Translation error:", error);
-    // Fallback: return original text
-    return text;
+    const mod = await import("@/modules/translation/src");
+    nativeTranslate = mod.translateText;
+  } catch {
+    throw new Error("Translation is not available in this build");
   }
+  const result = await nativeTranslate(text, "auto", targetLang);
+  if (!result?.translatedText) {
+    throw new Error("Translation returned an empty result");
+  }
+  return result.translatedText;
 }

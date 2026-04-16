@@ -816,7 +816,28 @@ function EventDetailScreenContent() {
     }
   }, [eventData, showToast]);
 
-  // CRITICAL: useMemo MUST be called before any early returns (React hooks rules)
+  // CRITICAL: ALL hooks must be called before any early returns (React hooks rules)
+  // Translation hooks here — cannot be after early returns
+  const { i18n } = useTranslation();
+  const _targetLang = i18n.language;
+  const {
+    displayText: translatedDescription,
+    isTranslated: isDescriptionTranslated,
+    translate: translateDescriptionFn,
+    showOriginal: showOriginalDescription,
+  } = useContentTranslation(
+    `event-${eventId}-description`,
+    safeEvent?.description || "",
+    _targetLang,
+  );
+  const handleTranslateDescription = useCallback(async () => {
+    await translateDescriptionFn();
+  }, [translateDescriptionFn]);
+  const showTranslateButton = shouldShowTranslateButton(
+    safeEvent?.description || "",
+    _targetLang,
+  );
+
   const isPast = useMemo(() => {
     if (!eventData) return false;
     try {
@@ -882,27 +903,6 @@ function EventDetailScreenContent() {
   const isoDate = event.fullDate || event.date;
   const dateStr = formatEventDate(isoDate);
   const timeStr = formatEventTime(isoDate);
-
-  // Translation support for event description
-  const { i18n } = useTranslation();
-  const targetLang = i18n.language;
-  const {
-    displayText: translatedDescription,
-    isTranslated: isDescriptionTranslated,
-    translate: translateDescriptionFn,
-    showOriginal: showOriginalDescription,
-  } = useContentTranslation(
-    `event-${eventId}-description`,
-    event.description || "",
-    targetLang,
-  );
-  const handleTranslateDescription = useCallback(async () => {
-    await translateDescriptionFn();
-  }, [translateDescriptionFn]);
-  const showTranslateButton = shouldShowTranslateButton(
-    event.description || "",
-    targetLang,
-  );
 
   // ── Render ──────────────────────────────────────────────────────────
   return (
