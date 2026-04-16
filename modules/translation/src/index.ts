@@ -8,6 +8,9 @@ export async function translateText(
   sourceLanguage: string,
   targetLanguage: string,
 ): Promise<TranslationResult> {
+  if (!TranslationModule) {
+    throw new Error("Translation is not available in this build");
+  }
   return await TranslationModule.translateText(
     text,
     sourceLanguage,
@@ -19,6 +22,7 @@ export async function isTranslationAvailable(
   sourceLanguage: string,
   targetLanguage: string,
 ): Promise<boolean> {
+  if (!TranslationModule) return false;
   return await TranslationModule.isTranslationAvailable(
     sourceLanguage,
     targetLanguage,
@@ -26,9 +30,11 @@ export async function isTranslationAvailable(
 }
 
 export async function downloadLanguagePack(language: string): Promise<void> {
+  if (!TranslationModule) return;
   return await TranslationModule.downloadLanguagePack(language);
 }
 
 export async function getAvailableLanguages(): Promise<string[]> {
+  if (!TranslationModule) return [];
   return await TranslationModule.getAvailableLanguages();
 }
