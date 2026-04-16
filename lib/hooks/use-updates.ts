@@ -103,40 +103,8 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
     }
   }, [enabled]);
 
-  // Safe reload - never throws
-  // CRITICAL: Wait for Zustand persist rehydration to complete before reloading
-  const reloadApp = useCallback(async () => {
-    try {
-      console.log("[Updates] Preparing to restart app...");
-
-      // Wait for auth store rehydration to complete
-      try {
-        const { waitForRehydration, flushAuthStorage } =
-          await import("@/lib/stores/auth-store");
-        await waitForRehydration();
-        console.log("[Updates] Rehydration complete, flushing storage...");
-        await flushAuthStorage();
-        console.log("[Updates] Storage flushed");
-      } catch (rehydrateError) {
-        console.warn(
-          "[Updates] Rehydration wait failed (non-fatal):",
-          rehydrateError,
-        );
-        // Continue anyway - better to reload than hang
-      }
-
-      // Small additional delay to ensure all writes are persisted
-      await new Promise((resolve) => setTimeout(resolve, 200));
-
-      console.log("[Updates] Restarting app...");
-      if (Updates && typeof Updates.reloadAsync === "function") {
-        await Updates.reloadAsync();
-      }
-    } catch (error) {
-      console.error("[Updates] Error reloading (non-fatal):", error);
-      // Don't throw - just log
-    }
-  }, []);
+  // reloadApp intentionally removed — Updates.reloadAsync() crashes on iOS 26 beta.
+  // The downloaded bundle is applied automatically on the next cold start.
 
   // PHASE 6 FIX: Show update toast with robust single-instance guarantee
   // - Only ONE toast visible at a time
@@ -200,13 +168,14 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         setTimeout(() => {
           toast.success("Update Ready", {
             id: TOAST_ID, // CRITICAL: Consistent ID prevents stacking
-            description: "A new update is available. Restart to apply it.",
+            description: "Force-close & reopen the app to apply the update.",
             duration: Infinity, // NEVER auto-dismiss - user must choose
             action: {
-              label: "Restart Now",
+              label: "Got it",
               onClick: () => {
                 dismissToast();
-                reloadApp();
+                // Do NOT call reloadAsync() — it crashes on iOS 26 beta.
+                // The bundle is already downloaded; a cold start applies it.
               },
             },
             cancel: {
@@ -229,7 +198,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         globalToastVisible = false;
       }
     },
-    [reloadApp],
+    [],
   );
 
   // Download and apply update - never throws
