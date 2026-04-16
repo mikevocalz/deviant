@@ -34,9 +34,29 @@ if [ ! -f "$TARGET" ]; then
   exit 0
 fi
 
-# Check if already patched (look for our comment marker)
+# Check if already patched (look for our comment marker) AND that the cast is correct.
+# Early versions of this patch omitted the (id<EXReactDelegateProtocol>) cast, which
+# causes "receiver type EXReactDelegate is a forward declaration" build errors.
 if grep -q "patched for RN 0.84" "$TARGET" 2>/dev/null; then
-  echo "[patch-expo-root-view-factory] Already patched, skipping"
+  if grep -q 'self.reactDelegate) createReactRootView' "$TARGET" 2>/dev/null && ! grep -q '\[self\.reactDelegate createReactRootView' "$TARGET" 2>/dev/null; then
+    echo "[patch-expo-root-view-factory] Already patched, skipping"
+    exit 0
+  fi
+  # Fix missing casts in previously-patched file
+  python3 - "$TARGET" <<'FIXEOF'
+import sys
+from pathlib import Path
+path = Path(sys.argv[1])
+content = path.read_text()
+old = "    return [self.reactDelegate createReactRootViewWithModuleName:moduleName initialProperties:initialProperties launchOptions:launchOptions];"
+new = "    return [((id<EXReactDelegateProtocol>)self.reactDelegate) createReactRootViewWithModuleName:moduleName initialProperties:initialProperties launchOptions:launchOptions];"
+count = content.count(old)
+if count > 0:
+    path.write_text(content.replace(old, new))
+    print(f"[patch-expo-root-view-factory] Fixed {count} bare reactDelegate calls (missing protocol cast)")
+else:
+    print("[patch-expo-root-view-factory] Already patched correctly, skipping")
+FIXEOF
   exit 0
 fi
 
@@ -67,7 +87,7 @@ patch_block = """// patched for RN 0.84: 5-param override so Expo handler chain 
           devMenuConfiguration:(RCTDevMenuConfiguration *)devMenuConfiguration
 {
   if (self.reactDelegate != nil) {
-    return [self.reactDelegate createReactRootViewWithModuleName:moduleName initialProperties:initialProperties launchOptions:launchOptions];
+    return [((id<EXReactDelegateProtocol>)self.reactDelegate) createReactRootViewWithModuleName:moduleName initialProperties:initialProperties launchOptions:launchOptions];
   }
   return [super viewWithModuleName:moduleName initialProperties:initialProperties launchOptions:launchOptions bundleConfiguration:bundleConfiguration devMenuConfiguration:devMenuConfiguration];
 }
