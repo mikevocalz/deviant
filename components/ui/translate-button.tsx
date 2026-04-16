@@ -1,6 +1,6 @@
 import React, { useCallback, useState, useEffect } from "react";
 import { Pressable, ActivityIndicator, View, Text } from "react-native";
-import { Languages } from "lucide-react-native";
+import { Languages, AlertCircle } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import { useColorScheme } from "@/lib/hooks";
 
@@ -60,15 +60,19 @@ export function TranslateButton({
         flexDirection: "row",
         alignItems: "center",
         gap: 4,
-        paddingHorizontal: showLabel ? 8 : 0,
+        paddingHorizontal: showLabel || error ? 8 : 0,
         height: buttonSize,
         minWidth: buttonSize,
         borderRadius: 8,
-        backgroundColor: isTranslated
+        backgroundColor: error
+          ? "rgba(255, 160, 60, 0.12)"
+          : isTranslated
           ? "rgba(63, 220, 255, 0.15)"
           : "rgba(255, 255, 255, 0.08)",
         borderWidth: 1,
-        borderColor: isTranslated
+        borderColor: error
+          ? "rgba(255, 160, 60, 0.35)"
+          : isTranslated
           ? "rgba(63, 220, 255, 0.3)"
           : "rgba(255, 255, 255, 0.12)",
         opacity: pressed ? 0.7 : 1,
@@ -76,38 +80,33 @@ export function TranslateButton({
     >
       {isLoading ? (
         <ActivityIndicator size="small" color={colors.primary} />
+      ) : error ? (
+        <AlertCircle size={iconSize} color="rgba(255, 160, 60, 0.9)" />
       ) : (
         <Languages
           size={iconSize}
           color={isTranslated ? "#3FDCFF" : "rgba(255,255,255,0.6)"}
         />
       )}
-      {showLabel && (
+      {(showLabel || error) && (
         <Text
           style={{
             fontSize: size === "sm" ? 11 : 13,
             fontWeight: "500",
-            color: isTranslated ? "#3FDCFF" : "rgba(255,255,255,0.7)",
+            color: error
+              ? "rgba(255, 160, 60, 0.9)"
+              : isTranslated
+              ? "#3FDCFF"
+              : "rgba(255,255,255,0.7)",
           }}
+          numberOfLines={1}
         >
-          {isTranslated ? t("common.original") : t("common.translate")}
+          {error
+            ? t("common.error")
+            : isTranslated
+            ? t("common.original")
+            : t("common.translate")}
         </Text>
-      )}
-      {error && (
-        <View
-          style={{
-            position: "absolute",
-            bottom: -20,
-            left: 0,
-            right: 0,
-            backgroundColor: "rgba(255, 0, 0, 0.8)",
-            borderRadius: 4,
-            paddingHorizontal: 6,
-            paddingVertical: 2,
-          }}
-        >
-          <Text style={{ fontSize: 10, color: "#fff" }}>{error}</Text>
-        </View>
       )}
     </Pressable>
   );

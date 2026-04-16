@@ -11,6 +11,7 @@ interface TranslationModuleType {
     sourceLanguage: string,
     targetLanguage: string,
   ): Promise<boolean>;
+  detectLanguage(text: string): Promise<string>;
   downloadLanguagePack(language: string): Promise<void>;
   getAvailableLanguages(): Promise<string[]>;
 }

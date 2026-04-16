@@ -820,6 +820,20 @@ function EventDetailScreenContent() {
   // Translation hooks here — cannot be after early returns
   const { i18n } = useTranslation();
   const _targetLang = i18n.language;
+
+  // Title translation
+  const {
+    displayText: translatedTitle,
+    isTranslated: isTitleTranslated,
+    translate: translateTitleFn,
+    showOriginal: showOriginalTitle,
+  } = useContentTranslation(
+    `event-${eventId}-title`,
+    safeEvent?.title || "",
+    _targetLang,
+  );
+
+  // Description translation
   const {
     displayText: translatedDescription,
     isTranslated: isDescriptionTranslated,
@@ -830,13 +844,26 @@ function EventDetailScreenContent() {
     safeEvent?.description || "",
     _targetLang,
   );
-  const handleTranslateDescription = useCallback(async () => {
-    await translateDescriptionFn();
-  }, [translateDescriptionFn]);
-  const showTranslateButton = shouldShowTranslateButton(
-    safeEvent?.description || "",
-    _targetLang,
-  );
+
+  // Combined: translate title + description together with one button
+  const isEventTranslated = isDescriptionTranslated || isTitleTranslated;
+
+  const handleTranslateEvent = useCallback(async () => {
+    await Promise.all([
+      translateDescriptionFn().catch(() => {}),
+      translateTitleFn().catch(() => {}),
+    ]);
+  }, [translateDescriptionFn, translateTitleFn]);
+
+  const showOriginalEvent = useCallback(() => {
+    showOriginalDescription();
+    showOriginalTitle();
+  }, [showOriginalDescription, showOriginalTitle]);
+
+  // Show translate button when either title or description has foreign text
+  const showTranslateButton =
+    shouldShowTranslateButton(safeEvent?.description || "", _targetLang) ||
+    shouldShowTranslateButton(safeEvent?.title || "", _targetLang);
 
   const isPast = useMemo(() => {
     if (!eventData) return false;
@@ -980,7 +1007,7 @@ function EventDetailScreenContent() {
         {/* ── 2. CORE INFO BLOCK ───────────────────────────────── */}
         <View style={s.content}>
           <View>
-            <Text style={s.eventTitle}>{event.title}</Text>
+            <Text style={s.eventTitle}>{translatedTitle || event.title}</Text>
 
             {/* Host */}
             <Pressable style={s.hostRow}>
@@ -1114,9 +1141,9 @@ function EventDetailScreenContent() {
                 {showTranslateButton && (
                   <View style={{ marginTop: 8, marginLeft: 16 }}>
                     <TranslateButton
-                      onTranslate={handleTranslateDescription}
-                      isTranslated={isDescriptionTranslated}
-                      onToggleOriginal={showOriginalDescription}
+                      onTranslate={handleTranslateEvent}
+                      isTranslated={isEventTranslated}
+                      onToggleOriginal={showOriginalEvent}
                       size="sm"
                       showLabel
                     />

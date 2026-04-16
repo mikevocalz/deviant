@@ -1,12 +1,6 @@
 import { create } from "zustand";
 import { mmkv } from "@/lib/mmkv-zustand";
-
-interface TranslationCacheEntry {
-  text: string;
-  sourceLang: string;
-  targetLang: string;
-  timestamp: number;
-}
+import { translateText as nativeTranslate } from "@/modules/translation/src";
 
 interface TranslationState {
   // Cache: contentHash -> translated text
@@ -35,7 +29,6 @@ function hashContent(
   sourceLang: string,
   targetLang: string,
 ): string {
-  // Simple hash for demo - in production use a proper hash function
   const str = `${text}:${sourceLang}:${targetLang}`;
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -174,37 +167,14 @@ export function useContentTranslation(
   };
 }
 
-// HTTP-based translation using MyMemory (free, no API key required).
-// Falls back gracefully and throws so callers can surface errors to the UI.
-async function translateText(
-  text: string,
-  targetLang: string,
-): Promise<string> {
-  const tgt = !targetLang || targetLang === "auto" ? "en" : targetLang;
+// On-device translation via native module (Apple Translation on iOS, ML Kit on Android).
+// Throws on failure so callers can surface errors to the UI.
+async function translateText(text: string, targetLang: string): Promise<string> {
+  const tgt = (!targetLang || targetLang === "auto"
+    ? "en"
+    : targetLang.split("-")[0]
+  ).toLowerCase();
 
-  // Trim to 500 chars to stay within MyMemory's free limit per request
-  const trimmed = text.length > 500 ? text.slice(0, 497) + "…" : text;
-
-  const url =
-    `https://api.mymemory.translated.net/get?q=${encodeURIComponent(trimmed)}&langpair=%7C${encodeURIComponent(tgt)}`;
-
-  let data: any;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    data = await res.json();
-  } catch (err: any) {
-    throw new Error(`Translation service unavailable: ${err?.message ?? ""}`);
-  }
-
-  if (data?.responseStatus !== 200) {
-    throw new Error(
-      `Translation failed: ${data?.responseDetails ?? "unknown error"}`,
-    );
-  }
-
-  const translated: string | undefined = data?.responseData?.translatedText;
-  if (!translated) throw new Error("Translation returned an empty result");
-
-  return translated;
+  const result = await nativeTranslate(text, "auto", tgt);
+  return result.translatedText;
 }

@@ -2,6 +2,8 @@ package expo.modules.translation
 
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.common.model.RemoteModelManager
+import com.google.mlkit.nl.languageid.LanguageIdentification
+import com.google.mlkit.nl.languageid.LanguageIdentifier
 import com.google.mlkit.nl.translate.TranslateLanguage
 import com.google.mlkit.nl.translate.TranslateRemoteModel
 import com.google.mlkit.nl.translate.Translation
@@ -16,12 +18,34 @@ class TranslationModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("Translation")
 
+    // ── translateText ──────────────────────────────────────────────────────
     AsyncFunction("translateText") { text: String, sourceLanguage: String, targetLanguage: String ->
-      val sourceLang = mapLanguageCode(sourceLanguage)
+      if (text.isBlank()) {
+        return@AsyncFunction mapOf(
+          "translatedText" to text,
+          "detectedSourceLanguage" to "",
+        )
+      }
+
+      // Resolve source language — auto-detect via Language ID if needed
+      val resolvedSource: String = if (sourceLanguage == "auto" || sourceLanguage.isEmpty()) {
+        detectLanguageCode(text) ?: TranslateLanguage.ENGLISH
+      } else {
+        mapLanguageCode(sourceLanguage)
+      }
+
       val targetLang = mapLanguageCode(targetLanguage)
 
+      // Skip translation when source == target
+      if (resolvedSource == targetLang) {
+        return@AsyncFunction mapOf(
+          "translatedText" to text,
+          "detectedSourceLanguage" to resolvedSource,
+        )
+      }
+
       val options = TranslatorOptions.Builder()
-        .setSourceLanguage(sourceLang)
+        .setSourceLanguage(resolvedSource)
         .setTargetLanguage(targetLang)
         .build()
 
@@ -34,32 +58,45 @@ class TranslationModule : Module() {
 
         mapOf(
           "translatedText" to result,
-          "sourceLanguage" to sourceLanguage,
-          "confidence" to 1.0,
+          "detectedSourceLanguage" to resolvedSource,
         )
       } finally {
         translator.close()
       }
     }
 
+    // ── isTranslationAvailable ─────────────────────────────────────────────
     AsyncFunction("isTranslationAvailable") { sourceLanguage: String, targetLanguage: String ->
-      val sourceLang = mapLanguageCode(sourceLanguage)
-      val targetLang = mapLanguageCode(targetLanguage)
       val allLanguages = TranslateLanguage.getAllLanguages()
-      allLanguages.contains(sourceLang) && allLanguages.contains(targetLang)
+
+      if (sourceLanguage == "auto" || sourceLanguage.isEmpty()) {
+        // Auto: check a representative set of source languages
+        val commonSources = listOf("en", "es", "fr", "de", "zh", "ja", "ko", "ar", "ru", "pt", "it")
+        val targetLang = mapLanguageCode(targetLanguage)
+        allLanguages.contains(targetLang) &&
+          commonSources.any { allLanguages.contains(mapLanguageCode(it)) }
+      } else {
+        val sourceLang = mapLanguageCode(sourceLanguage)
+        val targetLang = mapLanguageCode(targetLanguage)
+        allLanguages.contains(sourceLang) && allLanguages.contains(targetLang)
+      }
     }
 
+    // ── detectLanguage ─────────────────────────────────────────────────────
+    AsyncFunction("detectLanguage") { text: String ->
+      detectLanguageCode(text) ?: "und"
+    }
+
+    // ── downloadLanguagePack ───────────────────────────────────────────────
     AsyncFunction("downloadLanguagePack") { language: String ->
       val langCode = mapLanguageCode(language)
-      // Download just the model for this language using ModelManager.
-      // ML Kit will use it for any pair involving this language.
       val model = TranslateRemoteModel.Builder(langCode).build()
       val conditions = DownloadConditions.Builder().build()
       RemoteModelManager.getInstance().download(model, conditions).await()
     }
 
+    // ── getAvailableLanguages ──────────────────────────────────────────────
     AsyncFunction("getAvailableLanguages") {
-      // Map ML Kit internal codes to BCP-47 codes.
       TranslateLanguage.getAllLanguages().map { code ->
         when (code) {
           TranslateLanguage.CHINESE -> "zh"
@@ -85,15 +122,45 @@ class TranslationModule : Module() {
     }
   }
 
+  // ── Language detection (ML Kit Language ID) ────────────────────────────
+
+  private suspend fun detectLanguageCode(text: String): String? {
+    val sample = text.take(500)
+    val identifier = LanguageIdentification.getClient()
+    return try {
+      val tag = identifier.identifyLanguage(sample).await()
+      identifier.close()
+      if (tag == LanguageIdentifier.UNDETERMINED_LANGUAGE_TAG) null else tag
+    } catch (e: Exception) {
+      try { identifier.close() } catch (_: Exception) { }
+      null
+    }
+  }
+
   /** Maps BCP-47 / user-facing codes to ML Kit's internal language codes. */
-  private fun mapLanguageCode(code: String): String = when (code) {
-    "auto" -> TranslateLanguage.ENGLISH
-    "zh", "zh-Hans", "zh-Hant" -> TranslateLanguage.CHINESE
-    else -> code
+  private fun mapLanguageCode(code: String): String = when (code.split("-").first().lowercase()) {
+    "zh" -> TranslateLanguage.CHINESE
+    "en" -> TranslateLanguage.ENGLISH
+    "es" -> TranslateLanguage.SPANISH
+    "fr" -> TranslateLanguage.FRENCH
+    "de" -> TranslateLanguage.GERMAN
+    "it" -> TranslateLanguage.ITALIAN
+    "pt" -> TranslateLanguage.PORTUGUESE
+    "ja" -> TranslateLanguage.JAPANESE
+    "ko" -> TranslateLanguage.KOREAN
+    "ar" -> TranslateLanguage.ARABIC
+    "ru" -> TranslateLanguage.RUSSIAN
+    "th" -> TranslateLanguage.THAI
+    "vi" -> TranslateLanguage.VIETNAMESE
+    "pl" -> TranslateLanguage.POLISH
+    "nl" -> TranslateLanguage.DUTCH
+    "tr" -> TranslateLanguage.TURKISH
+    "id" -> TranslateLanguage.INDONESIAN
+    else -> code.split("-").first().lowercase()
   }
 }
 
-// MARK: - Task<T>.await() — bridge GMS Task to Kotlin coroutines
+// ── Task<T>.await() — bridge GMS Task to Kotlin coroutines ────────────────
 
 private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T =
   suspendCancellableCoroutine { cont ->

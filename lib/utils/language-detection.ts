@@ -36,26 +36,45 @@ export function detectLanguage(text: string): string | null {
 }
 
 /**
- * Check if text should be translatable based on user's language preference
- * Returns true if text appears to be in a different language
+ * Check if text should be translatable based on user's language preference.
+ * Returns true if text appears to be in a different language from the user's.
  */
 export function shouldShowTranslateButton(
   text: string,
   userLanguage: string,
 ): boolean {
-  if (!text || text.trim().length < 3) return false;
+  if (!text || text.trim().length < 10) return false;
 
-  // Don't show translate if user is already viewing in that language
+  const userLang = (userLanguage || "en").split("-")[0].toLowerCase();
+
+  // ── Non-Latin scripts: always offer translation regardless of user language ──
+  // Cyrillic (Russian, Ukrainian, Bulgarian, Serbian, etc.)
+  if (/[\u0400-\u04FF]/.test(text)) return userLang !== "ru";
+  // Arabic
+  if (/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text))
+    return userLang !== "ar";
+  // Devanagari (Hindi, Marathi, etc.)
+  if (/[\u0900-\u097F]/.test(text)) return userLang !== "hi";
+  // Korean
+  if (/[\uAC00-\uD7AF\u1100-\u11FF]/.test(text)) return userLang !== "ko";
+  // Thai
+  if (/[\u0E00-\u0E7F]/.test(text)) return userLang !== "th";
+  // CJK (Chinese/Japanese)
+  if (/[\u3040-\u30FF\u4E00-\u9FFF\u3400-\u4DBF]/.test(text))
+    return userLang !== "zh" && userLang !== "ja";
+
+  // ── Latin-script languages: use pattern detection ──
   const detectedLang = detectLanguage(text);
 
-  // If no language detected (assumed English) and user is English, don't show
-  if (!detectedLang && userLanguage === "en") return false;
+  // Detected language matches user's language — translation not needed
+  if (detectedLang && detectedLang === userLang) return false;
 
-  // If detected language matches user's language, don't show
-  if (detectedLang === userLanguage) return false;
+  // Detected foreign language — show translate
+  if (detectedLang) return true;
 
-  // Show translate button - text appears to be in a different language
-  return true;
+  // No language detected (looks like English or undetermined Latin text).
+  // Only show for non-English users.
+  return userLang !== "en" && !userLang.startsWith("en");
 }
 
 /**

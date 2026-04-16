@@ -38,4 +38,7 @@ dependencies {
 
   // ML Kit on-device translation
   implementation 'com.google.mlkit:translate:17.0.3'
+
+  // ML Kit language identification (for auto-detect)
+  implementation 'com.google.mlkit:language-id:17.0.6'
 }

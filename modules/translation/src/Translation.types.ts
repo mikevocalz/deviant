@@ -1,7 +1,6 @@
 export interface TranslationResult {
   translatedText: string;
-  sourceLanguage: string;
-  confidence: number;
+  detectedSourceLanguage: string;
 }
 
 export interface TranslationAvailability {
