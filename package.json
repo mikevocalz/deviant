@@ -22,7 +22,7 @@
     "pre-deploy": "bash scripts/pre-deploy-check.sh",
     "lint:critical": "bash scripts/pre-deploy-check.sh",
     "eas-build-pre-install": "COREPACK_INTEGRITY_KEYS=0 corepack enable && COREPACK_INTEGRITY_KEYS=0 corepack prepare pnpm@10.28.0 --activate",
-    "postinstall": "(patch-package || true) && bash scripts/patch-insta-story.sh && bash scripts/patch-callkeep.sh && bash scripts/patch-expo-updates.sh && bash scripts/patch-worklets.sh && bash scripts/patch-wgpu.sh && bash scripts/patch-expo-audio.sh && bash scripts/patch-expo-factory.sh && bash scripts/patch-expo-modules-core.sh && bash scripts/patch-expo-dev-launcher.sh && bash scripts/patch-expo-dev-menu.sh && bash scripts/patch-expo-paste-input.sh && bash scripts/patch-react-native-video.sh && bash scripts/patch-expo-root-view-factory.sh && bash scripts/patch-react-native-gradle-plugin.sh && bash scripts/patch-vision-camera.sh"
+    "postinstall": "(patch-package || true) && bash scripts/patch-insta-story.sh && bash scripts/patch-callkeep.sh && bash scripts/patch-expo-updates.sh && bash scripts/patch-worklets.sh && bash scripts/patch-wgpu.sh && bash scripts/patch-expo-audio.sh && bash scripts/patch-expo-factory.sh && bash scripts/patch-expo-modules-core.sh && bash scripts/patch-expo-dev-launcher.sh && bash scripts/patch-expo-dev-menu.sh && bash scripts/patch-expo-paste-input.sh && bash scripts/patch-react-native-video.sh && bash scripts/patch-expo-dom-webview.sh && bash scripts/patch-expo-root-view-factory.sh && bash scripts/patch-react-native-gradle-plugin.sh && bash scripts/patch-vision-camera.sh"
   },
   "dependencies": {
     "@bam.tech/react-native-app-security": "^0.6.1",
@@ -195,7 +195,8 @@
     ],
     "overrides": {
       "hermes-compiler": "250829098.0.10",
-      "react-native-nitro-modules": "0.35.2"
+      "react-native-nitro-modules": "0.35.2",
+      "@expo/dom-webview": "55.0.5"
     },
     "patchedDependencies": {}
   }

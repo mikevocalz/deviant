@@ -8,6 +8,7 @@ overrides:
   '@fishjam-cloud/react-native-webrtc': 0.25.6
   hermes-compiler: 250829098.0.10
   react-native-nitro-modules: 0.35.2
+  '@expo/dom-webview': 55.0.5
 
 importers:
 
@@ -1202,7 +1203,7 @@ packages:
   '@expo/log-box@55.0.10':
     resolution: {integrity: sha512-7jdikExgIrCIF5e3P1qMwcUZ2tcxrNdVqE9Y8kNMUHqZ+ipMlin+SiZwJKHM1+am4CYGjhdyrzbnIpvEcLDYcg==}
     peerDependencies:
-      '@expo/dom-webview': ^55.0.5
+      '@expo/dom-webview': 55.0.5
       expo: '*'
       react: '*'
       react-native: '*'
@@ -3836,7 +3837,7 @@ packages:
     resolution: {integrity: sha512-sHIvqG477UU1jZHhaexXbUgsU7y+xnYZqDW1HrUkEBYiuEb5lobvWLmwea76EBVkityQx46UDtepFtarpUJQqQ==}
     hasBin: true
     peerDependencies:
-      '@expo/dom-webview': '*'
+      '@expo/dom-webview': 55.0.5
       '@expo/metro-runtime': '*'
       react: '*'
       react-native: '*'
@@ -8654,9 +8655,7 @@ snapshots:
       metro-runtime: 0.83.5
     transitivePeerDependencies:
       - '@babel/core'
-      - bufferutil
       - supports-color
-      - utf-8-validate
 
   '@react-native/normalize-colors@0.74.89': {}
 
