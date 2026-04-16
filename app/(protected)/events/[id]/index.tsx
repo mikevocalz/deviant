@@ -827,6 +827,7 @@ function EventDetailScreenContent() {
     isTranslated: isTitleTranslated,
     translate: translateTitleFn,
     showOriginal: showOriginalTitle,
+    isCapable: isTranslationCapable,
   } = useContentTranslation(
     `event-${eventId}-title`,
     safeEvent?.title || "",
@@ -860,10 +861,11 @@ function EventDetailScreenContent() {
     showOriginalTitle();
   }, [showOriginalDescription, showOriginalTitle]);
 
-  // Show translate button when either title or description has foreign text
+  // Show translate button only when native capability is confirmed AND text is foreign
   const showTranslateButton =
-    shouldShowTranslateButton(safeEvent?.description || "", _targetLang) ||
-    shouldShowTranslateButton(safeEvent?.title || "", _targetLang);
+    isTranslationCapable === true &&
+    (shouldShowTranslateButton(safeEvent?.description || "", _targetLang) ||
+      shouldShowTranslateButton(safeEvent?.title || "", _targetLang));
 
   const isPast = useMemo(() => {
     if (!eventData) return false;

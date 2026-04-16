@@ -1,6 +1,33 @@
 import { create } from "zustand";
 import { mmkv } from "@/lib/mmkv-zustand";
+import { useState, useEffect } from "react";
+import TranslationModule from "@/modules/translation/src/TranslationModule";
 import { translateText as nativeTranslate } from "@/modules/translation/src";
+
+// ── Capability probe — checked once per app session ───────────────────────────
+//
+// Uses TranslationModule.isTranslationAvailable as the capability signal:
+//   • 1.0.213 stub   : throws          → caught → false → button hidden
+//   • 1.0.214 iOS 17.4+ : true/false   → surface translate button accordingly
+//   • 1.0.214 iOS <17.4 : false        → button hidden (graceful)
+//   • module null    : false            → button hidden
+
+let _capabilityPromise: Promise<boolean> | null = null;
+
+function checkNativeCapability(): Promise<boolean> {
+  if (_capabilityPromise) return _capabilityPromise;
+  _capabilityPromise = (async () => {
+    if (!TranslationModule) return false;
+    try {
+      return await TranslationModule.isTranslationAvailable("en", "es");
+    } catch {
+      return false;
+    }
+  })();
+  return _capabilityPromise;
+}
+
+// ── Store ─────────────────────────────────────────────────────────────────────
 
 interface TranslationState {
   // Cache: contentHash -> translated text
@@ -23,7 +50,6 @@ interface TranslationState {
 const CACHE_PREFIX = "translation_cache_";
 const MAX_CACHE_ENTRIES = 500;
 
-// Generate content hash for cache key
 function hashContent(
   text: string,
   sourceLang: string,
@@ -45,27 +71,21 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
   loadingContentIds: new Set(),
 
   getCachedTranslation: (contentHash: string) => {
-    // Check memory cache first
     const memCached = get().cache.get(contentHash);
     if (memCached) return memCached;
 
-    // Check MMKV
     const stored = mmkv.getString(contentHash);
     if (stored) {
-      // Populate memory cache
       get().cache.set(contentHash, stored);
       return stored;
     }
-
     return undefined;
   },
 
   setTranslation: (contentHash: string, translatedText: string) => {
-    // Update memory cache
     const newCache = new Map(get().cache);
     newCache.set(contentHash, translatedText);
 
-    // Evict old entries if needed
     if (newCache.size > MAX_CACHE_ENTRIES) {
       const iterator = newCache.keys();
       const firstResult = iterator.next();
@@ -75,8 +95,6 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
     }
 
     set({ cache: newCache });
-
-    // Persist to MMKV
     mmkv.set(contentHash, translatedText);
   },
 
@@ -110,13 +128,18 @@ export const useTranslationStore = create<TranslationState>((set, get) => ({
 
   clearCache: () => {
     set({ cache: new Map(), activeTranslations: new Set() });
-    // Clear MMKV cache entries
     const keys = mmkv.getAllKeys().filter((k) => k.startsWith(CACHE_PREFIX));
     keys.forEach((k) => mmkv.remove(k));
   },
 }));
 
-// Helper hook for content translation
+// ── useContentTranslation — per-content translation hook ─────────────────────
+//
+// Returns `isCapable: boolean | null`:
+//   null  = still checking (hide button)
+//   false = native translation unavailable (hide button)
+//   true  = native translation available (show button if text is foreign)
+
 export function useContentTranslation(
   contentId: string,
   originalText: string,
@@ -124,6 +147,17 @@ export function useContentTranslation(
 ) {
   const store = useTranslationStore();
   const contentHash = hashContent(originalText, "auto", targetLang);
+
+  // Capability: null=checking, false=unavailable, true=available
+  const [isCapable, setIsCapable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    checkNativeCapability().then((capable) => {
+      if (!cancelled) setIsCapable(capable);
+    });
+    return () => { cancelled = true; };
+  }, []);
 
   const isTranslated = store.isTranslated(contentId);
   const isLoading = store.isLoading(contentId);
@@ -142,7 +176,6 @@ export function useContentTranslation(
       store.toggleTranslation(contentId);
       return translated;
     } catch (err) {
-      // Do NOT cache or toggle on failure — surface the error to the UI
       throw err;
     } finally {
       store.setLoading(contentId, false);
@@ -161,14 +194,16 @@ export function useContentTranslation(
     displayText,
     isTranslated,
     isLoading,
+    isCapable,
     translate,
     showOriginal,
     hasTranslation: !!cachedTranslation,
   };
 }
 
-// On-device translation via native module (Apple Translation on iOS, ML Kit on Android).
+// ── On-device translation — Apple Translation (iOS) / ML Kit (Android) ────────
 // Throws on failure so callers can surface errors to the UI.
+
 async function translateText(text: string, targetLang: string): Promise<string> {
   const tgt = (!targetLang || targetLang === "auto"
     ? "en"

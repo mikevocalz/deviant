@@ -276,6 +276,7 @@ function FeedPostComponent({
     translate: translateCaptionFn,
     showOriginal: showOriginalCaption,
     hasTranslation: hasCaptionTranslation,
+    isCapable: isTranslationCapable,
   } = useContentTranslation(
     `post-${id}-caption`,
     textPostCaption || "",
@@ -285,10 +286,9 @@ function FeedPostComponent({
   const handleTranslateCaption = useCallback(async () => {
     await translateCaptionFn();
   }, [translateCaptionFn]);
-  const showTranslateButton = shouldShowTranslateButton(
-    textPostCaption || "",
-    targetLang,
-  );
+  const showTranslateButton =
+    isTranslationCapable === true &&
+    shouldShowTranslateButton(textPostCaption || "", targetLang);
 
   const hasMedia = media && media.length > 0;
   const isVideo = !isTextPost && hasMedia && media[0]?.type === "video";

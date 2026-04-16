@@ -975,6 +975,7 @@ function PostDetailScreenContent() {
     isTranslated: isCaptionTranslated,
     translate: translateCaptionFn,
     showOriginal: showOriginalCaption,
+    isCapable: isTranslationCapable,
   } = useContentTranslation(
     `post-detail-${postId}-caption`,
     captionText || "",
@@ -983,10 +984,9 @@ function PostDetailScreenContent() {
   const handleTranslateCaption = useCallback(async () => {
     await translateCaptionFn();
   }, [translateCaptionFn]);
-  const showTranslateButton = shouldShowTranslateButton(
-    captionText || "",
-    targetLang,
-  );
+  const showTranslateButton =
+    isTranslationCapable === true &&
+    shouldShowTranslateButton(captionText || "", targetLang);
   const hasMedia =
     safePost.media &&
     Array.isArray(safePost.media) &&
