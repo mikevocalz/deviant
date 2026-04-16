@@ -1,0 +1,14 @@
+{
+  "name": "@deviant/translation",
+  "version": "1.0.0",
+  "description": "On-device translation module using Apple Translation framework and ML Kit",
+  "main": "src/index.ts",
+  "expoModule": {
+    "platforms": ["ios", "android"]
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

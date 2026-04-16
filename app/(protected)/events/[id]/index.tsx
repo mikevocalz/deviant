@@ -98,6 +98,10 @@ import { YouTubeEmbed } from "@/components/youtube-embed";
 import { EventActionSheet } from "@/components/events/event-action-sheet";
 import { EventEditSheet } from "@/components/events/event-edit-sheet";
 import { DVNTLiquidGlassIconButton } from "@/components/media/DVNTLiquidGlass";
+import { TranslateButton } from "@/components/ui/translate-button";
+import { useContentTranslation } from "@/lib/stores/translation-store";
+import { useTranslation } from "react-i18next";
+import { shouldShowTranslateButton } from "@/lib/utils/language-detection";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 420;
@@ -879,6 +883,27 @@ function EventDetailScreenContent() {
   const dateStr = formatEventDate(isoDate);
   const timeStr = formatEventTime(isoDate);
 
+  // Translation support for event description
+  const { i18n } = useTranslation();
+  const targetLang = i18n.language;
+  const {
+    displayText: translatedDescription,
+    isTranslated: isDescriptionTranslated,
+    translate: translateDescriptionFn,
+    showOriginal: showOriginalDescription,
+  } = useContentTranslation(
+    `event-${eventId}-description`,
+    event.description || "",
+    targetLang,
+  );
+  const handleTranslateDescription = useCallback(async () => {
+    await translateDescriptionFn();
+  }, [translateDescriptionFn]);
+  const showTranslateButton = shouldShowTranslateButton(
+    event.description || "",
+    targetLang,
+  );
+
   // ── Render ──────────────────────────────────────────────────────────
   return (
     <View style={s.root}>
@@ -920,9 +945,11 @@ function EventDetailScreenContent() {
 
           {/* Floating chips */}
           <View style={s.heroChips}>
-            {(ticketTiers.length > 0
-              ? ticketTiers.every((t) => t.price === 0)
-              : event.price === 0) ? (
+            {(
+              ticketTiers.length > 0
+                ? ticketTiers.every((t) => t.price === 0)
+                : event.price === 0
+            ) ? (
               <View style={[s.chip, s.chipFree]}>
                 <Text style={s.chipFreeText}>FREE</Text>
               </View>
@@ -1044,7 +1071,8 @@ function EventDetailScreenContent() {
           ) : null}
 
           {/* ── 3.5 WEATHER FORECAST ─────────────────────────────── */}
-          {(event.locationLat && event.locationLng) || (event.location && deviceLat && deviceLng) ? (
+          {(event.locationLat && event.locationLng) ||
+          (event.location && deviceLat && deviceLng) ? (
             <View style={s.section}>
               <WeatherModule
                 lat={event.locationLat ?? deviceLat ?? 0}
@@ -1077,11 +1105,24 @@ function EventDetailScreenContent() {
           {/* ── 4. COLLAPSIBLE EVENT DETAILS ─────────────────────── */}
           <View style={s.collapsibleSection}>
             {event.description ? (
-              <CollapsibleRow
-                icon="📝"
-                title="About"
-                content={event.description}
-              />
+              <View>
+                <CollapsibleRow
+                  icon="📝"
+                  title="About"
+                  content={translatedDescription}
+                />
+                {showTranslateButton && (
+                  <View style={{ marginTop: 8, marginLeft: 16 }}>
+                    <TranslateButton
+                      onTranslate={handleTranslateDescription}
+                      isTranslated={isDescriptionTranslated}
+                      onToggleOriginal={showOriginalDescription}
+                      size="sm"
+                      showLabel
+                    />
+                  </View>
+                )}
+              </View>
             ) : null}
             {event.lineup && event.lineup.length > 0 ? (
               <CollapsibleRow icon="🎧" title="Lineup" content={event.lineup} />
@@ -1354,7 +1395,11 @@ function EventDetailScreenContent() {
                   <View key={comment.id} style={s.commentRow}>
                     <Image
                       source={{
-                        uri: comment.user?.avatar || comment.avatar || comment.author?.avatar || "",
+                        uri:
+                          comment.user?.avatar ||
+                          comment.avatar ||
+                          comment.author?.avatar ||
+                          "",
                       }}
                       style={s.commentAvatar}
                     />
@@ -1391,10 +1436,12 @@ function EventDetailScreenContent() {
                       </Text>
                       {(comment.created_at || comment.createdAt) && (
                         <Text style={s.commentDate}>
-                          {new Date(comment.created_at || comment.createdAt).toLocaleDateString(
-                            "en-US",
-                            { month: "short", day: "numeric" },
-                          )}
+                          {new Date(
+                            comment.created_at || comment.createdAt,
+                          ).toLocaleDateString("en-US", {
+                            month: "short",
+                            day: "numeric",
+                          })}
                         </Text>
                       )}
                     </View>

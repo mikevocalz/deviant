@@ -92,6 +92,10 @@ import {
 import { normalizePost } from "@/lib/normalization/safe-entity";
 import { validatePostParams } from "@/lib/validation/post-params";
 import { resolveRenderableTextPostPresentation } from "@/lib/posts/text-post";
+import { TranslateButton } from "@/components/ui/translate-button";
+import { useContentTranslation } from "@/lib/stores/translation-store";
+import { useTranslation } from "react-i18next";
+import { shouldShowTranslateButton } from "@/lib/utils/language-detection";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 // CRITICAL: Match FeedItem's 4:5 aspect ratio for consistent display
@@ -851,7 +855,12 @@ function PostDetailScreenContent() {
     [safePost.caption, safePost.textSlides],
   );
   const baseTextSlides = useMemo(
-    () => resolveDetailTextSlides(postId, undefined, baseTextPresentation.textSlides),
+    () =>
+      resolveDetailTextSlides(
+        postId,
+        undefined,
+        baseTextPresentation.textSlides,
+      ),
     [baseTextPresentation.textSlides, postId],
   );
   const shouldHydrateDetailTextSlides =
@@ -956,6 +965,28 @@ function PostDetailScreenContent() {
   // These must be called unconditionally to maintain stable hook count
   const isTextPost = safePost.kind === "text";
   const isVideo = !isTextPost && safePost.media?.[0]?.type === "video";
+
+  // Translation support for caption
+  const { i18n } = useTranslation();
+  const targetLang = i18n.language;
+  const captionText = isTextPost ? textPostCaption : safePost.caption;
+  const {
+    displayText: translatedCaption,
+    isTranslated: isCaptionTranslated,
+    translate: translateCaptionFn,
+    showOriginal: showOriginalCaption,
+  } = useContentTranslation(
+    `post-detail-${postId}-caption`,
+    captionText || "",
+    targetLang,
+  );
+  const handleTranslateCaption = useCallback(async () => {
+    await translateCaptionFn();
+  }, [translateCaptionFn]);
+  const showTranslateButton = shouldShowTranslateButton(
+    captionText || "",
+    targetLang,
+  );
   const hasMedia =
     safePost.media &&
     Array.isArray(safePost.media) &&
@@ -1566,10 +1597,21 @@ function PostDetailScreenContent() {
                       {safePost.author?.username || "Unknown User"}{" "}
                     </Text>
                     <HashtagText
-                      text={textPostCaption}
+                      text={translatedCaption}
                       textStyle={{ fontSize: 15, color: colors.foreground }}
                     />
                   </Text>
+                  {showTranslateButton && (
+                    <View className="mt-2">
+                      <TranslateButton
+                        onTranslate={handleTranslateCaption}
+                        isTranslated={isCaptionTranslated}
+                        onToggleOriginal={showOriginalCaption}
+                        size="sm"
+                        showLabel
+                      />
+                    </View>
+                  )}
                 </View>
               ) : null}
             </View>
@@ -1596,10 +1638,21 @@ function PostDetailScreenContent() {
                   {safePost.author?.username || "Unknown User"}{" "}
                 </Text>
                 <HashtagText
-                  text={safePost.caption}
+                  text={translatedCaption}
                   textStyle={{ fontSize: 15, color: colors.foreground }}
                 />
               </Text>
+              {showTranslateButton && (
+                <View className="mt-2">
+                  <TranslateButton
+                    onTranslate={handleTranslateCaption}
+                    isTranslated={isCaptionTranslated}
+                    onToggleOriginal={showOriginalCaption}
+                    size="sm"
+                    showLabel
+                  />
+                </View>
+              )}
             </View>
           )}
         </View>

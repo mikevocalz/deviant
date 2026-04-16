@@ -1,5 +1,6 @@
 import "../global.css";
 import "@/lib/query-focus-manager";
+import "@/lib/i18n";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient } from "@tanstack/react-query";
@@ -25,7 +26,13 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
 import { useDeepLinkStore } from "@/lib/stores/deep-link-store";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Platform, View, Pressable, Text, ActivityIndicator } from "react-native";
+import {
+  Platform,
+  View,
+  Pressable,
+  Text,
+  ActivityIndicator,
+} from "react-native";
 import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { screenPrefetch } from "@/lib/prefetch";
@@ -119,9 +126,7 @@ export default function RootLayout() {
   const openedFromShareIntent = useDeepLinkStore(
     (s) => s.openedFromShareIntent,
   );
-  const pendingShareIntentRoute = useAppStore(
-    (s) => s.pendingShareIntentRoute,
-  );
+  const pendingShareIntentRoute = useAppStore((s) => s.pendingShareIntentRoute);
 
   useEffect(() => {
     const delay = openedFromShareIntent ? 0 : 1500;
@@ -235,7 +240,10 @@ export default function RootLayout() {
         case "like":
         case "comment":
         case "mention":
-          if ((data.type === "comment" || data.type === "mention") && data.postId) {
+          if (
+            (data.type === "comment" || data.type === "mention") &&
+            data.postId
+          ) {
             route = getPostDetailCommentsRoute(
               String(data.postId),
               typeof data.commentId === "string" ? data.commentId : undefined,
@@ -518,36 +526,36 @@ export default function RootLayout() {
                         {!authSettled &&
                           !openedFromShareIntent &&
                           !isAuthenticated && (
-                          <View
-                            style={{
-                              position: "absolute",
-                              top: 0,
-                              left: 0,
-                              right: 0,
-                              bottom: 0,
-                              backgroundColor: "#000",
-                              zIndex: 10000,
-                            }}
-                            pointerEvents="auto"
-                          >
-                            {userId ? (
-                              <FeedSkeleton />
-                            ) : (
-                              <View
-                                style={{
-                                  flex: 1,
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                }}
-                              >
-                                <ActivityIndicator
-                                  size="small"
-                                  color="#3FDCFF"
-                                />
-                              </View>
-                            )}
-                          </View>
-                        )}
+                            <View
+                              style={{
+                                position: "absolute",
+                                top: 0,
+                                left: 0,
+                                right: 0,
+                                bottom: 0,
+                                backgroundColor: "#000",
+                                zIndex: 10000,
+                              }}
+                              pointerEvents="auto"
+                            >
+                              {userId ? (
+                                <FeedSkeleton />
+                              ) : (
+                                <View
+                                  style={{
+                                    flex: 1,
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                  }}
+                                >
+                                  <ActivityIndicator
+                                    size="small"
+                                    color="#3FDCFF"
+                                  />
+                                </View>
+                              )}
+                            </View>
+                          )}
                       </View>
                       <PortalHost />
                       {/* CRITICAL: pointerEvents box-none ensures toasts never block

@@ -9,6 +9,7 @@ import {
   StyleSheet,
   InteractionManager,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
 import {
   BottomSheetBackdrop,
   BottomSheetModal,
@@ -461,7 +462,9 @@ function ChatScreenContent() {
   // CRITICAL: For numeric IDs, use chatId directly even if resolution failed
   // This allows existing conversations to work even if edge function is down
   const isNumericId = !!chatId && /^\d+$/.test(chatId);
-  const activeConvId = isNumericId ? (chatId as string) : (resolvedConvId ?? "");
+  const activeConvId = isNumericId
+    ? (chatId as string)
+    : (resolvedConvId ?? "");
 
   // Set TrueSheet header — use peerUsername from route params for instant render
   // Falls back to "Chat" if no params passed (e.g. deep link)
@@ -810,7 +813,8 @@ function ChatScreenContent() {
     const includesCurrentUser = safeGroupMembers.some(
       (member) =>
         (currentUserAuthId &&
-          (member.authId === currentUserAuthId || member.id === currentUserAuthId)) ||
+          (member.authId === currentUserAuthId ||
+            member.id === currentUserAuthId)) ||
         (!!currentUser?.username && member.username === currentUser.username),
     );
 
@@ -1393,21 +1397,7 @@ function ChatScreenContent() {
     if (!selectedMessage?.text) return;
     const copyText = async () => {
       try {
-        if (
-          Platform.OS === "web" &&
-          typeof navigator !== "undefined" &&
-          navigator.clipboard
-        ) {
-          await navigator.clipboard.writeText(selectedMessage.text);
-        } else {
-          // eslint-disable-next-line @typescript-eslint/no-var-requires
-          const { Clipboard: RNClipboard } = require("react-native");
-          if (!RNClipboard?.setString) {
-            throw new Error("Clipboard unavailable");
-          }
-          RNClipboard.setString(selectedMessage.text);
-        }
-
+        await Clipboard.setStringAsync(selectedMessage.text);
         showToast("success", "Copied", "Message copied to clipboard.");
       } catch (error) {
         console.error("[Chat] Copy failed:", error);
