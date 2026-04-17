@@ -7,6 +7,7 @@ import en from "./translations/en.json";
 import es from "./translations/es.json";
 import fr from "./translations/fr.json";
 import ja from "./translations/ja.json";
+import pt from "./translations/pt.json";
 import zh from "./translations/zh.json";
 
 const LANGUAGE_STORAGE_KEY = "app_language_preference";
@@ -16,6 +17,7 @@ const resources = {
   es: { translation: es },
   fr: { translation: fr },
   ja: { translation: ja },
+  pt: { translation: pt },
   zh: { translation: zh },
 };
 
@@ -37,6 +39,7 @@ export const supportedLanguages = [
   { code: "es", name: "Spanish", native: "Español" },
   { code: "fr", name: "French", native: "Français" },
   { code: "ja", name: "Japanese", native: "日本語" },
+  { code: "pt", name: "Portuguese (Brazil)", native: "Português (Brasil)" },
   { code: "zh", name: "Chinese", native: "中文" },
 ];
 
