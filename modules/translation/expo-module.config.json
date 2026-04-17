@@ -1,7 +1,8 @@
 {
   "platforms": ["apple", "android"],
   "apple": {
-    "modules": ["TranslationModule"]
+    "modules": ["TranslationModule"],
+    "podspecPath": "./ios/Translation.podspec"
   },
   "android": {
     "modules": ["expo.modules.translation.TranslationModule"]

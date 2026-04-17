@@ -139,8 +139,8 @@
     "react-native-star-rating-widget": "^1.11.0",
     "react-native-svg": "^15.15.4",
     "react-native-video": "7.0.0-beta.9",
-    "react-native-vision-camera": "5.0.0-beta.11",
-    "react-native-vision-camera-barcode-scanner": "5.0.0-beta.11",
+    "react-native-vision-camera": "^5.0.1",
+    "react-native-vision-camera-barcode-scanner": "^5.0.1",
     "react-native-voip-push-notification": "^3.3.3",
     "react-native-web": "~0.21.2",
     "react-native-webview": "^13.16.1",
@@ -153,7 +153,8 @@
     "tailwindcss-animate": "1.0.7",
     "zod": "^4.3.6",
     "zustand": "^5.0.12",
-    "expo-clipboard": "^55.0.13"
+    "expo-clipboard": "^55.0.13",
+    "@deviant/translation": "workspace:*"
   },
   "devDependencies": {
     "@config-plugins/react-native-callkeep": "^12.0.0",
