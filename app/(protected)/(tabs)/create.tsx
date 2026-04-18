@@ -125,7 +125,7 @@ function CreateScreenContent() {
     ? areTextSlidesValid
     : selectedMedia.length > 0;
 
-  const MAX_ANIMATED_VIDEO_DURATION = 15; // seconds
+  const MAX_ANIMATED_VIDEO_DURATION = 15; // seconds — below this, video posts as a muted autoplay loop
 
   const validateMedia = useCallback(
     (media: MediaAsset[]): MediaAsset[] => {
@@ -134,16 +134,13 @@ function CreateScreenContent() {
       for (const item of media) {
         if (item.type === "video") {
           const duration = item.duration ?? 0;
-          if (duration > MAX_ANIMATED_VIDEO_DURATION) {
-            showToast(
-              "warning",
-              "Video too long",
-              `Short videos (≤${MAX_ANIMATED_VIDEO_DURATION}s) post as animated loops. This video is ${Math.round(duration)}s.`,
-            );
-            continue;
+          if (duration <= MAX_ANIMATED_VIDEO_DURATION && duration > 0) {
+            // Short clip → animated loop (muted, autoplaying in feed)
+            validMedia.push({ ...item, kind: "animated_video" });
+          } else {
+            // Full video → regular video post with playback controls
+            validMedia.push(item);
           }
-          // Short video → treat as animated loop
-          validMedia.push({ ...item, kind: "animated_video" });
           continue;
         }
 
