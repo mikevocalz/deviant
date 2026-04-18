@@ -2,7 +2,7 @@ import ExpoModulesCore
 import NaturalLanguage
 import UIKit
 
-// Apple Translation framework — iOS 17.4+
+// Apple Translation framework — iOS 18.0+
 // Conditionally compiled so the module still builds on older SDKs.
 #if canImport(Translation)
 import Translation
@@ -40,7 +40,7 @@ public class TranslationModule: Module {
       }
 
       #if canImport(Translation)
-      if #available(iOS 17.4, *) {
+      if #available(iOS 18.0, *) {
         let srcLang = srcCode.flatMap { Locale.Language(identifier: $0) }
         let tgtLang = Locale.Language(identifier: tgtCode)
 
@@ -56,7 +56,7 @@ public class TranslationModule: Module {
 
       throw NSError(
         domain: "TranslationModule", code: 1,
-        userInfo: [NSLocalizedDescriptionKey: "Translation requires iOS 17.4+"])
+        userInfo: [NSLocalizedDescriptionKey: "Translation requires iOS 18.0+"])
     }
 
     // ── isTranslationAvailable ─────────────────────────────────────────────
@@ -64,7 +64,7 @@ public class TranslationModule: Module {
       (sourceLanguage: String, targetLanguage: String) async -> Bool in
 
       #if canImport(Translation)
-      if #available(iOS 17.4, *) {
+      if #available(iOS 18.0, *) {
         let avail = LanguageAvailability()
         let tgtCode = targetLanguage.split(separator: "-").first.map(String.init) ?? targetLanguage
         let tgt = Locale.Language(identifier: tgtCode)
@@ -100,7 +100,7 @@ public class TranslationModule: Module {
 
     // ── getAvailableLanguages ──────────────────────────────────────────────
     AsyncFunction("getAvailableLanguages") { () async -> [String] in
-      guard #available(iOS 17.4, *) else { return [] }
+      guard #available(iOS 18.0, *) else { return [] }
       return [
         "en", "es", "fr", "de", "it", "pt", "ja", "ko", "zh", "ar", "ru",
         "th", "vi", "pl", "nl", "tr", "id", "uk", "hi", "sv", "da", "fi",
@@ -124,10 +124,10 @@ public class TranslationModule: Module {
   }
 }
 
-// MARK: - Apple Translation Bridge (iOS 17.4+)
+// MARK: - Apple Translation Bridge (iOS 18.0+)
 
 #if canImport(Translation)
-@available(iOS 17.4, *)
+@available(iOS 18.0, *)
 enum AppleTranslationBridge {
 
   // Entry point — dispatches UIKit work onto the main actor.
@@ -243,7 +243,7 @@ enum AppleTranslationBridge {
 
 // MARK: - SwiftUI Bridge View
 
-@available(iOS 17.4, *)
+@available(iOS 18.0, *)
 private struct TranslationBridgeView: View {
   let text: String
   let config: TranslationSession.Configuration
