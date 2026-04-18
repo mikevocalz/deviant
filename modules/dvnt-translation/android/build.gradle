@@ -20,7 +20,7 @@ buildscript {
 
 android {
   compileSdkVersion safeExtGet("compileSdkVersion", 34)
-  namespace 'expo.modules.translation'
+  namespace 'expo.modules.dvnttranslation'
 
   defaultConfig {
     minSdkVersion safeExtGet("minSdkVersion", 24)

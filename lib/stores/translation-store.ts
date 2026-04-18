@@ -1,8 +1,8 @@
 import { create } from "zustand";
 import { mmkv } from "@/lib/mmkv-zustand";
 import { useState, useEffect } from "react";
-import TranslationModule from "@/modules/translation/src/TranslationModule";
-import { translateText as nativeTranslate } from "@/modules/translation/src";
+import DVNTTranslationModule from "@/modules/dvnt-translation/src/TranslationModule";
+import { translateText as nativeTranslate } from "@/modules/dvnt-translation/src";
 
 // ── Capability probe — checked once per app session ───────────────────────────
 //
@@ -17,9 +17,9 @@ let _capabilityPromise: Promise<boolean> | null = null;
 function checkNativeCapability(): Promise<boolean> {
   if (_capabilityPromise) return _capabilityPromise;
   _capabilityPromise = (async () => {
-    if (!TranslationModule) return false;
+    if (!DVNTTranslationModule) return false;
     try {
-      return await TranslationModule.isTranslationAvailable("en", "es");
+      return await DVNTTranslationModule.isTranslationAvailable("en", "es");
     } catch {
       return false;
     }

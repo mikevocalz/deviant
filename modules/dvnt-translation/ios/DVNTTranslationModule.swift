@@ -11,9 +11,9 @@ import SwiftUI
 
 // MARK: - Expo Module
 
-public class TranslationModule: Module {
+public class DVNTTranslationModule: Module {
   public func definition() -> ModuleDefinition {
-    Name("Translation")
+    Name("DVNTTranslation")
 
     // ── translateText ──────────────────────────────────────────────────────
     AsyncFunction("translateText") {
@@ -23,18 +23,15 @@ public class TranslationModule: Module {
         return ["translatedText": text, "detectedSourceLanguage": ""]
       }
 
-      // Normalise locale tag: "en-US" → "en"
       let tgtCode = targetLanguage.split(separator: "-").first.map(String.init) ?? targetLanguage
 
-      // Resolve source language (auto-detect via NLLanguageRecognizer)
       let srcCode: String?
       if sourceLanguage == "auto" || sourceLanguage.isEmpty {
-        srcCode = TranslationModule.detectCode(for: text)
+        srcCode = DVNTTranslationModule.detectCode(for: text)
       } else {
         srcCode = sourceLanguage.split(separator: "-").first.map(String.init) ?? sourceLanguage
       }
 
-      // Skip translation when source == target
       if let src = srcCode, src == tgtCode {
         return ["translatedText": text, "detectedSourceLanguage": src]
       }
@@ -44,7 +41,7 @@ public class TranslationModule: Module {
         let srcLang = srcCode.flatMap { Locale.Language(identifier: $0) }
         let tgtLang = Locale.Language(identifier: tgtCode)
 
-        let result = try await AppleTranslationBridge.translate(
+        let result = try await DVNTAppleTranslationBridge.translate(
           text: text, source: srcLang, target: tgtLang)
 
         return [
@@ -55,7 +52,7 @@ public class TranslationModule: Module {
       #endif
 
       throw NSError(
-        domain: "TranslationModule", code: 1,
+        domain: "DVNTTranslation", code: 1,
         userInfo: [NSLocalizedDescriptionKey: "Translation requires iOS 18.0+"])
     }
 
@@ -77,7 +74,6 @@ public class TranslationModule: Module {
           return status != .unsupported
         }
 
-        // Auto: check against common source languages
         for code in ["en", "es", "fr", "de", "zh", "ja", "ko", "ar", "ru", "pt", "it"] {
           let src = Locale.Language(identifier: code)
           let status = await avail.status(from: src, to: tgt)
@@ -91,11 +87,10 @@ public class TranslationModule: Module {
 
     // ── detectLanguage ─────────────────────────────────────────────────────
     AsyncFunction("detectLanguage") { (text: String) async -> String in
-      return TranslationModule.detectCode(for: text) ?? "und"
+      return DVNTTranslationModule.detectCode(for: text) ?? "und"
     }
 
     // ── downloadLanguagePack ───────────────────────────────────────────────
-    // Apple Translation downloads models automatically on first use.
     AsyncFunction("downloadLanguagePack") { (_: String) async -> Void in }
 
     // ── getAvailableLanguages ──────────────────────────────────────────────
@@ -109,17 +104,14 @@ public class TranslationModule: Module {
     }
   }
 
-  // MARK: - NLLanguageRecognizer (iOS 12+, no download required)
+  // MARK: - NLLanguageRecognizer (iOS 12+)
 
   fileprivate static func detectCode(for text: String) -> String? {
     let recognizer = NLLanguageRecognizer()
-    // Feed enough text for reliable detection
-    let sample = String(text.prefix(500))
-    recognizer.processString(sample)
+    recognizer.processString(String(text.prefix(500)))
     guard let lang = recognizer.dominantLanguage, lang != .undetermined else {
       return nil
     }
-    // NLLanguage rawValue is a BCP-47 code
     return lang.rawValue
   }
 }
@@ -128,9 +120,8 @@ public class TranslationModule: Module {
 
 #if canImport(Translation)
 @available(iOS 18.0, *)
-enum AppleTranslationBridge {
+enum DVNTAppleTranslationBridge {
 
-  // Entry point — dispatches UIKit work onto the main actor.
   static func translate(
     text: String,
     source: Locale.Language?,
@@ -141,7 +132,6 @@ enum AppleTranslationBridge {
     }.value
   }
 
-  // All UIKit calls must happen on the main thread.
   @MainActor
   private static func translateOnMain(
     text: String,
@@ -150,7 +140,7 @@ enum AppleTranslationBridge {
   ) async throws -> String {
     guard let rootVC = findRootViewController() else {
       throw NSError(
-        domain: "TranslationModule", code: 2,
+        domain: "DVNTTranslation", code: 2,
         userInfo: [NSLocalizedDescriptionKey: "No active foreground window"])
     }
 
@@ -169,8 +159,7 @@ enum AppleTranslationBridge {
     rootVC: UIViewController,
     continuation: CheckedContinuation<String, Error>
   ) {
-    // Holder keeps vc alive and prevents double-resume
-    let holder = BridgeHolder()
+    let holder = DVNTBridgeHolder()
 
     let complete: (Result<String, Error>) -> Void = { result in
       guard !holder.finished else { return }
@@ -185,11 +174,10 @@ enum AppleTranslationBridge {
     }
 
     let config = TranslationSession.Configuration(source: source, target: target)
-    let bridge = TranslationBridgeView(text: text, config: config, onComplete: complete)
+    let bridge = DVNTTranslationBridgeView(text: text, config: config, onComplete: complete)
     let vc = UIHostingController(rootView: bridge)
     holder.vc = vc
 
-    // Off-screen, invisible, non-interactive
     vc.view.frame = CGRect(x: -2, y: -2, width: 1, height: 1)
     vc.view.alpha = 0
     vc.view.isUserInteractionEnabled = false
@@ -199,18 +187,15 @@ enum AppleTranslationBridge {
     rootVC.view.addSubview(vc.view)
     vc.didMove(toParent: rootVC)
 
-    // 30-second safety timeout
     Task { @MainActor in
       try? await Task.sleep(nanoseconds: 30_000_000_000)
       complete(
         .failure(
           NSError(
-            domain: "TranslationModule", code: 3,
+            domain: "DVNTTranslation", code: 3,
             userInfo: [NSLocalizedDescriptionKey: "Translation timed out"])))
     }
   }
-
-  // MARK: Root VC discovery — iOS 15+ key-window API
 
   @MainActor
   private static func findRootViewController() -> UIViewController? {
@@ -244,7 +229,7 @@ enum AppleTranslationBridge {
 // MARK: - SwiftUI Bridge View
 
 @available(iOS 18.0, *)
-private struct TranslationBridgeView: View {
+private struct DVNTTranslationBridgeView: View {
   let text: String
   let config: TranslationSession.Configuration
   let onComplete: (Result<String, Error>) -> Void
@@ -267,9 +252,9 @@ private struct TranslationBridgeView: View {
   }
 }
 
-// MARK: - Mutable bridge state (class — reference semantics)
+// MARK: - Bridge state holder
 
-private final class BridgeHolder {
+private final class DVNTBridgeHolder {
   var vc: UIViewController?
   var finished = false
 }
