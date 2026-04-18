@@ -4,7 +4,7 @@
  */
 
 export type MediaType = "image" | "video";
-export type MediaKind = "image" | "gif" | "video" | "livePhoto";
+export type MediaKind = "image" | "gif" | "video" | "livePhoto" | "animated_video";
 
 export type BucketName =
   | "avatars"

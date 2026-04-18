@@ -15,6 +15,7 @@ import type { ImageStyle } from "expo-image";
 import { DVNTGifView } from "./DVNTGifView";
 import { DVNTLivePhotoView } from "./DVNTLivePhotoView";
 import { DVNTMediaBadge } from "./DVNTMediaBadge";
+import { DVNTAnimatedVideoView } from "./DVNTAnimatedVideoView";
 import type { MediaKind } from "@/lib/media/types";
 
 interface DVNTMediaRendererProps {
@@ -33,6 +34,8 @@ interface DVNTMediaRendererProps {
   accessibilityLabel?: string;
   /** For video kind: render this element instead (caller owns the VideoView + player) */
   videoSlot?: React.ReactNode;
+  /** Controls playback for GIF and animated_video when in feed (viewport-aware). Defaults to true. */
+  isPlaying?: boolean;
 }
 
 export function DVNTMediaRenderer({
@@ -44,6 +47,7 @@ export function DVNTMediaRenderer({
   showBadge = true,
   accessibilityLabel,
   videoSlot,
+  isPlaying = true,
 }: DVNTMediaRendererProps) {
   const kind = item.type;
   const containerStyle: ViewStyle = {
@@ -54,6 +58,22 @@ export function DVNTMediaRenderer({
     ...(style as object),
   };
 
+  if (kind === "animated_video") {
+    return (
+      <View style={containerStyle}>
+        <DVNTAnimatedVideoView
+          uri={item.url}
+          width="100%"
+          height="100%"
+          contentFit={contentFit}
+          accessibilityLabel={accessibilityLabel}
+          isPlaying={isPlaying}
+        />
+        {showBadge && <DVNTMediaBadge kind="gif" />}
+      </View>
+    );
+  }
+
   if (kind === "gif") {
     return (
       <View style={containerStyle}>
@@ -63,6 +83,7 @@ export function DVNTMediaRenderer({
           height="100%"
           contentFit={contentFit}
           accessibilityLabel={accessibilityLabel}
+          isPlaying={isPlaying}
         />
         {showBadge && <DVNTMediaBadge kind="gif" />}
       </View>
@@ -121,3 +142,4 @@ export function DVNTMediaRenderer({
 export { DVNTGifView } from "./DVNTGifView";
 export { DVNTLivePhotoView } from "./DVNTLivePhotoView";
 export { DVNTMediaBadge } from "./DVNTMediaBadge";
+export { DVNTAnimatedVideoView } from "./DVNTAnimatedVideoView";

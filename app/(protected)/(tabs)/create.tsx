@@ -8,17 +8,13 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
-import { VideoView, useVideoPlayer } from "expo-video";
 import {
   X,
   Image as ImageIcon,
-  Video,
   Camera,
   Trash2,
   Plus,
   Hash,
-  Play,
-  Pause,
   UserPlus,
   Scissors,
   Type,
@@ -62,83 +58,6 @@ const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
 const ASPECT_RATIO = 4 / 5;
 
 const MAX_PHOTOS = 4;
-const MAX_VIDEO_DURATION = 60;
-function VideoPreview({ uri, duration }: { uri: string; duration?: number }) {
-  const [isPlaying, setIsPlaying] = useState(false);
-  const player = useVideoPlayer(uri, (p) => {
-    p.loop = true;
-    p.muted = false;
-  });
-
-  const togglePlay = useCallback(() => {
-    if (isPlaying) {
-      player.pause();
-      setIsPlaying(false);
-    } else {
-      player.play();
-      setIsPlaying(true);
-    }
-  }, [isPlaying, player]);
-
-  return (
-    <Pressable onPress={togglePlay} style={{ width: "100%", height: "100%" }}>
-      <VideoView
-        player={player}
-        style={{ width: "100%", height: "100%" }}
-        contentFit="cover"
-        nativeControls={false}
-      />
-      {/* Play/Pause overlay */}
-      {!isPlaying && (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(0,0,0,0.3)",
-          }}
-        >
-          <View
-            style={{
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              backgroundColor: "rgba(0,0,0,0.6)",
-              alignItems: "center",
-              justifyContent: "center",
-            }}
-          >
-            <Play size={24} color="#fff" fill="#fff" />
-          </View>
-        </View>
-      )}
-      {/* Duration badge */}
-      <View
-        style={{
-          position: "absolute",
-          bottom: 8,
-          left: 8,
-          backgroundColor: "rgba(0,0,0,0.7)",
-          paddingHorizontal: 8,
-          paddingVertical: 4,
-          borderRadius: 4,
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 4,
-        }}
-      >
-        <Video size={12} color="#fff" />
-        <Text style={{ color: "#fff", fontSize: 12 }}>
-          {duration ? `${Math.round(duration)}s` : "Video"}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
 
 function CreateScreenContent() {
   const router = useRouter();
@@ -188,9 +107,7 @@ function CreateScreenContent() {
     cancelUpload,
   } = useMediaUpload({ folder: "posts" });
 
-  const hasVideo = selectedMedia.some((m) => m.type === "video");
-  const hasPhotos = selectedMedia.some((m) => m.type === "image");
-  const canAddMore = !hasVideo && selectedMedia.length < MAX_PHOTOS;
+  const canAddMore = selectedMedia.length < MAX_PHOTOS;
   const isTextPost = postKind === "text";
   const activeTextSlide = textSlides[activeTextSlideIndex] ?? textSlides[0];
   const hasTextDraft = textSlides.some(
@@ -208,83 +125,53 @@ function CreateScreenContent() {
     ? areTextSlidesValid
     : selectedMedia.length > 0;
 
+  const MAX_ANIMATED_VIDEO_DURATION = 15; // seconds
+
   const validateMedia = useCallback(
     (media: MediaAsset[]): MediaAsset[] => {
       const validMedia: MediaAsset[] = [];
 
       for (const item of media) {
         if (item.type === "video") {
-          if (hasPhotos || selectedMedia.length > 0) {
+          const duration = item.duration ?? 0;
+          if (duration > MAX_ANIMATED_VIDEO_DURATION) {
             showToast(
               "warning",
-              "Media Limit",
-              "You can either add up to 4 photos OR 1 video per post. Please remove existing media first.",
+              "Video too long",
+              `Short videos (≤${MAX_ANIMATED_VIDEO_DURATION}s) post as animated loops. This video is ${Math.round(duration)}s.`,
             );
             continue;
           }
-
-          if (item.duration && item.duration > MAX_VIDEO_DURATION) {
-            showToast(
-              "warning",
-              "Video Too Long",
-              `Videos must be ${MAX_VIDEO_DURATION} seconds or less. Your video is ${Math.round(item.duration)} seconds.`,
-            );
-            continue;
-          }
-
-          validMedia.push(item);
-          break;
-        } else {
-          if (hasVideo) {
-            showToast(
-              "warning",
-              "Media Limit",
-              "You already have a video. Posts can have either photos OR video, not both.",
-            );
-            continue;
-          }
-
-          if (selectedMedia.length + validMedia.length >= MAX_PHOTOS) {
-            showToast(
-              "warning",
-              "Photo Limit Reached",
-              `You can add up to ${MAX_PHOTOS} photos per post.`,
-            );
-            break;
-          }
-
-          validMedia.push(item);
+          // Short video → treat as animated loop
+          validMedia.push({ ...item, kind: "animated_video" });
+          continue;
         }
+
+        if (selectedMedia.length + validMedia.length >= MAX_PHOTOS) {
+          showToast("warning", "Photo limit reached", `You can add up to ${MAX_PHOTOS} photos per post.`);
+          break;
+        }
+
+        validMedia.push(item);
       }
 
       return validMedia;
     },
-    [hasVideo, hasPhotos, selectedMedia.length],
+    [selectedMedia.length, showToast],
   );
 
   const handlePickLibrary = async () => {
-    if (!canAddMore && !hasVideo) {
-      showToast(
-        "warning",
-        "Photo Limit",
-        `Maximum ${MAX_PHOTOS} photos per post.`,
-      );
+    if (!canAddMore) {
+      showToast("warning", "Photo limit", `Maximum ${MAX_PHOTOS} photos per post.`);
       return;
     }
 
-    const remaining = hasVideo ? 0 : MAX_PHOTOS - selectedMedia.length;
-    if (remaining === 0) {
-      showToast(
-        "warning",
-        "Media Limit",
-        "Remove existing media to add new ones.",
-      );
-      return;
-    }
+    const remaining = MAX_PHOTOS - selectedMedia.length;
 
     const media = await pickFromLibrary({
       maxSelection: remaining,
       allowsMultipleSelection: true,
+      mediaTypes: ["images", "videos", "livePhotos"],
     });
 
     if (media && media.length > 0) {
@@ -349,22 +236,14 @@ function CreateScreenContent() {
     }, [consumeCameraResult, validateMedia, selectedMedia, setSelectedMedia]),
   );
 
-  const handleOpenCamera = (mode: "photo" | "video" | "both" = "both") => {
-    if (mode === "photo" && hasVideo) {
-      showToast("warning", "Media Limit", "Remove the video to add photos.");
-      return;
-    }
-    if (mode === "photo" && selectedMedia.length >= MAX_PHOTOS) {
-      showToast(
-        "warning",
-        "Photo Limit",
-        `Maximum ${MAX_PHOTOS} photos per post.`,
-      );
+  const handleOpenCamera = () => {
+    if (selectedMedia.length >= MAX_PHOTOS) {
+      showToast("warning", "Photo limit", `Maximum ${MAX_PHOTOS} photos per post.`);
       return;
     }
     router.push({
       pathname: "/(protected)/camera",
-      params: { mode, source: "post", maxDuration: String(MAX_VIDEO_DURATION) },
+      params: { mode: "photo", source: "post" },
     });
   };
 
@@ -456,11 +335,7 @@ function CreateScreenContent() {
       AppTrace.warn("POST", "submit_blocked_no_media", {
         postKind: currentPostKind,
       });
-      showToast(
-        "error",
-        "No Media",
-        "Please select at least one photo or video",
-      );
+      showToast("error", "No Photos", "Please select at least one photo.");
       isSubmittingRef.current = false;
       setIsSubmitLocked(false);
       return;
@@ -585,7 +460,9 @@ function CreateScreenContent() {
         }
 
         postMedia = uploadResults.map((r) => ({
-          type: r.kind ?? r.type,
+          // animated_video is stored as type="video" in DB (enum constraint);
+          // mimeType="video/mp4+animated" is the distinguishing marker on read.
+          type: r.kind === "animated_video" ? "video" : (r.kind ?? r.type),
           url: r.url,
           ...(r.thumbnail && { thumbnail: r.thumbnail }),
           ...(r.mimeType && { mimeType: r.mimeType }),
@@ -820,7 +697,7 @@ function CreateScreenContent() {
                 key: "media",
                 label: "Media post",
                 icon: ImageIcon,
-                description: "Photos or one video. Caption optional.",
+                description: "Up to 4 photos. Caption optional.",
               },
               {
                 key: "text",
@@ -950,7 +827,7 @@ function CreateScreenContent() {
         </View>
 
         {/* Tag People Button */}
-        {!isTextPost && selectedMedia.length > 0 && !hasVideo && (
+        {!isTextPost && selectedMedia.length > 0 && (
           <Pressable
             onPress={() => setShowTagSheet(true)}
             style={{
@@ -1189,8 +1066,8 @@ function CreateScreenContent() {
               </Pressable>
 
               <Pressable
-                onPress={() => handleOpenCamera("photo")}
-                disabled={hasVideo || selectedMedia.length >= MAX_PHOTOS}
+                onPress={handleOpenCamera}
+                disabled={selectedMedia.length >= MAX_PHOTOS}
                 style={{
                   flex: 1,
                   flexDirection: "row",
@@ -1200,37 +1077,17 @@ function CreateScreenContent() {
                   backgroundColor: "#1a1a1a",
                   paddingVertical: 14,
                   borderRadius: 12,
-                  opacity:
-                    !hasVideo && selectedMedia.length < MAX_PHOTOS ? 1 : 0.5,
+                  opacity: selectedMedia.length < MAX_PHOTOS ? 1 : 0.5,
                 }}
               >
                 <Camera size={20} color="#fff" />
-                <Text style={{ color: "#fff", fontWeight: "600" }}>Photo</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => handleOpenCamera("video")}
-                style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  backgroundColor: "#1a1a1a",
-                  paddingVertical: 14,
-                  borderRadius: 12,
-                }}
-              >
-                <Video size={20} color="#fff" />
-                <Text style={{ color: "#fff", fontWeight: "600" }}>Video</Text>
+                <Text style={{ color: "#fff", fontWeight: "600" }}>Camera</Text>
               </Pressable>
             </View>
 
             <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
               <Text style={{ color: "#666", fontSize: 13 }}>
-                {hasVideo
-                  ? `Video (max ${MAX_VIDEO_DURATION}s)`
-                  : `Photos ${selectedMedia.length}/${MAX_PHOTOS}`}
+                {`Photos ${selectedMedia.length}/${MAX_PHOTOS}`}
               </Text>
             </View>
           </>
@@ -1243,23 +1100,39 @@ function CreateScreenContent() {
                 <View
                   key={media.id}
                   style={{
-                    width: hasVideo ? SCREEN_WIDTH - 32 : MEDIA_PREVIEW_SIZE,
-                    aspectRatio: hasVideo ? 16 / 9 : ASPECT_RATIO,
+                    width: MEDIA_PREVIEW_SIZE,
+                    aspectRatio: ASPECT_RATIO,
                     borderRadius: 12,
                     overflow: "hidden",
                     backgroundColor: "#111",
                   }}
                 >
-                  {media.type === "video" ? (
-                    <VideoPreview uri={media.uri} duration={media.duration} />
-                  ) : (
-                    <Image
-                      key={media.uri}
-                      source={{ uri: media.uri }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="cover"
-                      cachePolicy="none"
-                    />
+                  <Image
+                    key={media.uri}
+                    source={{ uri: media.uri }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                    cachePolicy="none"
+                    autoplay={media.kind === "gif"}
+                  />
+
+                  {/* Kind badge (GIF / LOOP / LIVE) */}
+                  {(media.kind === "gif" || media.kind === "animated_video" || media.kind === "livePhoto") && (
+                    <View
+                      style={{
+                        position: "absolute",
+                        bottom: 8,
+                        left: 8,
+                        backgroundColor: "rgba(0,0,0,0.75)",
+                        paddingHorizontal: 6,
+                        paddingVertical: 2,
+                        borderRadius: 4,
+                      }}
+                    >
+                      <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
+                        {media.kind === "gif" ? "GIF" : media.kind === "animated_video" ? "LOOP" : "LIVE"}
+                      </Text>
+                    </View>
                   )}
 
                   <View
@@ -1381,7 +1254,7 @@ function CreateScreenContent() {
                 marginBottom: 8,
               }}
             >
-              Add Photos or Video
+              Add Photos
             </Text>
             <Text
               style={{
@@ -1391,8 +1264,7 @@ function CreateScreenContent() {
                 lineHeight: 20,
               }}
             >
-              Select up to {MAX_PHOTOS} photos or 1 video{"\n"}(max{" "}
-              {MAX_VIDEO_DURATION} seconds)
+              Select up to {MAX_PHOTOS} photos
             </Text>
           </View>
         )}

@@ -202,7 +202,8 @@ export function transformPost(
 
       // Derive kind: existing rows have no mime_type — fall back to type field
       let kind: import("@/lib/types").MediaKind = "image";
-      if (rawType === "video") kind = "video";
+      if (rawType === "video" && mimeType === "video/mp4+animated") kind = "animated_video";
+      else if (rawType === "video") kind = "video";
       else if (rawType === "gif" || mimeType === "image/gif") kind = "gif";
       else if (rawType === "livePhoto" || livePhotoVideoUrl)
         kind = "livePhoto";

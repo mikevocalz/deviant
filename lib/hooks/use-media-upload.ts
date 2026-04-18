@@ -131,12 +131,13 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
       setStatusMessage(null);
 
       const results: MediaUploadResult[] = [];
-      const videoCount = files.filter((f) => f.type === "video").length;
-      const imageCount = files.length - videoCount;
+      const videoCount = files.filter((f) => f.type === "video" && f.kind !== "animated_video").length;
+      const animatedVideoCount = files.filter((f) => f.kind === "animated_video").length;
+      const imageCount = files.length - videoCount - animatedVideoCount;
       const isStory = folder === "stories";
       // Story videos add a thumbnail generation/reconciliation step before publish.
       const videoSteps = isStory ? 4 : 3;
-      const totalSteps = videoCount * videoSteps + imageCount;
+      const totalSteps = videoCount * videoSteps + animatedVideoCount * 2 + imageCount;
       let completedSteps = 0;
 
       const updateProgress = (message?: string) => {
@@ -158,7 +159,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
             await assertReadableMediaUri(file.pairedVideoUri);
           }
         } catch (mediaError: any) {
-          const skippedSteps = file.type === "video" ? videoSteps : 1;
+          const skippedSteps = file.kind === "animated_video" ? 2 : file.type === "video" ? videoSteps : 1;
           results.push({
             type: file.type,
             kind: file.kind,
@@ -173,7 +174,7 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           continue;
         }
 
-        if (file.type === "video") {
+        if (file.type === "video" && file.kind !== "animated_video") {
           // ========== VIDEO PROCESSING (MANDATORY COMPRESSION) ==========
           console.log(
             "[useMediaUpload] ========== VIDEO COMPRESSION PIPELINE ==========",
@@ -371,6 +372,50 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           console.log(
             "[useMediaUpload] ========== VIDEO PIPELINE COMPLETE ==========",
           );
+        } else if (file.kind === "animated_video") {
+          // ========== ANIMATED VIDEO (short loop — compress + mark with special mimeType) ==========
+          console.log("[useMediaUpload] Animated video — compress + mark as animated");
+          setStatusMessage("Compressing animated video...");
+          setIsCompressing(true);
+
+          const compressionResult = await compressVideo(file.uri, (p) => {
+            setCompressionProgress(p.percentage);
+          });
+          setIsCompressing(false);
+
+          if (!compressionResult.success || !compressionResult.outputPath) {
+            results.push({
+              type: "video",
+              kind: "animated_video",
+              url: "",
+              success: false,
+              error: compressionResult.error || "Animated video compression failed.",
+            });
+            updateProgress("Animated video failed");
+          } else {
+            setStatusMessage("Uploading animated video...");
+            const uploadResult = await serverUpload(compressionResult.outputPath, folder);
+            await cleanupCompressedVideo(compressionResult.outputPath);
+
+            if (!uploadResult.success) {
+              results.push({
+                type: "video",
+                kind: "animated_video",
+                url: "",
+                success: false,
+                error: uploadResult.error,
+              });
+            } else {
+              results.push({
+                type: "video",
+                kind: "animated_video",
+                url: uploadResult.url,
+                mimeType: "video/mp4+animated",
+                success: true,
+              });
+            }
+            updateProgress("Animated video uploaded");
+          }
         } else if (file.kind === "gif") {
           // ========== GIF PROCESSING (NO compression — would destroy frames) ==========
           console.log("[useMediaUpload] GIF detected — skipping compression");

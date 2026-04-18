@@ -907,6 +907,7 @@ function FeedPostComponent({
                               height={PORTRAIT_HEIGHT}
                               contentFit="cover"
                               showBadge={index === 0}
+                              isPlaying={isActivePost && isFocused && index === currentSlide}
                             />
                           ) : (
                             <View
@@ -943,6 +944,7 @@ function FeedPostComponent({
                     height={PORTRAIT_HEIGHT}
                     contentFit="cover"
                     showBadge
+                    isPlaying={isActivePost && isFocused}
                   />
                 ) : (
                   <View
