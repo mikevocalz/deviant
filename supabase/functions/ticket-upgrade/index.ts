@@ -78,7 +78,7 @@ Deno.serve(async (req: Request) => {
     // Fetch the existing ticket
     const { data: ticket, error: ticketErr } = await supabase
       .from("tickets")
-      .select("id, event_id, user_id, purchase_amount_cents, status, ticket_type_id")
+      .select("id, event_id, user_id, purchase_amount_cents, status, ticket_type_id, checked_in_at")
       .eq("id", ticket_id)
       .single();
 
@@ -95,10 +95,20 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Only active tickets can be upgraded" }, 400);
     }
 
-    // Fetch new ticket type
+    // Block upgrades after check-in
+    if (ticket.checked_in_at) {
+      return json({ error: "Checked-in tickets cannot be upgraded" }, 400);
+    }
+
+    // Block same-tier upgrade
+    if (String(ticket.ticket_type_id) === String(new_ticket_type_id)) {
+      return json({ error: "You already have this tier" }, 400);
+    }
+
+    // Fetch new ticket type with inventory
     const { data: newType, error: newTypeErr } = await supabase
       .from("ticket_types")
-      .select("id, name, price_cents, event_id")
+      .select("id, name, price_cents, event_id, quantity_total, quantity_sold, active")
       .eq("id", new_ticket_type_id)
       .single();
 
@@ -106,8 +116,18 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Target tier not found" }, 404);
     }
 
+    if (!newType.active) {
+      return json({ error: "This tier is no longer available" }, 400);
+    }
+
     if (String(newType.event_id) !== String(ticket.event_id)) {
       return json({ error: "Tier belongs to a different event" }, 400);
+    }
+
+    // Inventory check — account for the slot that will be freed by moving off old tier
+    const availableSlots = (newType.quantity_total || 0) - (newType.quantity_sold || 0);
+    if (availableSlots <= 0) {
+      return json({ error: "This tier is sold out" }, 400);
     }
 
     const paidCents = ticket.purchase_amount_cents || 0;
@@ -115,7 +135,11 @@ Deno.serve(async (req: Request) => {
     const diffCents = Math.max(0, newPriceCents - paidCents);
 
     if (diffCents === 0) {
-      return json({ error: "New tier must cost more than current tier" }, 400);
+      return json({ error: "New tier must cost more than your current tier" }, 400);
+    }
+
+    if (newPriceCents < paidCents) {
+      return json({ error: "Downgrades are not supported" }, 400);
     }
 
     // Fetch event for display name

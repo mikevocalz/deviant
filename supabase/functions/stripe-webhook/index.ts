@@ -306,6 +306,14 @@ Deno.serve(async (req: Request) => {
           const eventId = parseInt(metadata.event_id);
           const amountCents = session.amount_total || 0;
 
+          // Fetch old ticket to capture the previous tier for quantity rollback
+          const { data: oldTicket } = await supabase
+            .from("tickets")
+            .select("ticket_type_id, purchase_amount_cents")
+            .eq("id", ticketId)
+            .single();
+          const oldTicketTypeId = oldTicket?.ticket_type_id;
+
           // Fetch the new ticket type to get full price
           const { data: newType } = await supabase
             .from("ticket_types")
@@ -313,12 +321,13 @@ Deno.serve(async (req: Request) => {
             .eq("id", newTicketTypeId)
             .single();
 
-          // Update the existing ticket: new type + new amount + keep active
+          // Update the existing ticket: new type + cumulative amount + stay active
+          const prevPaid = oldTicket?.purchase_amount_cents || 0;
           const { error: upgradeError } = await supabase
             .from("tickets")
             .update({
               ticket_type_id: newTicketTypeId,
-              purchase_amount_cents: newType?.price_cents ?? amountCents,
+              purchase_amount_cents: prevPaid + amountCents,
               stripe_checkout_session_id: session.id,
               stripe_payment_intent_id: session.payment_intent,
             })
@@ -327,6 +336,19 @@ Deno.serve(async (req: Request) => {
           if (upgradeError) {
             console.error("[stripe-webhook] Ticket upgrade error:", upgradeError);
             throw upgradeError;
+          }
+
+          // Decrement quantity_sold on the OLD tier
+          if (oldTicketTypeId && oldTicketTypeId !== newTicketTypeId) {
+            const { data: oldTt } = await supabase
+              .from("ticket_types")
+              .select("quantity_sold")
+              .eq("id", oldTicketTypeId)
+              .single();
+            await supabase
+              .from("ticket_types")
+              .update({ quantity_sold: Math.max(0, (oldTt?.quantity_sold || 1) - 1) })
+              .eq("id", oldTicketTypeId);
           }
 
           // Increment quantity_sold on the new tier
@@ -341,7 +363,7 @@ Deno.serve(async (req: Request) => {
             .eq("id", newTicketTypeId);
 
           console.log(
-            `[stripe-webhook] Upgraded ticket ${ticketId} to type ${newTicketTypeId} for event ${eventId}`,
+            `[stripe-webhook] Upgraded ticket ${ticketId}: ${oldTicketTypeId} → ${newTicketTypeId} for event ${eventId}`,
           );
         }
         break;
