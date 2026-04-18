@@ -19,11 +19,7 @@ Pod::Spec.new do |s|
 
   s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
 
-  # Override Swift module name so `import Translation` inside this pod's files
-  # resolves to Apple's system Translation framework, not this pod's module.
-  s.module_name = 'DVNTTranslation'
-
-  # Weak-link the Translation framework (iOS 17.4+) so the app still
-  # launches on older OS versions — the #available check gates usage.
+  # Weak-link Apple's Translation framework (iOS 18.0+). Swift cannot self-import,
+  # so `import Translation` inside this pod resolves to Apple's system framework.
   s.weak_framework = 'Translation'
 end
