@@ -13,6 +13,7 @@ import {
   Link,
   Share2,
   ImagePlus,
+  Languages,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { SHEET_SNAPS_ACTION } from "@/lib/constants/sheets";
@@ -26,6 +27,9 @@ interface PostActionSheetProps {
   onReport?: () => void;
   onShareToStory?: () => void;
   onShare?: () => void;
+  onTranslate?: () => void;
+  isTranslated?: boolean;
+  isTranslationCapable?: boolean;
 }
 
 export function PostActionSheet({
@@ -37,6 +41,9 @@ export function PostActionSheet({
   onReport,
   onShareToStory,
   onShare,
+  onTranslate,
+  isTranslated,
+  isTranslationCapable,
 }: PostActionSheetProps) {
   const { colors } = useColorScheme();
   const bottomSheetRef = useRef<BottomSheet>(null);
@@ -134,6 +141,21 @@ export function PostActionSheet({
         )}
 
         {/* Common options */}
+        {isTranslationCapable && (
+          <Pressable
+            onPress={() => {
+              if (onTranslate) onTranslate();
+              onClose();
+            }}
+            style={styles.row}
+          >
+            <Languages size={22} color={colors.foreground} />
+            <Text style={[styles.rowText, { color: colors.foreground }]}>
+              {isTranslated ? "Show Original" : "Translate Post"}
+            </Text>
+          </Pressable>
+        )}
+
         <Pressable
           onPress={() => {
             onClose();

@@ -1,5 +1,6 @@
 packages:
   - "."
+  - "modules/*"
 
 onlyBuiltDependencies:
   - "@fishjam-cloud/react-native-webrtc"

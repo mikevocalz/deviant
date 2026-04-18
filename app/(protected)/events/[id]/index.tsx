@@ -846,26 +846,98 @@ function EventDetailScreenContent() {
     _targetLang,
   );
 
-  // Combined: translate title + description together with one button
-  const isEventTranslated = isDescriptionTranslated || isTitleTranslated;
+  // Lineup translation — normalize array or string to plain text
+  const lineupText = Array.isArray(safeEvent?.lineup)
+    ? (safeEvent!.lineup as string[]).join("\n")
+    : typeof safeEvent?.lineup === "string"
+      ? safeEvent.lineup
+      : "";
+  const {
+    displayText: translatedLineup,
+    isTranslated: isLineupTranslated,
+    translate: translateLineupFn,
+    showOriginal: showOriginalLineup,
+  } = useContentTranslation(
+    `event-${eventId}-lineup`,
+    lineupText,
+    _targetLang,
+  );
+
+  // Dress code translation
+  const {
+    displayText: translatedDressCode,
+    isTranslated: isDressCodeTranslated,
+    translate: translateDressCodeFn,
+    showOriginal: showOriginalDressCode,
+  } = useContentTranslation(
+    `event-${eventId}-dressCode`,
+    safeEvent?.dressCode || "",
+    _targetLang,
+  );
+
+  // Door policy translation
+  const {
+    displayText: translatedDoorPolicy,
+    isTranslated: isDoorPolicyTranslated,
+    translate: translateDoorPolicyFn,
+    showOriginal: showOriginalDoorPolicy,
+  } = useContentTranslation(
+    `event-${eventId}-doorPolicy`,
+    safeEvent?.doorPolicy || "",
+    _targetLang,
+  );
+
+  // Combined: translate all authored text fields together
+  const isEventTranslated =
+    isDescriptionTranslated ||
+    isTitleTranslated ||
+    isLineupTranslated ||
+    isDressCodeTranslated ||
+    isDoorPolicyTranslated;
 
   const handleTranslateEvent = useCallback(async () => {
-    await Promise.all([
+    // Use void-casting to satisfy Promise<void>[] typing
+    const jobs: Promise<unknown>[] = [
       translateDescriptionFn().catch(() => {}),
       translateTitleFn().catch(() => {}),
-    ]);
-  }, [translateDescriptionFn, translateTitleFn]);
+    ];
+    if (lineupText) jobs.push(translateLineupFn().catch(() => {}));
+    if (safeEvent?.dressCode) jobs.push(translateDressCodeFn().catch(() => {}));
+    if (safeEvent?.doorPolicy) jobs.push(translateDoorPolicyFn().catch(() => {}));
+    await Promise.all(jobs);
+  }, [
+    translateDescriptionFn,
+    translateTitleFn,
+    translateLineupFn,
+    translateDressCodeFn,
+    translateDoorPolicyFn,
+    lineupText,
+    safeEvent?.dressCode,
+    safeEvent?.doorPolicy,
+  ]);
 
   const showOriginalEvent = useCallback(() => {
     showOriginalDescription();
     showOriginalTitle();
-  }, [showOriginalDescription, showOriginalTitle]);
+    showOriginalLineup();
+    showOriginalDressCode();
+    showOriginalDoorPolicy();
+  }, [
+    showOriginalDescription,
+    showOriginalTitle,
+    showOriginalLineup,
+    showOriginalDressCode,
+    showOriginalDoorPolicy,
+  ]);
 
-  // Show translate button only when native capability is confirmed AND text is foreign
+  // Show translate button when native capability confirmed AND any authored field is foreign
   const showTranslateButton =
     isTranslationCapable === true &&
     (shouldShowTranslateButton(safeEvent?.description || "", _targetLang) ||
-      shouldShowTranslateButton(safeEvent?.title || "", _targetLang));
+      shouldShowTranslateButton(safeEvent?.title || "", _targetLang) ||
+      shouldShowTranslateButton(lineupText, _targetLang) ||
+      shouldShowTranslateButton(safeEvent?.dressCode || "", _targetLang) ||
+      shouldShowTranslateButton(safeEvent?.doorPolicy || "", _targetLang));
 
   const isPast = useMemo(() => {
     if (!eventData) return false;
@@ -1011,6 +1083,19 @@ function EventDetailScreenContent() {
           <View>
             <Text style={s.eventTitle}>{translatedTitle || event.title}</Text>
 
+            {/* Translate button — adjacent to title, only when foreign text detected */}
+            {showTranslateButton && (
+              <View style={{ marginTop: 8, marginBottom: 4 }}>
+                <TranslateButton
+                  onTranslate={handleTranslateEvent}
+                  isTranslated={isEventTranslated}
+                  onToggleOriginal={showOriginalEvent}
+                  size="md"
+                  showLabel
+                />
+              </View>
+            )}
+
             {/* Host */}
             <Pressable style={s.hostRow}>
               <Image
@@ -1134,40 +1219,31 @@ function EventDetailScreenContent() {
           {/* ── 4. COLLAPSIBLE EVENT DETAILS ─────────────────────── */}
           <View style={s.collapsibleSection}>
             {event.description ? (
-              <View>
-                <CollapsibleRow
-                  icon="📝"
-                  title="About"
-                  content={translatedDescription}
-                />
-                {showTranslateButton && (
-                  <View style={{ marginTop: 8, marginLeft: 16 }}>
-                    <TranslateButton
-                      onTranslate={handleTranslateEvent}
-                      isTranslated={isEventTranslated}
-                      onToggleOriginal={showOriginalEvent}
-                      size="sm"
-                      showLabel
-                    />
-                  </View>
-                )}
-              </View>
+              <CollapsibleRow
+                icon="📝"
+                title="About"
+                content={translatedDescription}
+              />
             ) : null}
             {event.lineup && event.lineup.length > 0 ? (
-              <CollapsibleRow icon="🎧" title="Lineup" content={event.lineup} />
+              <CollapsibleRow
+                icon="🎧"
+                title="Lineup"
+                content={isLineupTranslated ? translatedLineup : event.lineup}
+              />
             ) : null}
             {event.dressCode ? (
               <CollapsibleRow
                 icon="👔"
                 title="Dress Code"
-                content={event.dressCode}
+                content={isLineupTranslated ? translatedDressCode : event.dressCode}
               />
             ) : null}
             {event.doorPolicy ? (
               <CollapsibleRow
                 icon="🚪"
                 title="Door Policy"
-                content={event.doorPolicy}
+                content={isDoorPolicyTranslated ? translatedDoorPolicy : event.doorPolicy}
               />
             ) : null}
             {event.entryWindow ? (

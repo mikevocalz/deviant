@@ -1,4 +1,4 @@
-package expo.modules.translation
+package expo.modules.dvnttranslation
 
 import com.google.mlkit.common.model.DownloadConditions
 import com.google.mlkit.common.model.RemoteModelManager
@@ -14,9 +14,9 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
-class TranslationModule : Module() {
+class DVNTTranslationModule : Module() {
   override fun definition() = ModuleDefinition {
-    Name("Translation")
+    Name("DVNTTranslation")
 
     // ── translateText ──────────────────────────────────────────────────────
     AsyncFunction("translateText") { text: String, sourceLanguage: String, targetLanguage: String ->
@@ -27,7 +27,6 @@ class TranslationModule : Module() {
         )
       }
 
-      // Resolve source language — auto-detect via Language ID if needed
       val resolvedSource: String = if (sourceLanguage == "auto" || sourceLanguage.isEmpty()) {
         detectLanguageCode(text) ?: TranslateLanguage.ENGLISH
       } else {
@@ -36,7 +35,6 @@ class TranslationModule : Module() {
 
       val targetLang = mapLanguageCode(targetLanguage)
 
-      // Skip translation when source == target
       if (resolvedSource == targetLang) {
         return@AsyncFunction mapOf(
           "translatedText" to text,
@@ -51,7 +49,6 @@ class TranslationModule : Module() {
 
       val translator = Translation.getClient(options)
       try {
-        // Download model on WiFi only if not already present.
         val conditions = DownloadConditions.Builder().requireWifi().build()
         translator.downloadModelIfNeeded(conditions).await()
         val result = translator.translate(text).await()
@@ -70,7 +67,6 @@ class TranslationModule : Module() {
       val allLanguages = TranslateLanguage.getAllLanguages()
 
       if (sourceLanguage == "auto" || sourceLanguage.isEmpty()) {
-        // Auto: check a representative set of source languages
         val commonSources = listOf("en", "es", "fr", "de", "zh", "ja", "ko", "ar", "ru", "pt", "it")
         val targetLang = mapLanguageCode(targetLanguage)
         allLanguages.contains(targetLang) &&
@@ -122,8 +118,6 @@ class TranslationModule : Module() {
     }
   }
 
-  // ── Language detection (ML Kit Language ID) ────────────────────────────
-
   private suspend fun detectLanguageCode(text: String): String? {
     val sample = text.take(500)
     val identifier = LanguageIdentification.getClient()
@@ -137,7 +131,6 @@ class TranslationModule : Module() {
     }
   }
 
-  /** Maps BCP-47 / user-facing codes to ML Kit's internal language codes. */
   private fun mapLanguageCode(code: String): String = when (code.split("-").first().lowercase()) {
     "zh" -> TranslateLanguage.CHINESE
     "en" -> TranslateLanguage.ENGLISH
@@ -159,8 +152,6 @@ class TranslationModule : Module() {
     else -> code.split("-").first().lowercase()
   }
 }
-
-// ── Task<T>.await() — bridge GMS Task to Kotlin coroutines ────────────────
 
 private suspend fun <T> com.google.android.gms.tasks.Task<T>.await(): T =
   suspendCancellableCoroutine { cont ->
