@@ -204,6 +204,9 @@ export async function uploadToServer(
     onProgress?.({ loaded: 0, total: 100, percentage: 10 });
 
     // Upload via FileSystem.uploadAsync (multipart form)
+    // Pass mimeType explicitly — Expo's multipart upload may default to
+    // application/octet-stream if the extension isn't detected by the OS,
+    // which would fail the edge function's mime validation.
     const uploadResult = await FileSystem.uploadAsync(
       MEDIA_UPLOAD_URL,
       accessibleUri,
@@ -211,8 +214,10 @@ export async function uploadToServer(
         httpMethod: "POST",
         uploadType: FileSystem.FileSystemUploadType.MULTIPART,
         fieldName: "file",
+        mimeType: mime,
         parameters: {
           kind,
+          mime,
         },
         headers: {
           Authorization: `Bearer ${authToken}`,

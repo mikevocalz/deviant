@@ -47,12 +47,13 @@ const ALLOWED_IMAGE_MIMES = [
   "image/png",
   "image/webp",
   "image/heic",
+  "image/gif",
 ];
 const ALLOWED_VIDEO_MIMES = ["video/mp4", "video/quicktime", "video/mov"];
 
 const SIZE_LIMITS: Record<MediaKind, number> = {
   avatar: 2 * 1024 * 1024, // 2 MB
-  "post-image": 5 * 1024 * 1024, // 5 MB (iPhone cameras produce 3-10MB)
+  "post-image": 10 * 1024 * 1024, // 10 MB (GIFs can exceed 5MB)
   "post-video": 25 * 1024 * 1024, // 25 MB
   "story-image": 5 * 1024 * 1024, // 5 MB
   "story-video": 18 * 1024 * 1024, // 18 MB
@@ -275,6 +276,15 @@ Deno.serve(async (req) => {
       kind = kindField as MediaKind;
       filename = file.name || "upload";
       mime = file.type || "application/octet-stream";
+
+      // Expo's multipart upload may send application/octet-stream when the OS
+      // can't determine mime from extension. Fall back to the explicit mime field.
+      if (mime === "application/octet-stream") {
+        const mimeField = formData.get("mime") as string | null;
+        if (mimeField && mimeField !== "application/octet-stream") {
+          mime = mimeField;
+        }
+      }
 
       const durationField = formData.get("durationSec");
       const widthField = formData.get("width");

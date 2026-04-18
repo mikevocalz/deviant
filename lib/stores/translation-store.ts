@@ -210,6 +210,24 @@ async function translateText(text: string, targetLang: string): Promise<string> 
     : targetLang.split("-")[0]
   ).toLowerCase();
 
-  const result = await nativeTranslate(text, "auto", tgt);
-  return result.translatedText;
+  // Try native Apple Translation first
+  try {
+    const result = await nativeTranslate(text, "auto", tgt);
+    return result.translatedText;
+  } catch {
+    // Native failed (language packs not downloaded, iOS < 18, etc.)
+    // Fall back to MyMemory free translation API
+  }
+
+  const encoded = encodeURIComponent(text);
+  const resp = await fetch(
+    `https://api.mymemory.translated.net/get?q=${encoded}&langpair=auto|${tgt}`,
+    { signal: AbortSignal.timeout(8000) },
+  );
+  if (!resp.ok) throw new Error(`Translation service unavailable (${resp.status})`);
+  const data = await resp.json();
+  if (data.responseStatus === 200 && data.responseData?.translatedText) {
+    return data.responseData.translatedText;
+  }
+  throw new Error(data.responseDetails || "Translation failed");
 }
