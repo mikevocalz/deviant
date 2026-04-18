@@ -149,6 +149,7 @@ export default {
       "./plugins/with-app-controller-init",
       "./plugins/android-fixes",
       "./plugins/fix-wgpu-headers",
+      "./plugins/with-translation-pod",
       "./plugins/with-cube-luts",
       "./plugins/disable-frame-processors",
       "./plugins/fix-visioncamera-barcode-scanner-swift",
