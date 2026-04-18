@@ -50,7 +50,7 @@ export const FeedEventCard = memo(function FeedEventCard({
   );
 
   const showTranslateButton =
-    isTranslationCapable === true &&
+    isTranslationCapable !== false &&
     shouldShowTranslateButton(event.title || "", targetLang);
 
   const handleTranslate = useCallback(async () => {

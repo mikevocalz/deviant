@@ -44,7 +44,7 @@ export function EventCard({
   );
 
   const showTranslateButton =
-    isTranslationCapable === true &&
+    isTranslationCapable !== false &&
     shouldShowTranslateButton(event.title || "", targetLang);
 
   const handleTranslate = useCallback(async () => {

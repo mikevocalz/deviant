@@ -287,7 +287,7 @@ function FeedPostComponent({
     await translateCaptionFn();
   }, [translateCaptionFn]);
   const showTranslateButton =
-    isTranslationCapable === true &&
+    isTranslationCapable !== false &&
     shouldShowTranslateButton(textPostCaption || "", targetLang);
 
   const hasMedia = media && media.length > 0;

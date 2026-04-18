@@ -985,7 +985,7 @@ function PostDetailScreenContent() {
     await translateCaptionFn();
   }, [translateCaptionFn]);
   const showTranslateButton =
-    isTranslationCapable === true &&
+    isTranslationCapable !== false &&
     shouldShowTranslateButton(captionText || "", targetLang);
   const hasMedia =
     safePost.media &&
@@ -1819,7 +1819,7 @@ function PostDetailScreenContent() {
         onShare={handleShare}
         onTranslate={handleTranslateCaption}
         isTranslated={isCaptionTranslated}
-        isTranslationCapable={isTranslationCapable === true}
+        isTranslationCapable={isTranslationCapable !== false}
       />
     </SafeAreaView>
   );

@@ -961,7 +961,7 @@ function EventDetailScreenContent() {
 
   // Show translate button when native capability confirmed AND any authored field is foreign
   const showTranslateButton =
-    isTranslationCapable === true &&
+    isTranslationCapable !== false &&
     (shouldShowTranslateButton(safeEvent?.description || "", _targetLang) ||
       shouldShowTranslateButton(safeEvent?.title || "", _targetLang) ||
       shouldShowTranslateButton(lineupText, _targetLang) ||
