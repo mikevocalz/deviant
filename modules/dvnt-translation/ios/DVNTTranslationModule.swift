@@ -1,100 +1,130 @@
 import ExpoModulesCore
 import NaturalLanguage
-import UIKit
 
 // Apple Translation framework — iOS 18.0+
-// Conditionally compiled so the module still builds on older SDKs.
+// Programmatic access via TranslationSession.init(configuration:), added iOS 18.0.
+// On iOS < 18.0 all translation functions throw; detection and capability checks degrade gracefully.
 #if canImport(Translation)
 import Translation
-import SwiftUI
 #endif
 
-// MARK: - Expo Module
+// MARK: - Module
 
 public class DVNTTranslationModule: Module {
   public func definition() -> ModuleDefinition {
     Name("DVNTTranslation")
 
+    // ── isTranslationAvailable ─────────────────────────────────────────────
+    // Returns true if at least one direction involving the target language is
+    // supported (installed or downloadable). Source "auto" scans common pairs.
+    AsyncFunction("isTranslationAvailable") {
+      (sourceLanguage: String, targetLanguage: String) async -> Bool in
+      guard #available(iOS 18.0, *) else { return false }
+      #if canImport(Translation)
+      return await DVNTTranslationModule.checkAvailable(source: sourceLanguage, target: targetLanguage)
+      #else
+      return false
+      #endif
+    }
+
+    // ── getAvailabilityStatus ──────────────────────────────────────────────
+    // Returns "installed" | "supported" | "unsupported" for a specific pair.
+    AsyncFunction("getAvailabilityStatus") {
+      (sourceLanguage: String, targetLanguage: String) async -> String in
+      guard #available(iOS 18.0, *) else { return "unsupported" }
+      #if canImport(Translation)
+      return await DVNTTranslationModule.availabilityStatus(source: sourceLanguage, target: targetLanguage)
+      #else
+      return "unsupported"
+      #endif
+    }
+
+    // ── detectLanguage ─────────────────────────────────────────────────────
+    // Uses NLLanguageRecognizer — available on all iOS versions, no framework gate.
+    AsyncFunction("detectLanguage") {
+      (text: String) async -> String in
+      return DVNTTranslationModule.detectCode(text)
+    }
+
     // ── translateText ──────────────────────────────────────────────────────
+    // Uses TranslationSession(configuration:) — iOS 18.0+ programmatic API.
+    // Source language "auto" triggers NLLanguageRecognizer detection.
     AsyncFunction("translateText") {
       (text: String, sourceLanguage: String, targetLanguage: String) async throws -> [String: Any] in
-
       guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
         return ["translatedText": text, "detectedSourceLanguage": ""]
       }
-
-      let tgtCode = targetLanguage.split(separator: "-").first.map(String.init) ?? targetLanguage
-
+      guard #available(iOS 18.0, *) else {
+        throw DVNTTranslationError.unavailable
+      }
+      #if canImport(Translation)
+      let tgtCode = DVNTTranslationModule.normalizeCode(targetLanguage)
       let srcCode: String?
       if sourceLanguage == "auto" || sourceLanguage.isEmpty {
-        srcCode = DVNTTranslationModule.detectCode(for: text)
+        let detected = DVNTTranslationModule.detectCode(text)
+        srcCode = detected == "und" ? nil : detected
       } else {
-        srcCode = sourceLanguage.split(separator: "-").first.map(String.init) ?? sourceLanguage
+        srcCode = DVNTTranslationModule.normalizeCode(sourceLanguage)
       }
 
+      // If source == target, return as-is
       if let src = srcCode, src == tgtCode {
         return ["translatedText": text, "detectedSourceLanguage": src]
       }
 
-      #if canImport(Translation)
-      if #available(iOS 18.0, *) {
-        let srcLang = srcCode.flatMap { Locale.Language(identifier: $0) }
-        let tgtLang = Locale.Language(identifier: tgtCode)
-
-        let result = try await DVNTAppleTranslationBridge.translate(
-          text: text, source: srcLang, target: tgtLang)
-
-        return [
-          "translatedText": result,
-          "detectedSourceLanguage": srcCode ?? "",
-        ]
-      }
+      let srcLang: Locale.Language? = srcCode.map { Locale.Language(identifier: $0) }
+      let tgtLang = Locale.Language(identifier: tgtCode)
+      let translated = try await DVNTTranslationModule.translate(text: text, source: srcLang, target: tgtLang)
+      return ["translatedText": translated, "detectedSourceLanguage": srcCode ?? ""]
+      #else
+      throw DVNTTranslationError.unavailable
       #endif
-
-      throw NSError(
-        domain: "DVNTTranslation", code: 1,
-        userInfo: [NSLocalizedDescriptionKey: "Translation requires iOS 18.0+"])
     }
 
-    // ── isTranslationAvailable ─────────────────────────────────────────────
-    AsyncFunction("isTranslationAvailable") {
-      (sourceLanguage: String, targetLanguage: String) async -> Bool in
-
-      #if canImport(Translation)
-      if #available(iOS 18.0, *) {
-        let avail = LanguageAvailability()
-        let tgtCode = targetLanguage.split(separator: "-").first.map(String.init) ?? targetLanguage
-        let tgt = Locale.Language(identifier: tgtCode)
-
-        if sourceLanguage != "auto" && !sourceLanguage.isEmpty {
-          let srcCode =
-            sourceLanguage.split(separator: "-").first.map(String.init) ?? sourceLanguage
-          let src = Locale.Language(identifier: srcCode)
-          let status = await avail.status(from: src, to: tgt)
-          return status != .unsupported
-        }
-
-        for code in ["en", "es", "fr", "de", "zh", "ja", "ko", "ar", "ru", "pt", "it"] {
-          let src = Locale.Language(identifier: code)
-          let status = await avail.status(from: src, to: tgt)
-          if status != .unsupported { return true }
-        }
-        return false
+    // ── translateBatch ─────────────────────────────────────────────────────
+    // Translates multiple strings in a single session. Items that fail are
+    // returned with success: false and the original text preserved.
+    AsyncFunction("translateBatch") {
+      (items: [String], sourceLanguage: String, targetLanguage: String) async throws -> [[String: Any]] in
+      guard #available(iOS 18.0, *) else {
+        throw DVNTTranslationError.unavailable
       }
-      #endif
-      return false
-    }
+      #if canImport(Translation)
+      guard !items.isEmpty else { return [] }
+      let tgtCode = DVNTTranslationModule.normalizeCode(targetLanguage)
+      let srcCode: String? = (sourceLanguage == "auto" || sourceLanguage.isEmpty)
+        ? nil
+        : DVNTTranslationModule.normalizeCode(sourceLanguage)
+      let srcLang: Locale.Language? = srcCode.map { Locale.Language(identifier: $0) }
+      let tgtLang = Locale.Language(identifier: tgtCode)
 
-    // ── detectLanguage ─────────────────────────────────────────────────────
-    AsyncFunction("detectLanguage") { (text: String) async -> String in
-      return DVNTTranslationModule.detectCode(for: text) ?? "und"
+      var results: [[String: Any]] = []
+      for item in items {
+        if item.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+          results.append(["originalText": item, "translatedText": item, "success": true])
+          continue
+        }
+        do {
+          let translated = try await DVNTTranslationModule.translate(text: item, source: srcLang, target: tgtLang)
+          results.append(["originalText": item, "translatedText": translated, "success": true])
+        } catch {
+          results.append(["originalText": item, "translatedText": item, "success": false, "error": error.localizedDescription])
+        }
+      }
+      return results
+      #else
+      throw DVNTTranslationError.unavailable
+      #endif
     }
 
     // ── downloadLanguagePack ───────────────────────────────────────────────
+    // Language models are managed automatically by TranslationSession.
+    // This stub exists for API symmetry; the system handles downloads on demand.
     AsyncFunction("downloadLanguagePack") { (_: String) async -> Void in }
 
     // ── getAvailableLanguages ──────────────────────────────────────────────
-    AsyncFunction("getAvailableLanguages") { () async -> [String] in
+    AsyncFunction("getAvailableLanguages") {
+      () async -> [String] in
       guard #available(iOS 18.0, *) else { return [] }
       return [
         "en", "es", "fr", "de", "it", "pt", "ja", "ko", "zh", "ar", "ru",
@@ -104,158 +134,100 @@ public class DVNTTranslationModule: Module {
     }
   }
 
-  // MARK: - NLLanguageRecognizer (iOS 12+)
+  // MARK: - Helpers
 
-  fileprivate static func detectCode(for text: String) -> String? {
+  static func normalizeCode(_ code: String) -> String {
+    return code.split(separator: "-").first.map(String.init) ?? code
+  }
+
+  static func detectCode(_ text: String) -> String {
     let recognizer = NLLanguageRecognizer()
     recognizer.processString(String(text.prefix(500)))
     guard let lang = recognizer.dominantLanguage, lang != .undetermined else {
-      return nil
+      return "und"
     }
     return lang.rawValue
   }
+
+  #if canImport(Translation)
+  // Uses TranslationSession(installedSource:target:) — iOS 18.0+ programmatic API.
+  // Unlike .translationTask, this does not require a SwiftUI view context.
+  // Requires language packs to already be installed on the device; if not installed
+  // the call throws DVNTTranslationError.notInstalled so the JS layer can fall back.
+  @available(iOS 18.0, *)
+  static func translate(text: String, source: Locale.Language?, target: Locale.Language) async throws -> String {
+    // Resolve source language — detect if caller passed nil/auto
+    let resolvedSrc: Locale.Language
+    if let src = source {
+      resolvedSrc = src
+    } else {
+      let detected = detectCode(text)
+      guard detected != "und" else { throw DVNTTranslationError.detectionFailed }
+      resolvedSrc = Locale.Language(identifier: detected)
+    }
+
+    // Only installed language packs can be used without the SwiftUI view lifecycle
+    let avail = LanguageAvailability()
+    let status = await avail.status(from: resolvedSrc, to: target)
+    guard status == .installed else {
+      throw DVNTTranslationError.notInstalled
+    }
+
+    let session = TranslationSession(installedSource: resolvedSrc, target: target)
+    let response = try await session.translate(text)
+    return response.targetText
+  }
+
+  @available(iOS 18.0, *)
+  static func checkAvailable(source: String, target: String) async -> Bool {
+    let avail = LanguageAvailability()
+    let tgt = Locale.Language(identifier: normalizeCode(target))
+
+    if source != "auto" && !source.isEmpty {
+      let src = Locale.Language(identifier: normalizeCode(source))
+      let status = await avail.status(from: src, to: tgt)
+      return status != .unsupported
+    }
+
+    for code in ["en", "es", "fr", "de", "zh", "ja", "ko", "ar", "ru", "pt", "it"] {
+      let src = Locale.Language(identifier: code)
+      let status = await avail.status(from: src, to: tgt)
+      if status != .unsupported { return true }
+    }
+    return false
+  }
+
+  @available(iOS 18.0, *)
+  static func availabilityStatus(source: String, target: String) async -> String {
+    let avail = LanguageAvailability()
+    let src = Locale.Language(identifier: normalizeCode(source))
+    let tgt = Locale.Language(identifier: normalizeCode(target))
+    let status = await avail.status(from: src, to: tgt)
+    switch status {
+    case .installed: return "installed"
+    case .supported: return "supported"
+    case .unsupported: return "unsupported"
+    @unknown default: return "unknown"
+    }
+  }
+  #endif
 }
 
-// MARK: - Apple Translation Bridge (iOS 18.0+)
+// MARK: - Errors
 
-#if canImport(Translation)
-@available(iOS 18.0, *)
-enum DVNTAppleTranslationBridge {
+enum DVNTTranslationError: LocalizedError {
+  case unavailable
+  case notInstalled
+  case detectionFailed
 
-  static func translate(
-    text: String,
-    source: Locale.Language?,
-    target: Locale.Language
-  ) async throws -> String {
-    try await Task { @MainActor in
-      try await translateOnMain(text: text, source: source, target: target)
-    }.value
-  }
-
-  @MainActor
-  private static func translateOnMain(
-    text: String,
-    source: Locale.Language?,
-    target: Locale.Language
-  ) async throws -> String {
-    guard let rootVC = findRootViewController() else {
-      throw NSError(
-        domain: "DVNTTranslation", code: 2,
-        userInfo: [NSLocalizedDescriptionKey: "No active foreground window"])
+  var errorDescription: String? {
+    switch self {
+    case .unavailable:
+      return "Translation requires iOS 18.0+"
+    case .notInstalled:
+      return "Language pack not installed — use system settings or web translation fallback"
+    case .detectionFailed:
+      return "Could not detect source language"
     }
-
-    return try await withCheckedThrowingContinuation { continuation in
-      mountAndTranslate(
-        text: text, source: source, target: target,
-        rootVC: rootVC, continuation: continuation)
-    }
-  }
-
-  @MainActor
-  private static func mountAndTranslate(
-    text: String,
-    source: Locale.Language?,
-    target: Locale.Language,
-    rootVC: UIViewController,
-    continuation: CheckedContinuation<String, Error>
-  ) {
-    let holder = DVNTBridgeHolder()
-
-    let complete: (Result<String, Error>) -> Void = { result in
-      guard !holder.finished else { return }
-      holder.finished = true
-      DispatchQueue.main.async {
-        holder.vc?.willMove(toParent: nil)
-        holder.vc?.view.removeFromSuperview()
-        holder.vc?.removeFromParent()
-        holder.vc = nil
-      }
-      continuation.resume(with: result)
-    }
-
-    let config = TranslationSession.Configuration(source: source, target: target)
-    let bridge = DVNTTranslationBridgeView(text: text, config: config, onComplete: complete)
-    let vc = UIHostingController(rootView: bridge)
-    holder.vc = vc
-
-    vc.view.frame = CGRect(x: -2, y: -2, width: 1, height: 1)
-    vc.view.alpha = 0
-    vc.view.isUserInteractionEnabled = false
-    vc.view.backgroundColor = .clear
-
-    rootVC.addChild(vc)
-    rootVC.view.addSubview(vc.view)
-    vc.didMove(toParent: rootVC)
-
-    Task { @MainActor in
-      try? await Task.sleep(nanoseconds: 30_000_000_000)
-      complete(
-        .failure(
-          NSError(
-            domain: "DVNTTranslation", code: 3,
-            userInfo: [NSLocalizedDescriptionKey: "Translation timed out"])))
-    }
-  }
-
-  @MainActor
-  private static func findRootViewController() -> UIViewController? {
-    for scene in UIApplication.shared.connectedScenes {
-      guard let ws = scene as? UIWindowScene,
-        ws.activationState == .foregroundActive
-      else { continue }
-
-      let window: UIWindow?
-      if #available(iOS 15.0, *) {
-        window = ws.keyWindow ?? ws.windows.first
-      } else {
-        window = ws.windows.first(where: { $0.isKeyWindow }) ?? ws.windows.first
-      }
-
-      if let root = window?.rootViewController {
-        return topmost(of: root)
-      }
-    }
-    return nil
-  }
-
-  private static func topmost(of vc: UIViewController) -> UIViewController {
-    if let presented = vc.presentedViewController {
-      return topmost(of: presented)
-    }
-    return vc
   }
 }
-
-// MARK: - SwiftUI Bridge View
-
-@available(iOS 18.0, *)
-private struct DVNTTranslationBridgeView: View {
-  let text: String
-  let config: TranslationSession.Configuration
-  let onComplete: (Result<String, Error>) -> Void
-
-  @State private var done = false
-
-  var body: some View {
-    Color.clear
-      .frame(width: 0, height: 0)
-      .translationTask(config) { session in
-        guard !done else { return }
-        done = true
-        do {
-          let response = try await session.translate(text)
-          onComplete(.success(response.targetText))
-        } catch {
-          onComplete(.failure(error))
-        }
-      }
-  }
-}
-
-// MARK: - Bridge state holder
-
-private final class DVNTBridgeHolder {
-  var vc: UIViewController?
-  var finished = false
-}
-#endif

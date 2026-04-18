@@ -53,6 +53,7 @@ import {
   logVideoHealth,
 } from "@/lib/video-lifecycle";
 import { DVNTSeekBar } from "@/components/media/DVNTSeekBar";
+import { DVNTMediaRenderer } from "@/components/media/DVNTMediaRenderer";
 import {
   DVNTLiquidGlass,
   DVNTLiquidGlassIconButton,
@@ -1400,17 +1401,15 @@ function PostDetailScreenContent() {
                   ) : safePost.media?.[0]?.url &&
                     (safePost.media[0].url.startsWith("http://") ||
                       safePost.media[0].url.startsWith("https://")) ? (
-                    // Single image — tap to view full-screen via Galeria
+                    // Single media item — use DVNTMediaRenderer to handle gif/livePhoto/image
                     <Galeria.Image index={0}>
-                      <Image
-                        source={{ uri: safePost.media[0].url }}
-                        style={{
-                          width: SCREEN_WIDTH,
-                          height: PORTRAIT_HEIGHT,
-                        }}
+                      <DVNTMediaRenderer
+                        item={safePost.media[0] as any}
+                        width={SCREEN_WIDTH}
+                        height={PORTRAIT_HEIGHT}
                         contentFit="cover"
-                        transition={200}
-                        cachePolicy="memory-disk"
+                        showBadge={true}
+                        isPlaying={true}
                       />
                     </Galeria.Image>
                   ) : (

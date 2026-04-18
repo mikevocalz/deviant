@@ -1,22 +1,33 @@
 import { requireOptionalNativeModule } from 'expo-modules-core';
-import { TranslationResult } from './Translation.types';
 
-interface DVNTTranslationModuleType {
-  translateText(
-    text: string,
-    sourceLanguage: string,
-    targetLanguage: string,
-  ): Promise<TranslationResult>;
-  isTranslationAvailable(
-    sourceLanguage: string,
-    targetLanguage: string,
-  ): Promise<boolean>;
-  detectLanguage(text: string): Promise<string>;
-  downloadLanguagePack(language: string): Promise<void>;
-  getAvailableLanguages(): Promise<string[]>;
+export interface TranslationResult {
+  translatedText: string;
+  detectedSourceLanguage: string;
 }
 
-// requireOptionalNativeModule returns null instead of throwing when the native
-// module is not registered — prevents JS bundle load failure + ErrorRecovery crash.
+export interface BatchTranslationItem {
+  originalText: string;
+  translatedText: string;
+  success: boolean;
+  error?: string;
+}
+
+interface DVNTTranslationModuleType {
+  // Capability
+  isTranslationAvailable(sourceLanguage: string, targetLanguage: string): Promise<boolean>;
+  getAvailabilityStatus(sourceLanguage: string, targetLanguage: string): Promise<'installed' | 'supported' | 'unsupported' | 'unknown'>;
+  getAvailableLanguages(): Promise<string[]>;
+  downloadLanguagePack(language: string): Promise<void>;
+
+  // Detection
+  detectLanguage(text: string): Promise<string>;
+
+  // Translation
+  translateText(text: string, sourceLanguage: string, targetLanguage: string): Promise<TranslationResult>;
+  translateBatch(items: string[], sourceLanguage: string, targetLanguage: string): Promise<BatchTranslationItem[]>;
+}
+
+// requireOptionalNativeModule returns null when the native module is not registered,
+// preventing a JS bundle load failure on platforms or builds without the native code.
 const DVNTTranslationModule = requireOptionalNativeModule<DVNTTranslationModuleType>('DVNTTranslation');
 export default DVNTTranslationModule;

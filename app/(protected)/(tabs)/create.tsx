@@ -457,15 +457,19 @@ function CreateScreenContent() {
         }
 
         postMedia = uploadResults.map((r) => ({
-          // animated_video is stored as type="video" in DB (enum constraint);
-          // mimeType="video/mp4+animated" is the distinguishing marker on read.
-          type: r.kind === "animated_video" ? "video" : (r.kind ?? r.type),
+          // DB posts_media.type only accepts "image" | "video".
+          // Special kinds are distinguished via mimeType or livePhotoVideoUrl on read:
+          //   gif           → type="image", mimeType="image/gif"
+          //   livePhoto     → type="image", livePhotoVideoUrl=<url>
+          //   animated_video → type="video", mimeType="video/mp4+animated"
+          type: (r.kind === "animated_video" || r.kind === "video") ? "video" : "image",
           url: r.url,
+          mimeType:
+            r.kind === "gif" ? "image/gif"
+            : r.kind === "animated_video" ? "video/mp4+animated"
+            : (r.mimeType ?? undefined),
           ...(r.thumbnail && { thumbnail: r.thumbnail }),
-          ...(r.mimeType && { mimeType: r.mimeType }),
-          ...(r.livePhotoVideoUrl && {
-            livePhotoVideoUrl: r.livePhotoVideoUrl,
-          }),
+          ...(r.livePhotoVideoUrl && { livePhotoVideoUrl: r.livePhotoVideoUrl }),
         }));
       }
 
