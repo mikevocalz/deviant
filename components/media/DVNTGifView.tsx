@@ -14,6 +14,8 @@ interface DVNTGifViewProps {
   style?: ViewStyle;
   contentFit?: "cover" | "contain" | "fill" | "none" | "scale-down";
   accessibilityLabel?: string;
+  /** Controls animation playback — pauses when false. Defaults to true. */
+  isPlaying?: boolean;
 }
 
 export function DVNTGifView({
@@ -23,6 +25,7 @@ export function DVNTGifView({
   style,
   contentFit = "cover",
   accessibilityLabel,
+  isPlaying = true,
 }: DVNTGifViewProps) {
   return (
     <View style={[{ width, height } as ViewStyle, style]}>
@@ -30,7 +33,7 @@ export function DVNTGifView({
         source={{ uri }}
         style={{ width: "100%", height: "100%" } as ImageStyle}
         contentFit={contentFit}
-        autoplay
+        autoplay={isPlaying}
         cachePolicy="memory-disk"
         accessibilityLabel={accessibilityLabel}
         transition={0}

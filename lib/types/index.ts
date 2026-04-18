@@ -14,7 +14,7 @@ export type Comment = {
   replies?: Comment[];
 };
 
-export type MediaKind = "image" | "gif" | "video" | "livePhoto";
+export type MediaKind = "image" | "gif" | "video" | "livePhoto" | "animated_video";
 export type PostKind = "media" | "text";
 export type TextPostThemeKey =
   | "graphite"
