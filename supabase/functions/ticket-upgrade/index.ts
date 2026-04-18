@@ -108,7 +108,7 @@ Deno.serve(async (req: Request) => {
     // Fetch new ticket type with inventory
     const { data: newType, error: newTypeErr } = await supabase
       .from("ticket_types")
-      .select("id, name, price_cents, event_id, quantity_total, quantity_sold, active")
+      .select("id, name, price_cents, event_id, quantity_total, quantity_sold, is_active")
       .eq("id", new_ticket_type_id)
       .single();
 
@@ -116,7 +116,7 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Target tier not found" }, 404);
     }
 
-    if (!newType.active) {
+    if (!newType.is_active) {
       return json({ error: "This tier is no longer available" }, 400);
     }
 

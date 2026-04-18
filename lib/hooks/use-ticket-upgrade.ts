@@ -37,7 +37,7 @@ export function useTicketUpgradeOptions(
     return allTiers
       .filter(
         (t) =>
-          t.active &&
+          t.is_active &&
           t.price_cents > paidCents &&
           String(t.id) !== String(myTicket.ticket_type_id),
       )

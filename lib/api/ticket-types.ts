@@ -19,7 +19,7 @@ export interface TicketTypeRecord {
   max_per_user: number;
   sale_start: string | null;
   sale_end: string | null;
-  active: boolean;
+  is_active: boolean;
   created_at: string;
 }
 
@@ -53,7 +53,7 @@ export const ticketTypesApi = {
           max_per_user: params.maxPerUser || 4,
           sale_start: params.saleStart || null,
           sale_end: params.saleEnd || null,
-          active: true,
+          is_active: true,
         })
         .select()
         .single();
@@ -93,7 +93,7 @@ export const ticketTypesApi = {
     updates: Partial<
       Pick<
         TicketTypeRecord,
-        "name" | "description" | "price_cents" | "quantity_total" | "max_per_user" | "active"
+        "name" | "description" | "price_cents" | "quantity_total" | "max_per_user" | "is_active"
       >
     >,
   ): Promise<boolean> {
@@ -115,7 +115,7 @@ export const ticketTypesApi = {
    * Deactivate a ticket type (soft delete)
    */
   async deactivate(id: string): Promise<boolean> {
-    return ticketTypesApi.update(id, { active: false });
+    return ticketTypesApi.update(id, { is_active: false });
   },
 
   /**
