@@ -1,6 +1,6 @@
 require 'json'
 
-package = JSON.parse(File.read(File.join(__dir__, 'package.json')))
+package = JSON.parse(File.read(File.join(__dir__, '..', 'package.json')))
 
 Pod::Spec.new do |s|
   s.name           = 'Translation'
@@ -17,7 +17,7 @@ Pod::Spec.new do |s|
 
   s.dependency 'ExpoModulesCore'
 
-  s.source_files = "ios/**/*.{h,m,mm,swift,hpp,cpp}"
+  s.source_files = "**/*.{h,m,mm,swift,hpp,cpp}"
 
   # Weak-link the Translation framework (iOS 17.4+) so the app still
   # launches on older OS versions — the #available check gates usage.
