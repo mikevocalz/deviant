@@ -51,6 +51,7 @@ function getExtension(uri: string, mimeType?: string): string {
     "image/jpg": "jpg",
     "image/png": "png",
     "image/webp": "webp",
+    "image/gif": "gif",
     "video/mp4": "mp4",
     "video/mov": "mov",
     "video/quicktime": "mov",
@@ -102,6 +103,7 @@ function getMimeFromUri(uri: string): string {
     png: "image/png",
     webp: "image/webp",
     heic: "image/heic",
+    gif: "image/gif",
     mp4: "video/mp4",
     mov: "video/quicktime",
   };

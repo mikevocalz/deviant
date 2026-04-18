@@ -420,7 +420,19 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           // ========== GIF PROCESSING (NO compression — would destroy frames) ==========
           console.log("[useMediaUpload] GIF detected — skipping compression");
           setStatusMessage("Uploading GIF...");
-          const uploadResult = await serverUpload(file.uri, folder);
+          // ph:// URIs don't carry extension info — copy to a .gif cache file so the
+          // upload pipeline uses the correct mime type and extension.
+          let gifUri = file.uri;
+          if (!gifUri.startsWith("file://")) {
+            try {
+              const dest = `${FileSystem.cacheDirectory}gif_${Date.now()}.gif`;
+              await FileSystem.copyAsync({ from: gifUri, to: dest });
+              gifUri = dest;
+            } catch (copyErr) {
+              console.warn("[useMediaUpload] GIF ph:// copy failed:", copyErr);
+            }
+          }
+          const uploadResult = await serverUpload(gifUri, folder);
           if (!uploadResult.success) {
             results.push({
               type: "image",
