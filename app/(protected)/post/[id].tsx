@@ -982,11 +982,13 @@ function PostDetailScreenContent() {
     targetLang,
   );
   const handleTranslateCaption = useCallback(async () => {
-    await translateCaptionFn();
-  }, [translateCaptionFn]);
-  const showTranslateButton =
-    
-    shouldShowTranslateButton(captionText || "", targetLang);
+    if (isCaptionTranslated) {
+      showOriginalCaption();
+    } else {
+      await translateCaptionFn();
+    }
+  }, [isCaptionTranslated, showOriginalCaption, translateCaptionFn]);
+  const showTranslateButton = shouldShowTranslateButton(captionText || "", targetLang);
   const hasMedia =
     safePost.media &&
     Array.isArray(safePost.media) &&
@@ -1819,7 +1821,7 @@ function PostDetailScreenContent() {
         onShare={handleShare}
         onTranslate={handleTranslateCaption}
         isTranslated={isCaptionTranslated}
-        isTranslationCapable={isTranslationCapable !== false}
+        isTranslationCapable={showTranslateButton}
       />
     </SafeAreaView>
   );
