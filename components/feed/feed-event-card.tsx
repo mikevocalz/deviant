@@ -12,9 +12,13 @@ import { MapPin, Clock, Users, Calendar } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useCallback, memo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { screenPrefetch } from "@/lib/prefetch";
 import type { Event } from "@/lib/hooks/use-events";
 import type { PublicGateReason } from "@/lib/access/public-gates";
+import { TranslateButton } from "@/components/ui/translate-button";
+import { useContentTranslation } from "@/lib/stores/translation-store";
+import { shouldShowTranslateButton } from "@/lib/utils/language-detection";
 
 const CARD_HEIGHT = 200;
 
@@ -29,6 +33,29 @@ export const FeedEventCard = memo(function FeedEventCard({
 }) {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { i18n } = useTranslation();
+  const targetLang = i18n.language;
+
+  // Title translation
+  const {
+    displayText: translatedTitle,
+    isTranslated: isTitleTranslated,
+    translate: translateTitleFn,
+    showOriginal: showOriginalTitle,
+    isCapable: isTranslationCapable,
+  } = useContentTranslation(
+    `feed-event-${event.id}-title`,
+    event.title || "",
+    targetLang,
+  );
+
+  const showTranslateButton =
+    isTranslationCapable === true &&
+    shouldShowTranslateButton(event.title || "", targetLang);
+
+  const handleTranslate = useCallback(async () => {
+    await translateTitleFn();
+  }, [translateTitleFn]);
 
   const handlePress = useCallback(() => {
     if (guestMode) {
@@ -197,19 +224,38 @@ export const FeedEventCard = memo(function FeedEventCard({
               </Text>
             </View>
 
-            {/* Title */}
-            <Text
-              numberOfLines={2}
+            {/* Title + translate button row */}
+            <View
               style={{
-                color: "#fff",
-                fontSize: 18,
-                fontWeight: "800",
+                flexDirection: "row",
+                alignItems: "flex-start",
                 marginBottom: 6,
-                lineHeight: 22,
+                gap: 8,
               }}
             >
-              {event.title}
-            </Text>
+              <Text
+                numberOfLines={2}
+                style={{
+                  color: "#fff",
+                  fontSize: 18,
+                  fontWeight: "800",
+                  lineHeight: 22,
+                  flex: 1,
+                }}
+              >
+                {translatedTitle || event.title}
+              </Text>
+              {showTranslateButton && (
+                <View style={{ marginTop: 3 }}>
+                  <TranslateButton
+                    onTranslate={handleTranslate}
+                    isTranslated={isTitleTranslated}
+                    onToggleOriginal={showOriginalTitle}
+                    size="sm"
+                  />
+                </View>
+              )}
+            </View>
 
             {/* Meta row: venue, time, attendees */}
             <View

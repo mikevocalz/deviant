@@ -10,8 +10,12 @@ import { useRouter } from "expo-router";
 import { useResponsiveMedia } from "@/lib/hooks/use-responsive-media";
 import { useToggleEventLike } from "@/lib/hooks/use-events";
 import { useQueryClient } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 import { screenPrefetch } from "@/lib/prefetch";
 import type { PublicGateReason } from "@/lib/access/public-gates";
+import { TranslateButton } from "@/components/ui/translate-button";
+import { useContentTranslation } from "@/lib/stores/translation-store";
+import { shouldShowTranslateButton } from "@/lib/utils/language-detection";
 
 export function EventCard({
   event,
@@ -24,6 +28,29 @@ export function EventCard({
   const router = useRouter();
   const queryClient = useQueryClient();
   const toggleLike = useToggleEventLike();
+  const { i18n } = useTranslation();
+  const targetLang = i18n.language;
+
+  const {
+    displayText: translatedTitle,
+    isTranslated: isTitleTranslated,
+    translate: translateTitleFn,
+    showOriginal: showOriginalTitle,
+    isCapable: isTranslationCapable,
+  } = useContentTranslation(
+    `event-card-${event.id}-title`,
+    event.title || "",
+    targetLang,
+  );
+
+  const showTranslateButton =
+    isTranslationCapable === true &&
+    shouldShowTranslateButton(event.title || "", targetLang);
+
+  const handleTranslate = useCallback(async () => {
+    await translateTitleFn();
+  }, [translateTitleFn]);
+
   const attendeePreview = Array.isArray(event.attendees) ? event.attendees : [];
   const totalAttendees =
     typeof event.totalAttendees === "number"
@@ -165,9 +192,25 @@ export function EventCard({
                   {event.category}
                 </Text>
               </View>
-              <Text className="text-white text-[28px] font-bold mb-2">
-                {event.title}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 8, gap: 10 }}>
+                <Text
+                  className="text-white text-[28px] font-bold"
+                  style={{ flex: 1 }}
+                  numberOfLines={3}
+                >
+                  {translatedTitle || event.title}
+                </Text>
+                {showTranslateButton && (
+                  <View style={{ marginTop: 6 }}>
+                    <TranslateButton
+                      onTranslate={handleTranslate}
+                      isTranslated={isTitleTranslated}
+                      onToggleOriginal={showOriginalTitle}
+                      size="sm"
+                    />
+                  </View>
+                )}
+              </View>
               <Text className="text-white/80 text-sm mb-4">
                 {event.time} • {totalAttendees} participants
               </Text>
