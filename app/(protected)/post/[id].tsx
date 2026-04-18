@@ -1817,6 +1817,9 @@ function PostDetailScreenContent() {
         onEdit={handleActionEdit}
         onDelete={handleActionDelete}
         onShare={handleShare}
+        onTranslate={handleTranslateCaption}
+        isTranslated={isCaptionTranslated}
+        isTranslationCapable={isTranslationCapable === true}
       />
     </SafeAreaView>
   );
