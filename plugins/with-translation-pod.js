@@ -22,7 +22,7 @@ function withTranslationPod(config) {
 
       const marker = "use_expo_modules!";
       const podLine =
-        "  pod 'Translation', :path => '../modules/translation/ios'";
+        "  pod 'Translation', :path => '../modules/translation'";
 
       if (
         contents.includes(marker) &&
