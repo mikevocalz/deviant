@@ -102,6 +102,15 @@ import { TranslateButton } from "@/components/ui/translate-button";
 import { useContentTranslation } from "@/lib/stores/translation-store";
 import { useTranslation } from "react-i18next";
 import { shouldShowTranslateButton } from "@/lib/utils/language-detection";
+import { UpgradeTierCard } from "@/components/events/UpgradeTierCard";
+import { UpgradeConfirmationSheet } from "@/components/events/UpgradeConfirmationSheet";
+import {
+  useTicketUpgradeOptions,
+  useInitiateUpgrade,
+  type UpgradeTierOption,
+} from "@/lib/hooks/use-ticket-upgrade";
+import { useMyTicketForEvent } from "@/lib/hooks/use-tickets";
+import { useTicketTypes } from "@/lib/hooks/use-tickets";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 420;
@@ -317,6 +326,26 @@ function EventDetailScreenContent() {
     setIsLiked,
     resetEventDetailScreen,
   } = useEventDetailScreenStore();
+
+  // ── Ticket upgrade state ──────────────────────────────────────────────
+  const [upgradeSheetOption, setUpgradeSheetOption] = useState<UpgradeTierOption | null>(null);
+
+  const { data: myTicketData } = useMyTicketForEvent(eventId);
+  const { data: liveTicketTypes = [] } = useTicketTypes(eventId);
+  const upgradeOptions = useTicketUpgradeOptions(liveTicketTypes, myTicketData ?? null);
+  const { mutate: initiateUpgrade, isPending: isUpgradePending } = useInitiateUpgrade(eventId);
+
+  const handleUpgradePress = useCallback((option: UpgradeTierOption) => {
+    setUpgradeSheetOption(option);
+  }, []);
+
+  const handleUpgradeConfirm = useCallback(() => {
+    if (!upgradeSheetOption || !myTicketData) return;
+    initiateUpgrade(
+      { ticketId: myTicketData.id, newTicketTypeId: upgradeSheetOption.tier.id },
+      { onSettled: () => setUpgradeSheetOption(null) },
+    );
+  }, [upgradeSheetOption, myTicketData, initiateUpgrade]);
 
   const scrollY = useSharedValue(0);
 
@@ -1375,6 +1404,21 @@ function EventDetailScreenContent() {
             )}
           </View>
 
+          {/* ── Your Ticket + Upgrade Options ─────────────────────── */}
+          {hasTicket && myTicketData && upgradeOptions.length > 0 && !isPast && (
+            <View style={s.section}>
+              <Text style={s.sectionTitle}>Upgrade Your Ticket</Text>
+              <Text style={[s.sectionSubtitle, { color: "#71717a", marginBottom: 12 }]}>
+                You have: {myTicketData.ticket_type_name || "General Admission"}
+              </Text>
+              {upgradeOptions.map((option) => (
+                <View key={option.tier.id} style={{ marginBottom: 10 }}>
+                  <UpgradeTierCard option={option} onPress={handleUpgradePress} />
+                </View>
+              ))}
+            </View>
+          )}
+
           {/* ── Ratings & Reviews ─────────────────────────────────── */}
           <View style={s.section}>
             <View style={s.sectionHeader}>
@@ -1673,6 +1717,15 @@ function EventDetailScreenContent() {
 
       {/* Promote Event Sheet (organizer) */}
       <PromoteEventSheet />
+
+      {/* Ticket Upgrade Confirmation Sheet */}
+      <UpgradeConfirmationSheet
+        visible={!!upgradeSheetOption}
+        option={upgradeSheetOption}
+        onClose={() => setUpgradeSheetOption(null)}
+        onConfirm={handleUpgradeConfirm}
+        isPending={isUpgradePending}
+      />
     </View>
   );
 }
@@ -1850,6 +1903,10 @@ const s = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     marginBottom: 12,
+  },
+  sectionSubtitle: {
+    fontSize: 13,
+    marginTop: -8,
   },
   sectionHeader: {
     flexDirection: "row",
