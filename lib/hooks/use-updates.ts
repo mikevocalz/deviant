@@ -103,10 +103,19 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
     }
   }, [enabled]);
 
-  // reloadApp intentionally removed — Updates.reloadAsync() crashes on iOS 26 beta.
-  // The downloaded bundle is applied automatically on the next cold start.
+  // Restart the app to apply a downloaded update.
+  // Wrapped in try/catch — reloadAsync can fail on some OS versions (e.g. iOS 26 beta).
+  // If it throws, the update is already downloaded and will apply on the next cold start.
+  const reloadApp = useCallback(async () => {
+    if (!Updates) return;
+    try {
+      await Updates.reloadAsync();
+    } catch (e) {
+      console.warn("[Updates] reloadAsync failed (non-fatal — update applies on next cold start):", e);
+    }
+  }, []);
 
-  // PHASE 6 FIX: Show update toast with robust single-instance guarantee
+  // Show update toast with robust single-instance guarantee
   // - Only ONE toast visible at a time
   // - Debounced to prevent rapid fire
   // - Persists show/dismiss state across sessions
@@ -168,25 +177,21 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         setTimeout(() => {
           toast.success("Update Ready", {
             id: TOAST_ID, // CRITICAL: Consistent ID prevents stacking
-            description: "Force-close & reopen the app to apply the update.",
+            description: "A new version has been downloaded and is ready to install.",
             duration: Infinity, // NEVER auto-dismiss - user must choose
             action: {
-              label: "Got it",
-              onClick: () => {
+              label: "Restart App Now",
+              onClick: async () => {
                 dismissToast();
-                // Do NOT call reloadAsync() — it crashes on iOS 26 beta.
-                // The bundle is already downloaded; a cold start applies it.
+                await reloadApp();
               },
             },
             cancel: {
-              label: "Later",
-              onClick: async () => {
-                console.log(
-                  "[Updates] User chose to update later - will show again next session",
-                );
+              label: "Update Later",
+              onClick: () => {
+                console.log("[Updates] User chose to update later - will show again next session");
                 dismissToast();
-                // DO NOT persist dismissal - allow toast to show again on next app open
-                // Reset session flag so it can show again if user backgrounds and foregrounds
+                // Reset session flag so toast can show again on next foreground
                 globalHasShownToastThisSession = false;
               },
             },
@@ -198,7 +203,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         globalToastVisible = false;
       }
     },
-    [],
+    [reloadApp],
   );
 
   // Download and apply update - never throws

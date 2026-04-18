@@ -1,30 +1,64 @@
 #!/usr/bin/env bash
 # patch-expo-updates.sh
-# Fix 1 (REMOVED): expo-updates@55.0.7 Android ReactNativeFeatureFlags import.
-#   expo-updates@55.0.20+ no longer references rncompatibility — upstream fixed.
+# Fix 1: expo-updates@55.0.7 compilation error with RN 0.84.
+#   The module imports expo.modules.rncompatibility.ReactNativeFeatureFlags which doesn't exist.
+#   Replace with com.facebook.react.internal.featureflags.ReactNativeFeatureFlags
+#   and change property access to method call (enableBridgelessArchitecture -> enableBridgelessArchitecture())
 #
 # Fix 2: iOS 26 beta crash — ExpoUpdatesReactDelegateHandler.bundleURL returns nil when
 #   AppController is in DisabledAppController state (DB init fails on iOS 26 sandbox path change).
 #   RCTRootViewFactory force-unwraps the URL → brk 1 / EXC_BREAKPOINT crash at launch.
-#   Fix: probe filesystem for bundle locations before calling launchAssetUrl().
-#
-# Fix 3: AppController — no eager start() on DisabledAppController (causes double-start crash).
-#
-# Fix 4: AppLauncherNoDatabase — try EXUpdates.bundle before Bundle.main for Expo managed builds.
-#
-# NOTE: Paths use direct node_modules/ layout (pnpm hoisted — no .pnpm/pkg@ver/ virtual store).
+#   Fix: fall back to Bundle.main main.jsbundle when launchAssetUrl() returns nil.
 
 set -euo pipefail
 
-# ── Fix 2: iOS 26 beta crash — bundleURL returns nil when DisabledAppController is used ──
-IOS_DELEGATE="node_modules/expo-updates/ios/EXUpdates/ReactDelegateHandler/ExpoUpdatesReactDelegateHandler.swift"
+PROCEDURES_PATTERN="expo-updates@*/node_modules/expo-updates/android/src/main/java/expo/modules/updates/procedures"
 
-if [ -f "$IOS_DELEGATE" ]; then
-  # Skip if already patched with probe-first order
-  if grep -q "PROBE FILESYSTEM FIRST" "$IOS_DELEGATE" 2>/dev/null; then
+found=0
+for dir in node_modules/.pnpm/$PROCEDURES_PATTERN; do
+  [ -d "$dir" ] || continue
+  found=1
+
+  for kt in "$dir"/RelaunchProcedure.kt "$dir"/RestartReactAppExtensions.kt "$dir"/StartupProcedure.kt; do
+    [ -f "$kt" ] || continue
+
+    # Skip if already patched
+    if grep -q "com.facebook.react.internal.featureflags.ReactNativeFeatureFlags" "$kt" 2>/dev/null; then
+      echo "[patch-expo-updates] Already patched: $(basename "$kt")"
+      continue
+    fi
+
+    # Replace import
+    sed -i.bak 's/import expo\.modules\.rncompatibility\.ReactNativeFeatureFlags/import com.facebook.react.internal.featureflags.ReactNativeFeatureFlags/' "$kt"
+    # Replace property access with method call (enableBridgelessArchitecture -> enableBridgelessArchitecture())
+    sed -i.bak 's/ReactNativeFeatureFlags\.enableBridgelessArchitecture\b/ReactNativeFeatureFlags.enableBridgelessArchitecture()/g' "$kt"
+    # Clean up backup files
+    rm -f "$kt.bak"
+
+    echo "[patch-expo-updates] Patched: $(basename "$kt")"
+  done
+done
+
+if [ "$found" -eq 0 ]; then
+  echo "[patch-expo-updates] WARNING: No expo-updates procedures dir found to patch"
+fi
+
+# ── Fix 2: iOS 26 beta crash — bundleURL returns nil when DisabledAppController is used ──
+IOS_DELEGATE_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/ReactDelegateHandler/ExpoUpdatesReactDelegateHandler.swift"
+
+for swift in node_modules/.pnpm/$IOS_DELEGATE_PATTERN; do
+  [ -f "$swift" ] || continue
+
+  # Skip if already patched with probe-first order (avoids launchAssetUrl crash when start() not called)
+  if grep -q "PROBE FILESYSTEM FIRST" "$swift" 2>/dev/null; then
     echo "[patch-expo-updates] iOS bundleURL already patched (probe-first)"
-  else
-    python3 - "$IOS_DELEGATE" <<'PYEOF'
+    continue
+  fi
+
+  # Replace bundleURL with a filesystem-probe fallback.
+  # Bundle(url:) requires the bundle to already be loaded — unreliable at launch.
+  # FileManager.default.fileExists works on raw paths and is always reliable.
+  python3 - "$swift" <<'PYEOF'
 import sys, re
 
 path = sys.argv[1]
@@ -60,6 +94,7 @@ new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> U
     return nil
   }"""
 
+# Match any existing bundleURL implementation (original or previously patched)
 pattern = r'  public override func bundleURL\(reactDelegate: ExpoReactDelegate\) -> URL\? \{.*?\n  \}'
 new_src, count = re.subn(pattern, new, src, count=1, flags=re.DOTALL)
 if count:
@@ -69,26 +104,33 @@ if count:
 else:
     print("[patch-expo-updates] WARNING: bundleURL pattern not found in ExpoUpdatesReactDelegateHandler.swift")
 PYEOF
-  fi
-else
-  echo "[patch-expo-updates] WARNING: $IOS_DELEGATE not found, skipping iOS bundleURL patch"
-fi
 
-# ── Fix 3: AppController — no eager start() on DisabledAppController ──
-IOS_CONTROLLER="node_modules/expo-updates/ios/EXUpdates/AppController.swift"
+done
 
-if [ -f "$IOS_CONTROLLER" ]; then
-  if grep -q "bundleURL probes bundle" "$IOS_CONTROLLER" 2>/dev/null; then
+# ── Fix 3: AppController.initializeWithoutStarting — call start() on DisabledAppController ──
+# When DisabledAppController is created (DB init failure), start() must be called immediately
+# so launchAssetUrl() is populated before bundleURL() is invoked by RCTRootViewFactory.
+IOS_CONTROLLER_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/AppController.swift"
+
+for swift in node_modules/.pnpm/$IOS_CONTROLLER_PATTERN; do
+  [ -f "$swift" ] || continue
+
+  # AppController patch: no eager start() — bundleURL probes bundle locations directly.
+  # (Calling start() eagerly caused a precondition(!isStarted) crash when start() was
+  # called a second time by the normal createReactRootView flow.)
+  if grep -q "bundleURL probes bundle" "$swift" 2>/dev/null; then
     echo "[patch-expo-updates] AppController already patched (no-op)"
-  else
-    python3 - "$IOS_CONTROLLER" <<'PYEOF'
+    continue
+  fi
+
+  python3 - "$swift" <<'PYEOF'
 import sys
 
 path = sys.argv[1]
 with open(path, 'r') as f:
     src = f.read()
 
-# Revert any previous eager start() patch back to stock
+# Revert any previous eager start() patch back to stock — bundleURL handles the fallback directly.
 old_eager1 = """        let disabledController = DisabledAppController(error: cause)
         // iOS 26: start() immediately so launchAssetUrl() is populated before bundleURL() is called.
         // Without this, bundleURL returns nil and RCTRootViewFactory crashes with brk 1.
@@ -118,7 +160,7 @@ if old_eager2 in src:
     src = src.replace(old_eager2, stock2)
     patched = True
 
-# Add marker comment
+# Add marker comment so skip-check works on subsequent runs
 src = src.replace(
     "      _sharedInstance = disabledController\n    }",
     "      _sharedInstance = disabledController\n      // bundleURL probes bundle locations directly — no eager start() needed\n    }",
@@ -132,25 +174,28 @@ if patched:
 else:
     print("[patch-expo-updates] AppController.swift already at stock (no eager start patch present)")
 PYEOF
-  fi
-else
-  echo "[patch-expo-updates] WARNING: $IOS_CONTROLLER not found, skipping"
-fi
 
-# ── Fix 4: AppLauncherNoDatabase — try EXUpdates.bundle before Bundle.main ──
-IOS_LAUNCHER="node_modules/expo-updates/ios/EXUpdates/AppLauncher/AppLauncherNoDatabase.swift"
+done
 
-if [ -f "$IOS_LAUNCHER" ]; then
-  if grep -q "EXUpdates.bundle" "$IOS_LAUNCHER" 2>/dev/null; then
+# ── Fix 4: AppLauncherNoDatabase — try app.bundle (Expo managed) before main.jsbundle (bare) ──
+IOS_LAUNCHER_PATTERN="expo-updates@*/node_modules/expo-updates/ios/EXUpdates/AppLauncher/AppLauncherNoDatabase.swift"
+
+for swift in node_modules/.pnpm/$IOS_LAUNCHER_PATTERN; do
+  [ -f "$swift" ] || continue
+
+  if grep -q "EXUpdates.bundle" "$swift" 2>/dev/null; then
     echo "[patch-expo-updates] AppLauncherNoDatabase already patched"
-  else
-    python3 - "$IOS_LAUNCHER" <<'PYEOF'
+    continue
+  fi
+
+  python3 - "$swift" <<'PYEOF'
 import sys, re
 
 path = sys.argv[1]
 with open(path, 'r') as f:
     src = f.read()
 
+# Pattern 1: original bare Bundle.main lookup (fresh install)
 old1 = """  public func launchUpdate() {
     precondition(assetFilesMap == nil, "assetFilesMap should be null for embedded updates")
     launchAssetUrl = Bundle.main.url(
@@ -194,6 +239,7 @@ if old1 in src:
         f.write(src)
     print("[patch-expo-updates] Patched AppLauncherNoDatabase.swift (EXUpdates.bundle lookup)")
 elif "Try Expo managed bundle" in src:
+    # Old patch present but uses Bundle.main — rewrite the launchUpdate method
     pattern = r'(  public func launchUpdate\(\) \{).*?(  \})'
     new_src, count = re.subn(pattern, new, src, count=1, flags=re.DOTALL)
     if count:
@@ -205,7 +251,5 @@ elif "Try Expo managed bundle" in src:
 else:
     print("[patch-expo-updates] WARNING: AppLauncherNoDatabase pattern not found")
 PYEOF
-  fi
-else
-  echo "[patch-expo-updates] WARNING: $IOS_LAUNCHER not found, skipping"
-fi
+
+done

@@ -133,7 +133,11 @@ export default function SettingsScreenAndroid() {
             {
               text: "Restart Now",
               onPress: async () => {
-                await Updates.reloadAsync();
+                try {
+                  await Updates.reloadAsync();
+                } catch {
+                  // reloadAsync may fail on some OS versions — update applies on next cold start
+                }
               },
             },
           ],

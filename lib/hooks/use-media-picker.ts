@@ -73,6 +73,7 @@ export function useMediaPicker() {
   const pickFromLibrary = async (options?: {
     maxSelection?: number;
     allowsMultipleSelection?: boolean;
+    mediaTypes?: ("images" | "videos" | "livePhotos")[];
   }) => {
     const hasPermission = await requestPermissions();
     if (!hasPermission) return;
@@ -80,7 +81,7 @@ export function useMediaPicker() {
     try {
       const allowMultiple = options?.allowsMultipleSelection ?? true;
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images", "videos"],
+        mediaTypes: options?.mediaTypes ?? ["images", "videos"],
         allowsMultipleSelection: allowMultiple,
         quality: 1,
         videoMaxDuration: 60,

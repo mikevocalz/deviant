@@ -9,12 +9,7 @@ import {
   InteractionManager,
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import {
-  getCameraPermission,
-  getMicrophonePermission,
-  requestCameraPermission,
-  requestMicrophonePermission,
-} from "react-native-vision-camera";
+import { VisionCamera } from "react-native-vision-camera";
 import {
   Button,
   Tabs,
@@ -406,12 +401,12 @@ export function SignUpStep2() {
       });
 
       // Request camera via VisionCamera
-      let cameraStatus = getCameraPermission();
+      let cameraStatus = VisionCamera.cameraPermissionStatus;
       console.log("[SignUpStep2] Initial camera status:", cameraStatus);
 
       if (cameraStatus !== "authorized") {
-        const granted = await requestCameraPermission();
-        cameraStatus = granted ? "authorized" : getCameraPermission();
+        const granted = await VisionCamera.requestCameraPermission();
+        cameraStatus = granted ? "authorized" : VisionCamera.cameraPermissionStatus;
         console.log(
           "[SignUpStep2] Camera permission after request:",
           cameraStatus,
@@ -451,11 +446,11 @@ export function SignUpStep2() {
       } else {
         // iOS - try to get mic but don't block on it
         try {
-          let micStatus = getMicrophonePermission();
+          let micStatus = VisionCamera.microphonePermissionStatus;
           console.log("[SignUpStep2] iOS mic status:", micStatus);
           if (micStatus !== "authorized") {
-            const granted = await requestMicrophonePermission();
-            micStatus = granted ? "authorized" : getMicrophonePermission();
+            const granted = await VisionCamera.requestMicrophonePermission();
+            micStatus = granted ? "authorized" : VisionCamera.microphonePermissionStatus;
             console.log("[SignUpStep2] iOS mic after request:", micStatus);
           }
         } catch (micError) {
@@ -498,11 +493,11 @@ export function SignUpStep2() {
       AppTrace.trace("VERIFICATION", "permissions_request_started", {
         platform: Platform.OS,
       });
-      const cameraPermission = await requestCameraPermission();
+      const cameraPermission = await VisionCamera.requestCameraPermission();
 
       let microphonePermission: boolean | undefined;
       try {
-        microphonePermission = await requestMicrophonePermission();
+        microphonePermission = await VisionCamera.requestMicrophonePermission();
       } catch (micError) {
         console.log(
           "[SignUpStep2] Optional microphone permission failed:",

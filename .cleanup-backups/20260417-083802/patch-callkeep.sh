@@ -7,17 +7,16 @@
 
 set -euo pipefail
 
-# Direct hoisted path (pnpm hoisted layout — no .pnpm/pkg@ver/ virtual store)
-DIRECT="node_modules/react-native-callkeep/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java"
+PATTERN="react-native-callkeep@*/node_modules/react-native-callkeep/android/src/main/java/io/wazo/callkeep/RNCallKeepModule.java"
 
 found=0
-for f in "$DIRECT"; do
+for f in node_modules/.pnpm/$PATTERN; do
   [ -f "$f" ] || continue
   found=1
 
   # Skip if already patched
   if grep -q "PATCHED-CALLKEEP" "$f" 2>/dev/null; then
-    echo "[patch-callkeep] Already patched"
+    echo "[patch-callkeep] Already patched: $(basename "$(dirname "$(dirname "$(dirname "$(dirname "$(dirname "$(dirname "$f")")")")")")")"
     continue
   fi
 

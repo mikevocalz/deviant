@@ -332,7 +332,7 @@ function EventDetailScreenContent() {
 
   const { data: myTicketData } = useMyTicketForEvent(eventId);
   const { data: liveTicketTypes = [] } = useTicketTypes(eventId);
-  const upgradeOptions = useTicketUpgradeOptions(liveTicketTypes, myTicketData ?? null);
+  // upgradeOptions computed after upgradeSourceTiers is defined below
   const { mutate: initiateUpgrade, isPending: isUpgradePending } = useInitiateUpgrade(eventId);
 
   const handleUpgradePress = useCallback((option: UpgradeTierOption) => {
@@ -406,6 +406,28 @@ function EventDetailScreenContent() {
 
   const hasTicket =
     hasValidTicket(eventId) || isRsvped[eventId] || serverHasTicket;
+
+  // Fall back to eventData.ticketTiers when the standalone ticket_types query returns empty
+  const upgradeSourceTiers = useMemo((): import("@/lib/api/ticket-types").TicketTypeRecord[] => {
+    if (liveTicketTypes.length > 0) return liveTicketTypes;
+    const raw: any[] = eventData?.ticketTiers || [];
+    return raw.map((t: any) => ({
+      id: t.id,
+      event_id: parseInt(String(eventId), 10),
+      name: t.name,
+      description: t.description || null,
+      price_cents: t.price_cents || 0,
+      currency: "usd",
+      quantity_total: t.quantity_total ?? 0,
+      quantity_sold: t.quantity_sold ?? 0,
+      max_per_user: t.max_per_user || 4,
+      sale_start: t.sale_start || null,
+      sale_end: t.sale_end || null,
+      is_active: t.is_active !== false,
+      created_at: t.created_at || "",
+    }));
+  }, [liveTicketTypes, eventData?.ticketTiers, eventId]);
+  const upgradeOptions = useTicketUpgradeOptions(upgradeSourceTiers, myTicketData ?? null);
 
   // Sync isLiked from batch payload
   useEffect(() => {
@@ -961,7 +983,7 @@ function EventDetailScreenContent() {
 
   // Show translate button when native capability confirmed AND any authored field is foreign
   const showTranslateButton =
-    isTranslationCapable !== false &&
+    
     (shouldShowTranslateButton(safeEvent?.description || "", _targetLang) ||
       shouldShowTranslateButton(safeEvent?.title || "", _targetLang) ||
       shouldShowTranslateButton(lineupText, _targetLang) ||

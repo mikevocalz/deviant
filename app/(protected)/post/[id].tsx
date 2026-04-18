@@ -985,7 +985,7 @@ function PostDetailScreenContent() {
     await translateCaptionFn();
   }, [translateCaptionFn]);
   const showTranslateButton =
-    isTranslationCapable !== false &&
+    
     shouldShowTranslateButton(captionText || "", targetLang);
   const hasMedia =
     safePost.media &&
