@@ -404,8 +404,13 @@ function EventDetailScreenContent() {
     eventData?.userRsvpStatus && eventData.userRsvpStatus !== "none"
   );
 
+  // myTicketData is the DB source of truth for paid Stripe tickets —
+  // Zustand store is empty after restart, userRsvpStatus only tracks free RSVPs
   const hasTicket =
-    hasValidTicket(eventId) || isRsvped[eventId] || serverHasTicket;
+    hasValidTicket(eventId) ||
+    isRsvped[eventId] ||
+    serverHasTicket ||
+    !!(myTicketData && (myTicketData.status === "active" || myTicketData.status === "scanned"));
 
   // Fall back to eventData.ticketTiers when the standalone ticket_types query returns empty
   const upgradeSourceTiers = useMemo((): import("@/lib/api/ticket-types").TicketTypeRecord[] => {
