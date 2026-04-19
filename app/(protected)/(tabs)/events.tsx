@@ -945,14 +945,12 @@ function EventsScreenContent() {
         onDismiss={() => setFilterSheetVisible(false)}
       />
 
-      {/* P0-2: Detached Gorhom BottomSheetModal with the events map.
-          Shows events in the user's state + nearby states. Tapping a pin
-          dismisses the sheet and routes to event detail. */}
-      <EventsMapSheet
-        visible={showMapView}
-        onDismiss={() => setShowMapView(false)}
-        events={eventsWithPromotion}
-      />
+      {showMapView && (
+        <EventsMapSheet
+          onDismiss={() => setShowMapView(false)}
+          events={eventsWithPromotion}
+        />
+      )}
     </View>
   );
 }

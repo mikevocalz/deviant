@@ -35,46 +35,48 @@ import type { Event } from "@/lib/hooks/use-events";
 import { geocodeAddress } from "@/lib/utils/geocode";
 
 interface EventsMapSheetProps {
-  visible: boolean;
   onDismiss: () => void;
   events: Event[];
 }
 
-// Geographic bounding box (degrees) for "user state + nearby states".
-// ~8° latitude ≈ 550 miles; enough to cover any US state and at least its
-// immediate neighbors. Kept intentionally coarse — users expect to see a
-// continuous regional map, not a pin-prick of their city.
-const NEARBY_DEGREES = 8;
-
 export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
-  visible,
   onDismiss,
   events,
 }) => {
   const sheetRef = useRef<BottomSheetModal>(null);
-  // Guard against double-dismiss: X button + BottomSheet onChange(-1) can both
-  // fire before the parent re-renders, causing toggleMapView to flip back to true.
-  const dismissingRef = useRef(false);
   const { colors } = useColorScheme();
   const router = useRouter();
 
+  // Auto-present on mount so parent can use conditional rendering
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      sheetRef.current?.present();
+    });
+    return () => cancelAnimationFrame(id);
+  }, []);
+
   const safeDismiss = useCallback(() => {
-    if (dismissingRef.current) return;
-    dismissingRef.current = true;
     onDismiss();
-    // Reset after next event loop tick so re-open works on a fresh press
-    setTimeout(() => { dismissingRef.current = false; }, 500);
   }, [onDismiss]);
 
   const activeCity = useEventsLocationStore((s) => s.activeCity);
   const deviceLat = useEventsLocationStore((s) => s.deviceLat);
   const deviceLng = useEventsLocationStore((s) => s.deviceLng);
 
+  const userCenter = useMemo<[number, number] | undefined>(() => {
+    if (typeof deviceLng === "number" && typeof deviceLat === "number") {
+      return [deviceLng, deviceLat];
+    }
+    if (typeof activeCity?.lng === "number" && typeof activeCity?.lat === "number") {
+      return [activeCity.lng, activeCity.lat];
+    }
+    return undefined;
+  }, [deviceLat, deviceLng, activeCity]);
+
   const geocodedEventCoords = useEventsLocationStore((s) => s.geocodedEventCoords);
   const setGeocodedEventCoord = useEventsLocationStore((s) => s.setGeocodedEventCoord);
 
   useEffect(() => {
-    if (!visible) return;
     const missing = events.filter(
       (e) =>
         (e.locationLat == null || e.locationLng == null) &&
@@ -93,22 +95,8 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
       }
     })();
     return () => { cancelled = true; };
-  }, [visible, events, geocodedEventCoords, setGeocodedEventCoord]);
+  }, [events, geocodedEventCoords, setGeocodedEventCoord]);
 
-  // Prefer device coords if available (more accurate than city centroid),
-  // fall back to activeCity coords for state-level filtering.
-  const userLat =
-    typeof deviceLat === "number"
-      ? deviceLat
-      : typeof activeCity?.lat === "number"
-        ? activeCity.lat
-        : null;
-  const userLng =
-    typeof deviceLng === "number"
-      ? deviceLng
-      : typeof activeCity?.lng === "number"
-        ? activeCity.lng
-        : null;
 
   const scopedEvents = useMemo(() => {
     // Merge geocoded fallback coords into events that were missing lat/lng
@@ -123,26 +111,10 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
       (e) => e.locationLat != null && e.locationLng != null,
     );
 
-    if (userLat == null || userLng == null) return mappable;
+    return mappable;
+  }, [events, geocodedEventCoords]);
 
-    return mappable.filter((e) => {
-      const dLat = Math.abs((e.locationLat as number) - userLat);
-      const dLng = Math.abs((e.locationLng as number) - userLng);
-      return dLat <= NEARBY_DEGREES && dLng <= NEARBY_DEGREES;
-    });
-  }, [events, userLat, userLng, geocodedEventCoords]);
-
-  // Gorhom snap points — start at 60% so user can still see screen underneath;
-  // allow expand to 92% for a near-full-screen view.
   const snapPoints = useMemo(() => ["60%", "92%"], []);
-
-  useEffect(() => {
-    if (visible) {
-      sheetRef.current?.present();
-    } else {
-      sheetRef.current?.dismiss();
-    }
-  }, [visible]);
 
   const handleSheetChange = useCallback(
     (index: number) => {
@@ -250,6 +222,7 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
         >
           <EventsMapView
             events={scopedEvents}
+            userCenter={userCenter}
             onMarkerPress={(id) => {
               safeDismiss();
               router.push(`/(protected)/events/${id}` as any);
