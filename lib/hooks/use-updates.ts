@@ -189,10 +189,11 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
             cancel: {
               label: "Update Later",
               onClick: () => {
-                console.log("[Updates] User chose to update later - will show again next session");
+                console.log("[Updates] User dismissed update toast for this session");
                 dismissToast();
-                // Reset session flag so toast can show again on next foreground
-                globalHasShownToastThisSession = false;
+                // Keep globalHasShownToastThisSession = true so the toast does NOT
+                // reappear while the app is still running. It will show again on
+                // the next cold start (module-level globals reset between launches).
               },
             },
           });
