@@ -39,7 +39,7 @@ export interface BootstrapPost {
     avatar: string;
     verified: boolean;
   };
-  media: { type: string; url: string }[];
+  media: { type: string; url: string; mimeType?: string; livePhotoVideoUrl?: string }[];
 }
 
 export interface BootstrapStory {
