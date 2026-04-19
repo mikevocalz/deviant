@@ -30,6 +30,7 @@
     "@better-auth/passkey": "^1.5.5",
     "@callstack/liquid-glass": "^0.7.0",
     "@config-plugins/react-native-webrtc": "13.0.0",
+    "@deviant/dvnt-translation": "workspace:*",
     "@expo/html-elements": "^55.0.3",
     "@expo/metro-runtime": "^55.0.9",
     "@fishjam-cloud/react-native-client": "^0.26.0",
@@ -73,6 +74,7 @@
     "expo-build-properties": "^55.0.13",
     "expo-calendar": "^55.0.14",
     "expo-camera": "^55.0.15",
+    "expo-clipboard": "^55.0.13",
     "expo-constants": "^55.0.14",
     "expo-crypto": "^55.0.14",
     "expo-dev-client": "^55.0.27",
@@ -121,7 +123,6 @@
     "react-native-callkeep": "^4.3.12",
     "react-native-compressor": "1.16.0",
     "react-native-css-interop": "^0.2.1",
-    "react-native-emoji-popup": "^0.3.3",
     "react-native-gesture-handler": "^2.31.1",
     "react-native-google-places-autocomplete": "^2.6.4",
     "react-native-hole-view": "5.0.0",
@@ -152,9 +153,7 @@
     "tailwindcss": "^3.4.17",
     "tailwindcss-animate": "1.0.7",
     "zod": "^4.3.6",
-    "zustand": "^5.0.12",
-    "expo-clipboard": "^55.0.13",
-    "@deviant/dvnt-translation": "workspace:*"
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@config-plugins/react-native-callkeep": "^12.0.0",
