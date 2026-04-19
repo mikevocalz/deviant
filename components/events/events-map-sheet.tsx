@@ -25,7 +25,6 @@ import {
   BottomSheetBackdrop,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
-import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import { MapPin, X } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
@@ -151,7 +150,13 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
       index={0}
       onChange={handleSheetChange}
       backdropComponent={renderBackdrop}
-      backgroundComponent={GlassSheetBackground}
+      backgroundStyle={{
+        backgroundColor: colors.card,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        borderWidth: 1,
+        borderColor: colors.border,
+      }}
       handleIndicatorStyle={{ backgroundColor: colors.mutedForeground }}
       // ── Detached mode ────────────────────────────────────────────────
       // Floats the sheet with margins so it visually separates from the
