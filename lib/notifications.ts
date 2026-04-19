@@ -38,6 +38,27 @@ if (Platform.OS !== "web") {
           };
         }
 
+        // Suppress message notifications where the sender is the current user
+        // (should not occur from server, but guards against stale token edge cases)
+        if (notificationType === "message") {
+          try {
+            const { getCurrentUserIdInt } = require("@/lib/api/auth-helper");
+            const myIntId = getCurrentUserIdInt();
+            const senderId = notification.request.content.data?.senderId;
+            if (myIntId && senderId && String(senderId) === String(myIntId)) {
+              return {
+                shouldShowAlert: false,
+                shouldPlaySound: false,
+                shouldSetBadge: false,
+                shouldShowBanner: false,
+                shouldShowList: false,
+              };
+            }
+          } catch {
+            // auth-helper not available yet — allow notification through
+          }
+        }
+
         return {
           shouldShowAlert: true,
           shouldPlaySound: true,
