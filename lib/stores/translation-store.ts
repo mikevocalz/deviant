@@ -247,10 +247,17 @@ async function translateText(text: string, targetLang: string): Promise<string> 
     ? `${detectedSrc}|${tgt}`
     : `auto|${tgt}`;
 
-  const resp = await fetch(
-    `https://api.mymemory.translated.net/get?q=${encoded}&langpair=${langPair}`,
-    { signal: AbortSignal.timeout(10000) },
-  );
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 10000);
+  let resp: Response;
+  try {
+    resp = await fetch(
+      `https://api.mymemory.translated.net/get?q=${encoded}&langpair=${langPair}`,
+      { signal: controller.signal },
+    );
+  } finally {
+    clearTimeout(timeoutId);
+  }
   if (!resp.ok) throw new Error(`Translation service unavailable (${resp.status})`);
   const data = await resp.json();
   if (data.responseStatus === 200 && data.responseData?.translatedText) {

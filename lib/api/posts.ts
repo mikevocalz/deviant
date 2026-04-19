@@ -292,15 +292,11 @@ export const postsApi = {
   /**
    * Get feed posts (paginated)
    */
-  async getFeedPostsPaginated(cursor: number = 0) {
+  async getFeedPostsPaginated(cursor: number = 0, includeNsfw: boolean = false) {
     try {
-      console.log("[Posts] getFeedPostsPaginated, cursor:", cursor);
+      console.log("[Posts] getFeedPostsPaginated, cursor:", cursor, "includeNsfw:", includeNsfw);
 
-      const {
-        data: posts,
-        error,
-        count,
-      } = await supabase
+      let query = supabase
         .from(DB.posts.table)
         .select(
           `
@@ -322,7 +318,17 @@ export const postsApi = {
         `,
           { count: "exact" },
         )
-        .eq(DB.posts.visibility, "public")
+        .eq(DB.posts.visibility, "public");
+
+      if (!includeNsfw) {
+        query = query.or(`${DB.posts.isNsfw}.is.false,${DB.posts.isNsfw}.is.null`);
+      }
+
+      const {
+        data: posts,
+        error,
+        count,
+      } = await query
         .order(DB.posts.createdAt, { ascending: false })
         .range(cursor, cursor + PAGE_SIZE - 1);
 

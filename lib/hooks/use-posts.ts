@@ -9,8 +9,9 @@ import { debounce } from "@tanstack/pacer";
 import { postsApi } from "@/lib/api/posts";
 import type { Post } from "@/lib/types";
 import { resolveTextPostPresentation } from "@/lib/posts/text-post";
-import { useRef, useCallback, useMemo } from "react";
+import { useRef, useCallback, useMemo, useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
+import { useAppStore } from "@/lib/stores/app-store";
 import { STALE_TIMES, GC_TIMES } from "@/lib/perf/stale-time-config";
 import { profileKeys } from "@/lib/hooks/use-profile";
 import { activityKeys } from "@/lib/hooks/use-activities-query";
@@ -107,15 +108,23 @@ export function useInfiniteFeedPosts({
 }: {
   enabled?: boolean;
 } = {}) {
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
+  const queryClient = useQueryClient();
+
+  // Invalidate + remove feed whenever NSFW setting changes so filter takes effect immediately
+  useEffect(() => {
+    queryClient.removeQueries({ queryKey: postKeys.feedInfinite(), exact: true });
+  }, [nsfwEnabled, queryClient]);
+
   return useInfiniteQuery({
     queryKey: postKeys.feedInfinite(),
-    queryFn: ({ pageParam = 0 }) => postsApi.getFeedPostsPaginated(pageParam),
+    queryFn: ({ pageParam = 0 }) => postsApi.getFeedPostsPaginated(pageParam, nsfwEnabled),
     enabled,
     initialPageParam: 0,
     getNextPageParam: (lastPage) => lastPage?.nextCursor ?? undefined,
     staleTime: STALE_TIMES.feed,
-    refetchOnMount: false, // Prevent double loading on mount
-    refetchOnWindowFocus: false, // Prevent refetch on app focus
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 }
 

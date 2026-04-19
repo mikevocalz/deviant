@@ -21,9 +21,9 @@ const FORCE_OTA_IN_DEV =
   typeof process !== "undefined" &&
   process.env?.EXPO_PUBLIC_FORCE_OTA_CHECK === "true";
 
-// Storage key - no longer used for dismissal tracking
-// Toast will show again each session to ensure users don't miss updates
-const STORAGE_KEY_LAST_SHOWN_UPDATE = "@dvnt_last_shown_update_id"; // kept for potential future use
+// Persist which update ID the user dismissed so we don't loop on cold restart.
+// Cleared when a NEW update ID arrives (different from the dismissed one).
+const STORAGE_KEY_DISMISSED_UPDATE = "@dvnt_dismissed_update_id";
 
 // SINGLETON: Module-level state to prevent multiple hook instances from racing
 let globalHasShownToastThisSession = false;
@@ -148,13 +148,14 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           updateId || safeGet(() => Updates?.updateId, null);
         console.log("[Updates] Checking update ID:", currentUpdateId);
 
-        // Note: We no longer persist dismissals - toast will show again each session
-        // This ensures users who accidentally dismiss can still get the update
+        // CHECK 4: User already dismissed THIS update ID — don't loop across restarts
         if (currentUpdateId) {
-          console.log(
-            "[Updates] Showing toast for update ID:",
-            currentUpdateId,
-          );
+          const dismissedId = safeGet(() => mmkv.getString(STORAGE_KEY_DISMISSED_UPDATE), null);
+          if (dismissedId === currentUpdateId) {
+            console.log("[Updates] Toast suppressed — user already dismissed this update ID:", currentUpdateId);
+            globalHasShownToastThisSession = true; // prevent retry within session
+            return;
+          }
         }
 
         // LOCK: Mark all flags BEFORE showing toast
@@ -183,6 +184,8 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
               label: "Restart App Now",
               onClick: async () => {
                 dismissToast();
+                // Clear dismissed key so future updates show toast again
+                try { mmkv.remove(STORAGE_KEY_DISMISSED_UPDATE); } catch {}
                 await reloadApp();
               },
             },
@@ -191,9 +194,10 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
               onClick: () => {
                 console.log("[Updates] User dismissed update toast for this session");
                 dismissToast();
-                // Keep globalHasShownToastThisSession = true so the toast does NOT
-                // reappear while the app is still running. It will show again on
-                // the next cold start (module-level globals reset between launches).
+                // Persist dismissed update ID so toast won't loop on next cold start
+                if (currentUpdateId) {
+                  try { mmkv.set(STORAGE_KEY_DISMISSED_UPDATE, currentUpdateId); } catch {}
+                }
               },
             },
           });
