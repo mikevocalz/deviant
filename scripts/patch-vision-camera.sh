@@ -1,72 +1,82 @@
-#!/bin/bash
-# Patch react-native-vision-camera for Swift 6.1 / Xcode 16.3+ compatibility
-# Fixes: 'type any Error has no member error' — dot-syntax throws fail when Swift
-# cannot infer RuntimeError from context (untyped throws, closures, Promise.async blocks)
+#!/usr/bin/env bash
+# Patches two bugs in react-native-vision-camera that cause iOS build failures:
+#
+#  1. CMVideoDimensions+penalty.swift — ambiguous use of 'abs' when CoreMedia headers
+#     are in scope (C abs vs Swift.abs). Fixed by qualifying as Swift.abs().
+#
+#  2. ResolvableConstraint+ResolutionBiasConstraint.swift — RuntimeError is a @frozen enum
+#     with no direct initializer; must use RuntimeError.error(withMessage:) not RuntimeError("…").
 
-set -e
+set -euo pipefail
 
-VISION_CAMERA_DIR="node_modules/react-native-vision-camera/ios"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TARGET_DIR="$(cd "$SCRIPT_DIR/.." && pwd)/node_modules/react-native-vision-camera"
 
-if [ ! -d "$VISION_CAMERA_DIR" ]; then
-    echo "react-native-vision-camera not found. Skipping patch."
-    exit 0
+if [ ! -d "$TARGET_DIR" ]; then
+  echo "[patch-vision-camera] WARNING: $TARGET_DIR not found, skipping"
+  exit 0
 fi
 
-echo "Patching react-native-vision-camera for Swift 6.1 compatibility..."
+PENALTY_FILE="$TARGET_DIR/ios/Extensions/CoreMedia/CMVideoDimensions+penalty.swift"
+RUNTIME_FILE="$TARGET_DIR/ios/Hybrid Objects/Constraints/ResolvableConstraint/ResolvableConstraint+ResolutionBiasConstraint.swift"
 
-# Use Python for reliable cross-platform string replacement.
-# Step 1: Replace ALL forms of throw .error( and throw RuntimeError.error( with the
-#         explicit canonical form throw RuntimeError.error( so Swift 6.1 can resolve
-#         the type without typed-throws inference.
-# Step 2: Fix the broken RuntimeError("msg") form that lacks .error(withMessage:)
-#         — this can appear if a previous patch applied incorrectly.
-# Step 3: Fix nil type annotation in ConstraintResolver.swift compactMap closure.
+# ── Patch 1: ambiguous abs() ──────────────────────────────────────────────────
+if [ -f "$PENALTY_FILE" ]; then
+  if grep -q "Swift\.abs(" "$PENALTY_FILE" 2>/dev/null; then
+    echo "[patch-vision-camera] CMVideoDimensions+penalty.swift already patched"
+  else
+    python3 - "$PENALTY_FILE" <<'PYEOF'
+import sys
+from pathlib import Path
 
-python3 - "$VISION_CAMERA_DIR" <<'PYEOF'
-import os, sys, re
+path = Path(sys.argv[1])
+content = path.read_text()
 
-ios_dir = sys.argv[1]
+# Replace bare abs() calls with Swift.abs() to resolve CoreMedia header ambiguity.
+patched = content.replace(
+    "let aspectRatioDiff = abs(actualAspectRatio - targetAspectRatio) / targetAspectRatio",
+    "let aspectRatioDiff = Swift.abs(actualAspectRatio - targetAspectRatio) / targetAspectRatio",
+).replace(
+    "let logPixelDistance = abs(log(actualPixels / targetPixels))",
+    "let logPixelDistance = Swift.abs(log(actualPixels / targetPixels))",
+)
 
-for root, dirs, files in os.walk(ios_dir):
-    for fname in files:
-        if not fname.endswith('.swift'):
-            continue
-        path = os.path.join(root, fname)
-        with open(path, 'r', encoding='utf-8') as f:
-            original = f.read()
+if patched == content:
+    print("[patch-vision-camera] WARNING: abs() pattern not found in penalty file — skipping", file=sys.stderr)
+    sys.exit(0)
 
-        text = original
-
-        # Fix 1: throw .error( → throw RuntimeError.error(
-        text = text.replace('throw .error(', 'throw RuntimeError.error(')
-
-        # Fix 2: throw RuntimeError("msg") → throw RuntimeError.error(withMessage: "msg")
-        # This handles the malformed form produced by corrupt patches.
-        text = re.sub(
-            r'throw RuntimeError\(("(?:[^"\\]|\\.)*")\)',
-            r'throw RuntimeError.error(withMessage: \1)',
-            text
-        )
-
-        if text != original:
-            with open(path, 'w', encoding='utf-8') as f:
-                f.write(text)
-            print(f'Patched {fname}')
-
-# Fix 3: nil return type annotation in ConstraintResolver.swift compactMap closure
-cr = os.path.join(ios_dir, 'Hybrid Objects/Constraints/ConstraintResolver.swift')
-if os.path.exists(cr):
-    with open(cr, 'r', encoding='utf-8') as f:
-        text = f.read()
-    fixed = text.replace(
-        'case is any NativePreviewViewOutput:\n        return nil',
-        'case is any NativePreviewViewOutput:\n        return nil as (any NativeCameraOutput)?'
-    )
-    if fixed != text:
-        with open(cr, 'w', encoding='utf-8') as f:
-            f.write(fixed)
-        print('Patched ConstraintResolver.swift (nil type annotation)')
-
+path.write_text(patched)
+print("[patch-vision-camera] Patched CMVideoDimensions+penalty.swift (abs ambiguity)")
 PYEOF
+  fi
+else
+  echo "[patch-vision-camera] WARNING: $PENALTY_FILE not found"
+fi
 
-echo "Vision Camera Swift 6.1 patch applied successfully!"
+# ── Patch 2: RuntimeError initializer ─────────────────────────────────────────
+if [ -f "$RUNTIME_FILE" ]; then
+  if grep -q 'RuntimeError\.error(withMessage:' "$RUNTIME_FILE" 2>/dev/null && ! grep -q 'RuntimeError("' "$RUNTIME_FILE" 2>/dev/null; then
+    echo "[patch-vision-camera] ResolvableConstraint+ResolutionBiasConstraint.swift already patched"
+  else
+    python3 - "$RUNTIME_FILE" <<'PYEOF'
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+content = path.read_text()
+
+# RuntimeError is a @frozen enum — RuntimeError("msg") is invalid.
+# Just replace the opening token; the string contents and closing paren stay as-is.
+patched = content.replace('RuntimeError("', 'RuntimeError.error(withMessage: "')
+
+if patched == content:
+    print("[patch-vision-camera] WARNING: RuntimeError(\"…\") pattern not found — skipping", file=sys.stderr)
+    sys.exit(0)
+
+path.write_text(patched)
+print("[patch-vision-camera] Patched ResolvableConstraint+ResolutionBiasConstraint.swift (RuntimeError init)")
+PYEOF
+  fi
+else
+  echo "[patch-vision-camera] WARNING: $RUNTIME_FILE not found"
+fi
