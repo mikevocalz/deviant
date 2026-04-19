@@ -62,6 +62,7 @@ import { PublicGateSheet } from "@/components/access/PublicGateSheet";
 import { DeviceTestBridge } from "@/components/dev/DeviceTestBridge";
 import { AppTrace } from "@/lib/diagnostics/app-trace";
 import { OtaUpdateBanner } from "@/components/ota/OtaUpdateBanner";
+import { OtaDebugStamp } from "@/components/ota/OtaDebugStamp";
 
 // CRITICAL: Check for OTA update and clear stale cache BEFORE creating QueryClient
 // This prevents crashes from incompatible persisted cache after OTA updates
@@ -524,6 +525,8 @@ export default function RootLayout() {
                         <SpotifyShareSheet />
                         {/* OtaUpdateBanner — deterministic, fully unmounts when dismissed */}
                         <OtaUpdateBanner />
+                        {/* OtaDebugStamp — shows bundle source/updateId for QA verification */}
+                        <OtaDebugStamp />
                         {/* Auth loading overlay — covers content but does NOT unmount navigation.
                           Skip when opened from share intent so user sees content instead of black. */}
                         {!authSettled &&

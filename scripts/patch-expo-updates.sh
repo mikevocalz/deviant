@@ -1,211 +1,22 @@
 #!/usr/bin/env bash
 # patch-expo-updates.sh
-# Fix 1 (REMOVED): expo-updates@55.0.7 Android ReactNativeFeatureFlags import.
-#   expo-updates@55.0.20+ no longer references rncompatibility — upstream fixed.
 #
-# Fix 2: iOS 26 beta crash — ExpoUpdatesReactDelegateHandler.bundleURL returns nil when
-#   AppController is in DisabledAppController state (DB init fails on iOS 26 sandbox path change).
-#   RCTRootViewFactory force-unwraps the URL → brk 1 / EXC_BREAKPOINT crash at launch.
-#   Fix: probe filesystem for bundle locations before calling launchAssetUrl().
+# expo-updates@55.0.20 stock code is correct — no patches needed.
 #
-# Fix 3: AppController — no eager start() on DisabledAppController (causes double-start crash).
+# History of patches that were removed:
 #
-# Fix 4: AppLauncherNoDatabase — try EXUpdates.bundle before Bundle.main for Expo managed builds.
+# Fix 2 (bundleURL probe-first) — REMOVED: caused OTA updates to be silently
+#   discarded. The probe always found the embedded bundle first, so
+#   AppController.launchAssetUrl() (which returns the OTA bundle URL) was never
+#   reached. Stock bundleURL is one line: `AppController.sharedInstance.launchAssetUrl()`
+#   which returns URL? (optional) — does not crash, correctly returns OTA bundle when
+#   a downloaded update exists.
 #
-# NOTE: Paths use direct node_modules/ layout (pnpm hoisted — no .pnpm/pkg@ver/ virtual store).
+# Fix 3 (eager start() revert) — REMOVED: was a no-op undoing a previous bad patch.
+#   Stock AppController does not call eager start() on DisabledAppController.
+#
+# Fix 4 (AppLauncherNoDatabase EXUpdates.bundle search) — REMOVED: AppLauncherNoDatabase
+#   is only used by DisabledAppController (OTA disabled). Production builds use
+#   EnabledAppController with AppLauncherWithDatabase — this code path is never hit.
 
-set -euo pipefail
-
-# ── Fix 2: iOS 26 beta crash — bundleURL returns nil when DisabledAppController is used ──
-IOS_DELEGATE="node_modules/expo-updates/ios/EXUpdates/ReactDelegateHandler/ExpoUpdatesReactDelegateHandler.swift"
-
-if [ -f "$IOS_DELEGATE" ]; then
-  # Skip if already patched with probe-first order
-  if grep -q "PROBE FILESYSTEM FIRST" "$IOS_DELEGATE" 2>/dev/null; then
-    echo "[patch-expo-updates] iOS bundleURL already patched (probe-first)"
-  else
-    python3 - "$IOS_DELEGATE" <<'PYEOF'
-import sys, re
-
-path = sys.argv[1]
-with open(path, 'r') as f:
-    src = f.read()
-
-new = """  public override func bundleURL(reactDelegate: ExpoReactDelegate) -> URL? {
-    // PROBE FILESYSTEM FIRST: When AppDelegate uses factory.startReactNative() directly (not
-    // createReactRootView), controller.start() is never called. EnabledAppController.startupProcedure
-    // stays nil. Calling launchAssetUrl() then crashes (force-unwrap of nil).
-    // By probing the embedded bundle locations first, we avoid that crash in Release builds.
-    let mainBundlePath = Bundle.main.bundlePath
-    let candidates: [(String, String)] = [
-      (EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesEmbeddedBundleFileType),
-      (EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType)
-    ]
-    let fm = FileManager.default
-    // 1) EXUpdates.bundle (Expo managed)
-    let exUpdatesBundlePath = (mainBundlePath as NSString).appendingPathComponent("EXUpdates.bundle")
-    for (name, ext) in candidates {
-      let filePath = ((exUpdatesBundlePath as NSString).appendingPathComponent(name) as NSString).appendingPathExtension(ext) ?? ""
-      if fm.fileExists(atPath: filePath) { return URL(fileURLWithPath: filePath) }
-    }
-    // 2) Bundle root (main.jsbundle in bare/Expo builds)
-    for (name, ext) in candidates {
-      let filePath = ((mainBundlePath as NSString).appendingPathComponent(name) as NSString).appendingPathExtension(ext) ?? ""
-      if fm.fileExists(atPath: filePath) { return URL(fileURLWithPath: filePath) }
-    }
-    // 3) Fallback: controller already started with OTA update URL
-    if let url = AppController.sharedInstance.launchAssetUrl() {
-      return url
-    }
-    return nil
-  }"""
-
-pattern = r'  public override func bundleURL\(reactDelegate: ExpoReactDelegate\) -> URL\? \{.*?\n  \}'
-new_src, count = re.subn(pattern, new, src, count=1, flags=re.DOTALL)
-if count:
-    with open(path, 'w') as f:
-        f.write(new_src)
-    print("[patch-expo-updates] Patched iOS ExpoUpdatesReactDelegateHandler.swift bundleURL (filesystem probe)")
-else:
-    print("[patch-expo-updates] WARNING: bundleURL pattern not found in ExpoUpdatesReactDelegateHandler.swift")
-PYEOF
-  fi
-else
-  echo "[patch-expo-updates] WARNING: $IOS_DELEGATE not found, skipping iOS bundleURL patch"
-fi
-
-# ── Fix 3: AppController — no eager start() on DisabledAppController ──
-IOS_CONTROLLER="node_modules/expo-updates/ios/EXUpdates/AppController.swift"
-
-if [ -f "$IOS_CONTROLLER" ]; then
-  if grep -q "bundleURL probes bundle" "$IOS_CONTROLLER" 2>/dev/null; then
-    echo "[patch-expo-updates] AppController already patched (no-op)"
-  else
-    python3 - "$IOS_CONTROLLER" <<'PYEOF'
-import sys
-
-path = sys.argv[1]
-with open(path, 'r') as f:
-    src = f.read()
-
-# Revert any previous eager start() patch back to stock
-old_eager1 = """        let disabledController = DisabledAppController(error: cause)
-        // iOS 26: start() immediately so launchAssetUrl() is populated before bundleURL() is called.
-        // Without this, bundleURL returns nil and RCTRootViewFactory crashes with brk 1.
-        disabledController.start()
-        _sharedInstance = disabledController
-        UpdatesControllerRegistry.sharedInstance.controller = _sharedInstance as? (any UpdatesInterface)
-        return"""
-
-stock1 = """        let disabledController = DisabledAppController(error: cause)
-        _sharedInstance = disabledController
-        UpdatesControllerRegistry.sharedInstance.controller = _sharedInstance as? (any UpdatesInterface)
-        return"""
-
-old_eager2 = """      let disabledController = DisabledAppController(error: nil)
-      // iOS 26: start() immediately so launchAssetUrl() is populated before bundleURL() is called.
-      disabledController.start()
-      _sharedInstance = disabledController"""
-
-stock2 = """      let disabledController = DisabledAppController(error: nil)
-      _sharedInstance = disabledController"""
-
-patched = False
-if old_eager1 in src:
-    src = src.replace(old_eager1, stock1)
-    patched = True
-if old_eager2 in src:
-    src = src.replace(old_eager2, stock2)
-    patched = True
-
-# Add marker comment
-src = src.replace(
-    "      _sharedInstance = disabledController\n    }",
-    "      _sharedInstance = disabledController\n      // bundleURL probes bundle locations directly — no eager start() needed\n    }",
-    1
-)
-
-if patched:
-    with open(path, 'w') as f:
-        f.write(src)
-    print("[patch-expo-updates] Reverted eager start() from AppController.swift (bundleURL handles fallback)")
-else:
-    print("[patch-expo-updates] AppController.swift already at stock (no eager start patch present)")
-PYEOF
-  fi
-else
-  echo "[patch-expo-updates] WARNING: $IOS_CONTROLLER not found, skipping"
-fi
-
-# ── Fix 4: AppLauncherNoDatabase — try EXUpdates.bundle before Bundle.main ──
-IOS_LAUNCHER="node_modules/expo-updates/ios/EXUpdates/AppLauncher/AppLauncherNoDatabase.swift"
-
-if [ -f "$IOS_LAUNCHER" ]; then
-  if grep -q "EXUpdates.bundle" "$IOS_LAUNCHER" 2>/dev/null; then
-    echo "[patch-expo-updates] AppLauncherNoDatabase already patched"
-  else
-    python3 - "$IOS_LAUNCHER" <<'PYEOF'
-import sys, re
-
-path = sys.argv[1]
-with open(path, 'r') as f:
-    src = f.read()
-
-old1 = """  public func launchUpdate() {
-    precondition(assetFilesMap == nil, "assetFilesMap should be null for embedded updates")
-    launchAssetUrl = Bundle.main.url(
-      forResource: EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename,
-      withExtension: EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType
-    )
-  }"""
-
-new = """  public func launchUpdate() {
-    precondition(assetFilesMap == nil, "assetFilesMap should be null for embedded updates")
-    // In Expo managed builds the JS bundle lives inside EXUpdates.bundle (a resource bundle
-    // embedded in the EXUpdates framework), NOT directly in Bundle.main.
-    // Search order: EXUpdates.bundle -> Bundle.main (bare RN fallback).
-    let candidates: [(String, String)] = [
-      (EmbeddedAppLoader.EXUpdatesEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesEmbeddedBundleFileType),
-      (EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFilename, EmbeddedAppLoader.EXUpdatesBareEmbeddedBundleFileType)
-    ]
-    // 1) Try EXUpdates.bundle (Expo managed workflow)
-    let frameworkBundle = Bundle(for: EmbeddedAppLoader.self)
-    if let resourceUrl = frameworkBundle.resourceURL,
-       let exUpdatesBundle = Bundle(url: resourceUrl.appendingPathComponent("EXUpdates.bundle")) {
-      for (name, ext) in candidates {
-        if let url = exUpdatesBundle.url(forResource: name, withExtension: ext) {
-          launchAssetUrl = url
-          return
-        }
-      }
-    }
-    // 2) Fallback: Bundle.main (bare RN workflow)
-    for (name, ext) in candidates {
-      if let url = Bundle.main.url(forResource: name, withExtension: ext) {
-        launchAssetUrl = url
-        return
-      }
-    }
-  }"""
-
-if old1 in src:
-    src = src.replace(old1, new)
-    with open(path, 'w') as f:
-        f.write(src)
-    print("[patch-expo-updates] Patched AppLauncherNoDatabase.swift (EXUpdates.bundle lookup)")
-elif "Try Expo managed bundle" in src:
-    pattern = r'(  public func launchUpdate\(\) \{).*?(  \})'
-    new_src, count = re.subn(pattern, new, src, count=1, flags=re.DOTALL)
-    if count:
-        with open(path, 'w') as f:
-            f.write(new_src)
-        print("[patch-expo-updates] Re-patched AppLauncherNoDatabase.swift (EXUpdates.bundle lookup)")
-    else:
-        print("[patch-expo-updates] WARNING: Could not re-patch AppLauncherNoDatabase launchUpdate")
-else:
-    print("[patch-expo-updates] WARNING: AppLauncherNoDatabase pattern not found")
-PYEOF
-  fi
-else
-  echo "[patch-expo-updates] WARNING: $IOS_LAUNCHER not found, skipping"
-fi
+echo "[patch-expo-updates] No patches needed for expo-updates@55.0.20 — skipping"
