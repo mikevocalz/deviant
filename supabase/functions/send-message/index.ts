@@ -274,12 +274,18 @@ Deno.serve(async (req) => {
         const recipientIntIds = (recipientRows || []).map((r: any) => r.id);
 
         // Look up push tokens for recipients (push_tokens.user_id is INTEGER)
+        // Belt-and-suspenders: exclude sender's own tokens by integer ID so they
+        // never get their own message push (e.g. stale token from a shared device).
+        const safeRecipientIntIds = recipientIntIds.filter(
+          (id: any) => Number(id) !== Number(userId),
+        );
+
         const { data: tokens } =
-          recipientIntIds.length > 0
+          safeRecipientIntIds.length > 0
             ? await supabaseAdmin
                 .from("push_tokens")
                 .select("token")
-                .in("user_id", recipientIntIds)
+                .in("user_id", safeRecipientIntIds)
             : { data: null };
 
         if (tokens && tokens.length > 0) {

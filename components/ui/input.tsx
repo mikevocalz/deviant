@@ -1,5 +1,5 @@
 import * as React from 'react'
-import { TextInput, View, Text, Pressable } from 'react-native'
+import { TextInput, View, Text, Pressable, Platform } from 'react-native'
 import { Eye, EyeOff } from 'lucide-react-native'
 import { cn } from '@/lib/cn'
 
@@ -24,7 +24,8 @@ export const Input = React.forwardRef<TextInput, InputProps>(
 
           <TextInput
             ref={ref}
-            className={cn('flex-1 py-3 text-base text-foreground', className)}
+            className={cn('flex-1 py-3 text-sm text-foreground', className)}
+            style={Platform.OS === 'android' ? { textAlignVertical: 'center' } : undefined}
             placeholderTextColor="rgba(255,255,255,0.45)"
             secureTextEntry={hidden}
             {...props}

@@ -81,7 +81,12 @@ function hydrateFromBootstrap(
           avatar: p.author.avatar,
           verified: p.author.verified,
         },
-        media,
+        media: media.map((m) => ({
+          type: m.type,
+          url: m.url,
+          ...(m.mimeType ? { mimeType: m.mimeType } : {}),
+          ...(m.livePhotoVideoUrl ? { livePhotoVideoUrl: m.livePhotoVideoUrl } : {}),
+        })),
         thumbnail:
           kind === "media" && primaryMedia?.type !== "video"
             ? primaryMedia?.url

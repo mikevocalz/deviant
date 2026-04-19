@@ -253,7 +253,7 @@ Deno.serve(async (req: Request) => {
             id, username, first_name, verified,
             avatar:avatar_id(url)
           ),
-          media:posts_media(type, url, "order"),
+          media:posts_media(type, url, "order", mime_type, live_photo_video_url),
           post_text_slides(id, slide_index, content)
         `,
         { count: "exact" },
@@ -394,10 +394,25 @@ Deno.serve(async (req: Request) => {
         },
         media: (p.media || [])
           .sort((a: any, b: any) => (a.order || 0) - (b.order || 0))
-          .map((m: any) => ({
-            type: m.type || "image",
-            url: m.url || "",
-          })),
+          .map((m: any) => {
+            const rawType: string = m.type || "image";
+            const mimeType: string | undefined = m.mime_type || undefined;
+            const livePhotoVideoUrl: string | undefined =
+              m.live_photo_video_url || undefined;
+            // Normalize to client MediaKind — mirrors transformPost in posts.ts
+            let kind = rawType;
+            if (rawType === "video" && mimeType === "video/mp4+animated")
+              kind = "animated_video";
+            else if (rawType === "gif" || mimeType === "image/gif") kind = "gif";
+            else if (rawType === "livePhoto" || livePhotoVideoUrl)
+              kind = "livePhoto";
+            return {
+              type: kind,
+              url: m.url || "",
+              ...(mimeType ? { mimeType } : {}),
+              ...(livePhotoVideoUrl ? { livePhotoVideoUrl } : {}),
+            };
+          }),
       };
     });
 
