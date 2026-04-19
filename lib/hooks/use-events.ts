@@ -119,19 +119,32 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-const CITY_RADIUS_KM = 80; // ~50 miles — tight enough to exclude other cities
+// "Near Me" should behave like a regional metro filter, not a strict city core.
+// 225km covers NYC + NJ + CT + much of PA, including Philadelphia.
+const NEARBY_RADIUS_KM = 225;
+const LOCATION_FILTER_FETCH_LIMIT = 200;
 
 export function useEvents(filters?: EventFilters) {
   return useQuery({
     queryKey: eventKeys.list(filters),
     queryFn: async () => {
+      const hasClientSideLocationFilter =
+        !!filters?.cityName || (filters?.cityLat != null && filters?.cityLng != null);
+
       const categories = filters?.categories ?? [];
       const singleCategory =
         categories.length === 1
           ? categories[0]
           : (filters?.category ?? undefined);
 
-      const results = await eventsApiClient.getEvents(20, singleCategory, {
+      // "Near Me" is applied client-side after the batch RPC returns.
+      // If we only fetch the default 20 global events first, a valid nearby
+      // event can be omitted before the distance filter ever runs.
+      const fetchLimit = hasClientSideLocationFilter
+        ? LOCATION_FILTER_FETCH_LIMIT
+        : 20;
+
+      const results = await eventsApiClient.getEvents(fetchLimit, singleCategory, {
         online: filters?.online,
         tonight: filters?.tonight,
         weekend: filters?.weekend,
@@ -142,10 +155,9 @@ export function useEvents(filters?: EventFilters) {
 
       let filtered = results;
 
-      // Client-side city post-filter — prevents server returning events from
-      // unrelated cities when cityId is set. Priority:
-      //   1. Distance from city coords (accurate when events have lat/lng)
-      //   2. City name substring match in event.location (fallback)
+      // Client-side "Near Me" post-filter. Priority:
+      //   1. Distance from device/city coords when the event has lat/lng
+      //   2. City-name substring match in event.location as a fallback
       const { cityName, cityLat, cityLng } = filters ?? {};
       if (cityName || (cityLat != null && cityLng != null)) {
         const cityNameLower = cityName?.toLowerCase().trim() ?? "";
@@ -159,7 +171,7 @@ export function useEvents(filters?: EventFilters) {
           ) {
             const km = haversineKm(cityLat, cityLng, e.locationLat, e.locationLng);
             if (__DEV__) console.log(`[Events] "${e.title}" distance from city: ${km.toFixed(1)}km`);
-            return km <= CITY_RADIUS_KM;
+            return km <= NEARBY_RADIUS_KM;
           }
           // Name match fallback — check location string for city name
           const loc = (e.location || e.locationAddress || "").toLowerCase();
