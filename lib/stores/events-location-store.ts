@@ -16,18 +16,16 @@ export interface City {
 type LocationMode = "city" | "device" | "hidden";
 
 interface EventsLocationState {
-  // Active city for event filtering
   activeCity: City | null;
   locationMode: LocationMode;
-  // Device location (when opted in)
   deviceLat: number | null;
   deviceLng: number | null;
-  // Recent cities for quick access
   recentCities: City[];
-  // Weather cache
   weatherData: WeatherDay[] | null;
   weatherCityId: number | null;
   weatherFetchedAt: number | null;
+  /** Geocoded fallback coords for events that only have an address string */
+  geocodedEventCoords: Record<string, { lat: number; lng: number }>;
   // Actions
   setActiveCity: (city: City) => void;
   setLocationMode: (mode: LocationMode) => void;
@@ -35,6 +33,7 @@ interface EventsLocationState {
   addRecentCity: (city: City) => void;
   setWeatherData: (data: WeatherDay[], cityId: number) => void;
   clearWeather: () => void;
+  setGeocodedEventCoord: (eventId: string, coords: { lat: number; lng: number }) => void;
 }
 
 export interface WeatherDay {
@@ -57,6 +56,7 @@ export const useEventsLocationStore = create<EventsLocationState>()(
       weatherData: null,
       weatherCityId: null,
       weatherFetchedAt: null,
+      geocodedEventCoords: {},
 
       setActiveCity: (city) => {
         set({ activeCity: city });
@@ -83,6 +83,11 @@ export const useEventsLocationStore = create<EventsLocationState>()(
 
       clearWeather: () =>
         set({ weatherData: null, weatherCityId: null, weatherFetchedAt: null }),
+
+      setGeocodedEventCoord: (eventId, coords) =>
+        set((s) => ({
+          geocodedEventCoords: { ...s.geocodedEventCoords, [eventId]: coords },
+        })),
     }),
     {
       name: "events-location",

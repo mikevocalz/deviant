@@ -22,7 +22,6 @@ import {
   PartyPopper,
   History,
   Map,
-  List,
   Zap,
 } from "lucide-react-native";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -53,7 +52,7 @@ import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
 import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { useEventsScreenStore } from "@/lib/stores/events-screen-store";
 import { EventCollectionRow } from "@/components/events/event-collection-row";
-import { EventsMapView } from "@/components/events/events-map-view";
+import { EventsMapSheet } from "@/components/events/events-map-sheet";
 import { EventFilterSheet } from "@/components/events/event-filter-sheet";
 import { SpotlightSection } from "@/components/events/spotlight-carousel";
 import { PromoteEventSheet } from "@/components/events/promote-event-sheet";
@@ -304,6 +303,7 @@ function EventsScreenContent() {
   const setDebouncedSearch = useEventsScreenStore((s) => s.setDebouncedSearch);
   const showMapView = useEventsScreenStore((s) => s.showMapView);
   const toggleMapView = useEventsScreenStore((s) => s.toggleMapView);
+  const setShowMapView = useEventsScreenStore((s) => s.setShowMapView);
   const filterSheetVisible = useEventsScreenStore((s) => s.filterSheetVisible);
   const setFilterSheetVisible = useEventsScreenStore(
     (s) => s.setFilterSheetVisible,
@@ -344,8 +344,13 @@ function EventsScreenContent() {
     if (activeFilters.includes("online")) f.online = true;
     if (activeFilters.includes("tonight")) f.tonight = true;
     if (activeFilters.includes("this_weekend")) f.weekend = true;
-    if (activeFilters.includes("in_city") && activeCity?.id)
+    if (activeFilters.includes("in_city") && activeCity?.id) {
       f.cityId = activeCity.id;
+      // Also pass city coords + name for precise client-side post-filtering
+      f.cityName = activeCity.name;
+      f.cityLat = typeof activeCity.lat === "number" ? activeCity.lat : null;
+      f.cityLng = typeof activeCity.lng === "number" ? activeCity.lng : null;
+    }
     if (debouncedSearch.length >= 2) f.search = debouncedSearch;
     if (activeSort !== "soonest") f.sort = activeSort;
     if (activeCategories.length > 0) f.categories = activeCategories;
@@ -526,22 +531,29 @@ function EventsScreenContent() {
               </Text>
             </View>
             <View className="flex-row items-center gap-2">
-              {/* Map / List toggle — left of Tickets */}
+              {/* Map button — left of Tickets. Opens a detached Gorhom
+                  BottomSheetModal instead of swapping the whole screen. */}
               <Motion.View
                 whileTap={{ scale: 0.9 }}
                 className="h-10 w-10 items-center justify-center rounded-xl bg-card border border-border"
-                style={showMapView ? { backgroundColor: colors.primary, borderColor: colors.primary } : undefined}
+                style={
+                  showMapView
+                    ? {
+                        backgroundColor: colors.primary,
+                        borderColor: colors.primary,
+                      }
+                    : undefined
+                }
               >
                 <Pressable
                   onPress={toggleMapView}
                   className="w-full h-full items-center justify-center"
-                  accessibilityLabel={showMapView ? "Switch to list view" : "Switch to map view"}
+                  accessibilityLabel="Open events map"
                 >
-                  {showMapView ? (
-                    <List size={18} color="#fff" />
-                  ) : (
-                    <Map size={18} color={colors.foreground} />
-                  )}
+                  <Map
+                    size={18}
+                    color={showMapView ? "#fff" : colors.foreground}
+                  />
                 </Pressable>
               </Motion.View>
               <Motion.View
@@ -691,9 +703,11 @@ function EventsScreenContent() {
           </View>
         )}
 
-        {showMapView ? (
-          <EventsMapView events={eventsWithPromotion} />
-        ) : (
+        {/* P0-2: Events list is ALWAYS rendered. The map is presented as a
+            detached BottomSheetModal overlay (see EventsMapSheet below),
+            not a full-screen swap — so filters, search, and tabs remain
+            reachable while the map is open. */}
+        {
           <>
             {/* Tab Navigation */}
             <View className="flex-row border-b border-border">
@@ -925,13 +939,22 @@ function EventsScreenContent() {
               })}
             </PagerViewWrapper>
           </>
-        )}
+        }
       </Main>
 
       {/* Event Filter Sheet */}
       <EventFilterSheet
         visible={filterSheetVisible}
         onDismiss={() => setFilterSheetVisible(false)}
+      />
+
+      {/* P0-2: Detached Gorhom BottomSheetModal with the events map.
+          Shows events in the user's state + nearby states. Tapping a pin
+          dismisses the sheet and routes to event detail. */}
+      <EventsMapSheet
+        visible={showMapView}
+        onDismiss={() => setShowMapView(false)}
+        events={eventsWithPromotion}
       />
     </View>
   );

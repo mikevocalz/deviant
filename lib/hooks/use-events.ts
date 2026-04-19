@@ -31,6 +31,10 @@ export interface EventFilters {
   categories?: string[];
   sort?: EventSort;
   cityId?: number | null;
+  /** City name for client-side post-filter when server cityId alone is insufficient */
+  cityName?: string | null;
+  cityLat?: number | null;
+  cityLng?: number | null;
 }
 
 // Event type for components
@@ -62,6 +66,7 @@ export interface Event {
   locationLat?: number;
   locationLng?: number;
   locationName?: string;
+  locationAddress?: string;
   isPromoted?: boolean;
 }
 
@@ -101,12 +106,25 @@ function findEventInCache(
 // Fetch all events with optional filters
 // placeholderData: keepPreviousData keeps old results visible while new filter query loads
 // This prevents UI "jump" when toggling filter pills
+// Haversine distance between two lat/lng points in km
+function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+const CITY_RADIUS_KM = 80; // ~50 miles — tight enough to exclude other cities
+
 export function useEvents(filters?: EventFilters) {
   return useQuery({
     queryKey: eventKeys.list(filters),
     queryFn: async () => {
-      // Derive category for RPC: single category goes server-side,
-      // multi-category fetches all then filters client-side
       const categories = filters?.categories ?? [];
       const singleCategory =
         categories.length === 1
@@ -122,12 +140,44 @@ export function useEvents(filters?: EventFilters) {
         cityId: filters?.cityId,
       });
 
+      let filtered = results;
+
+      // Client-side city post-filter — prevents server returning events from
+      // unrelated cities when cityId is set. Priority:
+      //   1. Distance from city coords (accurate when events have lat/lng)
+      //   2. City name substring match in event.location (fallback)
+      const { cityName, cityLat, cityLng } = filters ?? {};
+      if (cityName || (cityLat != null && cityLng != null)) {
+        const cityNameLower = cityName?.toLowerCase().trim() ?? "";
+        filtered = results.filter((e: any) => {
+          // Coordinate distance check (most reliable)
+          if (
+            cityLat != null &&
+            cityLng != null &&
+            e.locationLat != null &&
+            e.locationLng != null
+          ) {
+            const km = haversineKm(cityLat, cityLng, e.locationLat, e.locationLng);
+            if (__DEV__) console.log(`[Events] "${e.title}" distance from city: ${km.toFixed(1)}km`);
+            return km <= CITY_RADIUS_KM;
+          }
+          // Name match fallback
+          if (cityNameLower) {
+            const loc = (e.location || e.locationAddress || "").toLowerCase();
+            const passes = loc.includes(cityNameLower);
+            if (__DEV__ && !passes) console.log(`[Events] "${e.title}" filtered out — location "${e.location}" doesn't contain "${cityNameLower}"`);
+            return passes;
+          }
+          return true;
+        });
+      }
+
       // Client-side filter for multi-category (RPC only supports single p_category)
       if (categories.length > 1) {
         const catSet = new Set(categories);
-        return results.filter((e: any) => e.category && catSet.has(e.category));
+        filtered = filtered.filter((e: any) => e.category && catSet.has(e.category));
       }
-      return results;
+      return filtered;
     },
     staleTime: STALE_TIMES.events,
     placeholderData: keepPreviousData,

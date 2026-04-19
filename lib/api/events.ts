@@ -147,6 +147,10 @@ export const eventsApi = {
           attendees: avatars.length > 0 ? avatars : totalCount,
           totalAttendees: totalCount,
           category: event.category || undefined,
+          locationLat: event.location_lat != null ? Number(event.location_lat) : undefined,
+          locationLng: event.location_lng != null ? Number(event.location_lng) : undefined,
+          locationName: event.location_name || undefined,
+          locationAddress: event.location_address || event.location || undefined,
           host: {
             username: event.host_username || "unknown",
             avatar: event.host_avatar || "",

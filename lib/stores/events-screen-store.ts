@@ -37,6 +37,7 @@ interface EventsScreenState {
   // Map view
   showMapView: boolean;
   toggleMapView: () => void;
+  setShowMapView: (visible: boolean) => void;
 
   // Clear all
   clearAllFilters: () => void;
@@ -94,6 +95,7 @@ export const useEventsScreenStore = create<EventsScreenState>((set, get) => ({
 
   showMapView: false,
   toggleMapView: () => set((s) => ({ showMapView: !s.showMapView })),
+  setShowMapView: (visible) => set({ showMapView: visible }),
 
   clearAllFilters: () =>
     set({ activeFilters: [], activeCategories: [], activeSort: "soonest" }),
