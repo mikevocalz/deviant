@@ -406,7 +406,9 @@ export function SignUpStep2() {
 
       if (cameraStatus !== "authorized") {
         const granted = await VisionCamera.requestCameraPermission();
-        cameraStatus = granted ? "authorized" : VisionCamera.cameraPermissionStatus;
+        cameraStatus = granted
+          ? "authorized"
+          : VisionCamera.cameraPermissionStatus;
         console.log(
           "[SignUpStep2] Camera permission after request:",
           cameraStatus,
@@ -450,7 +452,9 @@ export function SignUpStep2() {
           console.log("[SignUpStep2] iOS mic status:", micStatus);
           if (micStatus !== "authorized") {
             const granted = await VisionCamera.requestMicrophonePermission();
-            micStatus = granted ? "authorized" : VisionCamera.microphonePermissionStatus;
+            micStatus = granted
+              ? "authorized"
+              : VisionCamera.microphonePermissionStatus;
             console.log("[SignUpStep2] iOS mic after request:", micStatus);
           }
         } catch (micError) {
@@ -611,11 +615,16 @@ export function SignUpStep2() {
           confidence: Number(result.confidence.toFixed(1)),
         });
         console.log("[SignUpStep2] Verification successful");
-        showToast(
-          "success",
-          "Verification Successful",
-          `Your identity has been verified with ${result.confidence.toFixed(1)}% confidence.`,
-        );
+
+        // P0-3: Immediately purge local ID/face state so the toast below
+        // is truthful — the captures never persist beyond this point.
+        // Uses the real sonner-native toast path (not the useUIStore
+        // wrapper) so the message renders via the Toaster mounted in
+        // app/_layout.tsx instead of any legacy in-app alert UI.
+        resetVerification();
+        setIDImage("");
+        setFaceImage("");
+        toast.success("Your ID information was deleted. Thank you.");
       } else {
         const attempts = failedAttempts + 1;
         setFailedAttempts(attempts);
@@ -939,9 +948,7 @@ export function SignUpStep2() {
 
       {manualReviewSubmitted && !idVerification.isVerified && (
         <View className="rounded-lg border border-yellow-500/30 bg-yellow-500/10 p-4">
-          <Text className="font-medium text-foreground">
-            Review Pending
-          </Text>
+          <Text className="font-medium text-foreground">Review Pending</Text>
           <Text className="mt-1 text-sm text-muted">
             Your captures need a manual check. Do not promise verified access
             until that review is approved.

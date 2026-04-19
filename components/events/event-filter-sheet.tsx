@@ -20,6 +20,7 @@ import {
 import * as Haptics from "expo-haptics";
 import { useEventsScreenStore } from "@/lib/stores/events-screen-store";
 import { useEventsLocationStore } from "@/lib/stores/events-location-store";
+import { useDeviceLocation } from "@/lib/hooks/use-device-location";
 import {
   EVENT_CATEGORIES,
   type EventCategory,
@@ -82,10 +83,9 @@ export const EventFilterSheet: React.FC<EventFilterSheetProps> = ({
   const activeSort = useEventsScreenStore((s) => s.activeSort);
   const setActiveSort = useEventsScreenStore((s) => s.setActiveSort);
   const clearAllFilters = useEventsScreenStore((s) => s.clearAllFilters);
+  const { isAvailable: hasDeviceLocation, requestLocation } = useDeviceLocation();
   const activeCity = useEventsLocationStore((s) => s.activeCity);
-  const setCityPickerVisible = useEventsScreenStore(
-    (s) => s.setCityPickerVisible,
-  );
+  const setCityPickerVisible = useEventsScreenStore((s) => s.setCityPickerVisible);
 
   const snapPoints = useMemo(() => ["75%"], []);
 
@@ -128,11 +128,16 @@ export const EventFilterSheet: React.FC<EventFilterSheetProps> = ({
   }, [clearAllFilters]);
 
   const handleToggleFilter = useCallback(
-    (filter: EventFilter) => {
+    async (filter: EventFilter) => {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      if (filter === "in_city" && !activeFilters.includes("in_city") && !hasDeviceLocation) {
+        // Need GPS before activating — request permission now
+        const granted = await requestLocation();
+        if (!granted) return;
+      }
       toggleFilter(filter);
     },
-    [toggleFilter],
+    [toggleFilter, activeFilters, hasDeviceLocation, requestLocation],
   );
 
   const handleToggleCategory = useCallback(
@@ -203,6 +208,8 @@ export const EventFilterSheet: React.FC<EventFilterSheetProps> = ({
             {QUICK_FILTERS.map((filter) => {
               const isActive = activeFilters.includes(filter.id);
               const Icon = filter.icon;
+              const label =
+                filter.id === "in_city" && isActive ? "Near Me" : filter.label;
               return (
                 <Pressable
                   key={filter.id}
@@ -229,7 +236,7 @@ export const EventFilterSheet: React.FC<EventFilterSheetProps> = ({
                       color: isActive ? filter.activeColor : "#999",
                     }}
                   >
-                    {filter.label}
+                    {label}
                   </Text>
                 </Pressable>
               );

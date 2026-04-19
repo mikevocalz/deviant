@@ -89,8 +89,13 @@ Deno.serve(async (req: Request) => {
       .eq("author_id", profileUserId)
       .eq("visibility", "public");
 
-    if (!include_nsfw) {
-      profilePostsQuery = profilePostsQuery.or("is_nsfw.is.false,is_nsfw.is.null");
+    // Strict spicy contract (mirror feed filter):
+    if (include_nsfw) {
+      profilePostsQuery = profilePostsQuery.eq("is_nsfw", true);
+    } else {
+      profilePostsQuery = profilePostsQuery.or(
+        "is_nsfw.is.false,is_nsfw.is.null",
+      );
     }
 
     profilePostsQuery = profilePostsQuery

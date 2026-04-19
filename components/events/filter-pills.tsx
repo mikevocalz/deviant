@@ -21,6 +21,8 @@ export type EventFilter =
 interface FilterPillsProps {
   activeFilters: EventFilter[];
   onToggle: (filter: EventFilter) => void;
+  /** Active city name — shown in place of "In City" when the pill is active */
+  activeCityName?: string | null;
 }
 
 const FILTERS: {
@@ -55,6 +57,7 @@ const FILTERS: {
 export const FilterPills: React.FC<FilterPillsProps> = ({
   activeFilters,
   onToggle,
+  activeCityName,
 }) => {
   return (
     <View className="py-2">
@@ -66,6 +69,10 @@ export const FilterPills: React.FC<FilterPillsProps> = ({
         {FILTERS.map((filter) => {
           const isActive = activeFilters.includes(filter.id);
           const Icon = filter.icon;
+          const label =
+            filter.id === "in_city" && isActive && activeCityName
+              ? `In ${activeCityName}`
+              : filter.label;
           return (
             <Pressable
               key={filter.id}
@@ -95,7 +102,7 @@ export const FilterPills: React.FC<FilterPillsProps> = ({
                   color: isActive ? filter.activeColor : "#999",
                 }}
               >
-                {filter.label}
+                {label}
               </Text>
             </Pressable>
           );

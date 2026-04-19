@@ -49,7 +49,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Avatar } from "@/components/ui/avatar";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
 import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
-import { useEventsLocationStore } from "@/lib/stores/events-location-store";
+import { useDeviceLocation } from "@/lib/hooks/use-device-location";
 import { useEventsScreenStore } from "@/lib/stores/events-screen-store";
 import { EventCollectionRow } from "@/components/events/event-collection-row";
 import { EventsMapSheet } from "@/components/events/events-map-sheet";
@@ -335,8 +335,8 @@ function EventsScreenContent() {
     searchDebouncerRef.current.cancel();
   }, [setSearchQuery, setDebouncedSearch]);
 
-  // Location store — used only for in_city filter
-  const activeCity = useEventsLocationStore((s) => s.activeCity);
+  // Device GPS coords — source of truth for "Near Me" filter
+  const { deviceLat, deviceLng } = useDeviceLocation();
 
   // Build server-side filters from active pills + debounced search + categories
   const eventFilters = useMemo<EventFilters>(() => {
@@ -344,12 +344,10 @@ function EventsScreenContent() {
     if (activeFilters.includes("online")) f.online = true;
     if (activeFilters.includes("tonight")) f.tonight = true;
     if (activeFilters.includes("this_weekend")) f.weekend = true;
-    if (activeFilters.includes("in_city") && activeCity?.id) {
-      f.cityId = activeCity.id;
-      // Also pass city coords + name for precise client-side post-filtering
-      f.cityName = activeCity.name;
-      f.cityLat = typeof activeCity.lat === "number" ? activeCity.lat : null;
-      f.cityLng = typeof activeCity.lng === "number" ? activeCity.lng : null;
+    if (activeFilters.includes("in_city") && deviceLat != null && deviceLng != null) {
+      // Use live GPS coords — no stale persisted city
+      f.cityLat = deviceLat;
+      f.cityLng = deviceLng;
     }
     if (debouncedSearch.length >= 2) f.search = debouncedSearch;
     if (activeSort !== "soonest") f.sort = activeSort;
@@ -360,7 +358,8 @@ function EventsScreenContent() {
     debouncedSearch,
     activeSort,
     activeCategories,
-    activeCity,
+    deviceLat,
+    deviceLng,
   ]);
 
   // Fetch events via single batch RPC with server-side filters
@@ -404,12 +403,6 @@ function EventsScreenContent() {
     return likes.toString();
   };
 
-  const handleToggleFilter = useCallback(
-    (filter: Parameters<typeof toggleFilter>[0]) => {
-      toggleFilter(filter);
-    },
-    [toggleFilter],
-  );
 
   // Check if any server-side filter or search is active
   const hasActiveFilters =
@@ -649,20 +642,24 @@ function EventsScreenContent() {
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={{ gap: 6 }}
             >
-              {activeFilters.map((f) => (
-                <Pressable
-                  key={f}
-                  onPress={() => toggleFilter(f)}
-                  className="flex-row items-center gap-1 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30"
-                >
-                  <Text className="text-xs font-semibold text-primary">
-                    {f
-                      .replace(/_/g, " ")
-                      .replace(/\b\w/g, (c) => c.toUpperCase())}
-                  </Text>
-                  <X size={12} color={colors.primary} strokeWidth={2} />
-                </Pressable>
-              ))}
+              {activeFilters.map((f) => {
+                const chipLabel =
+                  f === "in_city"
+                    ? "Near Me"
+                    : f.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+                return (
+                  <Pressable
+                    key={f}
+                    onPress={() => toggleFilter(f)}
+                    className="flex-row items-center gap-1 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30"
+                  >
+                    <Text className="text-xs font-semibold text-primary">
+                      {chipLabel}
+                    </Text>
+                    <X size={12} color={colors.primary} strokeWidth={2} />
+                  </Pressable>
+                );
+              })}
               {activeSort !== "soonest" && (
                 <View className="flex-row items-center gap-1 px-3 py-1.5 rounded-full bg-primary/15 border border-primary/30">
                   <ArrowUpDown

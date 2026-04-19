@@ -27,17 +27,19 @@ async function getAuthoritativeUnreadInboxCount(
     return { count: 0, authoritative: false };
   }
 
-  const [{ data: followingRows, error: followingError }, { data: convRels, error: convRelsError }] =
-    await Promise.all([
-      supabase
-        .from("follows")
-        .select("following_id")
-        .eq("follower_id", intUserId),
-      supabase
-        .from("conversations_rels")
-        .select("parent_id, conversation:parent_id(id, is_group)")
-        .eq("users_id", authUserId),
-    ]);
+  const [
+    { data: followingRows, error: followingError },
+    { data: convRels, error: convRelsError },
+  ] = await Promise.all([
+    supabase
+      .from("follows")
+      .select("following_id")
+      .eq("follower_id", intUserId),
+    supabase
+      .from("conversations_rels")
+      .select("parent_id, conversation:parent_id(id, is_group)")
+      .eq("users_id", authUserId),
+  ]);
 
   if (followingError || convRelsError) {
     console.error("[bootstrap-feed] unread lookup failed:", {
@@ -47,26 +49,30 @@ async function getAuthoritativeUnreadInboxCount(
     return { count: 0, authoritative: false };
   }
 
-  const conversationRows = (convRels || []).filter((row: any) => row.conversation);
+  const conversationRows = (convRels || []).filter(
+    (row: any) => row.conversation,
+  );
   if (conversationRows.length === 0) {
     return { count: 0, authoritative: true };
   }
 
   const convIds = conversationRows.map((row: any) => row.parent_id);
-  const [{ data: incomingRows, error: incomingError }, { data: readRows, error: readError }] =
-    await Promise.all([
-      supabase
-        .from("messages")
-        .select("conversation_id, created_at")
-        .in("conversation_id", convIds)
-        .neq("sender_id", intUserId)
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("conversation_reads")
-        .select("conversation_id, last_read_at")
-        .in("conversation_id", convIds)
-        .eq("user_id", intUserId),
-    ]);
+  const [
+    { data: incomingRows, error: incomingError },
+    { data: readRows, error: readError },
+  ] = await Promise.all([
+    supabase
+      .from("messages")
+      .select("conversation_id, created_at")
+      .in("conversation_id", convIds)
+      .neq("sender_id", intUserId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("conversation_reads")
+      .select("conversation_id, last_read_at")
+      .in("conversation_id", convIds)
+      .eq("user_id", intUserId),
+  ]);
 
   if (incomingError || readError) {
     console.error("[bootstrap-feed] unread messages query failed:", {
@@ -139,7 +145,9 @@ async function getAuthoritativeUnreadInboxCount(
   }
 
   const otherAuthIds = [
-    ...new Set((otherParticipants || []).map((row: any) => row.users_id).filter(Boolean)),
+    ...new Set(
+      (otherParticipants || []).map((row: any) => row.users_id).filter(Boolean),
+    ),
   ];
 
   const { data: otherUsers, error: otherUsersError } =
@@ -260,7 +268,12 @@ Deno.serve(async (req: Request) => {
       )
       .eq("visibility", "public");
 
-    if (!include_nsfw) {
+    // Strict spicy contract:
+    //   include_nsfw=false → ONLY safe posts (is_nsfw=false OR NULL)
+    //   include_nsfw=true  → ONLY spicy posts (is_nsfw=true)
+    if (include_nsfw) {
+      postsQuery = postsQuery.eq("is_nsfw", true);
+    } else {
       postsQuery = postsQuery.or("is_nsfw.is.false,is_nsfw.is.null");
     }
 
@@ -403,7 +416,8 @@ Deno.serve(async (req: Request) => {
             let kind = rawType;
             if (rawType === "video" && mimeType === "video/mp4+animated")
               kind = "animated_video";
-            else if (rawType === "gif" || mimeType === "image/gif") kind = "gif";
+            else if (rawType === "gif" || mimeType === "image/gif")
+              kind = "gif";
             else if (rawType === "livePhoto" || livePhotoVideoUrl)
               kind = "livePhoto";
             return {

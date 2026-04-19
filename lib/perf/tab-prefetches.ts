@@ -19,13 +19,18 @@ import { messagesApi as messagesApiClient } from "@/lib/api/messages-impl";
 import { eventsApi as eventsApiClient } from "@/lib/api/events";
 import { usersApi } from "@/lib/api/users";
 import { STALE_TIMES } from "@/lib/perf/stale-time-config";
+import { useAppStore } from "@/lib/stores/app-store";
 
 // ── Feed Tab ──────────────────────────────────────────────────────────
 registerPrefetch("index", (qc, userId) => {
+  // Pass nsfwEnabled so tab-prefetch uses the same strict filter as the
+  // live Feed query. Without this, tapping the Home tab would overwrite the
+  // infinite-feed cache with SFW rows even when spicy is ON.
+  const nsfwEnabled = useAppStore.getState().nsfwEnabled;
   qc.prefetchInfiniteQuery({
     queryKey: postKeys.feedInfinite(),
     queryFn: ({ pageParam = 0 }: { pageParam: number }) =>
-      postsApi.getFeedPostsPaginated(pageParam),
+      postsApi.getFeedPostsPaginated(pageParam, nsfwEnabled),
     initialPageParam: 0,
     staleTime: STALE_TIMES.feed,
   });

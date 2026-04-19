@@ -9,9 +9,9 @@ import type { City } from "@/lib/stores/events-location-store";
 /**
  * useBootLocation — runs ONCE on app boot inside ProtectedLayout.
  *
- * If location permission is already granted AND no activeCity is persisted,
- * silently fetches device coords, reverse-geocodes to get the city name,
- * and sets activeCity. Falls back to nearest DB city if geocoding fails.
+ * If location permission is already granted, silently fetches device coords,
+ * updates deviceLat/deviceLng, and reverse-geocodes to set activeCity.
+ * Always refreshes on boot so GPS-based filters ("Near Me") stay accurate.
  * Never prompts the user — only uses already-granted permission.
  */
 export function useBootLocation() {
@@ -21,13 +21,6 @@ export function useBootLocation() {
   useEffect(() => {
     if (didRun.current) return;
     didRun.current = true;
-
-    const activeCity = useEventsLocationStore.getState().activeCity;
-    // Already have a city persisted — nothing to do
-    if (activeCity) {
-      console.log("[BootLocation] City already persisted:", activeCity.name);
-      return;
-    }
 
     (async () => {
       try {

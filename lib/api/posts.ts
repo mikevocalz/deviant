@@ -2,10 +2,7 @@ import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import type { Post } from "@/lib/types";
 import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
-import {
-  hasAuthenticatedUser,
-  requireBetterAuthToken,
-} from "../auth/identity";
+import { hasAuthenticatedUser, requireBetterAuthToken } from "../auth/identity";
 import { likesApi } from "./likes";
 import {
   getPrimaryTextPostContent,
@@ -102,7 +99,10 @@ async function fetchTextPostSlidesViaFunction(
     }
 
     return new Map(
-      (data?.data?.posts || []).map((post) => [String(post.postId), post.slides]),
+      (data?.data?.posts || []).map((post) => [
+        String(post.postId),
+        post.slides,
+      ]),
     );
   } catch (error) {
     console.error("[Posts] fetchTextPostSlidesViaFunction exception:", error);
@@ -192,21 +192,18 @@ export function transformPost(
       const livePhotoVideoUrl: string | undefined =
         m[DB.postsMedia.livePhotoVideoUrl] ?? undefined;
       const rawOrder =
-        m?.[DB.postsMedia.order] ??
-        m?.order ??
-        m?._order ??
-        index;
+        m?.[DB.postsMedia.order] ?? m?.order ?? m?._order ?? index;
       const sortOrder = Number.isFinite(Number(rawOrder))
         ? Number(rawOrder)
         : index;
 
       // Derive kind: existing rows have no mime_type — fall back to type field
       let kind: import("@/lib/types").MediaKind = "image";
-      if (rawType === "video" && mimeType === "video/mp4+animated") kind = "animated_video";
+      if (rawType === "video" && mimeType === "video/mp4+animated")
+        kind = "animated_video";
       else if (rawType === "video") kind = "video";
       else if (rawType === "gif" || mimeType === "image/gif") kind = "gif";
-      else if (rawType === "livePhoto" || livePhotoVideoUrl)
-        kind = "livePhoto";
+      else if (rawType === "livePhoto" || livePhotoVideoUrl) kind = "livePhoto";
 
       return {
         type: kind,
@@ -292,9 +289,17 @@ export const postsApi = {
   /**
    * Get feed posts (paginated)
    */
-  async getFeedPostsPaginated(cursor: number = 0, includeNsfw: boolean = false) {
+  async getFeedPostsPaginated(
+    cursor: number = 0,
+    includeNsfw: boolean = false,
+  ) {
     try {
-      console.log("[Posts] getFeedPostsPaginated, cursor:", cursor, "includeNsfw:", includeNsfw);
+      console.log(
+        "[Posts] getFeedPostsPaginated, cursor:",
+        cursor,
+        "includeNsfw:",
+        includeNsfw,
+      );
 
       let query = supabase
         .from(DB.posts.table)
@@ -320,8 +325,16 @@ export const postsApi = {
         )
         .eq(DB.posts.visibility, "public");
 
-      if (!includeNsfw) {
-        query = query.or(`${DB.posts.isNsfw}.is.false,${DB.posts.isNsfw}.is.null`);
+      // Strict spicy contract:
+      //   includeNsfw=false → ONLY safe posts (is_nsfw=false OR NULL)
+      //   includeNsfw=true  → ONLY spicy posts (is_nsfw=true)
+      // Any other path is a data-leak regression.
+      if (includeNsfw) {
+        query = query.eq(DB.posts.isNsfw, true);
+      } else {
+        query = query.or(
+          `${DB.posts.isNsfw}.is.false,${DB.posts.isNsfw}.is.null`,
+        );
       }
 
       const {
@@ -345,16 +358,30 @@ export const postsApi = {
         const pid = String(p[DB.posts.id]);
         return transformPost(p, likedSet.has(pid));
       });
+
+      // Defense-in-depth: re-filter the transformed array in case the DB
+      // contract, row-level security, or a future query change lets a post
+      // of the wrong class slip through. The server-side `.eq` above is
+      // authoritative; this is belt-and-suspenders to guarantee callers
+      // (bootstrap hydration, prefetches, persisted cache) never see a
+      // mixed list for a given includeNsfw value.
+      const strict = includeNsfw
+        ? transformed.filter((p: any) => p?.isNSFW === true)
+        : transformed.filter((p: any) => p?.isNSFW !== true);
+
       const hasMore = (count || 0) > cursor + PAGE_SIZE;
       const nextCursor = hasMore ? cursor + PAGE_SIZE : null;
 
       console.log(
         "[Posts] getFeedPostsPaginated success, count:",
-        transformed.length,
+        strict.length,
+        "(dropped",
+        transformed.length - strict.length,
+        "wrong-class rows)",
       );
 
       return {
-        data: transformed,
+        data: strict,
         nextCursor,
         hasMore,
       };
@@ -743,7 +770,8 @@ export const postsApi = {
         })) as import("@/lib/types").PostMediaItem[],
         kind: postKind,
         textTheme: normalizeTextPostTheme(data.textTheme),
-        caption: postKind === "text" ? textPresentation.caption : data.content || "",
+        caption:
+          postKind === "text" ? textPresentation.caption : data.content || "",
         textSlides:
           postKind === "text" ? textPresentation.textSlides : undefined,
         textSlideCount:

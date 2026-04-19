@@ -14,9 +14,15 @@ import type { Event } from "@/lib/hooks/use-events";
 
 interface EventsMapViewProps {
   events: Event[];
+  /**
+   * Optional override for marker press. When provided, the caller is
+   * responsible for navigation — e.g. the EventsMapSheet uses this to
+   * dismiss the detached sheet before routing to event detail.
+   */
+  onMarkerPress?: (id: string) => void;
 }
 
-export function EventsMapView({ events }: EventsMapViewProps) {
+export function EventsMapView({ events, onMarkerPress }: EventsMapViewProps) {
   const router = useRouter();
   const { colors } = useColorScheme();
 
@@ -64,12 +70,18 @@ export function EventsMapView({ events }: EventsMapViewProps) {
     [mappableEvents],
   );
 
-  // Stable callback — navigate to event detail on marker press
+  // Stable callback — navigate to event detail on marker press.
+  // If a parent passes `onMarkerPress` (e.g. EventsMapSheet), delegate
+  // so the parent can dismiss a containing sheet before routing.
   const handleMarkerPress = useCallback(
     (id: string) => {
+      if (onMarkerPress) {
+        onMarkerPress(id);
+        return;
+      }
       router.push(`/(protected)/events/${id}` as any);
     },
-    [router],
+    [router, onMarkerPress],
   );
 
   return (

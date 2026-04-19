@@ -412,9 +412,15 @@ export function Feed({
     }
   }, [allPosts, viewerId, queryClient]);
 
+  // Strict spicy contract (mirror server-side filter to guard against any
+  // cached/bootstrap rows slipping through):
+  //   spicy ON  → ONLY posts where isNSFW === true
+  //   spicy OFF → ONLY posts where isNSFW !== true (safe/undefined/null)
   const filteredPosts = useMemo(() => {
-    if (effectiveNsfwEnabled) return allPosts;
-    return allPosts.filter((post) => !post.isNSFW);
+    if (effectiveNsfwEnabled) {
+      return allPosts.filter((post) => post.isNSFW === true);
+    }
+    return allPosts.filter((post) => post.isNSFW !== true);
   }, [allPosts, effectiveNsfwEnabled]);
 
   // Fetch events for inline feed cards
@@ -697,7 +703,7 @@ export function Feed({
         estimatedItemSize={500}
         onEndReached={handleEndReached}
         onEndReachedThreshold={0.5}
-        ListHeaderComponent={() => (
+        ListHeaderComponent={() =>
           guestMode ? (
             <>{headerContent}</>
           ) : (
@@ -709,7 +715,7 @@ export function Feed({
               />
             </>
           )
-        )}
+        }
         ListFooterComponent={renderFooter}
         ListEmptyComponent={shouldShowEmptyState ? ListEmpty : undefined}
         viewabilityConfig={viewabilityConfig}

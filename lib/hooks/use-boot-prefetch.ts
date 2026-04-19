@@ -38,6 +38,7 @@ import { useChatStore } from "@/lib/stores/chat-store";
 import { prefetchImages, prefetchImagesRN } from "@/lib/perf/image-prefetch";
 import { storiesApi as storiesApiClient } from "@/lib/api/stories";
 import { isSafeMode } from "@/lib/boot-guard";
+import { useAppStore } from "@/lib/stores/app-store";
 
 /**
  * Check if the persisted cache has enough data for instant render.
@@ -128,11 +129,16 @@ export function useBootPrefetch() {
     };
 
     // Lane 0: Critical — feed + profile + stories (above the fold)
+    // Read nsfwEnabled non-reactively so boot prefetch matches the live
+    // Feed query's filter and doesn't hydrate the cache with SFW posts when
+    // the user has spicy ON (which would leak non-spicy rows into the feed
+    // after the strict filter was added in posts.ts).
+    const nsfwEnabledAtBoot = useAppStore.getState().nsfwEnabled;
     Promise.allSettled([
       queryClient.prefetchInfiniteQuery({
         queryKey: postKeys.feedInfinite(),
         queryFn: ({ pageParam = 0 }: { pageParam: number }) =>
-          postsApi.getFeedPostsPaginated(pageParam),
+          postsApi.getFeedPostsPaginated(pageParam, nsfwEnabledAtBoot),
         initialPageParam: 0,
       }),
       queryClient.prefetchQuery({

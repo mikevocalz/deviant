@@ -61,6 +61,7 @@ import { SafeModeBanner } from "@/components/safe-mode-banner";
 import { PublicGateSheet } from "@/components/access/PublicGateSheet";
 import { DeviceTestBridge } from "@/components/dev/DeviceTestBridge";
 import { AppTrace } from "@/lib/diagnostics/app-trace";
+import { OtaUpdateBanner } from "@/components/ota/OtaUpdateBanner";
 
 // CRITICAL: Check for OTA update and clear stale cache BEFORE creating QueryClient
 // This prevents crashes from incompatible persisted cache after OTA updates
@@ -521,6 +522,8 @@ export default function RootLayout() {
                         <PublicGateSheet />
                         {/* Spotify share sheet — renders when a Spotify link is received */}
                         <SpotifyShareSheet />
+                        {/* OtaUpdateBanner — deterministic, fully unmounts when dismissed */}
+                        <OtaUpdateBanner />
                         {/* Auth loading overlay — covers content but does NOT unmount navigation.
                           Skip when opened from share intent so user sees content instead of black. */}
                         {!authSettled &&

@@ -1,6 +1,8 @@
 /**
  * DVNTLivePhotoView
- * iOS: Renders a Live Photo using expo-live-photo (tap-and-hold to play).
+ * iOS: Renders a Live Photo using expo-live-photo.
+ *   - When isPlaying=true, calls startPlayback('full') to autoplay in feed/detail.
+ *   - When isPlaying=false, calls stopPlayback() to pause.
  * Android / Web: Falls back to the still image via expo-image.
  *
  * expo-live-photo requires a native build. The component degrades gracefully
@@ -9,7 +11,7 @@
 import { View, ViewStyle, Platform } from "react-native";
 import { Image } from "expo-image";
 import type { ImageStyle } from "expo-image";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 
 interface DVNTLivePhotoViewProps {
   photoUri: string;
@@ -19,6 +21,8 @@ interface DVNTLivePhotoViewProps {
   style?: ViewStyle;
   contentFit?: "cover" | "contain";
   accessibilityLabel?: string;
+  /** Controls playback — starts full playback when true, stops when false. Defaults to true. */
+  isPlaying?: boolean;
 }
 
 let LivePhotoView: React.ComponentType<any> | null = null;
@@ -30,7 +34,6 @@ if (Platform.OS === "ios") {
     LivePhotoView = mod.LivePhotoView;
     livePhotoIsAvailable = mod.isAvailable;
   } catch {
-    // expo-live-photo not yet compiled into this build
     LivePhotoView = null;
     livePhotoIsAvailable = null;
   }
@@ -44,6 +47,7 @@ export function DVNTLivePhotoView({
   style,
   contentFit = "cover",
   accessibilityLabel,
+  isPlaying = true,
 }: DVNTLivePhotoViewProps) {
   const viewRef = useRef<any>(null);
 
@@ -53,6 +57,18 @@ export function DVNTLivePhotoView({
     videoUri != null &&
     videoUri.startsWith("http") &&
     (livePhotoIsAvailable?.() ?? false);
+
+  // Drive native playback from isPlaying prop
+  useEffect(() => {
+    if (!canRenderLivePhoto || !viewRef.current) return;
+    try {
+      if (isPlaying) {
+        viewRef.current.startPlayback?.("full");
+      } else {
+        viewRef.current.stopPlayback?.();
+      }
+    } catch {}
+  }, [isPlaying, canRenderLivePhoto]);
 
   if (canRenderLivePhoto && LivePhotoView) {
     return (

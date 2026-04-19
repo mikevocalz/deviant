@@ -156,7 +156,9 @@ export function useContentTranslation(
     checkNativeCapability().then((capable) => {
       if (!cancelled) setIsCapable(capable);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const isTranslated = store.isTranslated(contentId);
@@ -201,17 +203,27 @@ export function useContentTranslation(
   };
 }
 
-// ── On-device translation — Apple Translation (iOS) / ML Kit (Android) ────────
-// Throws on failure so callers can surface errors to the UI.
+// ── On-device translation — Apple Translation (iOS) / web fallback ───────────
 //
-// Strategy:
-//   1. Apple Translation (iOS 18+, installedSource path)
-//   2. NL language detection → MyMemory web API (free, no key, worldwide fallback)
-//   3. MyMemory with "auto" source as last resort
+// P0-4 rebuild: the translation pipeline must work end-to-end on EVERY
+// device regardless of native module availability, iOS version, or
+// installed language packs. The UI no longer gates on native capability,
+// so this function is the contract: either return a good translation or
+// throw a descriptive error the caller can surface to the user.
 //
-// The two-step NL-detect→MyMemory path produces dramatically more reliable
-// results than sending "auto" directly because MyMemory's auto-detect can
-// silently misclassify short or mixed-script text.
+// Strategy (in order):
+//   1. Native Apple Translation (iOS 18+ with installed packs) — fastest,
+//      private, offline.
+//   2. NL language detection + MyMemory (explicit pair) — works on every
+//      platform; ~500 char limit per request so long text is chunked by
+//      sentence boundary.
+//   3. Lingva proxy (mirror of Google Translate, free + CORS-safe) as a
+//      last-resort fallback if MyMemory fails or echoes the input.
+//
+// Any throw reaches TranslateButton which renders the error state.
+
+const MYMEMORY_CHUNK = 450; // safety margin under the 500-char cap
+const NETWORK_TIMEOUT_MS = 10_000;
 
 async function detectSourceLanguage(text: string): Promise<string | null> {
   if (!DVNTTranslationModule) return null;
@@ -223,55 +235,142 @@ async function detectSourceLanguage(text: string): Promise<string | null> {
   }
 }
 
-async function translateText(text: string, targetLang: string): Promise<string> {
-  const tgt = (!targetLang || targetLang === "auto"
-    ? "en"
-    : targetLang.split("-")[0]
+function splitForTranslation(text: string, max = MYMEMORY_CHUNK): string[] {
+  if (text.length <= max) return [text];
+  // Split on sentence-ending punctuation followed by whitespace, preserving
+  // the delimiter. Falls back to hard character splits for pathological input.
+  const parts = text.split(/(?<=[.!?\u3002\uFF01\uFF1F])\s+/);
+  const out: string[] = [];
+  let buf = "";
+  for (const piece of parts) {
+    if ((buf + " " + piece).trim().length > max) {
+      if (buf) out.push(buf.trim());
+      if (piece.length > max) {
+        // Sentence alone is too long — hard-slice.
+        for (let i = 0; i < piece.length; i += max) {
+          out.push(piece.slice(i, i + max));
+        }
+        buf = "";
+      } else {
+        buf = piece;
+      }
+    } else {
+      buf = buf ? `${buf} ${piece}` : piece;
+    }
+  }
+  if (buf.trim()) out.push(buf.trim());
+  return out;
+}
+
+async function fetchWithTimeout(url: string, ms: number): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), ms);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function isEcho(input: string, output: string): boolean {
+  return input.trim().toLowerCase() === output.trim().toLowerCase();
+}
+
+async function translateViaMyMemory(
+  chunk: string,
+  src: string,
+  tgt: string,
+): Promise<string | null> {
+  const langPair = src && src !== tgt ? `${src}|${tgt}` : `auto|${tgt}`;
+  const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=${langPair}`;
+  try {
+    const resp = await fetchWithTimeout(url, NETWORK_TIMEOUT_MS);
+    if (!resp.ok) return null;
+    const data: any = await resp.json().catch(() => null);
+    const out = data?.responseData?.translatedText;
+    if (typeof out !== "string" || !out.trim()) return null;
+    if (isEcho(chunk, out)) return null;
+    return out;
+  } catch (err) {
+    console.warn("[Translation] MyMemory error:", err);
+    return null;
+  }
+}
+
+async function translateViaLingva(
+  chunk: string,
+  src: string,
+  tgt: string,
+): Promise<string | null> {
+  const s = src || "auto";
+  const url = `https://lingva.ml/api/v1/${s}/${tgt}/${encodeURIComponent(chunk)}`;
+  try {
+    const resp = await fetchWithTimeout(url, NETWORK_TIMEOUT_MS);
+    if (!resp.ok) return null;
+    const data: any = await resp.json().catch(() => null);
+    const out = data?.translation;
+    if (typeof out !== "string" || !out.trim()) return null;
+    if (isEcho(chunk, out)) return null;
+    return out;
+  } catch (err) {
+    console.warn("[Translation] Lingva error:", err);
+    return null;
+  }
+}
+
+async function translateText(
+  text: string,
+  targetLang: string,
+): Promise<string> {
+  const tgt = (
+    !targetLang || targetLang === "auto" ? "en" : targetLang.split("-")[0]
   ).toLowerCase();
 
-  // 1. Try native Apple Translation (iOS 18+ with installed language packs)
+  // 1. Native Apple Translation — only when the library is available.
+  //    Any failure silently falls through to the web path.
   try {
     const result = await nativeTranslate(text, "auto", tgt);
-    if (result?.translatedText && result.translatedText !== text) {
-      return result.translatedText;
+    const out = result?.translatedText;
+    if (typeof out === "string" && out.trim() && !isEcho(text, out)) {
+      return out;
     }
-  } catch {
-    // Native failed: packs not installed, iOS < 18, or language pair unsupported
+  } catch (err) {
+    console.log("[Translation] native unavailable, falling back:", err);
   }
 
-  // 2. Detect source language via NL recognizer so MyMemory gets an explicit pair
+  // 2. Detect source so the web call uses an explicit pair when possible.
   const detectedSrc = await detectSourceLanguage(text);
+  const src = detectedSrc && detectedSrc !== tgt ? detectedSrc : "";
 
-  const encoded = encodeURIComponent(text.slice(0, 500)); // MyMemory 500-char limit per call
-  const langPair = detectedSrc && detectedSrc !== tgt
-    ? `${detectedSrc}|${tgt}`
-    : `auto|${tgt}`;
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 10000);
-  let resp: Response;
-  try {
-    resp = await fetch(
-      `https://api.mymemory.translated.net/get?q=${encoded}&langpair=${langPair}`,
-      { signal: controller.signal },
-    );
-  } finally {
-    clearTimeout(timeoutId);
-  }
-  if (!resp.ok) throw new Error(`Translation service unavailable (${resp.status})`);
-  const data = await resp.json();
-  if (data.responseStatus === 200 && data.responseData?.translatedText) {
-    const result = data.responseData.translatedText as string;
-    // MyMemory sometimes echoes back the input — treat as failure
-    if (result && result.trim().toLowerCase() !== text.trim().toLowerCase()) {
-      return result;
+  // Chunk by sentence to respect MyMemory's per-request limit and give
+  // long-form text (event descriptions) a real chance of full translation.
+  const chunks = splitForTranslation(text);
+  const translated: string[] = [];
+  let myMemoryFailures = 0;
+  for (const chunk of chunks) {
+    const out = await translateViaMyMemory(chunk, src, tgt);
+    if (out) {
+      translated.push(out);
+    } else {
+      myMemoryFailures++;
+      // Try Lingva for this chunk.
+      const fallback = await translateViaLingva(chunk, src, tgt);
+      if (fallback) {
+        translated.push(fallback);
+      } else {
+        // Preserve original chunk so the reader never sees a hole mid-text.
+        translated.push(chunk);
+      }
     }
   }
 
-  // 3. Last resort: auto|tgt with longer text
-  if (detectedSrc) {
-    // Already tried explicit pair — give up
-    throw new Error(data.responseDetails || "Translation unavailable for this language pair");
+  const combined = translated.join(" ").trim();
+  if (!combined || isEcho(text, combined)) {
+    throw new Error(
+      myMemoryFailures >= chunks.length
+        ? "Translation service unreachable. Check your connection and try again."
+        : "Translation unavailable for this language pair.",
+    );
   }
-  throw new Error(data.responseDetails || "Translation failed");
+  return combined;
 }

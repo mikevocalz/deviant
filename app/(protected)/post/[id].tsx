@@ -989,9 +989,17 @@ function PostDetailScreenContent() {
       await translateCaptionFn();
     }
   }, [isCaptionTranslated, showOriginalCaption, translateCaptionFn]);
-  const showTranslateButton =
-    isTranslationCapable !== false &&
-    shouldShowTranslateButton(captionText || "", targetLang);
+  // P0-4: Do NOT gate the translate button on native capability. The
+  // translation pipeline has a universal web fallback (MyMemory) that
+  // works on all iOS/Android versions and network states. Gating on
+  // native availability meant the button never appeared on iOS <18 or
+  // devices without language packs — breaking translation end-to-end.
+  // `isTranslationCapable` is still passed through for telemetry.
+  const showTranslateButton = shouldShowTranslateButton(
+    captionText || "",
+    targetLang,
+  );
+  void isTranslationCapable;
   const hasMedia =
     safePost.media &&
     Array.isArray(safePost.media) &&

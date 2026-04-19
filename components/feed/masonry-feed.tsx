@@ -42,6 +42,8 @@ import { navigateToPost } from "@/lib/routes/post-routes";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 import { useQuery } from "@tanstack/react-query";
 import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
+import { DVNTGifView } from "@/components/media/DVNTGifView";
+import { DVNTLivePhotoView } from "@/components/media/DVNTLivePhotoView";
 import { FeedEventCard } from "./feed-event-card";
 import { shouldRenderInFeed } from "./renderable-posts";
 import { useForYouEvents } from "@/lib/hooks/use-events";
@@ -202,6 +204,26 @@ const MasonryCell = memo(function MasonryCell({
             coverUrl={coverUrl}
             width={width}
             height={height}
+          />
+        ) : isGif && media?.url ? (
+          // Animated GIF — route to expo-image-based player so frames
+          // actually animate in the grid instead of showing a still.
+          <DVNTGifView
+            uri={media.url}
+            width={width}
+            height={height}
+            contentFit="cover"
+            isPlaying
+          />
+        ) : isLivePhoto && media?.url ? (
+          // Live Photo — native player on iOS (tap-and-hold), still
+          // fallback on Android.
+          <DVNTLivePhotoView
+            photoUri={media.url}
+            videoUri={media.livePhotoVideoUrl}
+            width={width}
+            height={height}
+            contentFit="cover"
           />
         ) : coverUrl ? (
           <Image
@@ -468,9 +490,15 @@ export function MasonryFeed() {
       });
   }, [allPosts, viewerId, queryClient]);
 
+  // Strict spicy contract (mirror server-side filter to guard against any
+  // cached/bootstrap rows slipping through):
+  //   spicy ON  → ONLY posts where isNSFW === true
+  //   spicy OFF → ONLY posts where isNSFW !== true (safe/undefined/null)
   const filteredPosts = useMemo(() => {
-    if (nsfwEnabled) return allPosts;
-    return allPosts.filter((post) => !post.isNSFW);
+    if (nsfwEnabled) {
+      return allPosts.filter((post) => post.isNSFW === true);
+    }
+    return allPosts.filter((post) => post.isNSFW !== true);
   }, [allPosts, nsfwEnabled]);
 
   const {

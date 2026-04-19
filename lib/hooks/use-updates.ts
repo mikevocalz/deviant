@@ -8,31 +8,29 @@
  * DEDUPLICATION: Uses persistent storage to track which update IDs have been
  * shown/dismissed to prevent toast spam across app restarts.
  *
+ * OTA PROMPT: Uses OtaUpdateBanner (Zustand-controlled) — NOT sonner-native.
+ * This eliminates the ghost/stale overlay bug where sonner toasts would linger
+ * on-screen after "Update Later" was tapped.
+ *
  * To test OTA in development builds: set EXPO_PUBLIC_FORCE_OTA_CHECK=true.
  * Publish updates with: eas update --channel production
  */
 
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { AppState, type AppStateStatus, Platform } from "react-native";
-import { toast } from "sonner-native";
 import { mmkv } from "@/lib/mmkv-zustand";
+import {
+  useOtaUpdateStore,
+  OTA_DISMISSED_STORAGE_KEY,
+} from "@/lib/stores/ota-update-store";
 
 const FORCE_OTA_IN_DEV =
   typeof process !== "undefined" &&
   process.env?.EXPO_PUBLIC_FORCE_OTA_CHECK === "true";
 
-// Persist which update ID the user dismissed so we don't loop on cold restart.
-// Cleared when a NEW update ID arrives (different from the dismissed one).
-const STORAGE_KEY_DISMISSED_UPDATE = "@dvnt_dismissed_update_id";
-
-// SINGLETON: Module-level state to prevent multiple hook instances from racing
-let globalHasShownToastThisSession = false;
+// SINGLETON: Module-level flags to prevent multiple hook instances from racing
 let globalIsInitialized = false;
 let globalIsChecking = false;
-let globalToastVisible = false; // Track if toast is currently visible
-let globalLastToastTime = 0; // Debounce toast showing
-const TOAST_DEBOUNCE_MS = 5000; // 5 second debounce between toast shows
-const TOAST_ID = "ota-update-toast"; // Single consistent toast ID
 
 // Dynamically import expo-updates to handle Expo Go where native module isn't available
 let Updates: typeof import("expo-updates") | null = null;
@@ -56,6 +54,46 @@ function safeGet<T>(fn: () => T, fallback: T): T {
   }
 }
 
+/**
+ * showUpdateBanner — imperative (non-hook) helper.
+ * Uses Zustand's getState() so it can be called from inside callbacks without
+ * being a useCallback dependency or causing stale-closure issues.
+ *
+ * Guards:
+ *  1. Phase must be "idle" — prevents duplicates within a session
+ *  2. MMKV dismissed-ID check — prevents loops across cold restarts
+ */
+function showUpdateBanner(updateId?: string | null) {
+  const store = useOtaUpdateStore.getState();
+
+  // Guard 1: already shown or dismissed this session
+  if (store.phase !== "idle") {
+    console.log("[Updates] Banner suppressed — phase:", store.phase);
+    return;
+  }
+
+  const currentId = updateId ?? null;
+
+  // Guard 2: user already dismissed THIS exact update ID on a prior session
+  if (currentId) {
+    const dismissedId = safeGet(
+      () => mmkv.getString(OTA_DISMISSED_STORAGE_KEY),
+      null,
+    );
+    if (dismissedId === currentId) {
+      console.log(
+        "[Updates] Banner suppressed — already dismissed ID:",
+        currentId,
+      );
+      return;
+    }
+  }
+
+  store.setUpdateId(currentId);
+  store.showBanner();
+  console.log("[Updates] Banner shown for ID:", currentId);
+}
+
 export interface UpdateStatus {
   isChecking: boolean;
   isDownloading: boolean;
@@ -70,7 +108,6 @@ export interface UseUpdatesOptions {
 }
 
 export function useUpdates(options: UseUpdatesOptions = {}) {
-  // Default to enabled if not specified (backwards compatible)
   const { enabled = true } = options;
 
   const [status, setStatus] = useState<UpdateStatus>({
@@ -81,10 +118,9 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
     error: null,
   });
 
-  // DIAGNOSTIC: Log on hook mount to verify it's being called
   useEffect(() => {
     console.log(
-      "[Updates] Hook mounted - __DEV__:",
+      "[Updates] Hook mounted — __DEV__:",
       __DEV__,
       "FORCE_OTA:",
       FORCE_OTA_IN_DEV,
@@ -97,121 +133,24 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
     );
     if (Updates) {
       console.log(
-        "[Updates] expo-updates module loaded, isEnabled:",
+        "[Updates] expo-updates loaded, isEnabled:",
         safeGet(() => Updates?.isEnabled, false),
       );
     }
   }, [enabled]);
 
-  // Restart the app to apply a downloaded update.
-  // Wrapped in try/catch — reloadAsync can fail on some OS versions (e.g. iOS 26 beta).
-  // If it throws, the update is already downloaded and will apply on the next cold start.
   const reloadApp = useCallback(async () => {
     if (!Updates) return;
     try {
       await Updates.reloadAsync();
     } catch (e) {
-      console.warn("[Updates] reloadAsync failed (non-fatal — update applies on next cold start):", e);
+      console.warn(
+        "[Updates] reloadAsync failed (update applies on next cold start):",
+        e,
+      );
     }
   }, []);
 
-  // Show update toast with robust single-instance guarantee
-  // - Only ONE toast visible at a time
-  // - Debounced to prevent rapid fire
-  // - Persists show/dismiss state across sessions
-  // - Always dismissible
-  const showUpdateToast = useCallback(
-    async (updateId?: string) => {
-      try {
-        const now = Date.now();
-
-        // CHECK 1: Debounce - prevent rapid toast showing
-        if (now - globalLastToastTime < TOAST_DEBOUNCE_MS) {
-          console.log("[Updates] Toast debounced, skipping");
-          return;
-        }
-
-        // CHECK 2: Already shown this session
-        if (globalHasShownToastThisSession) {
-          console.log("[Updates] Toast already shown this session, skipping");
-          return;
-        }
-
-        // CHECK 3: Toast currently visible
-        if (globalToastVisible) {
-          console.log("[Updates] Toast already visible, skipping");
-          return;
-        }
-
-        // Get the update ID - either passed in or from expo-updates
-        const currentUpdateId =
-          updateId || safeGet(() => Updates?.updateId, null);
-        console.log("[Updates] Checking update ID:", currentUpdateId);
-
-        // CHECK 4: User already dismissed THIS update ID — don't loop across restarts
-        if (currentUpdateId) {
-          const dismissedId = safeGet(() => mmkv.getString(STORAGE_KEY_DISMISSED_UPDATE), null);
-          if (dismissedId === currentUpdateId) {
-            console.log("[Updates] Toast suppressed — user already dismissed this update ID:", currentUpdateId);
-            globalHasShownToastThisSession = true; // prevent retry within session
-            return;
-          }
-        }
-
-        // LOCK: Mark all flags BEFORE showing toast
-        globalHasShownToastThisSession = true;
-        globalToastVisible = true;
-        globalLastToastTime = now;
-
-        console.log("[Updates] Showing update toast for ID:", currentUpdateId);
-
-        // CRITICAL: Dismiss ALL existing toasts first to clear any queue
-        toast.dismiss();
-
-        // Helper to dismiss toast and reset state
-        const dismissToast = () => {
-          toast.dismiss(TOAST_ID);
-          globalToastVisible = false;
-        };
-
-        // Small delay to ensure dismiss completes, then show single toast
-        setTimeout(() => {
-          toast.success("Update Ready", {
-            id: TOAST_ID, // CRITICAL: Consistent ID prevents stacking
-            description: "A new version has been downloaded and is ready to install.",
-            duration: Infinity, // NEVER auto-dismiss - user must choose
-            action: {
-              label: "Restart App Now",
-              onClick: async () => {
-                dismissToast();
-                // Clear dismissed key so future updates show toast again
-                try { mmkv.remove(STORAGE_KEY_DISMISSED_UPDATE); } catch {}
-                await reloadApp();
-              },
-            },
-            cancel: {
-              label: "Update Later",
-              onClick: () => {
-                console.log("[Updates] User dismissed update toast for this session");
-                dismissToast();
-                // Persist dismissed update ID so toast won't loop on next cold start
-                if (currentUpdateId) {
-                  try { mmkv.set(STORAGE_KEY_DISMISSED_UPDATE, currentUpdateId); } catch {}
-                }
-              },
-            },
-          });
-        }, 150);
-      } catch (error) {
-        console.error("[Updates] Error showing toast (non-fatal):", error);
-        // Reset flags on error so we can retry
-        globalToastVisible = false;
-      }
-    },
-    [reloadApp],
-  );
-
-  // Download and apply update - never throws
   const downloadAndApplyUpdate = useCallback(async () => {
     const skipDev = __DEV__ && !FORCE_OTA_IN_DEV;
     if (skipDev || !Updates || !UpdatesAvailable) {
@@ -222,14 +161,9 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       return;
     }
 
-    // Prevent concurrent downloads
-    if (globalIsChecking) {
-      return;
-    }
-
+    if (globalIsChecking) return;
     globalIsChecking = true;
 
-    // Safely check if updates are enabled
     const isEnabled = safeGet(() => {
       if (typeof Updates?.isEnabled === "undefined") return false;
       return Updates.isEnabled;
@@ -265,9 +199,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           "[Updates] Update fetched, isNew: true, updateId:",
           newUpdateId,
         );
-        // Show toast — user controls when to restart.
-        // Auto-reload was causing sign-outs by interrupting loadAuthState mid-flight.
-        showUpdateToast(newUpdateId);
+        showUpdateBanner(newUpdateId);
       } else {
         console.log(
           "[Updates] Fetch complete, isNew:",
@@ -286,9 +218,8 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
     } finally {
       globalIsChecking = false;
     }
-  }, [showUpdateToast]);
+  }, []);
 
-  // Check for updates - never throws
   const checkForUpdates = useCallback(async () => {
     const skipDev = __DEV__ && !FORCE_OTA_IN_DEV;
     if (skipDev || !Updates || !UpdatesAvailable) {
@@ -299,10 +230,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       return;
     }
 
-    if (globalIsChecking) {
-      return;
-    }
-
+    if (globalIsChecking) return;
     globalIsChecking = true;
 
     const isEnabled = safeGet(() => {
@@ -310,9 +238,6 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       return Updates.isEnabled;
     }, false);
 
-    // NOTE: Do NOT check isEmbeddedLaunch here — it's true for ALL fresh installs
-    // (not just dev clients). Blocking on it creates a deadlock where OTA can never
-    // be downloaded. Dev clients are already handled by the __DEV__ check above.
     if (!isEnabled) {
       console.log("[Updates] Skip check: expo-updates not enabled");
       globalIsChecking = false;
@@ -390,8 +315,6 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
     }
   }, [downloadAndApplyUpdate]);
 
-  // Initialize update checks - wrapped in error boundary pattern
-  // CRITICAL: Only initialize when enabled (after splash completes in production)
   useEffect(() => {
     const skipDev = __DEV__ && !FORCE_OTA_IN_DEV;
     if (skipDev) {
@@ -401,17 +324,14 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       return;
     }
 
-    // Wait for enabled flag (splash completion) before checking
     if (!enabled) {
       console.log(
-        "[Updates] OTA init deferred - waiting for splash to complete",
+        "[Updates] OTA init deferred — waiting for splash to complete",
       );
       return;
     }
 
-    if (!Updates || !UpdatesAvailable || globalIsInitialized) {
-      return;
-    }
+    if (!Updates || !UpdatesAvailable || globalIsInitialized) return;
 
     try {
       const isEnabled = safeGet(() => {
@@ -441,14 +361,12 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       > | null = null;
       let updateEventSubscription: { remove: () => void } | null = null;
 
-      // First check - short delay so OTA toast can show
       const initialCheckTimer = setTimeout(() => {
         checkForUpdates().catch((e) =>
           console.error("[Updates] Initial check error:", e),
         );
       }, 1500);
 
-      // Second check - retry in case first failed (e.g. network) or app opened before update published
       const retryTimer = setTimeout(() => {
         console.log("[Updates] Second OTA check (retry)");
         checkForUpdates().catch((e) =>
@@ -456,7 +374,6 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         );
       }, 15000);
 
-      // Check when app comes to foreground
       const handleAppStateChange = (nextState: AppStateStatus) => {
         if (nextState === "active") {
           console.log("[Updates] App came to foreground");
@@ -483,9 +400,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         );
       }
 
-      // Listen for update events - optional, don't fail if unavailable
       try {
-        // Use addUpdatesStateChangeListener if available (newer expo-updates API)
         const addListener =
           (Updates as any)?.addUpdatesStateChangeListener ||
           (Updates as any)?.addListener;
@@ -526,7 +441,6 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         );
       }
 
-      // Cleanup
       return () => {
         try {
           clearTimeout(initialCheckTimer);
@@ -538,16 +452,14 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
         }
       };
     } catch (error) {
-      // CRITICAL: Never let initialization errors crash the app
       console.error(
         "[Updates] Initialization error (non-fatal, app continues):",
         error,
       );
-      globalIsInitialized = false; // Allow retry on next mount
+      globalIsInitialized = false;
     }
   }, [checkForUpdates, downloadAndApplyUpdate, enabled]);
 
-  // Safe getter for currently running update info
   const currentlyRunning = safeGet(() => {
     if (!Updates || !UpdatesAvailable) return null;
     const isEnabled = safeGet(() => Updates?.isEnabled, false);

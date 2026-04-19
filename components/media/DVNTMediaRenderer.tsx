@@ -100,6 +100,7 @@ export function DVNTMediaRenderer({
           height="100%"
           contentFit={contentFit}
           accessibilityLabel={accessibilityLabel}
+          isPlaying={isPlaying}
         />
         {showBadge && <DVNTMediaBadge kind="livePhoto" />}
       </View>
