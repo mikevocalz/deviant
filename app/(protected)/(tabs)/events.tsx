@@ -51,6 +51,7 @@ import { useScreenTrace } from "@/lib/perf/screen-trace";
 import { useBootstrapEvents } from "@/lib/hooks/use-bootstrap-events";
 import { useDeviceLocation } from "@/lib/hooks/use-device-location";
 import { useEventsScreenStore } from "@/lib/stores/events-screen-store";
+import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { EventCollectionRow } from "@/components/events/event-collection-row";
 import { EventsMapSheet } from "@/components/events/events-map-sheet";
 import { EventFilterSheet } from "@/components/events/event-filter-sheet";
@@ -337,6 +338,7 @@ function EventsScreenContent() {
 
   // Device GPS coords — source of truth for "Near Me" filter
   const { deviceLat, deviceLng } = useDeviceLocation();
+  const activeCity = useEventsLocationStore((s) => s.activeCity);
 
   // Build server-side filters from active pills + debounced search + categories
   const eventFilters = useMemo<EventFilters>(() => {
@@ -345,9 +347,10 @@ function EventsScreenContent() {
     if (activeFilters.includes("tonight")) f.tonight = true;
     if (activeFilters.includes("this_weekend")) f.weekend = true;
     if (activeFilters.includes("in_city") && deviceLat != null && deviceLng != null) {
-      // Use live GPS coords — no stale persisted city
       f.cityLat = deviceLat;
       f.cityLng = deviceLng;
+      // Pass city name so events without coords can be name-matched instead of passing blindly
+      if (activeCity?.name) f.cityName = activeCity.name;
     }
     if (debouncedSearch.length >= 2) f.search = debouncedSearch;
     if (activeSort !== "soonest") f.sort = activeSort;
@@ -360,6 +363,7 @@ function EventsScreenContent() {
     activeCategories,
     deviceLat,
     deviceLng,
+    activeCity,
   ]);
 
   // Fetch events via single batch RPC with server-side filters

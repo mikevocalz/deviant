@@ -161,13 +161,15 @@ export function useEvents(filters?: EventFilters) {
             if (__DEV__) console.log(`[Events] "${e.title}" distance from city: ${km.toFixed(1)}km`);
             return km <= CITY_RADIUS_KM;
           }
-          // Name match fallback
+          // Name match fallback — check location string for city name
+          const loc = (e.location || e.locationAddress || "").toLowerCase();
           if (cityNameLower) {
-            const loc = (e.location || e.locationAddress || "").toLowerCase();
             const passes = loc.includes(cityNameLower);
             if (__DEV__ && !passes) console.log(`[Events] "${e.title}" filtered out — location "${e.location}" doesn't contain "${cityNameLower}"`);
             return passes;
           }
+          // GPS filter active but event has no coords and no city name to match — exclude
+          if (cityLat != null && cityLng != null) return false;
           return true;
         });
       }
