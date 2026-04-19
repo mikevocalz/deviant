@@ -1,0 +1,29 @@
+diff --git a/node_modules/react-native-vision-camera/ios/Hybrid Objects/Constraints/ResolvableConstraint/ResolvableConstraint+ResolutionBiasConstraint.swift b/node_modules/react-native-vision-camera/ios/Hybrid Objects/Constraints/ResolvableConstraint/ResolvableConstraint+ResolutionBiasConstraint.swift
+index 0000000..0000000 100644
+--- a/node_modules/react-native-vision-camera/ios/Hybrid Objects/Constraints/ResolvableConstraint/ResolvableConstraint+ResolutionBiasConstraint.swift
++++ b/node_modules/react-native-vision-camera/ios/Hybrid Objects/Constraints/ResolvableConstraint/ResolvableConstraint+ResolutionBiasConstraint.swift
+@@ -25,7 +25,7 @@ extension ResolutionBiasConstraint: ResolvableConstraint {
+     let hybridOutput = self.resolutionBias
+     guard let resolutionNegotiationsParticipant = hybridOutput as? any ResolutionNegotionParticipant else {
+-      throw RuntimeError.error(
++      throw .error(
+         withMessage:
+           "The given CameraOutput (in `resolutionBias`) does not conform to `ResolutionNegotionParticipant`!")
+     }
+@@ -37,7 +37,7 @@ extension ResolutionBiasConstraint: ResolvableConstraint {
+       let targetResolution = targetResolution.toCMVideoDimensions()
+       guard let closestSupportedResolution = supportedResolutions.nearest(to: targetResolution) else {
+-        throw RuntimeError.error(withMessage: "Format \(format) does not have any available resolutions for stream type \"\(streamType)\"!")
++        throw .error(withMessage: "Format \(format) does not have any available resolutions for stream type \"\(streamType)\"!")
+       }
+       penalty = closestSupportedResolution.penalty(targetResolution)
+     case .min(let minimumResolution):
+@@ -46,7 +46,7 @@ extension ResolutionBiasConstraint: ResolvableConstraint {
+         penalty = 0.0
+       } else {
+         guard let best = supportedResolutions.nearest(to: minimumResolution) else {
+-          throw RuntimeError.error(withMessage: "Format \(format) does not have any available resolutions for stream type \"\(streamType)\"!")
++          throw .error(withMessage: "Format \(format) does not have any available resolutions for stream type \"\(streamType)\"!")
+         }
+         penalty = best.penalty(minimumResolution)
+       }
