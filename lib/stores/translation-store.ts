@@ -203,6 +203,25 @@ export function useContentTranslation(
 
 // ── On-device translation — Apple Translation (iOS) / ML Kit (Android) ────────
 // Throws on failure so callers can surface errors to the UI.
+//
+// Strategy:
+//   1. Apple Translation (iOS 18+, installedSource path)
+//   2. NL language detection → MyMemory web API (free, no key, worldwide fallback)
+//   3. MyMemory with "auto" source as last resort
+//
+// The two-step NL-detect→MyMemory path produces dramatically more reliable
+// results than sending "auto" directly because MyMemory's auto-detect can
+// silently misclassify short or mixed-script text.
+
+async function detectSourceLanguage(text: string): Promise<string | null> {
+  if (!DVNTTranslationModule) return null;
+  try {
+    const lang = await DVNTTranslationModule.detectLanguage(text);
+    return lang && lang !== "und" ? lang.split("-")[0].toLowerCase() : null;
+  } catch {
+    return null;
+  }
+}
 
 async function translateText(text: string, targetLang: string): Promise<string> {
   const tgt = (!targetLang || targetLang === "auto"
@@ -210,24 +229,42 @@ async function translateText(text: string, targetLang: string): Promise<string> 
     : targetLang.split("-")[0]
   ).toLowerCase();
 
-  // Try native Apple Translation first
+  // 1. Try native Apple Translation (iOS 18+ with installed language packs)
   try {
     const result = await nativeTranslate(text, "auto", tgt);
-    return result.translatedText;
+    if (result?.translatedText && result.translatedText !== text) {
+      return result.translatedText;
+    }
   } catch {
-    // Native failed (language packs not downloaded, iOS < 18, etc.)
-    // Fall back to MyMemory free translation API
+    // Native failed: packs not installed, iOS < 18, or language pair unsupported
   }
 
-  const encoded = encodeURIComponent(text);
+  // 2. Detect source language via NL recognizer so MyMemory gets an explicit pair
+  const detectedSrc = await detectSourceLanguage(text);
+
+  const encoded = encodeURIComponent(text.slice(0, 500)); // MyMemory 500-char limit per call
+  const langPair = detectedSrc && detectedSrc !== tgt
+    ? `${detectedSrc}|${tgt}`
+    : `auto|${tgt}`;
+
   const resp = await fetch(
-    `https://api.mymemory.translated.net/get?q=${encoded}&langpair=auto|${tgt}`,
-    { signal: AbortSignal.timeout(8000) },
+    `https://api.mymemory.translated.net/get?q=${encoded}&langpair=${langPair}`,
+    { signal: AbortSignal.timeout(10000) },
   );
   if (!resp.ok) throw new Error(`Translation service unavailable (${resp.status})`);
   const data = await resp.json();
   if (data.responseStatus === 200 && data.responseData?.translatedText) {
-    return data.responseData.translatedText;
+    const result = data.responseData.translatedText as string;
+    // MyMemory sometimes echoes back the input — treat as failure
+    if (result && result.trim().toLowerCase() !== text.trim().toLowerCase()) {
+      return result;
+    }
+  }
+
+  // 3. Last resort: auto|tgt with longer text
+  if (detectedSrc) {
+    // Already tried explicit pair — give up
+    throw new Error(data.responseDetails || "Translation unavailable for this language pair");
   }
   throw new Error(data.responseDetails || "Translation failed");
 }

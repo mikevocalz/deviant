@@ -25,6 +25,8 @@ import { useRouter } from "expo-router";
 import { Play, Grid3x3 } from "lucide-react-native";
 import { type SafeGridTile } from "@/lib/utils/safe-profile-mappers";
 import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
+import { DVNTGifView } from "@/components/media/DVNTGifView";
+import { DVNTLivePhotoView } from "@/components/media/DVNTLivePhotoView";
 import { navigateToPost } from "@/lib/routes/post-routes";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 import { LegendList } from "@/components/list";
@@ -217,6 +219,35 @@ const GridCell = memo(function GridCell({
             width={width}
             height={height}
           />
+        ) : tile.kind === "gif" && tile.coverUrl ? (
+          // GIF tiles must use DVNTGifView with autoplay so the animation plays
+          <DVNTGifView
+            uri={tile.coverUrl}
+            width="100%"
+            height="100%"
+            contentFit="cover"
+            isPlaying={true}
+          />
+        ) : tile.kind === "livePhoto" && tile.coverUrl ? (
+          // LivePhoto tiles: show live photo player when videoUrl is available,
+          // fall back to static image when the paired video URI is missing.
+          tile.livePhotoVideoUrl ? (
+            <DVNTLivePhotoView
+              photoUri={tile.coverUrl}
+              videoUri={tile.livePhotoVideoUrl}
+              width="100%"
+              height="100%"
+              contentFit="cover"
+            />
+          ) : (
+            <Image
+              source={{ uri: tile.coverUrl }}
+              style={{ width: "100%", height: "100%" }}
+              contentFit="cover"
+              contentPosition="top"
+              cachePolicy="memory-disk"
+            />
+          )
         ) : tile.coverUrl ? (
           <Image
             source={{ uri: tile.coverUrl }}

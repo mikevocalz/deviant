@@ -989,7 +989,9 @@ function PostDetailScreenContent() {
       await translateCaptionFn();
     }
   }, [isCaptionTranslated, showOriginalCaption, translateCaptionFn]);
-  const showTranslateButton = shouldShowTranslateButton(captionText || "", targetLang);
+  const showTranslateButton =
+    isTranslationCapable !== false &&
+    shouldShowTranslateButton(captionText || "", targetLang);
   const hasMedia =
     safePost.media &&
     Array.isArray(safePost.media) &&
