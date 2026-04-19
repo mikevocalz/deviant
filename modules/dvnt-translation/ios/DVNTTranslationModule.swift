@@ -176,23 +176,25 @@ public class DVNTTranslationModule: Module {
 
     switch status {
     case .installed:
-      // Fast path: language pack already on device
-      let session = TranslationSession(installedSource: resolvedSrc, target: target)
-      let response = try await session.translate(text)
-      return response.targetText
-
-    case .supported:
-      // Language pack is available but not yet installed.
-      // iOS 18.4+ exposes LanguageAvailability.downloadLanguage(_:) but earlier
-      // iOS 18.x does not — guard so the build stays compatible with iOS 18.0–18.3.
-      if #available(iOS 18.4, *) {
-        try await avail.downloadLanguage(resolvedSrc)
-        // Retry after download
+      // TranslationSession(installedSource:target:) is iOS 26.0+ per Xcode 26 SDK.
+      // On iOS 18–25 the installed-pack fast path is unavailable; JS falls back.
+      if #available(iOS 26.0, *) {
         let session = TranslationSession(installedSource: resolvedSrc, target: target)
         let response = try await session.translate(text)
         return response.targetText
       } else {
-        // iOS 18.0-18.3: can't trigger download programmatically; JS will fall back
+        throw DVNTTranslationError.notInstalled
+      }
+
+    case .supported:
+      // LanguageAvailability.downloadLanguage and TranslationSession(installedSource:target:)
+      // are iOS 26.0+ — guard accordingly; JS falls back on older OS.
+      if #available(iOS 26.0, *) {
+        try await avail.downloadLanguage(resolvedSrc)
+        let session = TranslationSession(installedSource: resolvedSrc, target: target)
+        let response = try await session.translate(text)
+        return response.targetText
+      } else {
         throw DVNTTranslationError.notInstalled
       }
 
