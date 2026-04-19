@@ -268,27 +268,31 @@ function FeedPostComponent({
   const hasMultipleTextSlides = isTextPost && resolvedTextSlides.length > 1;
 
   // Translation support
+  // For text posts: use the resolved text slide caption.
+  // For media posts: use the raw caption prop so media-post captions are translatable.
   const { i18n } = useTranslation();
   const targetLang = i18n.language;
+  const captionForTranslation = isTextPost ? (textPostCaption || "") : (caption || "");
   const {
     displayText: translatedCaption,
     isTranslated: isCaptionTranslated,
     translate: translateCaptionFn,
     showOriginal: showOriginalCaption,
-    hasTranslation: hasCaptionTranslation,
     isCapable: isTranslationCapable,
   } = useContentTranslation(
     `post-${id}-caption`,
-    textPostCaption || "",
+    captionForTranslation,
     targetLang,
   );
 
   const handleTranslateCaption = useCallback(async () => {
     await translateCaptionFn();
   }, [translateCaptionFn]);
+  // Show translate button when: device is capable (or capability still loading)
+  // AND language detection says text is in a foreign language.
   const showTranslateButton =
-    
-    shouldShowTranslateButton(textPostCaption || "", targetLang);
+    isTranslationCapable !== false &&
+    shouldShowTranslateButton(captionForTranslation, targetLang);
 
   const hasMedia = media && media.length > 0;
   const isVideo = !isTextPost && hasMedia && media[0]?.type === "video";

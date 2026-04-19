@@ -526,6 +526,24 @@ function EventsScreenContent() {
               </Text>
             </View>
             <View className="flex-row items-center gap-2">
+              {/* Map / List toggle — left of Tickets */}
+              <Motion.View
+                whileTap={{ scale: 0.9 }}
+                className="h-10 w-10 items-center justify-center rounded-xl bg-card border border-border"
+                style={showMapView ? { backgroundColor: colors.primary, borderColor: colors.primary } : undefined}
+              >
+                <Pressable
+                  onPress={toggleMapView}
+                  className="w-full h-full items-center justify-center"
+                  accessibilityLabel={showMapView ? "Switch to list view" : "Switch to map view"}
+                >
+                  {showMapView ? (
+                    <List size={18} color="#fff" />
+                  ) : (
+                    <Map size={18} color={colors.foreground} />
+                  )}
+                </Pressable>
+              </Motion.View>
               <Motion.View
                 whileTap={{ scale: 0.9 }}
                 className="h-10 w-10 items-center justify-center rounded-xl bg-card border border-border"

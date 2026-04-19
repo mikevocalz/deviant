@@ -36,6 +36,8 @@ export interface SafeGridTile {
   kind: "image" | "gif" | "livePhoto" | "carousel" | "video" | "text";
   coverUrl: string | null;
   videoUrl: string | null;
+  /** For livePhoto tiles: the paired video URI needed by DVNTLivePhotoView */
+  livePhotoVideoUrl?: string | null;
   mediaCount: number;
   text?: string;
   textSlides?: TextPostSlide[];
@@ -186,6 +188,12 @@ export function safeGridTile(post: any): SafeGridTile {
     // For video posts, preserve the video URL for client-side thumbnail generation
     const videoUrl =
       kind === "video" && media[0]?.url ? String(media[0].url) : null;
+    // For livePhoto tiles, carry the paired video URI so the grid cell can
+    // render the live photo player correctly.
+    const livePhotoVideoUrl =
+      kind === "livePhoto" && media[0]?.livePhotoVideoUrl
+        ? String(media[0].livePhotoVideoUrl)
+        : null;
     const rawTextSlides = Array.isArray(post.textSlides) ? post.textSlides : [];
     const textPresentation = resolveTextPostPresentation(
       rawTextSlides,
@@ -207,6 +215,7 @@ export function safeGridTile(post: any): SafeGridTile {
       kind,
       coverUrl,
       videoUrl,
+      livePhotoVideoUrl,
       mediaCount,
       text: primaryText,
       textSlides: kind === "text" ? textSlides : undefined,

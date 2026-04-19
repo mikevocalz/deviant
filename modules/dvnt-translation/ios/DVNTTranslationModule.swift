@@ -166,16 +166,39 @@ public class DVNTTranslationModule: Module {
       resolvedSrc = Locale.Language(identifier: detected)
     }
 
-    // Only installed language packs can be used without the SwiftUI view lifecycle
-    let avail = LanguageAvailability()
-    let status = await avail.status(from: resolvedSrc, to: target)
-    guard status == .installed else {
-      throw DVNTTranslationError.notInstalled
+    // If source == target, return as-is without consuming a session
+    if resolvedSrc.languageCode == target.languageCode {
+      return text
     }
 
-    let session = TranslationSession(installedSource: resolvedSrc, target: target)
-    let response = try await session.translate(text)
-    return response.targetText
+    let avail = LanguageAvailability()
+    let status = await avail.status(from: resolvedSrc, to: target)
+
+    switch status {
+    case .installed:
+      // Fast path: language pack already on device
+      let session = TranslationSession(installedSource: resolvedSrc, target: target)
+      let response = try await session.translate(text)
+      return response.targetText
+
+    case .supported:
+      // Language pack is available but not yet installed.
+      // iOS 18.4+ exposes LanguageAvailability.downloadLanguage(_:) but earlier
+      // iOS 18.x does not — guard so the build stays compatible with iOS 18.0–18.3.
+      if #available(iOS 18.4, *) {
+        try await avail.downloadLanguage(resolvedSrc)
+        // Retry after download
+        let session = TranslationSession(installedSource: resolvedSrc, target: target)
+        let response = try await session.translate(text)
+        return response.targetText
+      } else {
+        // iOS 18.0-18.3: can't trigger download programmatically; JS will fall back
+        throw DVNTTranslationError.notInstalled
+      }
+
+    default:
+      throw DVNTTranslationError.notInstalled
+    }
   }
 
   @available(iOS 18.0, *)
