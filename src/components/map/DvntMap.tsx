@@ -197,7 +197,7 @@ function DvntMapInner({
   }
 
   return (
-    <View className={`flex-1 overflow-hidden ${className || ""}`}>
+    <View className={`flex-1 ${className || ""}`}>
       <MapView
         ref={mapRef}
         style={{ flex: 1 }}

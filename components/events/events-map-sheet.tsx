@@ -220,7 +220,6 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
           style={{
             flex: 1,
             borderRadius: 20,
-            overflow: "hidden",
             marginHorizontal: 12,
             marginBottom: 12,
           }}
