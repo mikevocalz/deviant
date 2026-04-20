@@ -1,25 +1,25 @@
 /**
  * EventsMapSheet
  *
- * P0-2: Detached Gorhom BottomSheetModal that presents the events map.
- * Replaces the previous full-screen map swap.
+ * Detached BottomSheetModal presenting the events map.
  *
- * Content rules:
- * - Shows events in the user's current state and nearby states (geographic
- *   proximity: within ±8 latitude/longitude degrees of activeCity — roughly
- *   covers adjacent states in the US).
- * - When the user has no activeCity, falls back to all mappable events.
- * - Tapping a marker routes to /events/[id] detail and dismisses the sheet.
+ * Architecture:
+ * - useEventMapController owns all data: geocoding, nearest-event sorting,
+ *   viewport settling. The map is NOT rendered until isReady=true, so it
+ *   mounts exactly once at the correct viewport (no double-load, no flicker).
+ * - EventsMapView is a pure render component — stable props only.
+ * - Corner radius is achieved via CornerMasks in DvntMap (no overflow:hidden).
  *
- * Implementation notes:
- * - `detached` mode floats the sheet with margins so it visually separates
- *   from the Events screen underneath.
- * - `snapPoints: ["60%", "92%"]` lets users expand to near-full-screen.
- * - Re-uses EventsMapView for marker rendering and navigation.
+ * Initialization sequence:
+ *   1. Sheet opens → controller starts resolving
+ *   2. Skeleton shown while isReady=false
+ *   3. isReady=true (events + location settled, or 900ms timeout)
+ *   4. Map mounts ONCE at correct viewport
+ *   5. Map remains stable — no camera jumps after settle
  */
 
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
-import { View, Text, Pressable } from "react-native";
+import { View, Text, Pressable, ActivityIndicator } from "react-native";
 import {
   BottomSheetModal,
   BottomSheetBackdrop,
@@ -27,15 +27,30 @@ import {
 import { MapPin, X } from "lucide-react-native";
 import { useRouter } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
-import { useEventsLocationStore } from "@/lib/stores/events-location-store";
+import { useEventMapController } from "@/lib/hooks/use-event-map-controller";
 import { EventsMapView } from "@/components/events/events-map-view";
+import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import type { Event } from "@/lib/hooks/use-events";
-import { geocodeAddress } from "@/lib/utils/geocode";
 
 interface EventsMapSheetProps {
   onDismiss: () => void;
   events: Event[];
 }
+
+// ── Skeleton shown while controller is resolving ──────────────────────────────
+
+function MapSkeleton({ color }: { color: string }) {
+  return (
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", gap: 12 }}>
+      <ActivityIndicator size="large" color={color} />
+      <Text style={{ color: "rgba(255,255,255,0.4)", fontSize: 13, fontWeight: "500" }}>
+        Finding events near you…
+      </Text>
+    </View>
+  );
+}
+
+// ── Sheet ─────────────────────────────────────────────────────────────────────
 
 export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
   onDismiss,
@@ -44,75 +59,17 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
   const sheetRef = useRef<BottomSheetModal>(null);
   const { colors } = useColorScheme();
   const router = useRouter();
+  const activeCity = useEventsLocationStore((s) => s.activeCity);
 
-  // Auto-present on mount so parent can use conditional rendering
+  const controller = useEventMapController(events);
+
+  // Present sheet on mount
   useEffect(() => {
-    const id = requestAnimationFrame(() => {
-      sheetRef.current?.present();
-    });
+    const id = requestAnimationFrame(() => sheetRef.current?.present());
     return () => cancelAnimationFrame(id);
   }, []);
 
-  const safeDismiss = useCallback(() => {
-    onDismiss();
-  }, [onDismiss]);
-
-  const activeCity = useEventsLocationStore((s) => s.activeCity);
-  const deviceLat = useEventsLocationStore((s) => s.deviceLat);
-  const deviceLng = useEventsLocationStore((s) => s.deviceLng);
-
-  const userCenter = useMemo<[number, number] | undefined>(() => {
-    if (typeof deviceLng === "number" && typeof deviceLat === "number") {
-      return [deviceLng, deviceLat];
-    }
-    if (typeof activeCity?.lng === "number" && typeof activeCity?.lat === "number") {
-      return [activeCity.lng, activeCity.lat];
-    }
-    return undefined;
-  }, [deviceLat, deviceLng, activeCity]);
-
-  const geocodedEventCoords = useEventsLocationStore((s) => s.geocodedEventCoords);
-  const setGeocodedEventCoord = useEventsLocationStore((s) => s.setGeocodedEventCoord);
-
-  useEffect(() => {
-    const missing = events.filter(
-      (e) =>
-        (e.locationLat == null || e.locationLng == null) &&
-        !geocodedEventCoords[e.id] &&
-        (e.locationAddress || e.locationName || e.location),
-    );
-    if (missing.length === 0) return;
-
-    let cancelled = false;
-    (async () => {
-      for (const ev of missing) {
-        if (cancelled) break;
-        const addr = ev.locationAddress || ev.locationName || ev.location || "";
-        const coords = await geocodeAddress(addr);
-        if (coords && !cancelled) setGeocodedEventCoord(ev.id, coords);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [events, geocodedEventCoords, setGeocodedEventCoord]);
-
-
-  const scopedEvents = useMemo(() => {
-    // Merge geocoded fallback coords into events that were missing lat/lng
-    const withCoords = events.map((e) => {
-      if (e.locationLat != null && e.locationLng != null) return e;
-      const gc = geocodedEventCoords[e.id];
-      if (gc) return { ...e, locationLat: gc.lat, locationLng: gc.lng };
-      return e;
-    });
-
-    const mappable = withCoords.filter(
-      (e) => e.locationLat != null && e.locationLng != null,
-    );
-
-    return mappable;
-  }, [events, geocodedEventCoords]);
-
-  const snapPoints = useMemo(() => ["60%", "92%"], []);
+  const safeDismiss = useCallback(() => onDismiss(), [onDismiss]);
 
   const handleSheetChange = useCallback(
     (index: number) => {
@@ -121,26 +78,37 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
     [safeDismiss],
   );
 
+  const handleMarkerPress = useCallback(
+    (id: string) => {
+      safeDismiss();
+      router.push(`/(protected)/events/${id}` as any);
+    },
+    [safeDismiss, router],
+  );
+
   const renderBackdrop = useCallback(
     (props: any) => (
       <BottomSheetBackdrop
         {...props}
         appearsOnIndex={0}
         disappearsOnIndex={-1}
-        opacity={0.5}
+        opacity={0.55}
         pressBehavior="close"
       />
     ),
     [],
   );
 
+  const snapPoints = useMemo(() => ["62%", "92%"], []);
+
   const headerLabel = useMemo(() => {
-    if (activeCity?.state) {
-      return `Near ${activeCity.name}, ${activeCity.state}`;
-    }
+    if (activeCity?.state) return `Near ${activeCity.name}, ${activeCity.state}`;
     if (activeCity?.name) return `Near ${activeCity.name}`;
     return "Nearby Events";
   }, [activeCity]);
+
+  // maskColor for corner masks must match the card background around the map
+  const maskColor = colors.card;
 
   return (
     <BottomSheetModal
@@ -149,6 +117,11 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
       index={0}
       onChange={handleSheetChange}
       backdropComponent={renderBackdrop}
+      enableDynamicSizing={false}
+      enablePanDownToClose
+      detached
+      bottomInset={46}
+      style={{ marginHorizontal: 12 }}
       backgroundStyle={{
         backgroundColor: colors.card,
         borderTopLeftRadius: 24,
@@ -156,83 +129,112 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
         borderWidth: 1,
         borderColor: colors.border,
       }}
-      handleIndicatorStyle={{ backgroundColor: colors.mutedForeground }}
-      // ── Detached mode ────────────────────────────────────────────────
-      // Floats the sheet with margins so it visually separates from the
-      // Events screen underneath. This is the "detached sheet" shape
-      // requested in P0-2.
-      detached
-      bottomInset={46}
-      style={{ marginHorizontal: 12 }}
-      enablePanDownToClose
-      enableDynamicSizing={false}
+      handleIndicatorStyle={{
+        backgroundColor: colors.mutedForeground,
+        width: 36,
+        height: 4,
+      }}
     >
       <View style={{ flex: 1 }}>
+        {/* ── Header ── */}
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
             paddingHorizontal: 16,
-            paddingTop: 4,
-            paddingBottom: 8,
+            paddingTop: 8,
+            paddingBottom: 12,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-            <MapPin size={16} color={colors.primary} />
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flex: 1, minWidth: 0 }}>
+            <View
+              style={{
+                width: 30,
+                height: 30,
+                borderRadius: 10,
+                backgroundColor: `${colors.primary}22`,
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <MapPin size={15} color={colors.primary} />
+            </View>
             <Text
               style={{
                 color: colors.foreground,
                 fontSize: 15,
                 fontWeight: "700",
+                flexShrink: 1,
               }}
               numberOfLines={1}
             >
               {headerLabel}
             </Text>
-            <Text
-              style={{
-                color: colors.mutedForeground,
-                fontSize: 12,
-                fontWeight: "600",
-              }}
-            >
-              {scopedEvents.length}
-            </Text>
+            {controller.nearestCount > 0 && (
+              <View
+                style={{
+                  paddingHorizontal: 8,
+                  paddingVertical: 3,
+                  borderRadius: 20,
+                  backgroundColor: `${colors.primary}20`,
+                }}
+              >
+                <Text
+                  style={{
+                    color: colors.primary,
+                    fontSize: 11,
+                    fontWeight: "700",
+                    fontVariant: ["tabular-nums"],
+                  }}
+                >
+                  {controller.nearestCount}
+                </Text>
+              </View>
+            )}
           </View>
+
           <Pressable
             onPress={safeDismiss}
             hitSlop={12}
             accessibilityLabel="Close map"
             style={{
-              width: 32,
-              height: 32,
+              width: 30,
+              height: 30,
+              borderRadius: 15,
+              backgroundColor: "rgba(255,255,255,0.08)",
               alignItems: "center",
               justifyContent: "center",
-              borderRadius: 16,
-              backgroundColor: "rgba(255,255,255,0.08)",
+              marginLeft: 12,
             }}
           >
-            <X size={16} color={colors.foreground} />
+            <X size={15} color={colors.foreground} />
           </Pressable>
         </View>
+
+        {/* ── Map card ── */}
         <View
           style={{
             flex: 1,
-            borderRadius: 20,
             marginHorizontal: 12,
             marginBottom: 12,
+            borderRadius: 12,
+            // NO overflow:hidden — that would blank Apple Maps' Metal surface.
+            // Visual rounded corners are achieved by the CornerMasks rendered
+            // inside DvntMap, which overlay the map corners with maskColor
+            // (matching colors.card) to create the illusion of clipping.
           }}
         >
-          <EventsMapView
-            events={scopedEvents}
-            userCenter={userCenter}
-            showControls={false}
-            onMarkerPress={(id) => {
-              safeDismiss();
-              router.push(`/(protected)/events/${id}` as any);
-            }}
-          />
+          {controller.isReady ? (
+            <EventsMapView
+              viewport={controller.viewport}
+              markers={controller.markers}
+              onMarkerPress={handleMarkerPress}
+              maskColor={maskColor}
+            />
+          ) : (
+            <MapSkeleton color={colors.primary} />
+          )}
         </View>
       </View>
     </BottomSheetModal>

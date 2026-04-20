@@ -29,6 +29,8 @@ export interface DvntMapProps {
   className?: string;
   showControls?: boolean;
   onMapReady?: () => void;
+  cornerRadius?: number;
+  maskColor?: string;
 }
 
 function DvntMapWeb({

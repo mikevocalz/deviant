@@ -1,9 +1,21 @@
 /**
  * DvntMap — Production Expo Maps component (iOS/Android)
  *
- * Renders Google Maps (Android) or Apple Maps (iOS) using expo-maps.
- * Supports markers, user location, and camera control. Gracefully falls
- * back if the native module is unavailable.
+ * Renders Google Maps (Android) or Apple Maps (iOS) via expo-maps.
+ *
+ * Loading-state contract:
+ * - Shows loading overlay ONLY on first mount (hasMountedRef).
+ * - Subsequent cameraPosition changes animate smoothly without re-triggering
+ *   the loading state, preventing the double-load flicker.
+ *
+ * Rounded corners:
+ * - `overflow: "hidden"` on any ancestor KILLS the Apple Maps Metal surface.
+ * - Instead, pass `cornerRadius` + `maskColor` to render corner-mask overlay
+ *   Views that visually clip the map without touching the Metal layer.
+ *
+ * Pin colors:
+ * - "event" pins use DVNT primary purple (#8A40CF).
+ * - "user" pins use DVNT accent pink (#FF6DC1).
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -32,7 +44,7 @@ try {
   // Not available (Expo Go or web)
 }
 
-// ---------- Types ----------
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface DvntMapMarker {
   id: string;
@@ -51,63 +63,97 @@ export interface DvntMapProps {
   pitch?: number;
   bearing?: number;
   className?: string;
-  /** Show overlay controls (recenter, zoom) */
   showControls?: boolean;
-  /** Called when map finishes loading */
   onMapReady?: () => void;
+  /**
+   * Corner radius for the map surface.
+   * Cannot use overflow:hidden with Apple Maps — we render corner-mask overlay
+   * Views instead. Requires `maskColor` to be set.
+   */
+  cornerRadius?: number;
+  /**
+   * Background color to fill the corner-mask overlay Views.
+   * Should match the container background behind/around the map.
+   */
+  maskColor?: string;
 }
 
-// Convert [lng, lat] to {latitude, longitude}
+// [lng, lat] → { latitude, longitude }
 function toLatLng(coord: [number, number]) {
   return { latitude: coord[1], longitude: coord[0] };
 }
 
-// ---------- Marker helpers ----------
+// ── Pin color ─────────────────────────────────────────────────────────────────
 
 function getMarkerColor(icon?: string): string {
   switch (icon) {
     case "event":
-      return "#3EA4E5"; // Deviant primary blue
+      return "#8A40CF"; // DVNT primary purple
     case "user":
-      return "#FF6DC1"; // Deviant accent pink
+      return "#FF6DC1"; // DVNT accent pink
     default:
-      return "#3EA4E5"; // Default to primary blue
+      return "#8A40CF";
   }
 }
 
-// ---------- Fallback ----------
+// ── Fallback ──────────────────────────────────────────────────────────────────
 
 function MapUnavailable({ reason }: { reason: string }) {
   const { colors } = useColorScheme();
   return (
-    <View className="flex-1 items-center justify-center bg-card rounded-2xl px-6 gap-3">
+    <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: colors.card, borderRadius: 16, paddingHorizontal: 24, gap: 12 }}>
       <MapPin size={40} color={colors.mutedForeground} />
-      <Text className="text-base font-semibold text-muted-foreground text-center">
+      <Text style={{ color: colors.foreground, fontSize: 15, fontWeight: "600", textAlign: "center" }}>
         Map Unavailable
       </Text>
-      <Text className="text-xs text-muted-foreground text-center">
+      <Text style={{ color: colors.mutedForeground, fontSize: 13, textAlign: "center" }}>
         {reason}
       </Text>
     </View>
   );
 }
 
-// ---------- Loading State ----------
+// ── Loading overlay ───────────────────────────────────────────────────────────
 
-function MapLoading() {
-  const { colors } = useColorScheme();
+function MapLoadingOverlay({ color }: { color: string }) {
   return (
-    <View className="flex-1 items-center justify-center bg-card rounded-2xl">
-      <ActivityIndicator size="large" color={colors.primary} />
-      <Text className="mt-3 text-sm text-muted-foreground">Loading map...</Text>
+    <View
+      style={{
+        ...StyleSheet.absoluteFillObject,
+        alignItems: "center",
+        justifyContent: "center",
+        backgroundColor: "rgba(12,12,16,0.6)",
+      }}
+      pointerEvents="none"
+    >
+      <ActivityIndicator size="large" color={color} />
     </View>
   );
 }
 
-// ---------- Main Component ----------
+// Need StyleSheet for absoluteFillObject
+import { StyleSheet } from "react-native";
+
+// ── Corner mask overlay ───────────────────────────────────────────────────────
+// Renders 4 corner pieces matching maskColor to simulate rounded corners
+// without overflow:hidden (which blanks Apple Maps' Metal surface).
+
+function CornerMasks({ radius, color }: { radius: number; color: string }) {
+  const s = radius;
+  return (
+    <>
+      <View style={{ position: "absolute", top: 0, left: 0, width: s, height: s, backgroundColor: color, borderBottomRightRadius: s }} pointerEvents="none" />
+      <View style={{ position: "absolute", top: 0, right: 0, width: s, height: s, backgroundColor: color, borderBottomLeftRadius: s }} pointerEvents="none" />
+      <View style={{ position: "absolute", bottom: 0, left: 0, width: s, height: s, backgroundColor: color, borderTopRightRadius: s }} pointerEvents="none" />
+      <View style={{ position: "absolute", bottom: 0, right: 0, width: s, height: s, backgroundColor: color, borderTopLeftRadius: s }} pointerEvents="none" />
+    </>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 function DvntMapInner({
-  center = [-73.9857, 40.7484], // NYC default [lng, lat]
+  center = [-73.9857, 40.7484],
   zoom = 12,
   markers = [],
   onMarkerPress,
@@ -117,10 +163,13 @@ function DvntMapInner({
   className,
   showControls = true,
   onMapReady,
+  cornerRadius = 0,
+  maskColor,
 }: DvntMapProps) {
   const { colors } = useColorScheme();
   const mapRef = useRef<any>(null);
   const hasReportedReadyRef = useRef(false);
+  const hasMountedRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
 
   const cameraPosition = useMemo(
@@ -128,28 +177,9 @@ function DvntMapInner({
       coordinates: toLatLng(center),
       zoom: zoom || 15,
     }),
-    [center, zoom],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [center[0], center[1], zoom],
   );
-
-  // Stable callback for marker press
-  const handleMarkerPress = useCallback(
-    (e: any) => {
-      const markerId = e.nativeEvent?.id;
-      if (markerId && onMarkerPress) {
-        onMarkerPress(String(markerId));
-      }
-    },
-    [onMarkerPress],
-  );
-
-  // Recenter map
-  const handleRecenter = useCallback(() => {
-    mapRef.current?.setCameraPosition?.(
-      Platform.OS === "android"
-        ? { ...cameraPosition, duration: 350 }
-        : cameraPosition,
-    );
-  }, [cameraPosition]);
 
   const finishLoading = useCallback(() => {
     setIsLoading(false);
@@ -159,55 +189,75 @@ function DvntMapInner({
     }
   }, [onMapReady]);
 
-  const handleMapLoaded = useCallback(() => {
-    finishLoading();
-  }, [finishLoading]);
+  const handleMapLoaded = useCallback(() => finishLoading(), [finishLoading]);
+  const handleCameraMove = useCallback(() => finishLoading(), [finishLoading]);
 
-  const handleCameraMove = useCallback(() => {
-    finishLoading();
-  }, [finishLoading]);
-
+  // Loading state only on first mount. Subsequent camera updates animate
+  // smoothly without re-triggering the loading overlay.
   useEffect(() => {
-    hasReportedReadyRef.current = false;
-    setIsLoading(true);
+    if (!hasMountedRef.current) {
+      // First mount: initialize camera with no animation, show loading overlay
+      hasMountedRef.current = true;
+      hasReportedReadyRef.current = false;
+      setIsLoading(true);
 
-    const config =
-      Platform.OS === "android"
-        ? { ...cameraPosition, duration: 0 }
-        : cameraPosition;
+      const config =
+        Platform.OS === "android"
+          ? { ...cameraPosition, duration: 0 }
+          : cameraPosition;
+      mapRef.current?.setCameraPosition?.(config);
 
-    mapRef.current?.setCameraPosition?.(config);
-
-    // AppleMaps.View does not expose a "map loaded" callback, so we need a
-    // small fallback to avoid a permanent loading state on iOS.
-    const timeoutId = setTimeout(
-      finishLoading,
-      Platform.OS === "ios" ? 700 : 1500,
-    );
-
-    return () => clearTimeout(timeoutId);
+      // AppleMaps doesn't expose a reliable "loaded" callback — use timeout fallback
+      const timeoutId = setTimeout(
+        finishLoading,
+        Platform.OS === "ios" ? 600 : 1200,
+      );
+      return () => clearTimeout(timeoutId);
+    } else {
+      // Subsequent camera updates: smooth animated move, no loading state
+      const config =
+        Platform.OS === "android"
+          ? { ...cameraPosition, duration: 400 }
+          : cameraPosition;
+      mapRef.current?.setCameraPosition?.(config);
+    }
   }, [cameraPosition, finishLoading]);
 
-  // Bail out if no native module
+  const handleRecenter = useCallback(() => {
+    mapRef.current?.setCameraPosition?.(
+      Platform.OS === "android"
+        ? { ...cameraPosition, duration: 350 }
+        : cameraPosition,
+    );
+  }, [cameraPosition]);
+
+  const handleMarkerPress = useCallback(
+    (e: any) => {
+      const markerId = e.nativeEvent?.id;
+      if (markerId && onMarkerPress) onMarkerPress(String(markerId));
+    },
+    [onMarkerPress],
+  );
+
   const MapView = Platform.OS === "android" ? GoogleMapsView : AppleMapsView;
   if (!MapView) {
     return (
-      <MapUnavailable reason="expo-maps native module is not linked. Use a development build (not Expo Go)." />
+      <MapUnavailable reason="expo-maps native module is not linked. Use a development build." />
     );
   }
 
   return (
-    <View className={`flex-1 ${className || ""}`}>
+    <View style={{ flex: 1 }} className={className || ""}>
       <MapView
         ref={mapRef}
         style={{ flex: 1 }}
         cameraPosition={cameraPosition}
-        markers={markers.map((marker) => ({
-          id: marker.id,
-          coordinates: toLatLng(marker.coordinate),
-          title: marker.title,
-          subtitle: marker.subtitle,
-          color: getMarkerColor(marker.icon),
+        markers={markers.map((m) => ({
+          id: m.id,
+          coordinates: toLatLng(m.coordinate),
+          title: m.title,
+          subtitle: m.subtitle,
+          color: getMarkerColor(m.icon),
         }))}
         onMarkerPress={handleMarkerPress}
         onCameraMove={handleCameraMove}
@@ -221,30 +271,33 @@ function DvntMapInner({
           showsUserLocation: showUserLocation,
         }}
       />
-      {isLoading && (
-        <View
-          className="absolute inset-0 items-center justify-center bg-card/80"
-          pointerEvents="none"
-        >
-          <MapLoading />
-        </View>
-      )}
 
-      {/* Overlay Controls */}
+      {/* Loading overlay — only visible on initial mount */}
+      {isLoading && <MapLoadingOverlay color={colors.primary} />}
+
+      {/* Corner masks — simulate borderRadius without overflow:hidden */}
+      {cornerRadius > 0 && maskColor ? (
+        <CornerMasks radius={cornerRadius} color={maskColor} />
+      ) : null}
+
+      {/* Recenter control */}
       {showControls && (
         <View
-          className="absolute right-3 bottom-6 gap-2"
+          style={{ position: "absolute", right: 12, bottom: 24 }}
           pointerEvents="box-none"
         >
           <Pressable
             onPress={handleRecenter}
-            className="w-10 h-10 rounded-full bg-card border border-border items-center justify-center"
             style={{
-              elevation: 4,
-              shadowColor: "#000",
-              shadowOpacity: 0.15,
-              shadowRadius: 4,
-              shadowOffset: { width: 0, height: 2 },
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: colors.card,
+              borderWidth: 1,
+              borderColor: colors.border,
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
             }}
           >
             <Locate size={18} color={colors.foreground} />
