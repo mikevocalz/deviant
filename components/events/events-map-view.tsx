@@ -19,9 +19,11 @@ interface EventsMapViewProps {
   onMarkerPress?: (id: string) => void;
   /** [lng, lat] to center the map when there are no event markers yet */
   userCenter?: [number, number];
+  /** Show/hide the DvntMap overlay recenter button. Default true. */
+  showControls?: boolean;
 }
 
-export function EventsMapView({ events, onMarkerPress, userCenter }: EventsMapViewProps) {
+export function EventsMapView({ events, onMarkerPress, userCenter, showControls = true }: EventsMapViewProps) {
   const router = useRouter();
 
   // Filter events with valid coordinates
@@ -77,7 +79,7 @@ export function EventsMapView({ events, onMarkerPress, userCenter }: EventsMapVi
       markers={markers}
       onMarkerPress={handleMarkerPress}
       showUserLocation
-      showControls
+      showControls={showControls}
     />
   );
 }

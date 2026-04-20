@@ -227,6 +227,7 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
           <EventsMapView
             events={scopedEvents}
             userCenter={userCenter}
+            showControls={false}
             onMarkerPress={(id) => {
               safeDismiss();
               router.push(`/(protected)/events/${id}` as any);
