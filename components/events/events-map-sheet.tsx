@@ -23,7 +23,6 @@ import { View, Text, Pressable } from "react-native";
 import {
   BottomSheetModal,
   BottomSheetBackdrop,
-  BottomSheetView,
 } from "@gorhom/bottom-sheet";
 import { MapPin, X } from "lucide-react-native";
 import { useRouter } from "expo-router";
@@ -166,8 +165,9 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
       bottomInset={46}
       style={{ marginHorizontal: 12 }}
       enablePanDownToClose
+      enableDynamicSizing={false}
     >
-      <BottomSheetView style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>
         <View
           style={{
             flexDirection: "row",
@@ -233,7 +233,7 @@ export const EventsMapSheet: React.FC<EventsMapSheetProps> = ({
             }}
           />
         </View>
-      </BottomSheetView>
+      </View>
     </BottomSheetModal>
   );
 };
