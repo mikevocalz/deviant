@@ -947,7 +947,7 @@ function FeedPostComponent({
                     width="100%"
                     height={PORTRAIT_HEIGHT}
                     contentFit="cover"
-                    showBadge
+                    showBadge={false}
                     isPlaying={isActivePost && isFocused}
                   />
                 ) : (

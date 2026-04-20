@@ -56,6 +56,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { eventsApi } from "@/lib/api/events";
 import { useEventDetailScreenStore } from "@/lib/stores/event-detail-screen-store";
 import { normalizeRouteParams } from "@/lib/navigation/route-params";
+import { routeToProfile } from "@/lib/utils/route-to-profile";
 import {
   loopDetection,
   useRenderLoopDetector,
@@ -520,11 +521,27 @@ function EventDetailScreenContent() {
       return avatars.map((a: any) => ({
         id: String(a.id || ""),
         avatar: a.avatar || "",
+        username: a.username || "",
         color: "#3b82f6",
       }));
     }
     return [];
   }, [safeEvent]);
+
+  const handleAttendeePress = useCallback(
+    (attendee: EventAttendee) => {
+      const viewerId = String(getCurrentUserIdInt() ?? "");
+      routeToProfile({
+        targetUserId: attendee.id,
+        targetUsername: attendee.username,
+        targetAvatar: attendee.avatar,
+        viewerId,
+        router,
+        queryClient,
+      });
+    },
+    [router, queryClient],
+  );
 
   // Auto-select first tier
   useEffect(() => {
@@ -1173,6 +1190,7 @@ function EventDetailScreenContent() {
               attendees={realAttendees}
               totalCount={event.attendees || 0}
               followingCount={0}
+              onAttendeePress={handleAttendeePress}
             />
           </View>
 
