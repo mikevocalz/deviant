@@ -1,9 +1,8 @@
 import ExpoModulesCore
 import NaturalLanguage
 
-// Apple Translation framework — iOS 18.0+
-// Programmatic access via TranslationSession.init(configuration:), added iOS 18.0.
-// On iOS < 18.0 all translation functions throw; detection and capability checks degrade gracefully.
+// Apple Translation framework — iOS 17.4+, programmatic access iOS 18.0+.
+// Weak-linked via podspec so the binary loads on iOS < 17.4 without crashing.
 #if canImport(Translation)
 import Translation
 #endif
@@ -15,40 +14,36 @@ public class DVNTTranslationModule: Module {
     Name("DVNTTranslation")
 
     // ── isTranslationAvailable ─────────────────────────────────────────────
-    // Returns true if at least one direction involving the target language is
-    // supported (installed or downloadable). Source "auto" scans common pairs.
     AsyncFunction("isTranslationAvailable") {
       (sourceLanguage: String, targetLanguage: String) async -> Bool in
       guard #available(iOS 18.0, *) else { return false }
       #if canImport(Translation)
-      return await DVNTTranslationModule.checkAvailable(source: sourceLanguage, target: targetLanguage)
+      return await DVNTTranslationModule.checkAvailable(
+        source: sourceLanguage, target: targetLanguage)
       #else
       return false
       #endif
     }
 
     // ── getAvailabilityStatus ──────────────────────────────────────────────
-    // Returns "installed" | "supported" | "unsupported" for a specific pair.
     AsyncFunction("getAvailabilityStatus") {
       (sourceLanguage: String, targetLanguage: String) async -> String in
       guard #available(iOS 18.0, *) else { return "unsupported" }
       #if canImport(Translation)
-      return await DVNTTranslationModule.availabilityStatus(source: sourceLanguage, target: targetLanguage)
+      return await DVNTTranslationModule.availabilityStatus(
+        source: sourceLanguage, target: targetLanguage)
       #else
       return "unsupported"
       #endif
     }
 
     // ── detectLanguage ─────────────────────────────────────────────────────
-    // Uses NLLanguageRecognizer — available on all iOS versions, no framework gate.
     AsyncFunction("detectLanguage") {
       (text: String) async -> String in
       return DVNTTranslationModule.detectCode(text)
     }
 
     // ── translateText ──────────────────────────────────────────────────────
-    // Uses TranslationSession(configuration:) — iOS 18.0+ programmatic API.
-    // Source language "auto" triggers NLLanguageRecognizer detection.
     AsyncFunction("translateText") {
       (text: String, sourceLanguage: String, targetLanguage: String) async throws -> [String: Any] in
       guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
@@ -66,15 +61,13 @@ public class DVNTTranslationModule: Module {
       } else {
         srcCode = DVNTTranslationModule.normalizeCode(sourceLanguage)
       }
-
-      // If source == target, return as-is
       if let src = srcCode, src == tgtCode {
         return ["translatedText": text, "detectedSourceLanguage": src]
       }
-
       let srcLang: Locale.Language? = srcCode.map { Locale.Language(identifier: $0) }
       let tgtLang = Locale.Language(identifier: tgtCode)
-      let translated = try await DVNTTranslationModule.translate(text: text, source: srcLang, target: tgtLang)
+      let translated = try await DVNTTranslationModule.translate(
+        text: text, source: srcLang, target: tgtLang)
       return ["translatedText": translated, "detectedSourceLanguage": srcCode ?? ""]
       #else
       throw DVNTTranslationError.unavailable
@@ -82,8 +75,6 @@ public class DVNTTranslationModule: Module {
     }
 
     // ── translateBatch ─────────────────────────────────────────────────────
-    // Translates multiple strings in a single session. Items that fail are
-    // returned with success: false and the original text preserved.
     AsyncFunction("translateBatch") {
       (items: [String], sourceLanguage: String, targetLanguage: String) async throws -> [[String: Any]] in
       guard #available(iOS 18.0, *) else {
@@ -105,10 +96,14 @@ public class DVNTTranslationModule: Module {
           continue
         }
         do {
-          let translated = try await DVNTTranslationModule.translate(text: item, source: srcLang, target: tgtLang)
+          let translated = try await DVNTTranslationModule.translate(
+            text: item, source: srcLang, target: tgtLang)
           results.append(["originalText": item, "translatedText": translated, "success": true])
         } catch {
-          results.append(["originalText": item, "translatedText": item, "success": false, "error": error.localizedDescription])
+          results.append([
+            "originalText": item, "translatedText": item,
+            "success": false, "error": error.localizedDescription,
+          ])
         }
       }
       return results
@@ -118,8 +113,9 @@ public class DVNTTranslationModule: Module {
     }
 
     // ── downloadLanguagePack ───────────────────────────────────────────────
-    // Language models are managed automatically by TranslationSession.
-    // This stub exists for API symmetry; the system handles downloads on demand.
+    // No-op stub for JS API symmetry.
+    // System downloads are handled automatically by TranslationSession.prepareTranslation().
+    // Manual download APIs were removed from the Translation framework in Xcode 26 SDK.
     AsyncFunction("downloadLanguagePack") { (_: String) async -> Void in }
 
     // ── getAvailableLanguages ──────────────────────────────────────────────
@@ -149,14 +145,28 @@ public class DVNTTranslationModule: Module {
     return lang.rawValue
   }
 
+  // MARK: - Translation core
+
   #if canImport(Translation)
-  // Uses TranslationSession(installedSource:target:) — iOS 18.0+ programmatic API.
-  // Unlike .translationTask, this does not require a SwiftUI view context.
-  // Requires language packs to already be installed on the device; if not installed
-  // the call throws DVNTTranslationError.notInstalled so the JS layer can fall back.
+
+  // Translates a single string.
+  //
+  // iOS 26.0+  — TranslationSession(installedSource:target:) is the new SDK-preferred
+  //              initializer for packs that are already installed on-device.
+  //              For packs that are present but not installed (.supported), the JS layer
+  //              falls back to a web service; there is no programmatic download API in
+  //              the iOS 26 SDK (LanguageAvailability.downloadLanguage was removed).
+  //
+  // iOS 18.0–25.x — TranslationSession(configuration:) + prepareTranslation() is the
+  //              stable programmatic path.  prepareTranslation() triggers the system
+  //              download sheet when a pack is not yet installed, which is the intended
+  //              UX for that OS range.
   @available(iOS 18.0, *)
-  static func translate(text: String, source: Locale.Language?, target: Locale.Language) async throws -> String {
-    // Resolve source language — detect if caller passed nil/auto
+  static func translate(
+    text: String,
+    source: Locale.Language?,
+    target: Locale.Language
+  ) async throws -> String {
     let resolvedSrc: Locale.Language
     if let src = source {
       resolvedSrc = src
@@ -166,40 +176,37 @@ public class DVNTTranslationModule: Module {
       resolvedSrc = Locale.Language(identifier: detected)
     }
 
-    // If source == target, return as-is without consuming a session
     if resolvedSrc.languageCode == target.languageCode {
       return text
     }
 
+    // Fail fast for unsupported pairs before creating a session.
     let avail = LanguageAvailability()
     let status = await avail.status(from: resolvedSrc, to: target)
+    guard status != .unsupported else { throw DVNTTranslationError.notInstalled }
 
-    switch status {
-    case .installed:
-      // TranslationSession(installedSource:target:) is iOS 26.0+ per Xcode 26 SDK.
-      // On iOS 18–25 the installed-pack fast path is unavailable; JS falls back.
-      if #available(iOS 26.0, *) {
+    if #available(iOS 26.0, *) {
+      // iOS 26+: use new initializer for installed packs.
+      // .supported (not yet downloaded) has no programmatic download path in this SDK;
+      // throw so the JS layer can route to a web translation fallback.
+      switch status {
+      case .installed:
         let session = TranslationSession(installedSource: resolvedSrc, target: target)
         let response = try await session.translate(text)
         return response.targetText
-      } else {
+      default:
         throw DVNTTranslationError.notInstalled
       }
-
-    case .supported:
-      // LanguageAvailability.downloadLanguage and TranslationSession(installedSource:target:)
-      // are iOS 26.0+ — guard accordingly; JS falls back on older OS.
-      if #available(iOS 26.0, *) {
-        try await avail.downloadLanguage(resolvedSrc)
-        let session = TranslationSession(installedSource: resolvedSrc, target: target)
-        let response = try await session.translate(text)
-        return response.targetText
-      } else {
-        throw DVNTTranslationError.notInstalled
-      }
-
-    default:
-      throw DVNTTranslationError.notInstalled
+    } else {
+      // iOS 18.0–25.x: configuration-based programmatic API (stable since iOS 17.4).
+      // prepareTranslation() will trigger a system sheet to download the pack if
+      // status is .supported; translate(requests:) runs once ready.
+      let config = TranslationSession.Configuration(source: resolvedSrc, target: target)
+      let session = TranslationSession(configuration: config)
+      try await session.prepareTranslation()
+      let responses = try await session.translate(requests: [TranslationRequest(sourceText: text)])
+      guard let first = responses.first else { throw DVNTTranslationError.notInstalled }
+      return first.targetText
     }
   }
 
@@ -235,6 +242,7 @@ public class DVNTTranslationModule: Module {
     @unknown default: return "unknown"
     }
   }
+
   #endif
 }
 
