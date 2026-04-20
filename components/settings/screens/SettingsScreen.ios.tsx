@@ -553,9 +553,15 @@ export default function SettingsScreenIOS() {
             </Pressable>
           </View>
 
-          {/* App Version */}
+          {/* App Version — long-press opens OTA diagnostics */}
           <View className="items-center pb-8 pt-4">
-            <Text className="text-xs text-muted-foreground">Version 1.0.0</Text>
+            <Pressable
+              onLongPress={() => router.push("/(protected)/debug-ota" as any)}
+              delayLongPress={1000}
+              hitSlop={12}
+            >
+              <Text className="text-xs text-muted-foreground">Version 1.0.0</Text>
+            </Pressable>
           </View>
         </ScrollView>
       </Main>

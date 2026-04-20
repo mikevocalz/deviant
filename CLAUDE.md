@@ -85,7 +85,7 @@ The production TestFlight app uses **Expo Updates (OTA)** to get the latest JS b
 git push origin main
 
 # 2. ALWAYS push OTA update (CRITICAL - never skip this)
-npx eas-cli update --branch production --message "<description>" --platform ios
+EAS_SKIP_AUTO_FINGERPRINT=1 npx eas-cli update --branch production --message "<description>" --platform ios --environment production
 
 # 3. Only if native deps changed, also do a native build
 npx eas-cli build --platform ios --profile production --auto-submit --non-interactive
@@ -94,8 +94,97 @@ npx eas-cli build --platform ios --profile production --auto-submit --non-intera
 **Rules:**
 
 - Use `--platform ios` (web export fails due to react-native-pager-view)
+- Always include `EAS_SKIP_AUTO_FINGERPRINT=1` to prevent fingerprint mismatches silently blocking delivery
+- Always include `--environment production` (required in non-interactive mode)
 - User must force-close + reopen app twice (download then apply)
 - Use `/deploy` workflow in Windsurf to automate this
+
+---
+
+### 🚨 OTA RELEASE HARDENING — MANDATORY PROCESS (2026-04-19 incident)
+
+**A crash-on-launch OTA stranded users. Do not repeat this.**
+
+#### OTA ELIGIBILITY GATE — Before publishing ANY OTA:
+
+Run this audit. If ANY answer is YES → **require a new EAS native build instead of OTA**:
+
+```
+□ Does the change touch .swift / .m / .h / .kt files?                → NATIVE BUILD REQUIRED
+□ Does the change touch ios/ or android/ folders?                     → NATIVE BUILD REQUIRED
+□ Does the change touch Podfile, build.gradle, or .pbxproj?           → NATIVE BUILD REQUIRED
+□ Does the change touch app.config.js or app.config.ts?               → NATIVE BUILD REQUIRED (config plugin)
+□ Does the change touch package.json (add/remove native packages)?    → NATIVE BUILD REQUIRED
+□ Does the change touch scripts/patch-*.sh (native patches)?          → NATIVE BUILD REQUIRED
+□ Does the change add a new require() of a native module in JS?       → NATIVE BUILD REQUIRED
+□ Does the change depend on a new env var not present in the binary?  → NATIVE BUILD REQUIRED
+```
+
+If ALL answers are NO → OTA-eligible.
+
+#### STAGED OTA RELEASE PROCESS:
+
+Never publish a large OTA bundle cold. Always stage:
+
+**Step 1 — Canary marker** (before any real change):
+```bash
+# Publish a 1-line JS comment change as the first OTA of a session
+# This proves the OTA pipeline is working before you ship real code
+EAS_SKIP_AUTO_FINGERPRINT=1 eas update --branch production --message "canary: OTA pipeline check" --platform ios --environment production
+```
+
+**Step 2 — Verify canary** (on physical device):
+- Open OTA diagnostics: Settings → long-press "Version 1.0.0" for 1 second
+- Confirm `updateId` changes to the canary update ID
+- Confirm `isEmbeddedLaunch: false`
+- Confirm app opens and stays open after 3 relaunches
+
+**Step 3 — Ship real OTA** (only after canary confirmed):
+```bash
+EAS_SKIP_AUTO_FINGERPRINT=1 eas update --branch production --message "<real change>" --platform ios --environment production
+```
+
+**Step 4 — Verify on device** within 5 minutes.
+
+#### ROLLBACK PROCEDURE (stop-the-line):
+
+If an OTA causes any crash or launch failure:
+
+```bash
+# IMMEDIATE: Roll back to embedded bundle — no JS, just the binary's built-in code
+npx eas-cli update:roll-back-to-embedded \
+  --branch production \
+  --platform ios \
+  --runtime-version 1.0.0 \
+  --message "P0 ROLLBACK: <reason>"
+
+# OR: Republish a known-good prior update group
+npx eas-cli update:republish \
+  --group <known-good-update-group-id> \
+  --branch production \
+  --message "ROLLBACK to <description>"
+```
+
+Rollback-to-embedded is preferred: it is the most conservative recovery and requires the device to have only the binary, which is always known-good.
+
+**After publishing rollback:** Users may need to open the app 2–3 times for `ON_ERROR_RECOVERY` to download and apply the rollback directive. Reinstall from TestFlight is a last resort only — not the primary recovery strategy.
+
+#### STOP-THE-LINE CONDITIONS — Do NOT publish an OTA if:
+
+- TypeScript check has any `error TS` (zero tolerance)
+- The change imports a new native module or package
+- The change depends on env vars not in `eas.json` build env
+- The previous OTA is not confirmed working on a physical device
+- The change touches any file in `ios/`, `android/`, `modules/*/ios/`, `modules/*/android/`
+
+#### OTA DIAGNOSTICS ACCESS:
+
+- **Screen:** Settings → long-press "Version 1.0.0" for 1s → OTA Diagnostics
+- **Route:** `/(protected)/debug-ota`
+- **Console:** All update state logged at boot via `lib/ota-bootstrap-log.ts`
+- Key fields to check after every OTA: `updateId`, `isEmbeddedLaunch`, `emergencyLaunchReason`
+
+---
 
 ### DATABASE: TWO USER TABLES (CRITICAL)
 
