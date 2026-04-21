@@ -149,8 +149,10 @@ Deno.serve(async (req: Request) => {
       .eq("id", ticket.event_id)
       .single();
 
-    // Create Stripe Checkout Session for the price difference
-    const successUrl = `${APP_SCHEME}://ticket/${ticket.event_id}?upgraded=1`;
+    // Create Stripe Checkout Session for the price difference.
+    // Success routes back to the upgrade screen so the user sees the animated
+    // success state + wallet refresh CTA. Cancel routes to the ticket detail.
+    const successUrl = `${APP_SCHEME}://ticket/upgrade/${ticket.event_id}?upgraded=1`;
     const cancelUrl = `${APP_SCHEME}://ticket/${ticket.event_id}`;
 
     const session = await stripeRequest("/checkout/sessions", {
