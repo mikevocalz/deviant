@@ -6,8 +6,7 @@
  * CTA when a tier is sold out.
  */
 
-import { supabase } from "../supabase/client";
-import { requireBetterAuthToken } from "../auth/identity";
+import { invokeEdge } from "./invoke-edge";
 
 export interface WaitlistStatus {
   joined: boolean;
@@ -20,26 +19,26 @@ interface BaseArgs {
   ticketTypeId?: string | null;
 }
 
-async function call(action: string, args: BaseArgs): Promise<any> {
-  const token = await requireBetterAuthToken();
-  const { data, error } = await supabase.functions.invoke("event-waitlist", {
-    body: {
-      event_id: args.eventId,
-      ticket_type_id: args.ticketTypeId ?? null,
-      action,
-    },
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "x-auth-token": token,
-    },
+interface WaitlistResponse {
+  ok?: boolean;
+  joined?: boolean;
+  id?: string | null;
+  createdAt?: string | null;
+  error?: string;
+}
+
+async function call(
+  action: string,
+  args: BaseArgs,
+): Promise<WaitlistResponse> {
+  const { data, error } = await invokeEdge<WaitlistResponse>("event-waitlist", {
+    event_id: args.eventId,
+    ticket_type_id: args.ticketTypeId ?? null,
+    action,
   });
-  if (error) throw new Error(error.message || "Waitlist request failed");
+  if (error) throw new Error(error.message);
   if (!data || data.ok !== true) {
-    const msg =
-      typeof data === "object" && data && "error" in data
-        ? String((data as any).error || "")
-        : "Waitlist request failed";
-    throw new Error(msg);
+    throw new Error(data?.error || "Waitlist request failed");
   }
   return data;
 }

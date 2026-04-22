@@ -5,8 +5,7 @@
  * Backed by supabase/functions/event-analytics — one JSON round trip.
  */
 
-import { supabase } from "../supabase/client";
-import { requireBetterAuthToken } from "../auth/identity";
+import { invokeEdge } from "./invoke-edge";
 
 export interface EventRevenueSummary {
   grossCents: number;
@@ -75,71 +74,44 @@ export interface EventAttendeesResponse {
   attendees: EventAttendeeRow[];
 }
 
+type AnalyticsResponse<T> = ({ ok: true } & T) | { ok: false; error?: string };
+
+function unwrap<T>(
+  label: string,
+  res: { data?: AnalyticsResponse<T>; error?: { message: string } },
+): T | null {
+  if (res.error) {
+    console.error(`[EventAnalytics] ${label}:`, res.error.message);
+    return null;
+  }
+  const data = res.data;
+  if (!data || data.ok !== true) {
+    if (data && "error" in data && data.error) {
+      console.error(`[EventAnalytics] ${label}:`, data.error);
+    }
+    return null;
+  }
+  const { ok: _ok, ...rest } = data;
+  return rest as T;
+}
+
 export const eventAnalyticsApi = {
   async getSummary(eventId: string | number): Promise<EventAnalyticsSummary | null> {
-    try {
-      const token = await requireBetterAuthToken();
-      const { data, error } = await supabase.functions.invoke<
-        | ({ ok: true } & EventAnalyticsSummary)
-        | { ok: false; error?: string }
-      >("event-analytics", {
-        body: { event_id: eventId },
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "x-auth-token": token,
-        },
-      });
-
-      if (error) {
-        console.error("[EventAnalytics] edge error:", error);
-        return null;
-      }
-      if (!data || data.ok !== true) {
-        if (data && "error" in data && data.error) {
-          console.error("[EventAnalytics] edge returned error:", data.error);
-        }
-        return null;
-      }
-      const { ok: _ok, ...rest } = data;
-      return rest;
-    } catch (err) {
-      console.error("[EventAnalytics] getSummary error:", err);
-      return null;
-    }
+    const res = await invokeEdge<AnalyticsResponse<EventAnalyticsSummary>>(
+      "event-analytics",
+      { event_id: eventId },
+    );
+    return unwrap<EventAnalyticsSummary>("getSummary", res);
   },
 
   async getAttendees(
     eventId: string | number,
   ): Promise<EventAttendeesResponse | null> {
-    try {
-      const token = await requireBetterAuthToken();
-      const { data, error } = await supabase.functions.invoke<
-        | ({ ok: true } & EventAttendeesResponse)
-        | { ok: false; error?: string }
-      >("event-analytics", {
-        body: { event_id: eventId, action: "attendees" },
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "x-auth-token": token,
-        },
-      });
-
-      if (error) {
-        console.error("[EventAnalytics] attendees edge error:", error);
-        return null;
-      }
-      if (!data || data.ok !== true) {
-        if (data && "error" in data && data.error) {
-          console.error("[EventAnalytics] attendees error:", data.error);
-        }
-        return null;
-      }
-      const { ok: _ok, ...rest } = data;
-      return rest;
-    } catch (err) {
-      console.error("[EventAnalytics] getAttendees error:", err);
-      return null;
-    }
+    const res = await invokeEdge<AnalyticsResponse<EventAttendeesResponse>>(
+      "event-analytics",
+      { event_id: eventId, action: "attendees" },
+    );
+    return unwrap<EventAttendeesResponse>("getAttendees", res);
   },
 };
 

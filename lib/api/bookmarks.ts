@@ -2,6 +2,7 @@ import { supabase } from "../supabase/client";
 import { requireBetterAuthToken } from "../auth/identity";
 import { transformPost } from "./posts";
 import { likesApi } from "./likes";
+import { invokeEdge } from "./invoke-edge";
 import type { Post } from "../types";
 
 interface ToggleBookmarkResponse {
@@ -49,61 +50,42 @@ export const bookmarksApi = {
    * set once (batched) and map each row through transformPost().
    */
   async getBookmarkedPosts(): Promise<Post[]> {
-    try {
-      const token = await requireBetterAuthToken();
-      const { data, error } = await supabase.functions.invoke<{
-        postIds?: string[];
-        posts?: any[];
-        error?: string;
-      }>("get-bookmarks", {
-        body: { withPosts: true },
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    const { data, error } = await invokeEdge<{
+      postIds?: string[];
+      posts?: any[];
+      error?: string;
+    }>("get-bookmarks", { withPosts: true });
 
-      if (error) {
-        console.error(
-          "[Bookmarks] getBookmarkedPosts Edge Function error:",
-          error,
-        );
-        return [];
-      }
-
-      const rawPosts = Array.isArray(data?.posts) ? data.posts : [];
-      if (rawPosts.length === 0) return [];
-
-      // Batch-fetch the viewer's liked-post IDs so transformPost gets
-      // viewerHasLiked right the first time (otherwise the heart on
-      // every saved card would flip after a second network call).
-      const numericIds = rawPosts
-        .map((p) => Number(p?.id))
-        .filter((n) => Number.isFinite(n));
-      let likedSet = new Set<string>();
-      try {
-        likedSet = await likesApi.getViewerLikedPostIds(numericIds);
-      } catch (err) {
-        console.warn(
-          "[Bookmarks] getViewerLikedPostIds failed, defaulting to unliked:",
-          err,
-        );
-      }
-
-      return rawPosts
-        .map((raw) => {
-          try {
-            return transformPost(raw, likedSet.has(String(raw.id)));
-          } catch (err) {
-            console.warn(
-              "[Bookmarks] transformPost failed for bookmarked row:",
-              err,
-            );
-            return null;
-          }
-        })
-        .filter((p): p is Post => p !== null);
-    } catch (error) {
-      console.error("[Bookmarks] getBookmarkedPosts error:", error);
+    if (error) {
+      console.error("[Bookmarks] getBookmarkedPosts error:", error.message);
       return [];
     }
+    const rawPosts = Array.isArray(data?.posts) ? data.posts : [];
+    if (rawPosts.length === 0) return [];
+
+    // Batch the viewer's liked-post IDs so transformPost can stamp
+    // viewerHasLiked on the first render — otherwise every saved card's
+    // heart would flip after a secondary fetch.
+    const numericIds = rawPosts
+      .map((p) => Number(p?.id))
+      .filter((n) => Number.isFinite(n));
+    let likedSet = new Set<string>();
+    try {
+      likedSet = await likesApi.getViewerLikedPostIds(numericIds);
+    } catch (err) {
+      console.warn("[Bookmarks] getViewerLikedPostIds failed:", err);
+    }
+
+    return rawPosts
+      .map((raw) => {
+        try {
+          return transformPost(raw, likedSet.has(String(raw.id)));
+        } catch (err) {
+          console.warn("[Bookmarks] transformPost failed:", err);
+          return null;
+        }
+      })
+      .filter((p): p is Post => p !== null);
   },
 
   /**

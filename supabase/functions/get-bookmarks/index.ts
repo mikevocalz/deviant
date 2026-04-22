@@ -5,45 +5,40 @@
  * Auth required — validates the Better Auth session token.
  *
  * Request body:
- *   {}                         — default: returns just { postIds: string[] }
+ *   {}                         — returns { postIds: string[], posts: [] }
  *   { withPosts: true }        — returns { postIds, posts } where posts is
  *                                 an array of hydrated post rows ready to
  *                                 feed into transformPost() on the client.
- *                                 Used by the profile "Saved" tab to avoid
- *                                 the 1 + N waterfall (get IDs, then N
- *                                 parallel getPostById calls).
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  verifySession,
+  jsonResponse,
+  errorResponse,
+  optionsResponse,
+} from "../_shared/verify-session.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
+const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
-  }
-  if (req.method !== "POST") {
-    return new Response(JSON.stringify({ error: "Method not allowed" }), {
-      status: 405,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-  try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader?.startsWith("Bearer ")) {
-      return new Response(JSON.stringify({ error: "Authorization required" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    const token = authHeader.replace("Bearer ", "");
+  if (req.method === "OPTIONS") return optionsResponse();
+  if (req.method !== "POST") return errorResponse("Method not allowed", 405);
 
-    // Parse optional request body — { withPosts?: boolean }
+  try {
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
+      return errorResponse("Server configuration error", 500);
+    }
+
+    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
+    });
+
+    const authId = await verifySession(supabase, req);
+    if (!authId) return errorResponse("Unauthorized", 401);
+
     let body: { withPosts?: boolean } = {};
     try {
       const text = await req.text();
@@ -53,70 +48,28 @@ Deno.serve(async (req) => {
     }
     const withPosts = body.withPosts === true;
 
-    const supabaseUrl = Deno.env.get("SUPABASE_URL");
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseUrl || !supabaseServiceKey) {
-      return new Response(JSON.stringify({ error: "Server configuration error" }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-      global: { headers: { Authorization: `Bearer ${supabaseServiceKey}` } },
-    });
-
-    const { data: sessionData, error: sessionError } = await supabaseAdmin
-      .from("session")
-      .select("userId, expiresAt")
-      .eq("token", token)
-      .single();
-
-    if (sessionError || !sessionData) {
-      return new Response(JSON.stringify({ error: "Invalid session" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-    if (new Date(sessionData.expiresAt) < new Date()) {
-      return new Response(JSON.stringify({ error: "Session expired" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const authId = sessionData.userId;
-    const { data, error } = await supabaseAdmin
+    const { data, error } = await supabase
       .from("bookmarks")
       .select("post_id, created_at")
       .eq("user_id", authId)
       .order("created_at", { ascending: false });
 
     if (error) {
-      console.error("[Edge:get-bookmarks] Supabase error:", error);
-      return new Response(JSON.stringify({ error: error.message }), {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      console.error("[Edge:get-bookmarks] bookmarks error:", error);
+      return errorResponse("Could not fetch bookmarks", 500);
     }
 
     const postIds = (data || []).map((b: any) => String(b.post_id));
 
     if (!withPosts || postIds.length === 0) {
-      return new Response(JSON.stringify({ postIds, posts: [] }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ postIds, posts: [] });
     }
 
-    // Hydrate posts in one query — join author + media so the client
-    // can run transformPost() with no extra round trips.
     const numericPostIds = postIds
       .map((id) => Number(id))
       .filter((n) => Number.isFinite(n));
 
-    const { data: posts, error: postsError } = await supabaseAdmin
+    const { data: posts, error: postsError } = await supabase
       .from("posts")
       .select(
         `
@@ -141,39 +94,21 @@ Deno.serve(async (req) => {
 
     if (postsError) {
       console.error("[Edge:get-bookmarks] posts join error:", postsError);
-      // Fall back to postIds-only so the client can still waterfall if needed
-      return new Response(JSON.stringify({ postIds, posts: [] }), {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return jsonResponse({ postIds, posts: [] });
     }
 
-    // Preserve bookmark creation order (DESC by bookmark.created_at)
-    const orderIndex = new Map<string, number>();
-    postIds.forEach((id, idx) => orderIndex.set(String(id), idx));
-    const orderedPosts = (posts || [])
-      .slice()
-      .sort((a: any, b: any) => {
-        const ai = orderIndex.get(String(a.id)) ?? Number.MAX_SAFE_INTEGER;
-        const bi = orderIndex.get(String(b.id)) ?? Number.MAX_SAFE_INTEGER;
-        return ai - bi;
-      });
+    // Preserve bookmark creation order (bookmarks were fetched DESC above).
+    // Build an id→post lookup and iterate postIds — O(n) vs the .sort() O(n log n)
+    // it replaces, and it skips posts that went missing between queries.
+    const postById = new Map<string, any>();
+    for (const p of posts || []) postById.set(String(p.id), p);
+    const orderedPosts = postIds
+      .map((id) => postById.get(id))
+      .filter(Boolean);
 
-    return new Response(
-      JSON.stringify({ postIds, posts: orderedPosts }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return jsonResponse({ postIds, posts: orderedPosts });
   } catch (err) {
     console.error("[Edge:get-bookmarks] Unexpected error:", err);
-    return new Response(
-      JSON.stringify({ error: "An unexpected error occurred" }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      },
-    );
+    return errorResponse("Internal error", 500);
   }
 });

@@ -1,6 +1,7 @@
 import { supabase } from "../supabase/client";
 import { getCurrentUserAuthId } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
+import { invokeEdge } from "./invoke-edge";
 
 export interface TicketRecord {
   id: string;
@@ -26,60 +27,36 @@ export interface TicketRecord {
 
 export const ticketsApi = {
   /**
-   * Get all tickets for an event (organizer view) — routed through the
-   * get-event-tickets edge function so the anon client no longer needs
-   * SELECT on the tickets table.
+   * Get all tickets for an event (host-only view) via the
+   * get-event-tickets edge function.
    */
   async getEventTickets(eventId: string): Promise<TicketRecord[]> {
-    try {
-      const token = await requireBetterAuthToken();
-      const { data, error } = await supabase.functions.invoke(
-        "get-event-tickets",
-        {
-          body: { event_id: parseInt(eventId) },
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "x-auth-token": token,
-          },
-        },
-      );
-      if (error) throw error;
-      const result = typeof data === "string" ? JSON.parse(data) : data;
-      if (!result?.ok) return [];
-      return (result.tickets || []) as TicketRecord[];
-    } catch (error) {
-      console.error("[Tickets] getEventTickets error:", error);
+    const { data, error } = await invokeEdge<{
+      ok: boolean;
+      tickets: TicketRecord[];
+    }>("get-event-tickets", { event_id: parseInt(eventId) });
+    if (error) {
+      console.error("[Tickets] getEventTickets error:", error.message);
       return [];
     }
+    return data?.ok ? (data.tickets ?? []) : [];
   },
 
   /**
-   * Get the current user's tickets across all events — routed through
-   * the get-my-tickets edge function. Legacy integer-user-id rows are
-   * picked up server-side; the client no longer needs direct SELECT.
+   * Get the current user's tickets across all events via the
+   * get-my-tickets edge function. Legacy integer-user-id rows are
+   * picked up server-side.
    */
   async getMyTickets(): Promise<TicketRecord[]> {
-    try {
-      const token = await requireBetterAuthToken();
-      if (!token) return [];
-      const { data, error } = await supabase.functions.invoke(
-        "get-my-tickets",
-        {
-          body: {},
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "x-auth-token": token,
-          },
-        },
-      );
-      if (error) throw error;
-      const result = typeof data === "string" ? JSON.parse(data) : data;
-      if (!result?.ok) return [];
-      return (result.tickets || []) as TicketRecord[];
-    } catch (error: any) {
-      console.error("[Tickets] getMyTickets error:", error?.message || error);
+    const { data, error } = await invokeEdge<{
+      ok: boolean;
+      tickets: TicketRecord[];
+    }>("get-my-tickets", {});
+    if (error) {
+      console.error("[Tickets] getMyTickets error:", error.message);
       return [];
     }
+    return data?.ok ? (data.tickets ?? []) : [];
   },
 
   /**
@@ -227,30 +204,22 @@ export const ticketsApi = {
   },
 
   /**
-   * Download all active QR tokens for an event (offline check-in).
-   * Returns array of qr_token strings that the host can validate locally.
+   * Download the active QR tokens for an event so the host can
+   * validate scans offline.
    */
   async downloadOfflineTokens(eventId: string): Promise<string[]> {
-    try {
-      const token = await requireBetterAuthToken();
-      const { data, error } = await supabase.functions.invoke(
-        "get-event-tickets",
-        {
-          body: { event_id: parseInt(eventId), offline: true },
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "x-auth-token": token,
-          },
-        },
-      );
-      if (error) throw error;
-      const result = typeof data === "string" ? JSON.parse(data) : data;
-      if (!result?.ok) return [];
-      return (result.qr_tokens || []).filter(Boolean);
-    } catch (error) {
-      console.error("[Tickets] downloadOfflineTokens error:", error);
+    const { data, error } = await invokeEdge<{
+      ok: boolean;
+      qr_tokens: string[];
+    }>("get-event-tickets", {
+      event_id: parseInt(eventId),
+      offline: true,
+    });
+    if (error) {
+      console.error("[Tickets] downloadOfflineTokens error:", error.message);
       return [];
     }
+    return data?.ok ? (data.qr_tokens ?? []).filter(Boolean) : [];
   },
 
   /**
@@ -309,35 +278,20 @@ export const ticketsApi = {
    * filter, returns the most recent matching row.
    */
   async getMyTicketForEvent(eventId: string): Promise<TicketRecord | null> {
-    try {
-      const eventIdInt = parseInt(eventId, 10);
-      if (!Number.isFinite(eventIdInt)) {
-        console.warn("[Tickets] getMyTicketForEvent: invalid eventId", eventId);
-        return null;
-      }
-
-      const token = await requireBetterAuthToken();
-      if (!token) return null;
-
-      const { data, error } = await supabase.functions.invoke(
-        "get-my-tickets",
-        {
-          body: { event_id: eventIdInt },
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "x-auth-token": token,
-          },
-        },
-      );
-      if (error) throw error;
-      const result = typeof data === "string" ? JSON.parse(data) : data;
-      if (!result?.ok) return null;
-      const tickets: TicketRecord[] = result.tickets || [];
-      return tickets[0] ?? null;
-    } catch (error) {
-      console.error("[Tickets] getMyTicketForEvent error:", error);
+    const eventIdInt = parseInt(eventId, 10);
+    if (!Number.isFinite(eventIdInt)) {
+      console.warn("[Tickets] getMyTicketForEvent: invalid eventId", eventId);
       return null;
     }
+    const { data, error } = await invokeEdge<{
+      ok: boolean;
+      tickets: TicketRecord[];
+    }>("get-my-tickets", { event_id: eventIdInt });
+    if (error) {
+      console.error("[Tickets] getMyTicketForEvent error:", error.message);
+      return null;
+    }
+    return data?.ok ? (data.tickets?.[0] ?? null) : null;
   },
 
   // ── Ticket Transfers ──────────────────────────────────────────

@@ -59,6 +59,14 @@ Deno.serve(async (req: Request) => {
     const action = (body.action || "status").toString();
     const tierId = body.ticket_type_id ?? null;
 
+    // Applies the NULL-vs-UUID ticket_type_id predicate to a supabase
+    // query builder. `tierId = null` means "any tier" on the waitlist;
+    // PostgREST needs .is() for null and .eq() for a concrete uuid.
+    const withTier = (q: any) =>
+      tierId === null
+        ? q.is("ticket_type_id", null)
+        : q.eq("ticket_type_id", tierId);
+
     // Confirm event exists (also surfaces 404 cleanly for bad IDs)
     const { data: event } = await supabase
       .from("events")
@@ -92,14 +100,13 @@ Deno.serve(async (req: Request) => {
       if (insertErr) {
         // Unique violation → already on the waitlist. Return existing row.
         if (insertErr.code === "23505" || /duplicate/i.test(insertErr.message || "")) {
-          let existingQ = supabase
-            .from("event_waitlist")
-            .select("id, created_at")
-            .eq("event_id", eventIdNum)
-            .eq("user_id", authId);
-          existingQ = tierId === null
-            ? existingQ.is("ticket_type_id", null)
-            : existingQ.eq("ticket_type_id", tierId);
+          const existingQ = withTier(
+            supabase
+              .from("event_waitlist")
+              .select("id, created_at")
+              .eq("event_id", eventIdNum)
+              .eq("user_id", authId),
+          );
           const { data: existing } = await existingQ.maybeSingle();
           return jsonResponse({
             ok: true,
@@ -121,13 +128,13 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "leave") {
-      // Build the delete with the right tier predicate (NULL vs UUID)
-      let q = supabase
-        .from("event_waitlist")
-        .delete()
-        .eq("event_id", eventIdNum)
-        .eq("user_id", authId);
-      q = tierId === null ? q.is("ticket_type_id", null) : q.eq("ticket_type_id", tierId);
+      const q = withTier(
+        supabase
+          .from("event_waitlist")
+          .delete()
+          .eq("event_id", eventIdNum)
+          .eq("user_id", authId),
+      );
       const { error: deleteErr } = await q;
       if (deleteErr) {
         console.error("[event-waitlist] leave error:", deleteErr);
@@ -137,12 +144,13 @@ Deno.serve(async (req: Request) => {
     }
 
     if (action === "status") {
-      let q = supabase
-        .from("event_waitlist")
-        .select("id, created_at")
-        .eq("event_id", eventIdNum)
-        .eq("user_id", authId);
-      q = tierId === null ? q.is("ticket_type_id", null) : q.eq("ticket_type_id", tierId);
+      const q = withTier(
+        supabase
+          .from("event_waitlist")
+          .select("id, created_at")
+          .eq("event_id", eventIdNum)
+          .eq("user_id", authId),
+      );
       const { data, error } = await q.maybeSingle();
       if (error) {
         console.error("[event-waitlist] status error:", error);

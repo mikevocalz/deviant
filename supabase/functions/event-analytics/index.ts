@@ -168,15 +168,44 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── default action: summary ─────────────────────────────
+    // The four reads below are independent — run them in parallel so
+    // the dashboard paints at max(latency) instead of sum(latency).
+    const [
+      financialsRes,
+      ticketsRes,
+      tierRes,
+      promoRes,
+    ] = await Promise.all([
+      supabase
+        .from("event_financials")
+        .select(
+          "gross_cents, refunds_cents, dvnt_fee_cents, stripe_fee_cents, net_cents, calculated_at",
+        )
+        .eq("event_id", eventIdNum)
+        .maybeSingle(),
+      supabase
+        .from("tickets")
+        .select("id, ticket_type_id, status, checked_in_at, purchase_amount_cents")
+        .eq("event_id", eventIdNum),
+      supabase
+        .from("ticket_types")
+        .select(
+          "id, name, price_cents, quantity_total, quantity_sold, is_active",
+        )
+        .eq("event_id", eventIdNum)
+        .order("price_cents", { ascending: true }),
+      supabase
+        .from("promo_codes")
+        .select("id, code, discount_type, discount_value, uses_count, max_uses")
+        .eq("event_id", eventIdNum)
+        .order("uses_count", { ascending: false })
+        .limit(5),
+    ]);
 
-    // ── 1. Revenue — event_financials is maintained by the webhook ──
-    const { data: financials } = await supabase
-      .from("event_financials")
-      .select(
-        "gross_cents, refunds_cents, dvnt_fee_cents, stripe_fee_cents, net_cents, calculated_at",
-      )
-      .eq("event_id", eventIdNum)
-      .maybeSingle();
+    const financials = financialsRes.data;
+    const { data: ticketRows, error: ticketsErr } = ticketsRes;
+    const { data: tierRows } = tierRes;
+    const { data: promoRows } = promoRes;
 
     const revenue = {
       grossCents: Number(financials?.gross_cents ?? 0),
@@ -186,12 +215,6 @@ Deno.serve(async (req: Request) => {
       netCents: Number(financials?.net_cents ?? 0),
       calculatedAt: financials?.calculated_at ?? null,
     };
-
-    // ── 2. Ticket status breakdown ──
-    const { data: ticketRows, error: ticketsErr } = await supabase
-      .from("tickets")
-      .select("id, ticket_type_id, status, checked_in_at, purchase_amount_cents")
-      .eq("event_id", eventIdNum);
 
     if (ticketsErr) {
       console.error("[event-analytics] tickets error:", ticketsErr);
@@ -224,14 +247,6 @@ Deno.serve(async (req: Request) => {
     };
 
     // ── 3. Per-tier breakdown ──
-    const { data: tierRows } = await supabase
-      .from("ticket_types")
-      .select(
-        "id, name, price_cents, quantity_total, quantity_sold, is_active",
-      )
-      .eq("event_id", eventIdNum)
-      .order("price_cents", { ascending: true });
-
     const tierRevenueCentsById = new Map<string, number>();
     for (const t of tickets) {
       const key = String(t.ticket_type_id);
@@ -264,13 +279,6 @@ Deno.serve(async (req: Request) => {
     });
 
     // ── 4. Promo codes (top 5 by uses) ──
-    const { data: promoRows } = await supabase
-      .from("promo_codes")
-      .select("id, code, discount_type, discount_value, uses_count, max_uses")
-      .eq("event_id", eventIdNum)
-      .order("uses_count", { ascending: false })
-      .limit(5);
-
     const promoCodes = (promoRows || []).map((p: any) => ({
       id: String(p.id),
       code: p.code,

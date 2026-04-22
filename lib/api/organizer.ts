@@ -5,6 +5,7 @@
 import { supabase } from "../supabase/client";
 import { requireBetterAuthToken } from "../auth/identity";
 import { getCurrentUserAuthId } from "./auth-helper";
+import { invokeEdge } from "./invoke-edge";
 
 export type OnboardingResult = {
   url?: string;
@@ -131,36 +132,21 @@ export const organizerApi = {
   },
 
   /**
-   * Organizer-initiated refund for a single ticket.
-   *
-   * Calls the `organizer-refund` edge function, which issues a Stripe
-   * refund (DVNT's fee + the organizer's transferred share both flow
-   * back). The ticket row flips to `refunded` once Stripe's
-   * charge.refunded webhook lands — usually within a few seconds.
+   * Organizer-initiated refund for a single ticket. Stripe issues the
+   * refund; the ticket row flips to `refunded` once Stripe's
+   * charge.refunded webhook lands.
    */
   async refundTicket(
     ticketId: string,
   ): Promise<{ ok?: boolean; free?: boolean; error?: string }> {
-    try {
-      const token = await requireBetterAuthToken();
-      const { data, error } = await supabase.functions.invoke(
-        "organizer-refund",
-        {
-          body: { ticket_id: ticketId },
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "x-auth-token": token,
-          },
-        },
-      );
-      if (error) throw error;
-      const result = typeof data === "string" ? JSON.parse(data) : data;
-      if (result?.error) return { error: result.error };
-      return { ok: !!result?.ok, free: !!result?.free };
-    } catch (err: any) {
-      console.error("[Organizer] refundTicket error:", err);
-      return { error: err?.message || "Refund failed" };
-    }
+    const { data, error } = await invokeEdge<{
+      ok: boolean;
+      free?: boolean;
+      error?: string;
+    }>("organizer-refund", { ticket_id: ticketId });
+    if (error) return { error: error.message };
+    if (data?.error) return { error: data.error };
+    return { ok: !!data?.ok, free: !!data?.free };
   },
 
   /**
