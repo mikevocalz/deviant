@@ -74,12 +74,16 @@ export function EventCard({
 
   const handleOpen = useCallback(() => {
     if (guestMode) {
-      requireAuth("events");
+      // Guest-mode taps open the public event detail, where the visitor
+      // can pick a tier and complete a guest (email-only) purchase.
+      // The auth gate is still one tap away from inside that screen.
+      screenPrefetch.eventDetail(queryClient, event.id);
+      router.push(`/(public)/events/${event.id}` as any);
       return;
     }
     screenPrefetch.eventDetail(queryClient, event.id);
     router.push(`/(protected)/events/${event.id}` as any);
-  }, [event.id, guestMode, queryClient, requireAuth, router]);
+  }, [event.id, guestMode, queryClient, router]);
 
   // Responsive sizing: full width on phone, max 614px centered on tablet
   const {
