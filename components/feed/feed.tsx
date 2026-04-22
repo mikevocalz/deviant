@@ -25,7 +25,8 @@ import {
   type ReactNode,
 } from "react";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
-import { StoriesBar } from "@/components/stories/stories-bar";
+// StoriesBar is rendered at the HomeScreen level (app/(protected)/(tabs)/index.tsx)
+// so it survives feed-mode toggles and the spicy toggle without remounting.
 import { EmptyState } from "@/components/ui/empty-state";
 import { ImageOff } from "lucide-react-native";
 import type { Post } from "@/lib/types";
@@ -718,13 +719,11 @@ export function Feed({
           guestMode ? (
             <>{headerContent}</>
           ) : (
-            <>
-              <View style={{ height: 40 }} />
-              <StoriesBar
-                stories={stories}
-                isLoadingOverride={!storiesReady && !guestMode}
-              />
-            </>
+            // StoriesBar lifted to HomeScreen (app/(protected)/(tabs)/index.tsx)
+            // so it stays mounted across feed-mode toggles and the spicy toggle.
+            // Leave a spacer here to clear the absolute-positioned FeedModeToggle
+            // + the lifted StoriesBar row.
+            <View style={{ height: 8 }} />
           )
         }
         ListFooterComponent={renderFooter}
