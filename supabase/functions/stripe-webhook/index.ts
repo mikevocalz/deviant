@@ -24,14 +24,15 @@ import { computePayoutReleaseAt } from "../_shared/business-days.ts";
 import { createSignedQrPayload } from "../_shared/hmac-qr.ts";
 import { notifyEventOrganizers } from "../_shared/notify-event-organizers.ts";
 import { maybeFireCapacityAlerts } from "../_shared/capacity-alerts.ts";
+import {
+  sendResendEmail,
+  brandEmailWrapper,
+} from "../_shared/send-resend-email.ts";
 import { voidWalletPass } from "../_shared/wallet-push.ts";
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
-const RESEND_FROM_EMAIL =
-  Deno.env.get("RESEND_FROM_EMAIL") || "DVNT <onboarding@resend.dev>";
 
 /**
  * Send a guest the QR + lookup link for the tickets they just bought.
@@ -45,10 +46,6 @@ async function sendGuestTicketEmail(
   location: string | null,
   tickets: { id: string; qr_token: string; guest_lookup_token: string | null }[],
 ): Promise<void> {
-  if (!RESEND_API_KEY) {
-    console.warn("[stripe-webhook] RESEND_API_KEY missing — skipping guest email");
-    return;
-  }
   const greeting = name ? `Hey ${name},` : "Hey,";
   const dateLine = startDate
     ? new Date(startDate).toLocaleString(undefined, {
@@ -78,10 +75,7 @@ async function sendGuestTicketEmail(
     })
     .join("");
 
-  const html = [
-    `<!DOCTYPE html><html><head><meta charset="utf-8"></head>`,
-    `<body style="margin:0;padding:0;background:#000;font-family:-apple-system,Segoe UI,Roboto,sans-serif">`,
-    `<div style="max-width:520px;margin:0 auto;padding:32px 20px">`,
+  const body = [
     `<h1 style="color:#fff;margin:0 0 8px;font-size:24px">You're in 🎟️</h1>`,
     `<p style="color:#a1a1aa;font-size:15px;line-height:1.5;margin:0 0 4px">${greeting}</p>`,
     `<p style="color:#fafafa;font-size:18px;font-weight:600;margin:6px 0 0">${eventTitle}</p>`,
@@ -93,33 +87,18 @@ async function sendGuestTicketEmail(
       : "",
     `<p style="color:#a1a1aa;font-size:14px;line-height:1.5;margin:20px 0 0">Show this QR code at the door. We've also attached your purchase to <strong style="color:#fafafa">${to}</strong> — keep this email handy.</p>`,
     ticketsHtml,
-    `<hr style="border:none;border-top:1px solid #27272a;margin:32px 0"/>`,
-    `<p style="color:#52525b;font-size:12px;text-align:center">DVNT · Where nightlife meets culture</p>`,
-    `</div></body></html>`,
   ].join("");
 
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${RESEND_API_KEY}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from: RESEND_FROM_EMAIL,
-      to: [to],
-      subject: `Your ticket for ${eventTitle}`,
-      html,
-    }),
+  const messageId = await sendResendEmail({
+    to,
+    subject: `Your ticket for ${eventTitle}`,
+    html: brandEmailWrapper(body),
   });
-
-  if (!res.ok) {
-    const errBody = await res.text();
-    throw new Error(`Resend ${res.status}: ${errBody}`);
+  if (messageId) {
+    console.log(
+      `[stripe-webhook] guest ticket email sent to ${to} (id ${messageId})`,
+    );
   }
-  const json = await res.json().catch(() => ({}));
-  console.log(
-    `[stripe-webhook] guest ticket email sent to ${to} (id ${json.id || "?"})`,
-  );
 }
 
 // Stripe signature verification (manual HMAC for Deno)
