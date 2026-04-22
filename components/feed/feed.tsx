@@ -721,9 +721,14 @@ export function Feed({
           ) : (
             // StoriesBar lifted to HomeScreen (app/(protected)/(tabs)/index.tsx)
             // so it stays mounted across feed-mode toggles and the spicy toggle.
-            // Leave a spacer here to clear the absolute-positioned FeedModeToggle
-            // + the lifted StoriesBar row.
-            <View style={{ height: 8 }} />
+            // Restore the thin divider that used to sit above the first post.
+            <View
+              style={{
+                height: 8,
+                borderTopWidth: 1,
+                borderTopColor: "rgba(255,255,255,0.06)",
+              }}
+            />
           )
         }
         ListFooterComponent={renderFooter}

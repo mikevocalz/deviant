@@ -616,8 +616,15 @@ export function MasonryFeed() {
       }
     >
       {/* StoriesBar lifted to HomeScreen (app/(protected)/(tabs)/index.tsx)
-          so it stays mounted across feed-mode toggles and the spicy toggle. */}
-      <View style={{ height: 8 }} />
+          so it stays mounted across feed-mode toggles and the spicy toggle.
+          Thin divider restores the separator that used to sit above the grid. */}
+      <View
+        style={{
+          height: 8,
+          borderTopWidth: 1,
+          borderTopColor: "rgba(255,255,255,0.06)",
+        }}
+      />
 
       {filteredPosts.length === 0 ? (
         <EmptyState
