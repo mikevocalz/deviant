@@ -517,8 +517,18 @@ export function useCreatePost() {
           },
           media: (newPostData.media || []).map((m) => ({
             ...m,
-            type: ((m.type as any) ??
-              "image") as import("@/lib/types").MediaKind,
+            // Resolve DB flat shape (type: image|video + mimeType) to the
+            // in-memory MediaKind (gif / animated_video / livePhoto / etc).
+            // Without this, a gif-kind media lands in the legacy feed
+            // cache with type="image" and renders as a static <Image>
+            // (first frame only); a short looping video (animated_video)
+            // lands with type="video" and renders as a blank VideoThumb
+            // until the thumbnail generates.
+            type: deriveMediaKind(
+              (m as any).type,
+              (m as any).mimeType,
+              (m as any).livePhotoVideoUrl,
+            ),
           })),
           kind:
             newPostData.kind === "text"
@@ -567,7 +577,18 @@ export function useCreatePost() {
               },
               media: (newPostData.media || []).map((m) => ({
                 ...m,
-                type: (m.type as any) ?? "image",
+                // Match infinite-feed + legacy-feed behaviour: resolve
+                // the flat DB shape to MediaKind so the optimistic grid
+                // tile picks the correct renderer (gif / animated_video /
+                // livePhoto / image / video). Without this, a short
+                // video-as-gif lands in the profile cache with type
+                // "video" and renders as VideoThumbnailCell which is
+                // blank until the thumbnail generates on CDN.
+                type: deriveMediaKind(
+                  (m as any).type,
+                  (m as any).mimeType,
+                  (m as any).livePhotoVideoUrl,
+                ),
               })),
               kind:
                 newPostData.kind === "text"
