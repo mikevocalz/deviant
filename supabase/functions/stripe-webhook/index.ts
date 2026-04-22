@@ -28,6 +28,98 @@ import { voidWalletPass } from "../_shared/wallet-push.ts";
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
+const RESEND_FROM_EMAIL =
+  Deno.env.get("RESEND_FROM_EMAIL") || "DVNT <onboarding@resend.dev>";
+
+/**
+ * Send a guest the QR + lookup link for the tickets they just bought.
+ * Throws on Resend failure so the caller can decide whether to retry.
+ */
+async function sendGuestTicketEmail(
+  to: string,
+  name: string | null,
+  eventTitle: string,
+  startDate: string | null,
+  location: string | null,
+  tickets: { id: string; qr_token: string; guest_lookup_token: string | null }[],
+): Promise<void> {
+  if (!RESEND_API_KEY) {
+    console.warn("[stripe-webhook] RESEND_API_KEY missing — skipping guest email");
+    return;
+  }
+  const greeting = name ? `Hey ${name},` : "Hey,";
+  const dateLine = startDate
+    ? new Date(startDate).toLocaleString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      })
+    : "";
+  const ticketsHtml = tickets
+    .map((t, i) => {
+      const qrSrc = `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(t.qr_token)}`;
+      const lookupUrl = t.guest_lookup_token
+        ? `dvnt://tickets/guest/${t.guest_lookup_token}`
+        : null;
+      return [
+        `<div style="margin:24px 0;padding:20px;border:1px solid #27272a;border-radius:14px;background:#0a0a0a">`,
+        `<p style="color:#a1a1aa;margin:0 0 12px;font-size:13px">Ticket ${i + 1} of ${tickets.length}</p>`,
+        `<img src="${qrSrc}" alt="QR code" style="display:block;margin:0 auto;width:200px;height:200px;background:#fff;border-radius:8px;padding:8px"/>`,
+        `<p style="color:#fafafa;margin:14px 0 0;font-family:monospace;font-size:11px;text-align:center;word-break:break-all">${t.qr_token}</p>`,
+        lookupUrl
+          ? `<p style="text-align:center;margin:16px 0 0"><a href="${lookupUrl}" style="color:#6366f1;font-size:13px">Open in DVNT</a></p>`
+          : "",
+        `</div>`,
+      ].join("");
+    })
+    .join("");
+
+  const html = [
+    `<!DOCTYPE html><html><head><meta charset="utf-8"></head>`,
+    `<body style="margin:0;padding:0;background:#000;font-family:-apple-system,Segoe UI,Roboto,sans-serif">`,
+    `<div style="max-width:520px;margin:0 auto;padding:32px 20px">`,
+    `<h1 style="color:#fff;margin:0 0 8px;font-size:24px">You're in 🎟️</h1>`,
+    `<p style="color:#a1a1aa;font-size:15px;line-height:1.5;margin:0 0 4px">${greeting}</p>`,
+    `<p style="color:#fafafa;font-size:18px;font-weight:600;margin:6px 0 0">${eventTitle}</p>`,
+    dateLine
+      ? `<p style="color:#a1a1aa;font-size:14px;margin:4px 0 0">${dateLine}</p>`
+      : "",
+    location
+      ? `<p style="color:#a1a1aa;font-size:14px;margin:2px 0 0">${location}</p>`
+      : "",
+    `<p style="color:#a1a1aa;font-size:14px;line-height:1.5;margin:20px 0 0">Show this QR code at the door. We've also attached your purchase to <strong style="color:#fafafa">${to}</strong> — keep this email handy.</p>`,
+    ticketsHtml,
+    `<hr style="border:none;border-top:1px solid #27272a;margin:32px 0"/>`,
+    `<p style="color:#52525b;font-size:12px;text-align:center">DVNT · Where nightlife meets culture</p>`,
+    `</div></body></html>`,
+  ].join("");
+
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: RESEND_FROM_EMAIL,
+      to: [to],
+      subject: `Your ticket for ${eventTitle}`,
+      html,
+    }),
+  });
+
+  if (!res.ok) {
+    const errBody = await res.text();
+    throw new Error(`Resend ${res.status}: ${errBody}`);
+  }
+  const json = await res.json().catch(() => ({}));
+  console.log(
+    `[stripe-webhook] guest ticket email sent to ${to} (id ${json.id || "?"})`,
+  );
+}
 
 // Stripe signature verification (manual HMAC for Deno)
 async function verifyStripeSignature(
@@ -136,7 +228,10 @@ Deno.serve(async (req: Request) => {
           // ── Issue tickets ────────────────────────────────
           const eventId = parseInt(metadata.event_id);
           const ticketTypeId = metadata.ticket_type_id;
-          const userId = metadata.user_id;
+          const userId = metadata.user_id || null;
+          const guestEmail = metadata.guest_email || null;
+          const guestName = metadata.guest_name || null;
+          const isGuestPurchase = !userId && !!guestEmail;
           const quantity = parseInt(metadata.quantity) || 1;
           const amountCents = session.amount_total || 0;
 
@@ -152,6 +247,11 @@ Deno.serve(async (req: Request) => {
               event_id: eventId,
               ticket_type_id: ticketTypeId,
               user_id: userId,
+              guest_email: guestEmail,
+              guest_name: guestName,
+              guest_lookup_token: isGuestPurchase
+                ? crypto.randomUUID()
+                : null,
               status: "active",
               qr_token: qrToken,
               qr_payload: qrPayload,
@@ -161,9 +261,10 @@ Deno.serve(async (req: Request) => {
             });
           }
 
-          const { error: ticketError } = await supabase
+          const { data: insertedTickets, error: ticketError } = await supabase
             .from("tickets")
-            .insert(ticketRows);
+            .insert(ticketRows)
+            .select("id, qr_token, guest_lookup_token");
 
           // Convert inventory hold to prevent double-counting
           await supabase
@@ -196,6 +297,31 @@ Deno.serve(async (req: Request) => {
               .from("ticket_types")
               .update({ quantity_sold: (tt?.quantity_sold || 0) + quantity })
               .eq("id", ticketTypeId);
+          }
+
+          // ── Guest tickets: email confirmation with QR + lookup link ──
+          if (isGuestPurchase && insertedTickets && insertedTickets.length > 0) {
+            try {
+              const { data: eventRow } = await supabase
+                .from("events")
+                .select("title, start_date, location_name, location_address")
+                .eq("id", eventId)
+                .maybeSingle();
+              await sendGuestTicketEmail(
+                guestEmail!,
+                guestName,
+                eventRow?.title || "your event",
+                eventRow?.start_date || null,
+                eventRow?.location_name || eventRow?.location_address || null,
+                insertedTickets,
+              );
+            } catch (mailErr) {
+              // Email failure should not roll back the ticket — log and move on.
+              console.error(
+                "[stripe-webhook] guest email send failed:",
+                mailErr,
+              );
+            }
           }
 
           // ── Update order → paid + add timeline ────────

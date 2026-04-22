@@ -142,6 +142,7 @@ export const ticketsApi = {
     ticketTypeId: string;
     quantity: number;
     userId?: string; // deprecated — server derives from session
+    promoCode?: string;
   }): Promise<{
     url?: string;
     tickets?: any[];
@@ -157,6 +158,7 @@ export const ticketsApi = {
             event_id: params.eventId,
             ticket_type_id: params.ticketTypeId,
             quantity: params.quantity,
+            ...(params.promoCode ? { promo_code: params.promoCode } : {}),
           },
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -167,6 +169,50 @@ export const ticketsApi = {
     } catch (error: any) {
       console.error("[Tickets] checkout error:", error);
       return { error: error.message || "Checkout failed" };
+    }
+  },
+
+  /**
+   * Guest checkout — no account required. The server stamps the ticket
+   * with `guest_email` and mails the QR + magic-link to that address
+   * after payment completes.
+   */
+  async guestCheckout(params: {
+    eventId: string;
+    ticketTypeId: string;
+    quantity: number;
+    guestEmail: string;
+    guestName?: string;
+    promoCode?: string;
+  }): Promise<{
+    url?: string;
+    tickets?: any[];
+    free?: boolean;
+    error?: string;
+  }> {
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "ticket-checkout",
+        {
+          body: {
+            event_id: params.eventId,
+            ticket_type_id: params.ticketTypeId,
+            quantity: params.quantity,
+            guest_email: params.guestEmail,
+            ...(params.guestName ? { guest_name: params.guestName } : {}),
+            ...(params.promoCode ? { promo_code: params.promoCode } : {}),
+          },
+          // No Authorization header — the server only checks for it
+          // when guest_email is missing, so this routes to the guest
+          // path automatically.
+        },
+      );
+
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("[Tickets] guestCheckout error:", error);
+      return { error: error.message || "Guest checkout failed" };
     }
   },
 
