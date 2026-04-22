@@ -35,7 +35,6 @@ import { useAppStore } from "@/lib/stores/app-store";
 
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
-import { FeedSkeleton } from "@/components/skeletons";
 // StoriesBar is rendered at the HomeScreen level (app/(protected)/(tabs)/index.tsx)
 // so it survives feed-mode toggles and the spicy toggle without remounting.
 import { EmptyState } from "@/components/ui/empty-state";
@@ -46,6 +45,7 @@ import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 import { useQuery } from "@tanstack/react-query";
 import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
 import { DVNTGifView } from "@/components/media/DVNTGifView";
+import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import { DVNTLivePhotoView } from "@/components/media/DVNTLivePhotoView";
 import { FeedEventCard } from "./feed-event-card";
 import { shouldRenderInFeed } from "./renderable-posts";
@@ -94,6 +94,52 @@ function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+// ─── Grid-shaped loading placeholder ────────────────────────────────────────
+
+function MasonryGridSkeleton({ columnWidth }: { columnWidth: number }) {
+  const heights = [
+    columnWidth * 1.4,
+    columnWidth * 1.05,
+    columnWidth * 1.25,
+    columnWidth * 1.55,
+    columnWidth * 1.1,
+    columnWidth * 1.35,
+  ];
+  return (
+    <View
+      style={{
+        flex: 1,
+        flexDirection: "row",
+        paddingHorizontal: COLUMN_GAP,
+        paddingTop: COLUMN_GAP,
+      }}
+      pointerEvents="none"
+    >
+      {[0, 1].map((col) => (
+        <View
+          key={col}
+          style={{ flex: 1, paddingHorizontal: COLUMN_GAP / 2 }}
+        >
+          {heights
+            .filter((_, i) => i % 2 === col)
+            .map((h, i) => (
+              <View
+                key={i}
+                style={{
+                  width: columnWidth,
+                  height: h,
+                  borderRadius: CELL_RADIUS,
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  marginBottom: COLUMN_GAP,
+                }}
+              />
+            ))}
+        </View>
+      ))}
+    </View>
+  );
 }
 
 // ─── Video thumbnail cell ───────────────────────────────────────────────────
@@ -194,6 +240,7 @@ const MasonryCell = memo(function MasonryCell({
   const isVideo = media?.type === "video";
   const isCarousel = (post.media?.length || 0) > 1;
   const isGif = media?.type === "gif";
+  const isAnimatedVideo = media?.type === "animated_video";
   const isLivePhoto = media?.type === "livePhoto";
   const coverUrl = isVideo
     ? post.thumbnail || media?.thumbnail || null
@@ -224,6 +271,17 @@ const MasonryCell = memo(function MasonryCell({
           // Animated GIF — route to expo-image-based player so frames
           // actually animate in the grid instead of showing a still.
           <DVNTGifView
+            uri={media.url}
+            width={width}
+            height={height}
+            contentFit="cover"
+            isPlaying
+          />
+        ) : isAnimatedVideo && media?.url ? (
+          // Short video auto-tagged as a silent looping animation (gif-like).
+          // expo-image can't decode mp4, so without this branch the tile
+          // falls through to <Image src=mp4Url> and renders blank.
+          <DVNTAnimatedVideoView
             uri={media.url}
             width={width}
             height={height}
@@ -587,11 +645,12 @@ export function MasonryFeed() {
     [hasNextPage, isFetchingNextPage, fetchNextPage],
   );
 
-  // Show the grid skeleton only while the grid itself is loading.
-  // Stories + events render in their own lanes and should never gate
-  // the feed body.
+  // While the grid itself is loading, render a minimal grid-shaped
+  // placeholder (NOT the classic feed-post skeleton — that renders the
+  // wrong shape here). Stories + events live in their own lanes and
+  // must never gate the grid body.
   if (isLoading || !nsfwLoaded) {
-    return <FeedSkeleton />;
+    return <MasonryGridSkeleton columnWidth={columnWidth} />;
   }
 
   if (error) {
