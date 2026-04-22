@@ -27,10 +27,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Motion } from "@legendapp/motion";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTicketStore } from "@/lib/stores/ticket-store";
 import type { Ticket, TicketTierLevel } from "@/lib/stores/ticket-store";
 import { useMyTicketForEvent } from "@/lib/hooks/use-tickets";
-import type { TicketRecord } from "@/lib/api/tickets";
+import { ticketKeys } from "@/lib/hooks/use-tickets";
+import { ticketsApi, type TicketRecord } from "@/lib/api/tickets";
 import {
   TicketHeroCard,
   TicketQRCode,
@@ -133,6 +135,50 @@ function ViewTicketScreenContent() {
   }, [dbTicket?.event_id, dbTicket?.purchase_amount_cents, dbTicket?.status]);
 
   // Upgrade flow lives in app/(protected)/ticket/upgrade/[id].tsx
+
+  // ── Pending-outgoing-transfer lookup for Cancel CTA ──
+  const queryClient = useQueryClient();
+  const { data: pendingTransfers } = useQuery({
+    queryKey: ["ticket-transfers", "outgoing", dbTicket?.id ?? ""],
+    queryFn: () => ticketsApi.getPendingTransfers(),
+    enabled: !!dbTicket?.id && dbTicket?.status === "transfer_pending",
+    staleTime: 10 * 1000,
+  });
+  const outgoingTransfer = React.useMemo(() => {
+    if (!pendingTransfers?.outgoing || !dbTicket?.id) return null;
+    return (
+      pendingTransfers.outgoing.find(
+        (t: any) => String(t.ticket_id) === String(dbTicket.id),
+      ) ?? null
+    );
+  }, [pendingTransfers, dbTicket?.id]);
+  const [cancelingTransfer, setCancelingTransfer] = React.useState(false);
+  const handleCancelTransfer = React.useCallback(async () => {
+    if (!outgoingTransfer?.id || cancelingTransfer) return;
+    setCancelingTransfer(true);
+    try {
+      const res = await ticketsApi.cancelTransfer(String(outgoingTransfer.id));
+      if (res.error) {
+        showToast("error", "Couldn't cancel", res.error);
+        return;
+      }
+      showToast("success", "Transfer canceled", "Your ticket is back to you.");
+      await queryClient.invalidateQueries({
+        queryKey: ticketKeys.myTicketForEvent(eventId),
+      });
+      await queryClient.invalidateQueries({
+        queryKey: ["ticket-transfers", "outgoing"],
+      });
+    } catch (err: any) {
+      showToast(
+        "error",
+        "Couldn't cancel",
+        err?.message || "Try again in a moment.",
+      );
+    } finally {
+      setCancelingTransfer(false);
+    }
+  }, [outgoingTransfer?.id, cancelingTransfer, showToast, queryClient, eventId]);
 
   // ── Wallet pass refresh detection ──
   // Detect if ticket was upgraded after wallet pass was created
@@ -274,9 +320,42 @@ function ViewTicketScreenContent() {
               ]}
             >
               <Shield size={16} color="#8A40CF" />
-              <Text style={[styles.statusBannerText, { color: "#8A40CF" }]}>
+              <Text
+                style={[
+                  styles.statusBannerText,
+                  { color: "#8A40CF", flex: 1 },
+                ]}
+              >
                 Transfer pending — waiting for recipient to accept
               </Text>
+              {outgoingTransfer ? (
+                <Pressable
+                  onPress={handleCancelTransfer}
+                  disabled={cancelingTransfer}
+                  hitSlop={10}
+                  style={{
+                    paddingHorizontal: 12,
+                    paddingVertical: 6,
+                    borderRadius: 10,
+                    backgroundColor: "rgba(138,64,207,0.25)",
+                    opacity: cancelingTransfer ? 0.5 : 1,
+                  }}
+                >
+                  {cancelingTransfer ? (
+                    <ActivityIndicator size="small" color="#8A40CF" />
+                  ) : (
+                    <Text
+                      style={{
+                        color: "#C084FC",
+                        fontSize: 12,
+                        fontWeight: "700",
+                      }}
+                    >
+                      Cancel
+                    </Text>
+                  )}
+                </Pressable>
+              ) : null}
             </Motion.View>
           )}
 
