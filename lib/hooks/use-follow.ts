@@ -350,8 +350,8 @@ export function useFollow() {
       const errorMessage =
         error?.message ||
         error?.error?.message ||
-        "Failed to update follow status";
-      showToast("error", "Error", errorMessage);
+        "Check your connection and try again.";
+      showToast("error", "Follow failed", errorMessage);
     },
     onSuccess: (data: FollowMutationResult, variables) => {
       // CRITICAL: Use server-authoritative counts to reconcile cache

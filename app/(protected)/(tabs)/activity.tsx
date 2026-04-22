@@ -717,7 +717,11 @@ function ActivityScreenContent() {
       setNotificationsUnread(
         previousActivities.filter((activity) => !activity.isRead).length,
       );
-      showToast("error", "Couldn't mark all read", "Please try again.");
+      showToast(
+        "error",
+        "Couldn't mark all read",
+        "Check your connection and try again.",
+      );
     } finally {
       setIsMarkingAllRead(false);
     }

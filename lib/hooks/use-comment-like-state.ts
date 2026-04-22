@@ -178,7 +178,11 @@ export function useCommentLikeState(
     onError: (err, _variables, context) => {
       if (!viewerId) return;
       const showToast = useUIStore.getState().showToast;
-      showToast("error", "Couldn't update like", "Please try again.");
+      showToast(
+        "error",
+        "Like failed",
+        "We couldn't register your like. Try again in a moment.",
+      );
       if (__DEV__) {
         console.error("[useCommentLikeState] Like mutation failed:", err);
       }

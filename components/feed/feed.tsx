@@ -606,8 +606,15 @@ export function Feed({
         style: "destructive",
         onPress: () => {
           deletePostMutation.mutate(actionSheetPostId, {
-            onSuccess: () => showToast("success", "Deleted", "Post deleted"),
-            onError: () => showToast("error", "Error", "Failed to delete post"),
+            // No success toast — the post disappears from the feed, which IS
+            // the confirmation. Keep the error toast so a failed delete is
+            // surfaced explicitly.
+            onError: () =>
+              showToast(
+                "error",
+                "Delete failed",
+                "Couldn't delete post. Try again.",
+              ),
           });
           setActionSheetPostId(null);
         },
@@ -641,9 +648,13 @@ export function Feed({
       await createStoryMutation.mutateAsync({
         items: [{ type: media.type || "image", url: media.url }],
       });
-      showToast("success", "Shared", "Post shared to your story!");
+      showToast("success", "Added to your story", "");
     } catch {
-      showToast("error", "Error", "Failed to share to story");
+      showToast(
+        "error",
+        "Share failed",
+        "Couldn't add this post to your story.",
+      );
     }
     setActionSheetPostId(null);
   }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);

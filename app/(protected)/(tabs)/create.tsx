@@ -541,7 +541,8 @@ function CreateScreenContent() {
               }
             }
 
-            showToast("success", "Posted!", "Your post is now live");
+            // No success toast — the user lands back on the feed where
+            // their new post is already at the top (optimistic insert).
             reset();
             setSelectedTagUsers([]);
             router.back();

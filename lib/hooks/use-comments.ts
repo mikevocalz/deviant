@@ -10,7 +10,7 @@ import {
 } from "@tanstack/react-query";
 import { useCallback } from "react";
 import { commentsApi as commentsApiClient } from "@/lib/api/comments";
-import type { Comment } from "@/lib/types";
+import type { Comment, Post } from "@/lib/types";
 import { postKeys } from "@/lib/hooks/use-posts";
 import { usePostStore } from "@/lib/stores/post-store";
 import { Image } from "expo-image";
@@ -175,6 +175,86 @@ export function useCommentThread(
   });
 }
 
+/**
+ * Mutate every cached Post record for a given postId with `updater`.
+ * Touches post detail, legacy feed, infinite feed, and profile posts caches
+ * so a comment count change is reflected everywhere the post renders
+ * without waiting for a refetch.
+ *
+ * Post.comments is `Comment[] | number` — callers should handle both shapes.
+ */
+function updatePostInAllCaches(
+  queryClient: QueryClient,
+  postId: string,
+  updater: (post: Post) => Post,
+) {
+  const targetId = String(postId);
+  const mapList = (posts: Post[] | undefined) =>
+    posts?.map((p) => (String(p.id) === targetId ? updater(p) : p));
+
+  // Detail
+  queryClient.setQueryData<Post>(postKeys.detail(postId), (old) =>
+    old && String(old.id) === targetId ? updater(old) : old,
+  );
+
+  // Legacy feed
+  queryClient.setQueriesData<Post[]>({ queryKey: postKeys.feed() }, (old) =>
+    mapList(old) ?? old,
+  );
+
+  // Infinite feed — pages may expose `data` or `posts` depending on the source
+  queryClient.setQueriesData<any>(
+    { queryKey: postKeys.feedInfinite() },
+    (old: any) => {
+      if (!old?.pages) return old;
+      return {
+        ...old,
+        pages: old.pages.map((page: any) => ({
+          ...page,
+          data: mapList(page?.data) ?? page?.data,
+          posts: mapList(page?.posts) ?? page?.posts,
+        })),
+      };
+    },
+  );
+
+  // Profile grid — per-user cache, pattern-matched via prefix
+  queryClient.setQueriesData<Post[]>(
+    { queryKey: ["profilePosts"] },
+    (old) => mapList(old) ?? old,
+  );
+}
+
+/**
+ * Apply a +1 / -1 comment delta to a Post. Preserves the Post.comments shape:
+ * if it was an array we append/remove the optimistic entry; if it was a
+ * number we adjust the count.
+ */
+function applyCommentDelta(
+  post: Post,
+  delta: number,
+  optimisticCommentId: string,
+  optimisticComment?: Comment,
+): Post {
+  if (Array.isArray(post.comments)) {
+    if (delta > 0 && optimisticComment) {
+      return { ...post, comments: [...post.comments, optimisticComment] };
+    }
+    if (delta < 0) {
+      return {
+        ...post,
+        comments: post.comments.filter((c) => c.id !== optimisticCommentId),
+      };
+    }
+    return post;
+  }
+  if (typeof post.comments === "number") {
+    return { ...post, comments: Math.max(0, post.comments + delta) };
+  }
+  // Undefined / missing — seed with a count
+  return { ...post, comments: Math.max(0, delta) };
+}
+
 export function useCreateComment() {
   const queryClient = useQueryClient();
 
@@ -228,6 +308,14 @@ export function useCreateComment() {
         },
       );
 
+      // Bump the comment count on the Post record in every cache it lives
+      // in — feed (legacy + infinite), detail, profile grid. Without this,
+      // the count on the card the user just commented from stays stale
+      // until onSettled invalidates (which triggers a network refetch).
+      updatePostInAllCaches(queryClient, newComment.post, (post) =>
+        applyCommentDelta(post, +1, optimisticComment.id, optimisticComment),
+      );
+
       if (newComment.parent) {
         const fallbackThread =
           previousThreadQueries.find(([, data]) => !!data?.parentComment)?.[1] ||
@@ -256,7 +344,12 @@ export function useCreateComment() {
         );
       }
 
-      return { previousQueries, previousThreadQueries, previousCount };
+      return {
+        previousQueries,
+        previousThreadQueries,
+        previousCount,
+        optimisticCommentId: optimisticComment.id,
+      };
     },
     onError: (_error, newComment, context) => {
       context?.previousQueries?.forEach(([queryKey, data]) => {
@@ -268,6 +361,13 @@ export function useCreateComment() {
 
       if (typeof context?.previousCount === "number") {
         usePostStore.getState().setCommentCount(newComment.post, context.previousCount);
+      }
+
+      // Roll back the Post-record count bump that onMutate applied.
+      if (context?.optimisticCommentId) {
+        updatePostInAllCaches(queryClient, newComment.post, (post) =>
+          applyCommentDelta(post, -1, context.optimisticCommentId),
+        );
       }
     },
     onSettled: (_, __, variables) => {

@@ -1163,7 +1163,8 @@ function MessagesScreenContent() {
         const result = await messagesApiClient.markAsRead(conversationId);
         if (!result.ok) return;
         await refreshMessageCounts(conversationId, result.unread);
-        showToast("success", "Done", "Marked as read");
+        // No toast — mark-as-read fires silently when a conversation opens.
+        // A toast on every read would be spammy.
       } catch (err) {
         console.error("[Messages] markAsRead error:", err);
       }

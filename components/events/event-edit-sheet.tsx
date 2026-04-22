@@ -346,11 +346,15 @@ export function EventEditSheet({
       queryClient.invalidateQueries({ queryKey: eventKeys.all });
       queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
 
-      showToast("success", "Saved", "Event updated successfully");
+      showToast("success", "Event updated", "");
       onClose();
     } catch (error: any) {
       console.error("[EventEditSheet] Save error:", error);
-      showToast("error", "Error", error?.message || "Failed to save changes");
+      showToast(
+        "error",
+        "Event save failed",
+        error?.message || "Check your connection and try again.",
+      );
     } finally {
       setIsSaving(false);
     }

@@ -808,7 +808,9 @@ function UserProfileScreenComponent() {
           showToast("info", "Report", "You can report this user from Settings");
         }}
         onBlock={() => {
-          showToast("success", "Blocked", `@${user.username} has been blocked`);
+          // Short, single-line confirmation — the user chose this
+          // explicitly from the menu, so a terse toast is appropriate.
+          showToast("success", `Blocked @${user.username}`, "");
         }}
       />
 

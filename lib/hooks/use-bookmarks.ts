@@ -104,7 +104,11 @@ export function useToggleBookmark() {
           .setBookmarked(context.postId, context.isBookmarked);
       }
 
-      showToast("error", "Error", "Failed to update bookmark");
+      showToast(
+        "error",
+        "Bookmark failed",
+        "Couldn't update bookmark. Check your connection.",
+      );
     },
     onSuccess: (data, variables) => {
       // Ensure final state matches server response
@@ -112,13 +116,8 @@ export function useToggleBookmark() {
         .getState()
         .setBookmarked(variables.postId, data.bookmarked);
 
-      showToast(
-        "success",
-        data.bookmarked ? "Bookmarked" : "Unbookmarked",
-        data.bookmarked
-          ? "Post saved to your bookmarks"
-          : "Post removed from bookmarks",
-      );
+      // No success toast — the bookmark icon flips instantly on onMutate,
+      // confirming the action visually. Adding a toast on top is noise.
 
       // Final sync with server - invalidate to ensure consistency
       if (viewerId) {
