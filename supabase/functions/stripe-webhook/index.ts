@@ -23,6 +23,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { computePayoutReleaseAt } from "../_shared/business-days.ts";
 import { createSignedQrPayload } from "../_shared/hmac-qr.ts";
 import { notifyEventOrganizers } from "../_shared/notify-event-organizers.ts";
+import { maybeFireCapacityAlerts } from "../_shared/capacity-alerts.ts";
 import { voidWalletPass } from "../_shared/wallet-push.ts";
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
@@ -298,6 +299,12 @@ Deno.serve(async (req: Request) => {
               .update({ quantity_sold: (tt?.quantity_sold || 0) + quantity })
               .eq("id", ticketTypeId);
           }
+
+          // Capacity milestone alerts (75 / 90 / 100 %) — idempotent
+          await maybeFireCapacityAlerts(supabase, {
+            eventId,
+            ticketTypeId,
+          });
 
           // ── Guest tickets: email confirmation with QR + lookup link ──
           if (isGuestPurchase && insertedTickets && insertedTickets.length > 0) {

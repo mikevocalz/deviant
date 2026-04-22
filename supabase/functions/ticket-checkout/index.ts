@@ -28,6 +28,7 @@ import {
   validateAndApplyPromo,
   incrementPromoUsage,
 } from "../_shared/apply-promo-code.ts";
+import { maybeFireCapacityAlerts } from "../_shared/capacity-alerts.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -243,6 +244,12 @@ Deno.serve(async (req: Request) => {
           quantity_sold: (ticketType.quantity_sold || 0) + quantity,
         })
         .eq("id", ticket_type_id);
+
+      // Capacity milestone alerts (75 / 90 / 100 %) — idempotent
+      await maybeFireCapacityAlerts(supabase, {
+        eventId: parseInt(event_id),
+        ticketTypeId: ticket_type_id,
+      });
 
       // Increment promo usage if a promo was used
       if (promoResult) {
