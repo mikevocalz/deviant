@@ -4,9 +4,12 @@
  */
 
 import React, { useCallback, useMemo } from "react";
-import { View, Text, Pressable, ScrollView } from "react-native";
+import { View, Text, Pressable } from "react-native";
 import { Image } from "expo-image";
-import BottomSheet, { BottomSheetView } from "@gorhom/bottom-sheet";
+import BottomSheet, {
+  BottomSheetView,
+  BottomSheetScrollView,
+} from "@gorhom/bottom-sheet";
 import {
   Crown,
   Shield,
@@ -117,7 +120,10 @@ export function ParticipantsSheet({
         </View>
 
         {/* Participants List */}
-        <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
+        <BottomSheetScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+        >
           {sortedParticipants.map((participant) => (
             <ParticipantRow
               key={participant.userId}
@@ -139,7 +145,7 @@ export function ParticipantsSheet({
               onBan={() => handleBan(participant.userId)}
             />
           ))}
-        </ScrollView>
+        </BottomSheetScrollView>
       </BottomSheetView>
     </BottomSheet>
   );
