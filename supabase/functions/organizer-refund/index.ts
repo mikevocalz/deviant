@@ -29,6 +29,7 @@ import {
   optionsResponse,
 } from "../_shared/verify-session.ts";
 import { checkRateLimit } from "../_shared/rate-limit.ts";
+import { notifyNextWaitlister } from "../_shared/notify-waitlisters.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -84,7 +85,7 @@ Deno.serve(async (req: Request) => {
     const { data: ticket, error: ticketErr } = await supabase
       .from("tickets")
       .select(
-        "id, event_id, status, stripe_payment_intent_id, purchase_amount_cents",
+        "id, event_id, ticket_type_id, status, stripe_payment_intent_id, purchase_amount_cents",
       )
       .eq("id", ticketId)
       .maybeSingle();
@@ -120,7 +121,9 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Free tickets: no Stripe call, just void directly
+    // Free tickets: no Stripe call, just void directly. The paid path
+    // flows through charge.refunded which handles inventory + waitlist
+    // promotion; do the same inline here.
     if (!ticket.stripe_payment_intent_id) {
       const { error: updateErr } = await supabase
         .from("tickets")
@@ -130,6 +133,34 @@ Deno.serve(async (req: Request) => {
         console.error("[organizer-refund] void error:", updateErr);
         return errorResponse("Could not void ticket", 500);
       }
+
+      if (ticket.ticket_type_id) {
+        const { data: tt } = await supabase
+          .from("ticket_types")
+          .select("quantity_sold, name, event_id")
+          .eq("id", ticket.ticket_type_id)
+          .maybeSingle();
+        if (tt) {
+          await supabase
+            .from("ticket_types")
+            .update({
+              quantity_sold: Math.max(0, (tt.quantity_sold ?? 0) - 1),
+            })
+            .eq("id", ticket.ticket_type_id);
+          const { data: ev } = await supabase
+            .from("events")
+            .select("title")
+            .eq("id", ticket.event_id)
+            .maybeSingle();
+          await notifyNextWaitlister(supabase, {
+            eventId: ticket.event_id,
+            ticketTypeId: String(ticket.ticket_type_id),
+            tierName: tt.name,
+            eventTitle: ev?.title ?? null,
+          });
+        }
+      }
+
       return jsonResponse({
         ok: true,
         free: true,
