@@ -1576,6 +1576,27 @@ function EventDetailScreenContent() {
               <Text style={s.mutedText}>Loading reviews...</Text>
             ) : reviews.length > 0 ? (
               <View style={{ gap: 10 }}>
+                {reviews.length > 3 ? (
+                  <Pressable
+                    onPress={() =>
+                      router.push(
+                        `/(protected)/events/${eventId}/reviews` as any,
+                      )
+                    }
+                    hitSlop={8}
+                    style={{ alignSelf: "flex-end", paddingVertical: 4 }}
+                  >
+                    <Text
+                      style={{
+                        color: "#FF5BFC",
+                        fontSize: 13,
+                        fontWeight: "700",
+                      }}
+                    >
+                      See all {reviews.length} reviews →
+                    </Text>
+                  </Pressable>
+                ) : null}
                 {reviews.slice(0, 3).map((review: any) => (
                   <View key={review.id} style={s.reviewCard}>
                     <View style={s.reviewHeader}>
