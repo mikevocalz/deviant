@@ -41,7 +41,15 @@ function ViewerRow({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.viewerRow}>
+    <Pressable
+      onPress={onPress}
+      hitSlop={{ top: 6, bottom: 6, left: 8, right: 8 }}
+      android_ripple={{ color: "rgba(255,255,255,0.08)", borderless: false }}
+      style={({ pressed }) => [
+        styles.viewerRow,
+        pressed && { backgroundColor: "rgba(255,255,255,0.06)" },
+      ]}
+    >
       <Avatar
         uri={viewer.avatar}
         username={viewer.username}
@@ -68,10 +76,13 @@ export function StoryViewersSheet({
 
   const handleProfilePress = useCallback(
     (username: string) => {
+      if (!username) return;
+      // Navigate FIRST, then close — the previous implementation closed the
+      // sheet and waited 300ms before pushing, which raced with the story's
+      // auto-advance timer (isPaused gets flipped back to false on close)
+      // and could eat the tap entirely on slower devices.
+      router.push(`/(protected)/profile/${username}` as any);
       onClose();
-      setTimeout(() => {
-        router.push(`/(protected)/profile/${username}`);
-      }, 300);
     },
     [router, onClose],
   );
@@ -79,7 +90,7 @@ export function StoryViewersSheet({
   if (!visible) return null;
 
   return (
-    <View style={styles.overlay}>
+    <View style={styles.overlay} pointerEvents="auto">
       <Pressable style={styles.backdrop} onPress={onClose} />
       <View style={styles.sheet}>
         {/* Header */}
@@ -130,6 +141,10 @@ const styles = StyleSheet.create({
   overlay: {
     ...StyleSheet.absoluteFillObject,
     zIndex: 200,
+    // elevation ensures the sheet sits above sibling views on Android
+    // where zIndex alone is not enough across absolute-positioned layers
+    // (the story screen has several elevated pressables behind this).
+    elevation: 30,
     justifyContent: "flex-end",
   },
   backdrop: {
