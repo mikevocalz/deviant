@@ -165,6 +165,32 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Enforce tier sale window — early-bird style pricing.
+    // `sale_start` / `sale_end` already exist on ticket_types; until now
+    // they were declarative only. Reject purchases outside the window
+    // with an actionable message.
+    const now = new Date();
+    if (ticketType.sale_start) {
+      const saleStartAt = new Date(ticketType.sale_start);
+      if (!isNaN(saleStartAt.getTime()) && now < saleStartAt) {
+        return new Response(
+          JSON.stringify({
+            error: `This tier goes on sale ${saleStartAt.toLocaleString()}.`,
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    }
+    if (ticketType.sale_end) {
+      const saleEndAt = new Date(ticketType.sale_end);
+      if (!isNaN(saleEndAt.getTime()) && now >= saleEndAt) {
+        return new Response(
+          JSON.stringify({ error: "Sales for this tier have ended." }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     // Check availability (including active holds from other checkouts)
     const remaining =
       (ticketType.quantity_total || Infinity) - (ticketType.quantity_sold || 0);

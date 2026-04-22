@@ -44,11 +44,31 @@ interface TierLite {
   remaining: number;
   isActive: boolean;
   isSoldOut: boolean;
+  saleStart: string | null;
+  saleEnd: string | null;
+  /** Sales haven't opened yet. */
+  saleNotStarted: boolean;
+  /** Sales window has closed. */
+  saleEnded: boolean;
 }
 
 function formatPrice(cents: number): string {
   if (cents === 0) return "Free";
   return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
+}
+
+function formatSaleWindow(iso: string | null, kind: "opens" | "ends"): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return null;
+  const when = d.toLocaleString(undefined, {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  return kind === "opens" ? `Sales open ${when}` : `Sales end ${when}`;
 }
 
 function formatDate(iso: string | null | undefined): string {
@@ -76,12 +96,17 @@ function PublicEventDetailContent() {
   const { data: tierRows = [] } = useTicketTypes(eventId);
 
   const tiers: TierLite[] = useMemo(() => {
+    const now = Date.now();
     return (tierRows as any[])
       .filter((t) => t.is_active !== false)
       .map((t) => {
         const total = Number(t.quantity_total || 0);
         const sold = Number(t.quantity_sold || 0);
         const remaining = Math.max(0, total - sold);
+        const saleStart: string | null = t.sale_start ?? null;
+        const saleEnd: string | null = t.sale_end ?? null;
+        const saleStartMs = saleStart ? new Date(saleStart).getTime() : NaN;
+        const saleEndMs = saleEnd ? new Date(saleEnd).getTime() : NaN;
         return {
           id: String(t.id),
           name: t.name,
@@ -90,6 +115,10 @@ function PublicEventDetailContent() {
           remaining,
           isActive: t.is_active !== false,
           isSoldOut: total > 0 && remaining <= 0,
+          saleStart,
+          saleEnd,
+          saleNotStarted: !isNaN(saleStartMs) && now < saleStartMs,
+          saleEnded: !isNaN(saleEndMs) && now >= saleEndMs,
         };
       });
   }, [tierRows]);
@@ -100,7 +129,9 @@ function PublicEventDetailContent() {
   // Auto-select the first available tier once tiers load
   React.useEffect(() => {
     if (selectedTierId) return;
-    const firstAvailable = tiers.find((t) => !t.isSoldOut);
+    const firstAvailable = tiers.find(
+      (t) => !t.isSoldOut && !t.saleNotStarted && !t.saleEnded,
+    );
     if (firstAvailable) setSelectedTierId(firstAvailable.id);
   }, [tiers, selectedTierId]);
 
@@ -108,11 +139,17 @@ function PublicEventDetailContent() {
     () => tiers.find((t) => t.id === selectedTierId) ?? null,
     [tiers, selectedTierId],
   );
+  const selectedIsUnavailable = !!(
+    selectedTier &&
+    (selectedTier.isSoldOut ||
+      selectedTier.saleNotStarted ||
+      selectedTier.saleEnded)
+  );
 
   const handleBuyAsGuest = useCallback(() => {
-    if (!selectedTier || selectedTier.isSoldOut) return;
+    if (!selectedTier || selectedIsUnavailable) return;
     setGuestSheetOpen(true);
-  }, [selectedTier]);
+  }, [selectedTier, selectedIsUnavailable]);
 
   const handleSignIn = useCallback(() => {
     openGate("events");
@@ -216,12 +253,18 @@ function PublicEventDetailContent() {
           ) : (
             tiers.map((tier) => {
               const isSelected = tier.id === selectedTierId;
-              const isSoldOut = tier.isSoldOut;
+              const isUnavailable =
+                tier.isSoldOut || tier.saleNotStarted || tier.saleEnded;
+              const saleWindowLabel = tier.saleNotStarted
+                ? formatSaleWindow(tier.saleStart, "opens")
+                : !tier.saleEnded
+                  ? formatSaleWindow(tier.saleEnd, "ends")
+                  : null;
               return (
                 <Pressable
                   key={tier.id}
-                  onPress={() => !isSoldOut && setSelectedTierId(tier.id)}
-                  disabled={isSoldOut}
+                  onPress={() => !isUnavailable && setSelectedTierId(tier.id)}
+                  disabled={isUnavailable}
                   style={[
                     styles.tierCard,
                     {
@@ -231,7 +274,7 @@ function PublicEventDetailContent() {
                       backgroundColor: isSelected
                         ? "rgba(255,255,255,0.06)"
                         : "rgba(255,255,255,0.02)",
-                      opacity: isSoldOut ? 0.45 : 1,
+                      opacity: isUnavailable ? 0.45 : 1,
                     },
                   ]}
                 >
@@ -246,8 +289,15 @@ function PublicEventDetailContent() {
                       {tier.description}
                     </Text>
                   ) : null}
+                  {saleWindowLabel ? (
+                    <Text style={styles.saleWindow}>{saleWindowLabel}</Text>
+                  ) : null}
                   <View style={styles.tierFoot}>
-                    {isSoldOut ? (
+                    {tier.saleEnded ? (
+                      <Text style={styles.soldOut}>SALES ENDED</Text>
+                    ) : tier.saleNotStarted ? (
+                      <Text style={styles.urgency}>NOT YET ON SALE</Text>
+                    ) : tier.isSoldOut ? (
                       <Text style={styles.soldOut}>SOLD OUT</Text>
                     ) : tier.remaining > 0 && tier.remaining <= 10 ? (
                       <Text style={styles.urgency}>
@@ -256,7 +306,7 @@ function PublicEventDetailContent() {
                     ) : (
                       <View style={{ height: 0 }} />
                     )}
-                    {isSelected && !isSoldOut ? (
+                    {isSelected && !isUnavailable ? (
                       <View style={styles.selectedPill}>
                         <Check size={12} color="#000" strokeWidth={3} />
                         <Text style={styles.selectedPillText}>Selected</Text>
@@ -274,21 +324,30 @@ function PublicEventDetailContent() {
       <View style={styles.bottomBar}>
         <Pressable
           onPress={handleBuyAsGuest}
-          disabled={!selectedTier || selectedTier.isSoldOut}
+          disabled={!selectedTier || selectedIsUnavailable}
           style={({ pressed }) => [
             styles.primaryCta,
             {
               backgroundColor:
-                !selectedTier || selectedTier.isSoldOut
+                !selectedTier || selectedIsUnavailable
                   ? "rgba(255,255,255,0.12)"
                   : "#fff",
-              opacity: pressed && selectedTier && !selectedTier.isSoldOut ? 0.9 : 1,
+              opacity:
+                pressed && selectedTier && !selectedIsUnavailable ? 0.9 : 1,
             },
           ]}
         >
           {!selectedTier ? (
             <Text style={[styles.primaryCtaText, { color: "rgba(255,255,255,0.6)" }]}>
               Select a ticket
+            </Text>
+          ) : selectedTier.saleNotStarted ? (
+            <Text style={[styles.primaryCtaText, { color: "rgba(255,255,255,0.6)" }]}>
+              Sales haven't opened yet
+            </Text>
+          ) : selectedTier.saleEnded ? (
+            <Text style={[styles.primaryCtaText, { color: "rgba(255,255,255,0.6)" }]}>
+              Sales ended
             </Text>
           ) : selectedTier.isSoldOut ? (
             <Text style={[styles.primaryCtaText, { color: "rgba(255,255,255,0.6)" }]}>
@@ -435,6 +494,12 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.55)",
     fontSize: 13,
     lineHeight: 18,
+  },
+  saleWindow: {
+    color: "#FFD700",
+    fontSize: 12,
+    fontWeight: "600",
+    marginTop: 4,
   },
   tierFoot: {
     flexDirection: "row",
