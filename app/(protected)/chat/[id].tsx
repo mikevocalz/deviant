@@ -479,21 +479,25 @@ function ChatScreenContent() {
       ),
     });
   }, [navigation, router, peerUsername]);
-  const {
-    messages,
-    currentMessage,
-    setCurrentMessage,
-    sendMessageToBackend,
-    loadMessages,
-    mentionQuery,
-    showMentions,
-    setCursorPosition,
-    insertMention,
-    pendingMedia,
-    setPendingMedia,
-    isSending,
-    retryMessage,
-  } = useChatStore();
+  // Selector-per-field. The previous whole-store destructure subscribed
+  // ChatScreenContent to every field — `messages` updating on every
+  // realtime push, `currentMessage` on every keystroke, `isSending` on
+  // every send, etc. — all forcing a full chat-screen re-render.
+  // Selectors scope each field's re-render to the consumer.
+  // Actions (setters) are stable refs on Zustand, safe as selectors.
+  const messages = useChatStore((s) => s.messages);
+  const currentMessage = useChatStore((s) => s.currentMessage);
+  const setCurrentMessage = useChatStore((s) => s.setCurrentMessage);
+  const sendMessageToBackend = useChatStore((s) => s.sendMessageToBackend);
+  const loadMessages = useChatStore((s) => s.loadMessages);
+  const mentionQuery = useChatStore((s) => s.mentionQuery);
+  const showMentions = useChatStore((s) => s.showMentions);
+  const setCursorPosition = useChatStore((s) => s.setCursorPosition);
+  const insertMention = useChatStore((s) => s.insertMention);
+  const pendingMedia = useChatStore((s) => s.pendingMedia);
+  const setPendingMedia = useChatStore((s) => s.setPendingMedia);
+  const isSending = useChatStore((s) => s.isSending);
+  const retryMessage = useChatStore((s) => s.retryMessage);
 
   const chatMessages = messages[activeConvId] || emptyMessages;
   const cachedConversationMessages = activeConvId
@@ -623,7 +627,7 @@ function ChatScreenContent() {
   // updates live without needing to close and reopen the screen.
   // PERF: Merges single message into Zustand cache in O(1) instead of
   // refetching ALL messages from DB. Dedup handled by mergeRealtimeMessage.
-  const { mergeRealtimeMessage } = useChatStore();
+  const mergeRealtimeMessage = useChatStore((s) => s.mergeRealtimeMessage);
 
   useEffect(() => {
     const convId = resolvedConvIdRef.current;
@@ -785,25 +789,31 @@ function ChatScreenContent() {
       supabase.removeChannel(channel);
     };
   }, [activeConvId, isInitialHydrationComplete, mergeRealtimeMessage]);
-  const {
-    recipient,
-    isLoadingRecipient,
-    isGroupChat,
-    groupMembers,
-    groupName,
-    selectedMessage,
-    showMessageActions,
-    editingMessage,
-    editText,
-    setRecipient,
-    setIsLoadingRecipient,
-    setGroupInfo,
-    setSelectedMessage,
-    setShowMessageActions,
-    setEditingMessage,
-    setEditText,
-    resetChatScreen,
-  } = useChatScreenStore();
+  // Selector-per-field. Selecting `recipient` alongside `editText` via
+  // destructure meant every keystroke while editing a message re-rendered
+  // the whole chat screen (including the message list). Same for
+  // long-press (`selectedMessage`), action-sheet toggle, etc.
+  const recipient = useChatScreenStore((s) => s.recipient);
+  const isLoadingRecipient = useChatScreenStore((s) => s.isLoadingRecipient);
+  const isGroupChat = useChatScreenStore((s) => s.isGroupChat);
+  const groupMembers = useChatScreenStore((s) => s.groupMembers);
+  const groupName = useChatScreenStore((s) => s.groupName);
+  const selectedMessage = useChatScreenStore((s) => s.selectedMessage);
+  const showMessageActions = useChatScreenStore((s) => s.showMessageActions);
+  const editingMessage = useChatScreenStore((s) => s.editingMessage);
+  const editText = useChatScreenStore((s) => s.editText);
+  const setRecipient = useChatScreenStore((s) => s.setRecipient);
+  const setIsLoadingRecipient = useChatScreenStore(
+    (s) => s.setIsLoadingRecipient,
+  );
+  const setGroupInfo = useChatScreenStore((s) => s.setGroupInfo);
+  const setSelectedMessage = useChatScreenStore((s) => s.setSelectedMessage);
+  const setShowMessageActions = useChatScreenStore(
+    (s) => s.setShowMessageActions,
+  );
+  const setEditingMessage = useChatScreenStore((s) => s.setEditingMessage);
+  const setEditText = useChatScreenStore((s) => s.setEditText);
+  const resetChatScreen = useChatScreenStore((s) => s.resetChatScreen);
 
   const safeGroupMembers = useMemo(() => groupMembers || [], [groupMembers]);
   const headerGroupMembers = useMemo(() => {
@@ -1017,14 +1027,18 @@ function ChatScreenContent() {
   const listRef = useRef<LegendListRef>(null);
   const sendButtonScale = useRef(new Animated.Value(1)).current;
 
-  const {
-    previewMedia,
-    showPreviewModal,
-    setPreviewMedia,
-    setShowPreviewModal,
-  } = useFeedPostUIStore();
-  const { loadingScreens, setScreenLoading } = useUIStore();
-  const isLoading = loadingScreens.chat;
+  // Chat reuses feed-post's media preview modal. Selector-per-field so
+  // feed-side changes (activePostId flipping on scroll, mute toggles,
+  // sheet open/close) no longer re-render the chat screen.
+  const previewMedia = useFeedPostUIStore((s) => s.previewMedia);
+  const showPreviewModal = useFeedPostUIStore((s) => s.showPreviewModal);
+  const setPreviewMedia = useFeedPostUIStore((s) => s.setPreviewMedia);
+  const setShowPreviewModal = useFeedPostUIStore((s) => s.setShowPreviewModal);
+  // Narrow to just the chat loading flag — destructuring `loadingScreens`
+  // wholesale meant any other screen flipping its loading state
+  // re-rendered the chat screen.
+  const isLoading = useUIStore((s) => s.loadingScreens.chat);
+  const setScreenLoading = useUIStore((s) => s.setScreenLoading);
 
   useEffect(() => {
     setScreenLoading("chat", false);
@@ -1281,7 +1295,9 @@ function ChatScreenContent() {
     !isSending &&
     !!activeConvId;
 
-  const { deleteMessage, editMessage, reactToMessage } = useChatStore();
+  const deleteMessage = useChatStore((s) => s.deleteMessage);
+  const editMessage = useChatStore((s) => s.editMessage);
+  const reactToMessage = useChatStore((s) => s.reactToMessage);
   const messageActionsSheetRef = useRef<BottomSheetModal>(null);
   const messageActionsSnapPoints = useMemo(() => ["34%"], []);
 
