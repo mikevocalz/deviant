@@ -1,5 +1,5 @@
 import { supabase } from "../supabase/client";
-import { getCurrentUserAuthId, getCurrentUserId } from "./auth-helper";
+import { getCurrentUserAuthId } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 export interface TicketRecord {
@@ -26,22 +26,27 @@ export interface TicketRecord {
 
 export const ticketsApi = {
   /**
-   * Get all tickets for an event (organizer view)
+   * Get all tickets for an event (organizer view) — routed through the
+   * get-event-tickets edge function so the anon client no longer needs
+   * SELECT on the tickets table.
    */
   async getEventTickets(eventId: string): Promise<TicketRecord[]> {
     try {
-      const { data, error } = await supabase
-        .from("tickets")
-        .select("*, ticket_types(name)")
-        .eq("event_id", parseInt(eventId))
-        .order("created_at", { ascending: false });
-
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke(
+        "get-event-tickets",
+        {
+          body: { event_id: parseInt(eventId) },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
+          },
+        },
+      );
       if (error) throw error;
-
-      return (data || []).map((t: any) => ({
-        ...t,
-        ticket_type_name: t.ticket_types?.name || "General",
-      }));
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      if (!result?.ok) return [];
+      return (result.tickets || []) as TicketRecord[];
     } catch (error) {
       console.error("[Tickets] getEventTickets error:", error);
       return [];
@@ -49,85 +54,28 @@ export const ticketsApi = {
   },
 
   /**
-   * Get current user's tickets across all events
+   * Get the current user's tickets across all events — routed through
+   * the get-my-tickets edge function. Legacy integer-user-id rows are
+   * picked up server-side; the client no longer needs direct SELECT.
    */
   async getMyTickets(): Promise<TicketRecord[]> {
     try {
-      const authId = await getCurrentUserAuthId();
-      if (!authId) {
-        console.warn("[Tickets] getMyTickets: no authId, returning empty");
-        return [];
-      }
-
-      // Query by auth_id, and also by integer user ID string as fallback
-      // (tickets created before the auth_id fix may have stored user.id instead)
-      const intId = getCurrentUserId();
-      const userIdFilter =
-        intId && intId !== authId
-          ? `user_id.eq.${authId},user_id.eq.${intId}`
-          : `user_id.eq.${authId}`;
-
-      console.log(
-        "[Tickets] getMyTickets filter:",
-        userIdFilter,
-        "authId:",
-        authId,
-        "intId:",
-        intId,
+      const token = await requireBetterAuthToken();
+      if (!token) return [];
+      const { data, error } = await supabase.functions.invoke(
+        "get-my-tickets",
+        {
+          body: {},
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
+          },
+        },
       );
-
-      const { data, error } = await supabase
-        .from("tickets")
-        .select(
-          "*, ticket_types(name), events(title, cover_image_url, start_date, location)",
-        )
-        .or(userIdFilter)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error(
-          "[Tickets] getMyTickets query error:",
-          error.message,
-          error.code,
-          error.details,
-        );
-        // Fallback: try without joins in case FK relationship is broken
-        const { data: fallbackData, error: fbError } = await supabase
-          .from("tickets")
-          .select("*")
-          .or(userIdFilter)
-          .order("created_at", { ascending: false });
-        console.log(
-          "[Tickets] fallback query:",
-          fallbackData?.length ?? 0,
-          "rows, error:",
-          fbError?.message,
-        );
-        if (fbError) throw fbError;
-        return (fallbackData || []).map((t: any) => ({
-          ...t,
-          ticket_type_name: "General",
-          event_title: "",
-          event_image: "",
-          event_date: "",
-          event_location: "",
-        }));
-      }
-
-      console.log(
-        "[Tickets] getMyTickets result:",
-        data?.length ?? 0,
-        "tickets",
-      );
-
-      return (data || []).map((t: any) => ({
-        ...t,
-        ticket_type_name: t.ticket_types?.name || "General",
-        event_title: t.events?.title || "",
-        event_image: t.events?.cover_image_url || "",
-        event_date: t.events?.start_date || "",
-        event_location: t.events?.location || "",
-      }));
+      if (error) throw error;
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      if (!result?.ok) return [];
+      return (result.tickets || []) as TicketRecord[];
     } catch (error: any) {
       console.error("[Tickets] getMyTickets error:", error?.message || error);
       return [];
@@ -284,15 +232,21 @@ export const ticketsApi = {
    */
   async downloadOfflineTokens(eventId: string): Promise<string[]> {
     try {
-      const { data, error } = await supabase
-        .from("tickets")
-        .select("qr_token")
-        .eq("event_id", parseInt(eventId))
-        .in("status", ["active"])
-        .not("qr_token", "is", null);
-
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke(
+        "get-event-tickets",
+        {
+          body: { event_id: parseInt(eventId), offline: true },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
+          },
+        },
+      );
       if (error) throw error;
-      return (data || []).map((t: any) => t.qr_token).filter(Boolean);
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      if (!result?.ok) return [];
+      return (result.qr_tokens || []).filter(Boolean);
     } catch (error) {
       console.error("[Tickets] downloadOfflineTokens error:", error);
       return [];
@@ -350,7 +304,9 @@ export const ticketsApi = {
   },
 
   /**
-   * Get current user's ticket for a specific event
+   * Get the current user's ticket for a specific event — routed
+   * through the get-my-tickets edge function with an `event_id`
+   * filter, returns the most recent matching row.
    */
   async getMyTicketForEvent(eventId: string): Promise<TicketRecord | null> {
     try {
@@ -360,79 +316,24 @@ export const ticketsApi = {
         return null;
       }
 
-      const authId = await getCurrentUserAuthId();
-      if (!authId) return null;
+      const token = await requireBetterAuthToken();
+      if (!token) return null;
 
-      // Query by auth_id + integer user ID string fallback (same as getMyTickets)
-      const intId = getCurrentUserId();
-      const userIdFilter =
-        intId && intId !== authId
-          ? `user_id.eq.${authId},user_id.eq.${intId}`
-          : `user_id.eq.${authId}`;
-
-      console.log(
-        "[Tickets] getMyTicketForEvent:",
-        eventId,
-        "filter:",
-        userIdFilter,
+      const { data, error } = await supabase.functions.invoke(
+        "get-my-tickets",
+        {
+          body: { event_id: eventIdInt },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
+          },
+        },
       );
-
-      const { data, error } = await supabase
-        .from("tickets")
-        .select(
-          "*, ticket_types(name), events(title, cover_image_url, start_date, end_date, location)",
-        )
-        .or(userIdFilter)
-        .eq("event_id", eventIdInt)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        console.error(
-          "[Tickets] getMyTicketForEvent join error:",
-          error.message,
-          error.code,
-        );
-        // Fallback: try without joins in case FK relationship is broken
-        const { data: fbData, error: fbError } = await supabase
-          .from("tickets")
-          .select("*")
-          .or(userIdFilter)
-          .eq("event_id", eventIdInt)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        console.log(
-          "[Tickets] getMyTicketForEvent fallback:",
-          fbData ? "found" : "null",
-          fbError?.message,
-        );
-        if (fbError || !fbData) return null;
-        return {
-          ...fbData,
-          ticket_type_name: "General",
-          event_title: "",
-          event_image: "",
-          event_date: "",
-          event_location: "",
-        } as TicketRecord;
-      }
-
-      console.log(
-        "[Tickets] getMyTicketForEvent result:",
-        data ? "found" : "null",
-      );
-      if (!data) return null;
-
-      return {
-        ...data,
-        ticket_type_name: data.ticket_types?.name || "General",
-        event_title: data.events?.title || "",
-        event_image: data.events?.cover_image_url || "",
-        event_date: data.events?.start_date || "",
-        event_location: data.events?.location || "",
-      } as TicketRecord;
+      if (error) throw error;
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      if (!result?.ok) return null;
+      const tickets: TicketRecord[] = result.tickets || [];
+      return tickets[0] ?? null;
     } catch (error) {
       console.error("[Tickets] getMyTicketForEvent error:", error);
       return null;
