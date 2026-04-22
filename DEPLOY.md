@@ -139,3 +139,72 @@ Physical-device sanity, 5-10 min each:
 ## Summary by commit
 
 28 commits. Full list: `git log 3d32d28..HEAD --oneline`.
+
+---
+
+## P0 OTA Recovery — ErrorRecovery crash loop
+
+**Symptom:** App crashes on launch with SIGABRT from `ErrorRecovery.crash()`. No JS
+frames in crash report. Affects users whose installed OTA bundle is incompatible
+with the native binary (e.g. fingerprint mismatch, missing native module).
+
+**Root cause:** expo-updates@55.0.20 `ErrorRecovery` pipeline is
+`[.waitForRemoteUpdate, .launchNew, .launchCached, .crash]`. `.launchEmbedded`
+is not in the pipeline. Once a cached OTA exists, recovery never falls back to
+the binary-shipped (embedded) bundle — it re-throws the original JS load error.
+
+### Immediate mitigation — publish a roll-back-to-embedded directive
+
+Run from a Mac with EAS CLI authenticated:
+
+```bash
+npx eas-cli update:roll-back-to-embedded \
+  --branch production \
+  --platform ios \
+  --runtime-version 1.0.0 \
+  --message "P0 ROLLBACK: ErrorRecovery loop 1.0.0.238"
+```
+
+This publishes a **directive** (not a new JS bundle) telling expo-updates to
+discard all cached OTAs and boot from the embedded bundle. It does NOT require
+a new native build.
+
+**Device recovery cadence:** Affected devices need 2–3 app reopens to receive
+the rollback directive. expo-updates checks for updates on each foreground, and
+the `ON_ERROR_RECOVERY` mechanism applies directives on the next launch after
+download. Reinstalling from TestFlight is a last resort — it is NOT required
+unless the device remains stuck after 5+ reopens.
+
+### Long-term fix — embedded fallback patch
+
+`patches/expo-updates+55.0.20.patch` (in this repo) adds an embedded-fallback
+step to `ErrorRecovery.crash()`: if the OTA database exists, it is wiped and
+`exit(0)` is called so the next launch uses the embedded bundle. If the DB is
+already absent (meaning embedded itself crashed), the patch falls through to the
+original SIGABRT so developers see a real crash report.
+
+The patch is applied automatically via `patch-package` on every `npm install`
+(the `postinstall` script runs `(patch-package || true)` first).
+
+### If the rollback directive does not reach affected users
+
+1. Ask testers to force-quit and reopen the app **3 times** (not just once).
+2. Check EAS dashboard that the directive was published to `production` branch
+   with `runtime-version 1.0.0`.
+3. If still stuck after 5 reopens → uninstall + reinstall from TestFlight
+   (this clears the corrupt OTA cache on-device).
+
+### Republish a known-good update after recovery
+
+Once the crash-loop population is cleared:
+
+```bash
+# Republish the last known-good update group (get the ID from EAS dashboard)
+npx eas-cli update:republish \
+  --group <known-good-update-group-id> \
+  --branch production \
+  --message "RESTORE: republish known-good after rollback"
+```
+
+Always follow the staged canary OTA protocol in CLAUDE.md before publishing
+any new update after a rollback event.

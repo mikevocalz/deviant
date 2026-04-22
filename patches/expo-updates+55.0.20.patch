@@ -1,0 +1,44 @@
+diff --git a/node_modules/expo-updates/ios/EXUpdates/ErrorRecovery.swift b/node_modules/expo-updates/ios/EXUpdates/ErrorRecovery.swift
+index 0000001..0000002 100644
+--- a/node_modules/expo-updates/ios/EXUpdates/ErrorRecovery.swift
++++ b/node_modules/expo-updates/ios/EXUpdates/ErrorRecovery.swift
+@@ -239,6 +239,39 @@ extension Array {
+   }
+
+   private func crash() {
++    // DVNT PATCH: Before re-throwing, attempt embedded-bundle fallback.
++    // If the OTA database (expo-v11.db) exists, delete the entire .expo-internal
++    // directory so the next launch finds no cached update and boots from the
++    // binary-shipped (embedded) bundle instead. Use exit(0) for a clean process
++    // exit — avoids the SIGABRT crash loop that bricks users on bad OTAs.
++    // Guard: if the DB is already absent, the embedded bundle itself is broken;
++    // fall through to the original re-throw so a real crash report is generated.
++    let updatesDocDir = UpdatesUtils.updatesApplicationDocumentsDirectory()
++    let updatesInternalDir = updatesDocDir.appendingPathComponent(".expo-internal")
++    let otaDbFile = updatesInternalDir.appendingPathComponent("expo-v11.db")
++    if FileManager.default.fileExists(atPath: otaDbFile.path) {
++      logger.error(cause: UpdatesError.errorRecoveryCrashing, code: .updateFailedToLoad)
++      let firstErr = encounteredErrors.first
++      if let exc = firstErr as? NSException {
++        logger.error(
++          cause: UpdatesError.errorRecoveryFatalException(
++            serializedError: "EmbeddedFallback triggered. OTA exception: \(exc.name.rawValue): \(exc.reason ?? "unknown")"
++          ),
++          code: .jsRuntimeError
++        )
++      } else if let err = firstErr as? NSError {
++        logger.error(
++          cause: UpdatesError.errorRecoveryFatalException(
++            serializedError: "EmbeddedFallback triggered. OTA error: \(err.localizedDescription)"
++          ),
++          code: .jsRuntimeError
++        )
++      }
++      try? FileManager.default.removeItem(at: updatesInternalDir)
++      exit(0)
++    }
++    // END DVNT PATCH
++
+     // create new exception object from stack of errors
+     // use the initial error and put the rest into userInfo
+     let initialError = encounteredErrors.first!

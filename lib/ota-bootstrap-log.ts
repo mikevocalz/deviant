@@ -45,12 +45,52 @@ function safeGet<T>(fn: () => T, fallback: T): T {
     console.log("[OTA-BOOT] createdAt:            ", createdAt);
     console.log("[OTA-BOOT] emergencyLaunchReason:", emergency ?? "(none)");
 
+    // P0 HARDENING: emergencyLaunchReason means expo-updates triggered its own
+    // error recovery and launched via the emergency path. Log prominently so it
+    // appears at the top of device logs regardless of log level filtering.
     if (emergency) {
-      console.error("[OTA-BOOT] ⚠️  EMERGENCY LAUNCH — reason:", emergency);
+      console.error("╔══════════════════════════════════════════════════╗");
+      console.error("║  [OTA-BOOT] ⚠️  EMERGENCY LAUNCH DETECTED        ║");
+      console.error("╚══════════════════════════════════════════════════╝");
+      console.error("[OTA-BOOT] EMERGENCY REASON:", emergency);
+      console.error("[OTA-BOOT] updateId at emergency launch:", updateId ?? "(embedded)");
+      console.error("[OTA-BOOT] isEmbeddedLaunch at emergency launch:", isEmbedded);
     }
+
     if (isEmbedded) {
       console.warn("[OTA-BOOT] Running embedded (binary) bundle — no OTA applied");
     }
+
+    // Read prior-session crash log written by ErrorRecovery.writeErrorOrExceptionToLog().
+    // This survives across launches (persisted to disk). If present it means the PREVIOUS
+    // launch triggered error recovery — log the reason so it's visible in this session's logs.
+    // readLogEntriesAsync is async, so fire-and-forget to keep the IIFE synchronous.
+    const readPromise: Promise<unknown> = safeGet(
+      () => Updates.readLogEntriesAsync?.(120_000) ?? Promise.resolve([]),
+      Promise.resolve([]),
+    );
+    readPromise.then((logEntries: unknown) => {
+      try {
+        if (!Array.isArray(logEntries) || logEntries.length === 0) return;
+        const recoveryEntries = logEntries.filter((e: { message?: string }) =>
+          e?.message?.includes("EmbeddedFallback") ||
+          e?.message?.includes("errorRecoveryCrashing") ||
+          e?.message?.includes("errorRecoveryFatalException")
+        );
+        if (recoveryEntries.length > 0) {
+          console.error("╔══════════════════════════════════════════════════╗");
+          console.error("║  [OTA-BOOT] ⚠️  PRIOR SESSION ERROR RECOVERY    ║");
+          console.error("╚══════════════════════════════════════════════════╝");
+          recoveryEntries.forEach((e: { message?: string; timestamp?: number }) => {
+            console.error("[OTA-BOOT] PRIOR CRASH LOG:", e?.message, "ts:", e?.timestamp);
+          });
+        }
+      } catch {
+        // non-fatal
+      }
+    }).catch(() => {
+      // readLogEntriesAsync not available in all builds — non-fatal
+    });
 
     console.log("[OTA-BOOT] ================================");
   } catch (e) {
