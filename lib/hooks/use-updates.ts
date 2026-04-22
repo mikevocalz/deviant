@@ -8,16 +8,16 @@
  * DEDUPLICATION: Uses persistent storage to track which update IDs have been
  * shown/dismissed to prevent toast spam across app restarts.
  *
- * OTA PROMPT: Uses OtaUpdateBanner (Zustand-controlled) — NOT sonner-native.
- * This eliminates the ghost/stale overlay bug where sonner toasts would linger
- * on-screen after "Update Later" was tapped.
+ * OTA PROMPT: Uses sonner-native toast with action/cancel buttons. Falls back
+ * to native Alert if the toast system throws.
  *
  * To test OTA in development builds: set EXPO_PUBLIC_FORCE_OTA_CHECK=true.
  * Publish updates with: eas update --channel production
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { AppState, type AppStateStatus, Platform } from "react-native";
+import { Alert, AppState, type AppStateStatus, Platform } from "react-native";
+import { toast } from "sonner-native";
 import { mmkv } from "@/lib/mmkv-zustand";
 import {
   useOtaUpdateStore,
@@ -55,20 +55,23 @@ function safeGet<T>(fn: () => T, fallback: T): T {
 }
 
 /**
- * showUpdateBanner — imperative (non-hook) helper.
+ * showUpdateToast — imperative (non-hook) helper.
  * Uses Zustand's getState() so it can be called from inside callbacks without
  * being a useCallback dependency or causing stale-closure issues.
  *
  * Guards:
  *  1. Phase must be "idle" — prevents duplicates within a session
  *  2. MMKV dismissed-ID check — prevents loops across cold restarts
+ *
+ * Uses sonner-native toast with action/cancel buttons. Falls back to Alert.
+ * MUST show "Update Later" (cancel) + "Restart App Now" (action) per CLAUDE.md.
  */
-function showUpdateBanner(updateId?: string | null) {
+function showUpdateToast(updateId?: string | null) {
   const store = useOtaUpdateStore.getState();
 
   // Guard 1: already shown or dismissed this session
   if (store.phase !== "idle") {
-    console.log("[Updates] Banner suppressed — phase:", store.phase);
+    console.log("[Updates] Toast suppressed — phase:", store.phase);
     return;
   }
 
@@ -82,7 +85,7 @@ function showUpdateBanner(updateId?: string | null) {
     );
     if (dismissedId === currentId) {
       console.log(
-        "[Updates] Banner suppressed — already dismissed ID:",
+        "[Updates] Toast suppressed — already dismissed ID:",
         currentId,
       );
       return;
@@ -90,8 +93,47 @@ function showUpdateBanner(updateId?: string | null) {
   }
 
   store.setUpdateId(currentId);
-  store.showBanner();
-  console.log("[Updates] Banner shown for ID:", currentId);
+  store.showBanner(); // marks phase "visible" for session dedup
+
+  const handleDismiss = () => {
+    store.dismiss(); // saves dismissedId to MMKV, sets phase "dismissed"
+    console.log("[Updates] User dismissed update toast");
+  };
+
+  const handleApply = () => {
+    store.apply(); // clears MMKV dismissed key, sets phase "applying"
+    safeGet(
+      () => Updates?.reloadAsync().catch((e) => console.warn("[Updates] reloadAsync failed:", e)),
+      undefined,
+    );
+  };
+
+  console.log("[Updates] Showing update toast for ID:", currentId);
+
+  try {
+    toast("Update Ready", {
+      description: "A new version has been downloaded and is ready to install.",
+      duration: Infinity,
+      cancel: {
+        label: "Update Later",
+        onClick: handleDismiss,
+      },
+      action: {
+        label: "Restart App Now",
+        onClick: handleApply,
+      },
+    });
+  } catch (toastErr) {
+    console.warn("[Updates] toast() failed, falling back to Alert:", toastErr);
+    Alert.alert(
+      "Update Ready",
+      "A new version has been downloaded and is ready to install.",
+      [
+        { text: "Update Later", style: "cancel", onPress: handleDismiss },
+        { text: "Restart App Now", style: "default", onPress: handleApply },
+      ],
+    );
+  }
 }
 
 export interface UpdateStatus {
@@ -199,7 +241,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           "[Updates] Update fetched, isNew: true, updateId:",
           newUpdateId,
         );
-        showUpdateBanner(newUpdateId);
+        showUpdateToast(newUpdateId);
       } else {
         console.log(
           "[Updates] Fetch complete, isNew:",
