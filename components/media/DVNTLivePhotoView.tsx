@@ -1,35 +1,35 @@
 /**
  * DVNTLivePhotoView
- * iOS: Renders a Live Photo using expo-live-photo.
+ * iOS: Tries the native expo-live-photo renderer first.
  *   - Waits for `onLoadComplete` then calls startPlayback('full') so we
- *     don't fire playback before the paired video has finished loading
- *     (would silently no-op).
+ *     don't fire playback before the paired video has loaded.
  *   - Re-drives playback from the `isPlaying` prop for viewport-aware
  *     playback in feed/grid.
- *   - On native load error, falls back to the still image.
- * Android / Web: Falls back to the still image via expo-image.
+ *   - If the native view fires `onLoadError` (e.g. historical posts whose
+ *     Apple pairing metadata was stripped by the old upload pipeline),
+ *     falls back to a muted looping mp4 so the post still animates —
+ *     not as pretty as a real Live Photo, but much better than a dead
+ *     still image.
+ *   - Final fallback if no paired video URL exists → still image.
+ * Android / Web: Still image via expo-image.
  *
- * expo-live-photo requires a native build. The component degrades
- * gracefully if the module has not been compiled into the current binary.
+ * expo-live-photo requires a native build. The whole tree degrades
+ * gracefully if the module isn't compiled into the current binary.
  *
- * HISTORICAL BUGS (fixed):
- *   1. `mod.isAvailable` was read off the module root — but expo-live-photo
- *      exposes `isAvailable()` as a *static on the LivePhotoView component*.
- *      The old code always resolved to `undefined` → canRenderLivePhoto was
- *      always false → we silently rendered the still image every time.
- *   2. The `source` prop was `{ photoUri, videoUri }` — but the native
- *      asset type is `{ photoUri, pairedVideoUri }`. Unknown keys are
- *      ignored, so the native view loaded with no video and could never
- *      play.
- *   3. Upload pipeline was running the still through image-manipulator
- *      (compress + resize + re-encode to JPEG), which strips the Live
- *      Photo pairing metadata Apple's PHLivePhoto requires. Fixed in
- *      lib/hooks/use-media-upload.ts (upload original still unaltered).
+ * Historical bugs (fixed — see commit history):
+ *   1. `mod.isAvailable` read off module root (it's a static on the
+ *      LivePhotoView component); silently rendered still image every time.
+ *   2. `source: { videoUri }` prop (native shape is `pairedVideoUri`);
+ *      Live Photo loaded with no video and could not play.
+ *   3. Upload pipeline re-encoded the still via image-manipulator,
+ *      stripping the Apple pairing metadata PHLivePhoto requires.
+ *      Fixed in lib/hooks/use-media-upload.ts.
  */
 import { View, ViewStyle, Platform } from "react-native";
 import { Image } from "expo-image";
 import type { ImageStyle } from "expo-image";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
+import { DVNTAnimatedVideoView } from "./DVNTAnimatedVideoView";
 
 interface DVNTLivePhotoViewProps {
   photoUri: string;
@@ -69,6 +69,11 @@ if (Platform.OS === "ios") {
   }
 }
 
+// Module-scoped set of photo URIs that have previously failed to load as
+// native Live Photos. Once we know a pair is broken (metadata stripped),
+// there's no point retrying on remount — we go straight to the mp4 fallback.
+const brokenPairingCache = new Set<string>();
+
 export function DVNTLivePhotoView({
   photoUri,
   videoUri,
@@ -81,21 +86,27 @@ export function DVNTLivePhotoView({
 }: DVNTLivePhotoViewProps) {
   const viewRef = useRef<any>(null);
   const isLoadedRef = useRef(false);
-  const didFallbackRef = useRef(false);
+  const fellBackRef = useRef(brokenPairingCache.has(photoUri));
+  // Dedicated render-nudge — flipping a ref alone doesn't re-render.
+  // useReducer here (not useState) per the project's state-policy
+  // preference; this is component-local transient state only.
+  const [, bumpRender] = useReducer((x: number) => x + 1, 0);
 
   const hasPairedVideo =
     typeof videoUri === "string" && videoUri.startsWith("http");
 
-  const canRenderLivePhoto =
+  const nativeAvailable =
     Platform.OS === "ios" &&
     LivePhotoView !== null &&
     hasPairedVideo &&
-    (livePhotoIsAvailable?.() ?? false) &&
-    !didFallbackRef.current;
+    (livePhotoIsAvailable?.() ?? false);
 
-  // Start playback only once the native view has finished loading both the
-  // photo and the paired video. Calling startPlayback before the video is
-  // ready silently no-ops, which is what made "autoplay" look broken.
+  const canRenderNativeLivePhoto = nativeAvailable && !fellBackRef.current;
+
+  // Start playback only once the native view has finished loading both
+  // the photo and the paired video. Calling startPlayback before the
+  // video is ready silently no-ops — that's what made autoplay look
+  // broken in earlier builds.
   const startIfReady = useCallback(() => {
     if (!viewRef.current || !isLoadedRef.current) return;
     try {
@@ -113,37 +124,34 @@ export function DVNTLivePhotoView({
   }, [startIfReady]);
 
   const handleLoadError = useCallback(() => {
-    // PHLivePhoto failed to pair photo + video (metadata stripped,
-    // network issue, unsupported format, etc.). Flip the ref so the
-    // next render falls back to the still image.
-    didFallbackRef.current = true;
+    // PHLivePhoto couldn't pair photo + video (metadata stripped,
+    // unsupported format, network hiccup, …). Remember this photo URI
+    // so we skip native on remount, and re-render into the mp4 fallback
+    // right now.
+    brokenPairingCache.add(photoUri);
+    fellBackRef.current = true;
     isLoadedRef.current = false;
-    // Force a re-render via a no-op state change would normally use
-    // useState, but per project policy we lean on imperative ref flipping
-    // plus re-eval. Since we only need to fall back (not retry), letting
-    // the parent re-render on isPlaying / source change is acceptable.
-  }, []);
+    bumpRender();
+  }, [photoUri]);
 
   // Re-drive playback when `isPlaying` flips (viewport-aware control).
   useEffect(() => {
     startIfReady();
   }, [startIfReady]);
 
-  if (canRenderLivePhoto && LivePhotoView) {
+  if (canRenderNativeLivePhoto && LivePhotoView) {
     return (
       <View style={[{ width, height } as ViewStyle, style]}>
         <LivePhotoView
           ref={viewRef}
-          // Native asset shape is { photoUri, pairedVideoUri } — NOT
-          // `videoUri`. The old prop name was silently ignored by the
-          // native view, so the Live Photo loaded with no video and
-          // could not play.
+          // Native asset shape is { photoUri, pairedVideoUri }. The old
+          // `videoUri` prop name was silently ignored by the native view.
           source={{ photoUri, pairedVideoUri: videoUri }}
           style={{ width: "100%", height: "100%" }}
           contentFit={contentFit}
           isMuted={true}
           // Keep Apple's default tap-and-hold gesture so the user can
-          // replay manually after our auto-startPlayback finishes.
+          // replay manually after the auto-startPlayback finishes.
           useDefaultGestureRecognizer={true}
           onLoadComplete={handleLoadComplete}
           onLoadError={handleLoadError}
@@ -153,6 +161,26 @@ export function DVNTLivePhotoView({
     );
   }
 
+  // Graceful fallback for historical Live Photos whose stills lost their
+  // Apple pairing metadata during upload: play the paired mp4 as a muted
+  // loop. Motion still renders; users just don't get the tap-and-hold
+  // still⇄live transition.
+  if (hasPairedVideo && videoUri) {
+    return (
+      <View style={[{ width, height } as ViewStyle, style]}>
+        <DVNTAnimatedVideoView
+          uri={videoUri}
+          width="100%"
+          height="100%"
+          contentFit={contentFit}
+          accessibilityLabel={accessibilityLabel}
+          isPlaying={isPlaying}
+        />
+      </View>
+    );
+  }
+
+  // No paired video at all — still image only.
   return (
     <View style={[{ width, height } as ViewStyle, style]}>
       <Image
