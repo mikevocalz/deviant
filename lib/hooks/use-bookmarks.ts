@@ -36,6 +36,28 @@ export function useBookmarks() {
 }
 
 /**
+ * Fetch bookmarked posts ALREADY HYDRATED in a single round trip.
+ *
+ * Use this for the profile "Saved" tab in place of the
+ * `useBookmarks()` → `usePostsByIds(ids)` pair, which needed two
+ * sequential round trips (IDs, then N parallel post fetches). This
+ * hook hits a single edge-function call that JOINs posts + author +
+ * media server-side and returns fully-shaped Post[] objects.
+ */
+export function useBookmarkedPosts() {
+  const user = useAuthStore((s) => s.user);
+  const viewerId = user?.id;
+
+  return useQuery({
+    queryKey: [...bookmarkKeys.all, "posts", viewerId || "__no_user__"] as const,
+    queryFn: () => bookmarksApi.getBookmarkedPosts(),
+    staleTime: STALE_TIMES.bookmarks,
+    gcTime: GC_TIMES.standard,
+    enabled: !!viewerId,
+  });
+}
+
+/**
  * INSTANT Bookmark Toggle Mutation with Optimistic Updates
  *
  * FEATURES:

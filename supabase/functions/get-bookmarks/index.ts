@@ -1,6 +1,17 @@
 /**
  * Edge Function: get-bookmarks
- * Fetch current user's bookmarked post IDs. Uses service role. Auth required.
+ *
+ * Fetch the current user's bookmarked posts. Uses service role (bypasses RLS).
+ * Auth required — validates the Better Auth session token.
+ *
+ * Request body:
+ *   {}                         — default: returns just { postIds: string[] }
+ *   { withPosts: true }        — returns { postIds, posts } where posts is
+ *                                 an array of hydrated post rows ready to
+ *                                 feed into transformPost() on the client.
+ *                                 Used by the profile "Saved" tab to avoid
+ *                                 the 1 + N waterfall (get IDs, then N
+ *                                 parallel getPostById calls).
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -31,6 +42,16 @@ Deno.serve(async (req) => {
       });
     }
     const token = authHeader.replace("Bearer ", "");
+
+    // Parse optional request body — { withPosts?: boolean }
+    let body: { withPosts?: boolean } = {};
+    try {
+      const text = await req.text();
+      if (text) body = JSON.parse(text);
+    } catch {
+      // Empty or invalid body is fine — default to postIds only
+    }
+    const withPosts = body.withPosts === true;
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -81,10 +102,70 @@ Deno.serve(async (req) => {
     }
 
     const postIds = (data || []).map((b: any) => String(b.post_id));
-    return new Response(JSON.stringify({ postIds }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+
+    if (!withPosts || postIds.length === 0) {
+      return new Response(JSON.stringify({ postIds, posts: [] }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Hydrate posts in one query — join author + media so the client
+    // can run transformPost() with no extra round trips.
+    const numericPostIds = postIds
+      .map((id) => Number(id))
+      .filter((n) => Number.isFinite(n));
+
+    const { data: posts, error: postsError } = await supabaseAdmin
+      .from("posts")
+      .select(
+        `
+        *,
+        author:users!posts_author_id_users_id_fk(
+          id,
+          username,
+          first_name,
+          verified,
+          avatar:avatar_id(url)
+        ),
+        media:posts_media(
+          type,
+          url,
+          _order,
+          mime_type,
+          live_photo_video_url
+        )
+      `,
+      )
+      .in("id", numericPostIds);
+
+    if (postsError) {
+      console.error("[Edge:get-bookmarks] posts join error:", postsError);
+      // Fall back to postIds-only so the client can still waterfall if needed
+      return new Response(JSON.stringify({ postIds, posts: [] }), {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Preserve bookmark creation order (DESC by bookmark.created_at)
+    const orderIndex = new Map<string, number>();
+    postIds.forEach((id, idx) => orderIndex.set(String(id), idx));
+    const orderedPosts = (posts || [])
+      .slice()
+      .sort((a: any, b: any) => {
+        const ai = orderIndex.get(String(a.id)) ?? Number.MAX_SAFE_INTEGER;
+        const bi = orderIndex.get(String(b.id)) ?? Number.MAX_SAFE_INTEGER;
+        return ai - bi;
+      });
+
+    return new Response(
+      JSON.stringify({ postIds, posts: orderedPosts }),
+      {
+        status: 200,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   } catch (err) {
     console.error("[Edge:get-bookmarks] Unexpected error:", err);
     return new Response(
