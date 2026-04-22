@@ -204,6 +204,13 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     label: "Ticket Purchase Success",
   },
   {
+    urlPattern: "/tickets/guest/:token",
+    routerPath: "/(public)/tickets/guest/:token",
+    auth: "public",
+    paramsSchema: tokenSchema,
+    label: "Guest Ticket (email magic link)",
+  },
+  {
     urlPattern: "/tickets/cancel",
     routerPath: "/(protected)/(tabs)/events",
     auth: "auth-required",
