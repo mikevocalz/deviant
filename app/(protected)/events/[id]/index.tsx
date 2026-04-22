@@ -322,16 +322,23 @@ function EventDetailScreenContent() {
     }
   }, [eventId, offlineCheckin, showToast]);
 
-  // FIX: Replace useState with Zustand to comply with project mandate
-  const {
-    selectedTier,
-    setSelectedTier,
-    showRatingModal,
-    setShowRatingModal,
-    isLiked,
-    setIsLiked,
-    resetEventDetailScreen,
-  } = useEventDetailScreenStore();
+  // Selector-per-field. Destructuring the whole store subscribed the
+  // entire event-detail screen to every field change — opening the rating
+  // modal, tapping like, or picking a tier each forced a full-screen
+  // re-render, which is why the screen felt laggy during checkout.
+  const selectedTier = useEventDetailScreenStore((s) => s.selectedTier);
+  const setSelectedTier = useEventDetailScreenStore((s) => s.setSelectedTier);
+  const showRatingModal = useEventDetailScreenStore(
+    (s) => s.showRatingModal,
+  );
+  const setShowRatingModal = useEventDetailScreenStore(
+    (s) => s.setShowRatingModal,
+  );
+  const isLiked = useEventDetailScreenStore((s) => s.isLiked);
+  const setIsLiked = useEventDetailScreenStore((s) => s.setIsLiked);
+  const resetEventDetailScreen = useEventDetailScreenStore(
+    (s) => s.resetEventDetailScreen,
+  );
 
   // ── Ticket upgrade state ──────────────────────────────────────────────
   const [upgradeSheetOption, setUpgradeSheetOption] = useState<UpgradeTierOption | null>(null);
@@ -619,9 +626,14 @@ function EventDetailScreenContent() {
     );
   }, [eventId, isWaitlistBusy, leaveWaitlistMutation, showToast, waitlistTierId]);
 
-  // FIX: Replace useState with Zustand
-  const { isCheckingOut, setIsCheckingOut, promoCode, setPromoCode } =
-    useEventDetailScreenStore();
+  // Selector-per-field — typing a promo code should NOT re-render the
+  // whole event detail screen on every keystroke.
+  const isCheckingOut = useEventDetailScreenStore((s) => s.isCheckingOut);
+  const setIsCheckingOut = useEventDetailScreenStore(
+    (s) => s.setIsCheckingOut,
+  );
+  const promoCode = useEventDetailScreenStore((s) => s.promoCode);
+  const setPromoCode = useEventDetailScreenStore((s) => s.setPromoCode);
 
   // FIX: Cleanup effect - reset all screen state on unmount
   useEffect(() => {

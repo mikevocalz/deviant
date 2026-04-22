@@ -207,19 +207,26 @@ function FeedPostComponent({
   const tagProgress = useSharedValue(0);
 
   // Feed post UI store (replaces all useState)
-  const {
-    setPressedPost,
-    setLikeAnimating,
-    setVideoState,
-    getVideoState,
-    activePostId,
-    isMuted,
-    toggleMute,
-    setActionSheetPostId,
-    setShareSheetPostId,
-  } = useFeedPostUIStore();
+  // Selector-per-field: FeedPost renders once per post in the feed FlatList.
+  // The previous destructure subscribed each row to the entire store, so
+  // any post opening an action sheet would re-render every other post.
+  // Selectors scope re-renders to the exact field each row cares about.
+  const setPressedPost = useFeedPostUIStore((s) => s.setPressedPost);
+  const setLikeAnimating = useFeedPostUIStore((s) => s.setLikeAnimating);
+  const setVideoState = useFeedPostUIStore((s) => s.setVideoState);
+  const getVideoState = useFeedPostUIStore((s) => s.getVideoState);
+  // Derived boolean — each row only re-renders when its OWN activeness
+  // flips, not on every scroll event that changes the active post anywhere.
+  const isActivePost = useFeedPostUIStore((s) => s.activePostId === id);
+  const isMuted = useFeedPostUIStore((s) => s.isMuted);
+  const toggleMute = useFeedPostUIStore((s) => s.toggleMute);
+  const setActionSheetPostId = useFeedPostUIStore(
+    (s) => s.setActionSheetPostId,
+  );
+  const setShareSheetPostId = useFeedPostUIStore(
+    (s) => s.setShareSheetPostId,
+  );
 
-  const isActivePost = activePostId === id;
   const videoState = getVideoState(id);
   const videoCurrentTime = videoState.currentTime;
   const videoDuration = videoState.duration;

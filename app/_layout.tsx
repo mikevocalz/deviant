@@ -116,13 +116,19 @@ export default function RootLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hasSeenOnboarding = useAuthStore((s) => s.hasSeenOnboarding);
   const userId = useAuthStore((s) => s.user?.id);
-  const {
-    appReady,
-    splashAnimationFinished,
-    setAppReady,
-    onAnimationFinish,
-    setSplashAnimationFinished,
-  } = useAppStore();
+  // Root-layout wraps the whole app. Destructuring the store here
+  // re-rendered every descendant whenever ANY app-store field updated
+  // (pendingShareIntentRoute, nsfwEnabled, feedMode…). Narrow selectors
+  // scope re-renders to this one layout.
+  const appReady = useAppStore((s) => s.appReady);
+  const splashAnimationFinished = useAppStore(
+    (s) => s.splashAnimationFinished,
+  );
+  const setAppReady = useAppStore((s) => s.setAppReady);
+  const onAnimationFinish = useAppStore((s) => s.onAnimationFinish);
+  const setSplashAnimationFinished = useAppStore(
+    (s) => s.setSplashAnimationFinished,
+  );
   const insets = useSafeAreaInsets();
   const [shareIntentReady, setShareIntentReady] = useState(false);
   const openedFromShareIntent = useDeepLinkStore(

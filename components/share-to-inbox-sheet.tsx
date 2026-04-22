@@ -1,10 +1,4 @@
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   View,
   Text,
@@ -21,10 +15,11 @@ import BottomSheet, {
 import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import { X, Send, Search } from "lucide-react-native";
 import { Avatar } from "@/components/ui/avatar";
-import { messagesApiClient } from "@/lib/api/messages";
 import { useChatStore, type SharedPostContext } from "@/lib/stores/chat-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useColorScheme } from "@/lib/hooks";
+import { useConversations } from "@/lib/hooks/use-messages";
+import { useShareSheetStore } from "@/lib/stores/share-sheet-store";
 import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import type { Conversation } from "@/lib/api/messages";
 
@@ -49,34 +44,48 @@ export function ShareToInboxSheet({
   const { colors } = useColorScheme();
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["60%"], []);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [sendingTo, setSendingTo] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
+
+  // Conversations live in React Query — already prefetched at app boot
+  // (see lib/hooks/use-boot-prefetch.ts) so the sheet opens with cached
+  // data on the very first open. No more spinner-on-open.
+  const {
+    data: conversations = [],
+    isPending: isLoadingInitial,
+  } = useConversations();
+  // Only show the spinner when there is NO cached data at all. If we have
+  // any cached list from the boot prefetch, render it immediately and let
+  // React Query silently refresh in the background.
+  const isLoading = isLoadingInitial && conversations.length === 0;
+
+  // Transient view state — Zustand (project policy) scoped to this sheet.
+  const searchQuery = useShareSheetStore((s) => s.searchQuery);
+  const setSearchQuery = useShareSheetStore((s) => s.setSearchQuery);
+  const sendingTo = useShareSheetStore((s) => s.sendingTo);
+  const setSendingTo = useShareSheetStore((s) => s.setSendingTo);
+  const resetShareSheet = useShareSheetStore((s) => s.reset);
+
   const sendSharedPost = useChatStore((s) => s.sendSharedPost);
   const showToast = useUIStore((s) => s.showToast);
 
+  // Drive the native sheet open/close from `visible`. Reset transient
+  // view state only on CLOSE — never on open, so cached search text isn't
+  // wiped between opens of the same share action.
   useEffect(() => {
     if (visible) {
       bottomSheetRef.current?.snapToIndex(0);
-      setIsLoading(true);
-      messagesApiClient
-        .getConversations()
-        .then(setConversations)
-        .catch(() => setConversations([]))
-        .finally(() => setIsLoading(false));
     } else {
       bottomSheetRef.current?.close();
-      setSearchQuery("");
-      setSendingTo(null);
+      resetShareSheet();
     }
-  }, [visible]);
+  }, [visible, resetShareSheet]);
 
-  const filtered = searchQuery
-    ? conversations.filter((c) =>
-        c.user.username.toLowerCase().includes(searchQuery.toLowerCase()),
-      )
-    : conversations;
+  const filtered = useMemo(() => {
+    if (!searchQuery) return conversations;
+    const q = searchQuery.toLowerCase();
+    return conversations.filter((c) =>
+      c.user.username.toLowerCase().includes(q),
+    );
+  }, [conversations, searchQuery]);
 
   const handleSend = useCallback(
     async (conversation: Conversation) => {

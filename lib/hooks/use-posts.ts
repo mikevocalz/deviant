@@ -140,7 +140,20 @@ export function useProfilePosts(userId: string) {
 }
 
 // Fetch single post by ID
-// CRITICAL: This is the canonical query for Post Detail - always ID-driven
+// CRITICAL: This is the canonical query for Post Detail - always ID-driven.
+// Stability contract:
+// - `placeholderData` returns previousData when available (keepPreviousData
+//   semantics) so a background refetch never drops the post object back to
+//   undefined — the detail screen keeps rendering the old tree while the
+//   fresh fetch is in flight.
+// - On initial mount (no previousData), we hydrate from any cached snapshot
+//   in the feed / profile / infinite-feed caches so the detail opens
+//   instantly instead of showing a skeleton.
+// - React Query v5's structural sharing already keeps the same object
+//   reference across refetches when the response is deep-equal, so the
+//   media subtree in post detail does NOT rebuild on no-op refetches.
+//   (The post detail screen also memoizes `stableMedia` by URL signature
+//   as a second line of defense for the GIF-flicker case.)
 export function usePost(id: string) {
   const queryClient = useQueryClient();
 
@@ -162,7 +175,8 @@ export function usePost(id: string) {
       return failureCount < 2;
     },
     placeholderData: isValidPostId(id)
-      ? () => findCachedPostSnapshot(queryClient, id)
+      ? (previousData) =>
+          previousData ?? findCachedPostSnapshot(queryClient, id)
       : undefined,
     staleTime: STALE_TIMES.postDetail,
   });

@@ -2256,15 +2256,22 @@ function RoomLayout({
           />
         ) : null}
 
-        {isChatOpen && (
-          <ChatSheet
-            isOpen={isChatOpen}
-            onClose={onCloseChat}
-            roomId={roomId}
-            currentUser={localUser}
-            participants={allParticipants.map((p) => p.user)}
-          />
-        )}
+        {/*
+          ChatSheet is mounted unconditionally so it can fetch + subscribe
+          to room comments on room entry — by the time the user opens the
+          chat, the comments are already warm. Gating the mount on
+          `isChatOpen` meant the user saw a spinner on every open because
+          the fetch effect only ran then.
+          The sheet itself drives its own snap-to / close based on the
+          `isOpen` prop.
+        */}
+        <ChatSheet
+          isOpen={isChatOpen}
+          onClose={onCloseChat}
+          roomId={roomId}
+          currentUser={localUser}
+          participants={allParticipants.map((p) => p.user)}
+        />
       </View>
     </View>
   );

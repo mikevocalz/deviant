@@ -431,9 +431,11 @@ function ProfileScreenContent() {
 
   const bookmarkedPosts =
     safeBookmarkedPostIds.length > 0 ? safeBookmarkedPostIds : storeBookmarks;
-  const { loadingScreens, setScreenLoading } = useUIStore();
-  // user is already declared above with setUser
-  const isLoading = loadingScreens.profile;
+  // Narrow selectors — destructuring the whole store subscribed the
+  // profile screen to every loading flag in the app; the profile would
+  // re-render on unrelated screen loads (events, search, …).
+  const isLoading = useUIStore((s) => s.loadingScreens.profile);
+  const setScreenLoading = useUIStore((s) => s.setScreenLoading);
 
   // PHASE 1 INSTRUMENTATION: Log user state
   console.log("[Profile] User:", {
