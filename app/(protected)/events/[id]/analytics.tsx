@@ -25,12 +25,17 @@ import {
   TrendingUp,
   Tag,
   AlertCircle,
+  Download,
 } from "lucide-react-native";
+import * as Sharing from "expo-sharing";
+import * as FileSystem from "expo-file-system/legacy";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ScreenSkeleton } from "@/components/ui/screen-skeleton";
 import { useColorScheme } from "@/lib/hooks";
+import { useUIStore } from "@/lib/stores/ui-store";
 import {
   eventAnalyticsApi,
+  attendeesToCsv,
   type EventAnalyticsSummary,
 } from "@/lib/api/event-analytics";
 
@@ -113,6 +118,7 @@ function EventAnalyticsContent() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const { colors } = useColorScheme();
+  const showToast = useUIStore((s) => s.showToast);
   const eventId = Array.isArray(id) ? (id[0] ?? "") : (id ?? "");
 
   const { data, isLoading, isError, refetch, isRefetching } =
@@ -123,9 +129,64 @@ function EventAnalyticsContent() {
       staleTime: 30 * 1000,
     });
 
+  const [isExporting, setIsExporting] = React.useState(false);
+
   const handleRefresh = useCallback(() => {
     refetch();
   }, [refetch]);
+
+  const handleExportAttendees = useCallback(async () => {
+    if (!eventId || isExporting) return;
+    setIsExporting(true);
+    try {
+      const result = await eventAnalyticsApi.getAttendees(eventId);
+      if (!result || result.attendees.length === 0) {
+        showToast(
+          "info",
+          "No attendees yet",
+          "Once tickets are sold, you can export the list here.",
+        );
+        return;
+      }
+      const csv = attendeesToCsv(result.attendees);
+      const safeTitle = (result.title || "event")
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "")
+        .slice(0, 40);
+      const filename = `${safeTitle || "event"}-attendees-${eventId}.csv`;
+      const fileUri = `${FileSystem.cacheDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(fileUri, csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        showToast(
+          "error",
+          "Export failed",
+          "Sharing isn't available on this device.",
+        );
+        return;
+      }
+      await Sharing.shareAsync(fileUri, {
+        mimeType: "text/csv",
+        dialogTitle: "Export Attendees",
+        UTI: "public.comma-separated-values-text",
+      });
+    } catch (err: any) {
+      const msg = err?.message || "";
+      if (msg.includes("cancel") || msg.includes("dismiss")) return;
+      console.error("[EventAnalytics] export error:", err);
+      showToast(
+        "error",
+        "Export failed",
+        "Couldn't generate the attendee CSV. Try again.",
+      );
+    } finally {
+      setIsExporting(false);
+    }
+  }, [eventId, isExporting, showToast]);
 
   if (isLoading && !data) {
     return <ScreenSkeleton variant="detail" rows={6} />;
@@ -202,7 +263,15 @@ function EventAnalyticsContent() {
         >
           {data.title || "Analytics"}
         </Text>
-        <View style={{ width: 24 }} />
+        <Pressable
+          onPress={handleExportAttendees}
+          disabled={isExporting}
+          hitSlop={12}
+          style={{ opacity: isExporting ? 0.4 : 1 }}
+          accessibilityLabel="Export attendees as CSV"
+        >
+          <Download size={22} color={colors.foreground} />
+        </Pressable>
       </View>
 
       <ScrollView

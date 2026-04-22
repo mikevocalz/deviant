@@ -2,16 +2,21 @@
  * Event Analytics Edge Function
  *
  * POST /event-analytics
- * Body: { event_id: string | number }
+ * Body:
+ *   { event_id }                              → analytics summary
+ *   { event_id, action: "attendees" }         → flat attendee list for CSV
  *
- * Returns a summary of a single event for its organizer:
+ * Both actions are host-only (events.host_id === authId).
+ *
+ * The summary action returns:
  *   - revenue       : gross / dvnt fee / stripe fee / net cents (from event_financials)
  *   - tickets       : total, active, checked_in, refunded, void, transfer_pending
  *   - tiers         : per-tier sold/remaining/revenue
  *   - promoCodes    : code usage stats (top 5 by uses)
  *
- * Access control:
- *   Only the event host (events.host_id === authId) can read analytics.
+ * The attendees action returns one row per ticket with denormalized buyer
+ * info (username, email, name, tier, status, purchase amount, check-in
+ * timestamp). Designed to be CSV-serialized client-side and shared.
  *
  * This function intentionally does NOT hit Stripe — all numbers come from
  * Supabase tables that are already maintained by webhooks + triggers, so
@@ -42,7 +47,7 @@ Deno.serve(async (req: Request) => {
     const authId = await verifySession(supabase, req);
     if (!authId) return errorResponse("Unauthorized", 401);
 
-    let body: { event_id?: string | number } = {};
+    let body: { event_id?: string | number; action?: string } = {};
     try {
       body = await req.json();
     } catch {
@@ -53,6 +58,8 @@ Deno.serve(async (req: Request) => {
     if (!Number.isFinite(eventIdNum) || eventIdNum <= 0) {
       return errorResponse("event_id required", 400);
     }
+
+    const action = (body.action || "summary").toString();
 
     // Host check — only the event owner can see analytics
     const { data: event, error: eventErr } = await supabase
@@ -69,6 +76,100 @@ Deno.serve(async (req: Request) => {
     if (String(event.host_id) !== String(authId)) {
       return errorResponse("Not your event", 403);
     }
+
+    // ── action: attendees ────────────────────────────────────
+    // Returns the flat attendee list for CSV export. Joined with the
+    // user + ticket_type tables so the host gets human-readable rows
+    // without an N+1 client-side merge.
+    if (action === "attendees") {
+      const { data: attendeeRows, error: attendeeErr } = await supabase
+        .from("tickets")
+        .select(
+          `
+          id,
+          status,
+          purchase_amount_cents,
+          checked_in_at,
+          created_at,
+          guest_email,
+          ticket_type:ticket_types(name, price_cents),
+          buyer:users!tickets_user_id_fkey(username, email, first_name, last_name)
+        `,
+        )
+        .eq("event_id", eventIdNum)
+        .order("created_at", { ascending: true });
+
+      if (attendeeErr) {
+        // Fall back to a narrower select if the join shape is missing
+        // (e.g. older databases where the FK alias is named differently).
+        console.warn(
+          "[event-analytics] attendees join failed, retrying narrow select:",
+          attendeeErr,
+        );
+        const { data: narrow, error: narrowErr } = await supabase
+          .from("tickets")
+          .select(
+            "id, user_id, status, purchase_amount_cents, checked_in_at, created_at, ticket_type_id, guest_email",
+          )
+          .eq("event_id", eventIdNum)
+          .order("created_at", { ascending: true });
+        if (narrowErr) {
+          return errorResponse(
+            "Could not fetch attendees: " + narrowErr.message,
+            500,
+          );
+        }
+        return jsonResponse({
+          ok: true,
+          eventId: String(eventIdNum),
+          title: event.title || "",
+          attendees: (narrow || []).map((t: any) => ({
+            ticketId: String(t.id),
+            buyerUsername: null,
+            buyerEmail: t.guest_email ?? null,
+            buyerName: null,
+            tierName: null,
+            tierPriceCents: null,
+            status: t.status,
+            purchaseAmountCents: Number(t.purchase_amount_cents || 0),
+            checkedInAt: t.checked_in_at ?? null,
+            createdAt: t.created_at,
+          })),
+        });
+      }
+
+      const attendees = (attendeeRows || []).map((t: any) => {
+        const buyer = Array.isArray(t.buyer) ? t.buyer[0] : t.buyer;
+        const tier = Array.isArray(t.ticket_type)
+          ? t.ticket_type[0]
+          : t.ticket_type;
+        const fullName =
+          buyer?.first_name && buyer?.last_name
+            ? `${buyer.first_name} ${buyer.last_name}`
+            : (buyer?.first_name ?? buyer?.last_name ?? null);
+        return {
+          ticketId: String(t.id),
+          buyerUsername: buyer?.username ?? null,
+          buyerEmail: buyer?.email ?? t.guest_email ?? null,
+          buyerName: fullName,
+          tierName: tier?.name ?? null,
+          tierPriceCents: tier?.price_cents == null ? null : Number(tier.price_cents),
+          status: t.status,
+          purchaseAmountCents: Number(t.purchase_amount_cents || 0),
+          checkedInAt: t.checked_in_at ?? null,
+          createdAt: t.created_at,
+        };
+      });
+
+      return jsonResponse({
+        ok: true,
+        eventId: String(eventIdNum),
+        title: event.title || "",
+        attendees,
+      });
+    }
+
+    // ── default action: summary ─────────────────────────────
 
     // ── 1. Revenue — event_financials is maintained by the webhook ──
     const { data: financials } = await supabase

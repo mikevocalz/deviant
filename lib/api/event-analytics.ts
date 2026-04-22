@@ -56,6 +56,25 @@ export interface EventAnalyticsSummary {
   promoCodes: EventPromoCodeAnalytics[];
 }
 
+export interface EventAttendeeRow {
+  ticketId: string;
+  buyerUsername: string | null;
+  buyerEmail: string | null;
+  buyerName: string | null;
+  tierName: string | null;
+  tierPriceCents: number | null;
+  status: string;
+  purchaseAmountCents: number;
+  checkedInAt: string | null;
+  createdAt: string;
+}
+
+export interface EventAttendeesResponse {
+  eventId: string;
+  title: string;
+  attendees: EventAttendeeRow[];
+}
+
 export const eventAnalyticsApi = {
   async getSummary(eventId: string | number): Promise<EventAnalyticsSummary | null> {
     try {
@@ -88,4 +107,90 @@ export const eventAnalyticsApi = {
       return null;
     }
   },
+
+  async getAttendees(
+    eventId: string | number,
+  ): Promise<EventAttendeesResponse | null> {
+    try {
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke<
+        | ({ ok: true } & EventAttendeesResponse)
+        | { ok: false; error?: string }
+      >("event-analytics", {
+        body: { event_id: eventId, action: "attendees" },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "x-auth-token": token,
+        },
+      });
+
+      if (error) {
+        console.error("[EventAnalytics] attendees edge error:", error);
+        return null;
+      }
+      if (!data || data.ok !== true) {
+        if (data && "error" in data && data.error) {
+          console.error("[EventAnalytics] attendees error:", data.error);
+        }
+        return null;
+      }
+      const { ok: _ok, ...rest } = data;
+      return rest;
+    } catch (err) {
+      console.error("[EventAnalytics] getAttendees error:", err);
+      return null;
+    }
+  },
 };
+
+/**
+ * Convert an attendees response into a CSV string. Handles values that
+ * contain commas, quotes, and newlines per RFC 4180 (quote-wrap and
+ * double-up internal quotes).
+ */
+export function attendeesToCsv(rows: EventAttendeeRow[]): string {
+  const headers = [
+    "Ticket ID",
+    "Username",
+    "Email",
+    "Name",
+    "Tier",
+    "Tier Price",
+    "Status",
+    "Paid",
+    "Checked In At",
+    "Purchased At",
+  ];
+
+  const escape = (v: unknown): string => {
+    if (v == null) return "";
+    const s = String(v);
+    if (s.includes(",") || s.includes("\"") || s.includes("\n") || s.includes("\r")) {
+      return `"${s.replace(/"/g, '""')}"`;
+    }
+    return s;
+  };
+  const money = (cents: number | null): string =>
+    cents == null ? "" : `$${(cents / 100).toFixed(2)}`;
+
+  const lines = [headers.join(",")];
+  for (const r of rows) {
+    lines.push(
+      [
+        r.ticketId,
+        r.buyerUsername ?? "",
+        r.buyerEmail ?? "",
+        r.buyerName ?? "",
+        r.tierName ?? "",
+        money(r.tierPriceCents),
+        r.status,
+        money(r.purchaseAmountCents),
+        r.checkedInAt ?? "",
+        r.createdAt,
+      ]
+        .map(escape)
+        .join(","),
+    );
+  }
+  return lines.join("\n");
+}
