@@ -30,6 +30,7 @@ import {
   WifiOff,
   CloudUpload,
   Tag,
+  BarChart3,
 } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { tickets } from "@/lib/api/tickets";
@@ -394,34 +395,65 @@ function EventOrganizerScreenContent() {
           </Text>
         )}
 
-        {/* Promo Codes */}
-        <Pressable
-          onPress={() =>
-            router.push(`/(protected)/events/${eventId}/promo-codes` as any)
-          }
-          style={{
-            backgroundColor: "rgba(255,255,255,0.06)",
-            borderWidth: 1,
-            borderColor: colors.border,
-            paddingVertical: 12,
-            borderRadius: 12,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-          }}
-        >
-          <Tag size={16} color="#8A40CF" />
-          <Text
+        {/* Analytics + Promo Codes — two-column row */}
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable
+            onPress={() =>
+              router.push(`/(protected)/events/${eventId}/analytics` as any)
+            }
             style={{
-              color: colors.foreground,
-              fontSize: 13,
-              fontWeight: "600",
+              flex: 1,
+              backgroundColor: "rgba(255,255,255,0.06)",
+              borderWidth: 1,
+              borderColor: colors.border,
+              paddingVertical: 12,
+              borderRadius: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
             }}
           >
-            Promo Codes
-          </Text>
-        </Pressable>
+            <BarChart3 size={16} color="#22c55e" />
+            <Text
+              style={{
+                color: colors.foreground,
+                fontSize: 13,
+                fontWeight: "600",
+              }}
+            >
+              Analytics
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              router.push(`/(protected)/events/${eventId}/promo-codes` as any)
+            }
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(255,255,255,0.06)",
+              borderWidth: 1,
+              borderColor: colors.border,
+              paddingVertical: 12,
+              borderRadius: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}
+          >
+            <Tag size={16} color="#8A40CF" />
+            <Text
+              style={{
+                color: colors.foreground,
+                fontSize: 13,
+                fontWeight: "600",
+              }}
+            >
+              Promo Codes
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Tickets List */}
