@@ -716,8 +716,14 @@ function PostDetailScreenContent() {
   // CRITICAL: ALL HOOKS MUST BE CALLED UNCONDITIONALLY
   // Pass empty string if invalid - hooks will handle gracefully
   const { data: post, isLoading, error: postError } = usePost(postId);
-  const { data: comments = [], isLoading: commentsLoading } =
-    useComments(postId);
+  // Limit must match the comments sheet (app/(protected)/comments/[postId].tsx
+  // also uses 50) so they share a React Query cache key. Different limits
+  // → different keys → sheet refetches on open even though detail just
+  // loaded the same comments.
+  const { data: comments = [], isLoading: commentsLoading } = useComments(
+    postId,
+    50,
+  );
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
   const currentUser = useAuthStore((state) => state.user);

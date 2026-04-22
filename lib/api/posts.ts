@@ -148,7 +148,7 @@ async function hydrateTextPostSlides<T extends Record<string, any>>(
  * DB schema is intentionally narrow (type: "image" | "video"); special kinds
  * are distinguished via mimeType or livePhotoVideoUrl.
  */
-function deriveMediaKind(
+export function deriveMediaKind(
   rawType: string | undefined,
   mimeType: string | undefined,
   livePhotoVideoUrl: string | undefined,

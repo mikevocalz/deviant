@@ -55,7 +55,7 @@ import { useRouter } from "expo-router";
 import { Alert } from "react-native";
 import { useDeletePost } from "@/lib/hooks/use-posts";
 import { sharePost } from "@/lib/utils/sharing";
-import { useCreateStory, useStories } from "@/lib/hooks/use-stories";
+import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useFocusEffect } from "expo-router";
 import type { PublicGateReason } from "@/lib/access/public-gates";
@@ -281,11 +281,9 @@ export function Feed({
     enabled: bootstrapFeed.shouldEnableFeedQuery,
   });
 
-  const {
-    data: stories = [],
-    isFetched: storiesFetched,
-    isError: storiesErrored,
-  } = useStories();
+  // Stories live at the HomeScreen level — they do NOT gate the feed.
+  // Any stale stories state refreshes via queryClient.invalidateQueries
+  // on pull-to-refresh below (storyKeys.list()).
 
   // CRITICAL: Get queryClient and viewerId for seeding likeState cache
   const queryClient = useQueryClient();
@@ -660,18 +658,12 @@ export function Feed({
     setActionSheetPostId(null);
   }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);
 
-  // Simple loading state - show skeleton during initial load OR when no data yet
-  const storiesReady = guestMode || storiesFetched || storiesErrored;
-  const eventsReady = eventsFetched || eventsErrored;
+  // Show the feed skeleton only while the feed itself is loading. Stories
+  // and events live in their own lanes (StoriesBar at the HomeScreen level,
+  // events fetched on the events tab) — gating the whole feed on them was
+  // why the home tab felt like it was loading forever after cold start.
   const feedResolved = !isLoading;
-  const criticalImagesReady =
-    allPosts.length === 0 ? true : firstPageImagesPrefetched;
-  const isActuallyLoading =
-    !feedResolved ||
-    !nsfwLoaded ||
-    !storiesReady ||
-    !eventsReady ||
-    !criticalImagesReady;
+  const isActuallyLoading = !feedResolved || !nsfwLoaded;
 
   if (__DEV__) {
     useEffect(() => {
@@ -719,16 +711,8 @@ export function Feed({
           guestMode ? (
             <>{headerContent}</>
           ) : (
-            // StoriesBar lifted to HomeScreen (app/(protected)/(tabs)/index.tsx)
-            // so it stays mounted across feed-mode toggles and the spicy toggle.
-            // Restore the thin divider that used to sit above the first post.
-            <View
-              style={{
-                height: 8,
-                borderTopWidth: 1,
-                borderTopColor: "rgba(255,255,255,0.06)",
-              }}
-            />
+            // StoriesBar lives at HomeScreen level — no header content needed here.
+            <View style={{ height: 8 }} />
           )
         }
         ListFooterComponent={renderFooter}

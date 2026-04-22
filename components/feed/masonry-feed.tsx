@@ -26,6 +26,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Heart, Bookmark, Play, Grid3x3 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
+import { usePrefetchComments } from "@/lib/hooks/use-comments";
+import { screenPrefetch } from "@/lib/prefetch";
 import { useBookmarks, useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { storyKeys } from "@/lib/hooks/use-stories";
@@ -54,7 +56,6 @@ import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import * as Haptics from "expo-haptics";
 import { TextPostSurface } from "@/components/post/TextPostSurface";
 import { resolveTextPostPresentation } from "@/lib/posts/text-post";
-import { useStories } from "@/lib/hooks/use-stories";
 import {
   extractFeedImageUrls,
   prefetchImages,
@@ -163,7 +164,16 @@ const MasonryCell = memo(function MasonryCell({
     toggle: toggleLike,
   } = usePostLikeState(post.id, post.likes || 0, post.viewerHasLiked || false);
 
+  const prefetchComments = usePrefetchComments();
+  const queryClient = useQueryClient();
   const handlePress = useCallback(() => onPress(post.id), [post.id, onPress]);
+  // Warm the post-detail + comments caches on press-in so the detail
+  // screen and its comment sheet paint with data instead of a spinner.
+  const handlePressIn = useCallback(() => {
+    if (!post.id) return;
+    screenPrefetch.postDetail(queryClient, post.id);
+    prefetchComments(post.id);
+  }, [post.id, prefetchComments, queryClient]);
 
   const handleBookmark = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -190,7 +200,11 @@ const MasonryCell = memo(function MasonryCell({
     : media?.thumbnail || media?.url || null;
 
   return (
-    <Pressable onPress={handlePress} style={{ marginBottom: COLUMN_GAP }}>
+    <Pressable
+      onPress={handlePress}
+      onPressIn={handlePressIn}
+      style={{ marginBottom: COLUMN_GAP }}
+    >
       <View style={[styles.cell, { width, height, borderRadius: CELL_RADIUS }]}>
         {isTextPost ? (
           <TextPostSurface
@@ -469,11 +483,7 @@ export function MasonryFeed() {
     return data.pages.flatMap((page) => page.data).filter(shouldRenderInFeed);
   }, [data]);
 
-  const {
-    data: stories = [],
-    isFetched: storiesFetched,
-    isError: storiesErrored,
-  } = useStories();
+  // Stories live at the HomeScreen level — no fetch needed here.
 
   // Seed like states from feed data
   useEffect(() => {
@@ -577,18 +587,10 @@ export function MasonryFeed() {
     [hasNextPage, isFetchingNextPage, fetchNextPage],
   );
 
-  const storiesReady = storiesFetched || storiesErrored;
-  const eventsReady = eventsFetched || eventsErrored;
-  const criticalImagesReady =
-    filteredPosts.length === 0 ? true : firstPageMediaPrefetched;
-
-  if (
-    isLoading ||
-    !nsfwLoaded ||
-    !storiesReady ||
-    !eventsReady ||
-    !criticalImagesReady
-  ) {
+  // Show the grid skeleton only while the grid itself is loading.
+  // Stories + events render in their own lanes and should never gate
+  // the feed body.
+  if (isLoading || !nsfwLoaded) {
     return <FeedSkeleton />;
   }
 
@@ -615,16 +617,9 @@ export function MasonryFeed() {
         />
       }
     >
-      {/* StoriesBar lifted to HomeScreen (app/(protected)/(tabs)/index.tsx)
-          so it stays mounted across feed-mode toggles and the spicy toggle.
-          Thin divider restores the separator that used to sit above the grid. */}
-      <View
-        style={{
-          height: 8,
-          borderTopWidth: 1,
-          borderTopColor: "rgba(255,255,255,0.06)",
-        }}
-      />
+      {/* StoriesBar lives at HomeScreen level. No separator between
+          stories and grid — user prefers edge-to-edge. */}
+      <View style={{ height: 8 }} />
 
       {filteredPosts.length === 0 ? (
         <EmptyState
