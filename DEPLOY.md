@@ -38,6 +38,7 @@ Supabase JWTs).
 # New
 npx supabase functions deploy get-my-tickets      --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
 npx supabase functions deploy get-event-tickets   --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
+npx supabase functions deploy get-guest-ticket    --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
 npx supabase functions deploy event-analytics     --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
 npx supabase functions deploy event-waitlist      --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
 npx supabase functions deploy organizer-refund    --no-verify-jwt --project-ref npfjanxturvmjyevoyfo
