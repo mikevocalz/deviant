@@ -5,6 +5,7 @@
 import { supabase } from "../supabase/client";
 import { requireBetterAuthToken } from "../auth/identity";
 import { getCurrentUserAuthId } from "./auth-helper";
+import { invokeEdge } from "./invoke-edge";
 
 export type OnboardingResult = {
   url?: string;
@@ -128,6 +129,24 @@ export const organizerApi = {
       console.error("[Organizer] getEventPayout error:", err);
       return null;
     }
+  },
+
+  /**
+   * Organizer-initiated refund for a single ticket. Stripe issues the
+   * refund; the ticket row flips to `refunded` once Stripe's
+   * charge.refunded webhook lands.
+   */
+  async refundTicket(
+    ticketId: string,
+  ): Promise<{ ok?: boolean; free?: boolean; error?: string }> {
+    const { data, error } = await invokeEdge<{
+      ok: boolean;
+      free?: boolean;
+      error?: string;
+    }>("organizer-refund", { ticket_id: ticketId });
+    if (error) return { error: error.message };
+    if (data?.error) return { error: data.error };
+    return { ok: !!data?.ok, free: !!data?.free };
   },
 
   /**

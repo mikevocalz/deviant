@@ -141,6 +141,26 @@ async function hydrateTextPostSlides<T extends Record<string, any>>(
 }
 
 /**
+ * Derive the in-memory MediaKind from the flat DB columns. Used on BOTH the
+ * read path (transformPost) and the write path (optimistic createPost result)
+ * so a just-created post renders the same way a re-fetched one does.
+ *
+ * DB schema is intentionally narrow (type: "image" | "video"); special kinds
+ * are distinguished via mimeType or livePhotoVideoUrl.
+ */
+function deriveMediaKind(
+  rawType: string | undefined,
+  mimeType: string | undefined,
+  livePhotoVideoUrl: string | undefined,
+): import("@/lib/types").MediaKind {
+  if (rawType === "video" && mimeType === "video/mp4+animated") return "animated_video";
+  if (rawType === "video") return "video";
+  if (rawType === "gif" || mimeType === "image/gif") return "gif";
+  if (rawType === "livePhoto" || livePhotoVideoUrl) return "livePhoto";
+  return "image";
+}
+
+/**
  * Transform database post to app Post type
  */
 export function transformPost(
@@ -198,12 +218,7 @@ export function transformPost(
         : index;
 
       // Derive kind: existing rows have no mime_type — fall back to type field
-      let kind: import("@/lib/types").MediaKind = "image";
-      if (rawType === "video" && mimeType === "video/mp4+animated")
-        kind = "animated_video";
-      else if (rawType === "video") kind = "video";
-      else if (rawType === "gif" || mimeType === "image/gif") kind = "gif";
-      else if (rawType === "livePhoto" || livePhotoVideoUrl) kind = "livePhoto";
+      const kind = deriveMediaKind(rawType, mimeType, livePhotoVideoUrl);
 
       return {
         type: kind,
@@ -766,7 +781,15 @@ export const postsApi = {
         },
         media: (data.media || []).map((m) => ({
           ...m,
-          type: (m.type as any) ?? "image",
+          // Convert the flat DB-shaped input (type: "image"|"video" + mimeType)
+          // back into the rich in-memory MediaKind so the feed grid / detail
+          // screen renders GIFs, Live Photos, and animated videos correctly
+          // right after creation — matching what a re-fetch would return.
+          type: deriveMediaKind(
+            (m as any).type,
+            (m as any).mimeType,
+            (m as any).livePhotoVideoUrl,
+          ),
         })) as import("@/lib/types").PostMediaItem[],
         kind: postKind,
         textTheme: normalizeTextPostTheme(data.textTheme),

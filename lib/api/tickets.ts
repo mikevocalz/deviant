@@ -1,6 +1,7 @@
 import { supabase } from "../supabase/client";
-import { getCurrentUserAuthId, getCurrentUserId } from "./auth-helper";
+import { getCurrentUserAuthId } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
+import { invokeEdge } from "./invoke-edge";
 
 export interface TicketRecord {
   id: string;
@@ -26,112 +27,36 @@ export interface TicketRecord {
 
 export const ticketsApi = {
   /**
-   * Get all tickets for an event (organizer view)
+   * Get all tickets for an event (host-only view) via the
+   * get-event-tickets edge function.
    */
   async getEventTickets(eventId: string): Promise<TicketRecord[]> {
-    try {
-      const { data, error } = await supabase
-        .from("tickets")
-        .select("*, ticket_types(name)")
-        .eq("event_id", parseInt(eventId))
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      return (data || []).map((t: any) => ({
-        ...t,
-        ticket_type_name: t.ticket_types?.name || "General",
-      }));
-    } catch (error) {
-      console.error("[Tickets] getEventTickets error:", error);
+    const { data, error } = await invokeEdge<{
+      ok: boolean;
+      tickets: TicketRecord[];
+    }>("get-event-tickets", { event_id: parseInt(eventId) });
+    if (error) {
+      console.error("[Tickets] getEventTickets error:", error.message);
       return [];
     }
+    return data?.ok ? (data.tickets ?? []) : [];
   },
 
   /**
-   * Get current user's tickets across all events
+   * Get the current user's tickets across all events via the
+   * get-my-tickets edge function. Legacy integer-user-id rows are
+   * picked up server-side.
    */
   async getMyTickets(): Promise<TicketRecord[]> {
-    try {
-      const authId = await getCurrentUserAuthId();
-      if (!authId) {
-        console.warn("[Tickets] getMyTickets: no authId, returning empty");
-        return [];
-      }
-
-      // Query by auth_id, and also by integer user ID string as fallback
-      // (tickets created before the auth_id fix may have stored user.id instead)
-      const intId = getCurrentUserId();
-      const userIdFilter =
-        intId && intId !== authId
-          ? `user_id.eq.${authId},user_id.eq.${intId}`
-          : `user_id.eq.${authId}`;
-
-      console.log(
-        "[Tickets] getMyTickets filter:",
-        userIdFilter,
-        "authId:",
-        authId,
-        "intId:",
-        intId,
-      );
-
-      const { data, error } = await supabase
-        .from("tickets")
-        .select(
-          "*, ticket_types(name), events(title, cover_image_url, start_date, location)",
-        )
-        .or(userIdFilter)
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        console.error(
-          "[Tickets] getMyTickets query error:",
-          error.message,
-          error.code,
-          error.details,
-        );
-        // Fallback: try without joins in case FK relationship is broken
-        const { data: fallbackData, error: fbError } = await supabase
-          .from("tickets")
-          .select("*")
-          .or(userIdFilter)
-          .order("created_at", { ascending: false });
-        console.log(
-          "[Tickets] fallback query:",
-          fallbackData?.length ?? 0,
-          "rows, error:",
-          fbError?.message,
-        );
-        if (fbError) throw fbError;
-        return (fallbackData || []).map((t: any) => ({
-          ...t,
-          ticket_type_name: "General",
-          event_title: "",
-          event_image: "",
-          event_date: "",
-          event_location: "",
-        }));
-      }
-
-      console.log(
-        "[Tickets] getMyTickets result:",
-        data?.length ?? 0,
-        "tickets",
-      );
-
-      return (data || []).map((t: any) => ({
-        ...t,
-        ticket_type_name: t.ticket_types?.name || "General",
-        event_title: t.events?.title || "",
-        event_image: t.events?.cover_image_url || "",
-        event_date: t.events?.start_date || "",
-        event_location: t.events?.location || "",
-      }));
-    } catch (error: any) {
-      console.error("[Tickets] getMyTickets error:", error?.message || error);
+    const { data, error } = await invokeEdge<{
+      ok: boolean;
+      tickets: TicketRecord[];
+    }>("get-my-tickets", {});
+    if (error) {
+      console.error("[Tickets] getMyTickets error:", error.message);
       return [];
     }
+    return data?.ok ? (data.tickets ?? []) : [];
   },
 
   /**
@@ -142,6 +67,7 @@ export const ticketsApi = {
     ticketTypeId: string;
     quantity: number;
     userId?: string; // deprecated — server derives from session
+    promoCode?: string;
   }): Promise<{
     url?: string;
     tickets?: any[];
@@ -157,6 +83,7 @@ export const ticketsApi = {
             event_id: params.eventId,
             ticket_type_id: params.ticketTypeId,
             quantity: params.quantity,
+            ...(params.promoCode ? { promo_code: params.promoCode } : {}),
           },
           headers: { Authorization: `Bearer ${token}` },
         },
@@ -167,6 +94,50 @@ export const ticketsApi = {
     } catch (error: any) {
       console.error("[Tickets] checkout error:", error);
       return { error: error.message || "Checkout failed" };
+    }
+  },
+
+  /**
+   * Guest checkout — no account required. The server stamps the ticket
+   * with `guest_email` and mails the QR + magic-link to that address
+   * after payment completes.
+   */
+  async guestCheckout(params: {
+    eventId: string;
+    ticketTypeId: string;
+    quantity: number;
+    guestEmail: string;
+    guestName?: string;
+    promoCode?: string;
+  }): Promise<{
+    url?: string;
+    tickets?: any[];
+    free?: boolean;
+    error?: string;
+  }> {
+    try {
+      const { data, error } = await supabase.functions.invoke(
+        "ticket-checkout",
+        {
+          body: {
+            event_id: params.eventId,
+            ticket_type_id: params.ticketTypeId,
+            quantity: params.quantity,
+            guest_email: params.guestEmail,
+            ...(params.guestName ? { guest_name: params.guestName } : {}),
+            ...(params.promoCode ? { promo_code: params.promoCode } : {}),
+          },
+          // No Authorization header — the server only checks for it
+          // when guest_email is missing, so this routes to the guest
+          // path automatically.
+        },
+      );
+
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("[Tickets] guestCheckout error:", error);
+      return { error: error.message || "Guest checkout failed" };
     }
   },
 
@@ -233,24 +204,22 @@ export const ticketsApi = {
   },
 
   /**
-   * Download all active QR tokens for an event (offline check-in).
-   * Returns array of qr_token strings that the host can validate locally.
+   * Download the active QR tokens for an event so the host can
+   * validate scans offline.
    */
   async downloadOfflineTokens(eventId: string): Promise<string[]> {
-    try {
-      const { data, error } = await supabase
-        .from("tickets")
-        .select("qr_token")
-        .eq("event_id", parseInt(eventId))
-        .in("status", ["active"])
-        .not("qr_token", "is", null);
-
-      if (error) throw error;
-      return (data || []).map((t: any) => t.qr_token).filter(Boolean);
-    } catch (error) {
-      console.error("[Tickets] downloadOfflineTokens error:", error);
+    const { data, error } = await invokeEdge<{
+      ok: boolean;
+      qr_tokens: string[];
+    }>("get-event-tickets", {
+      event_id: parseInt(eventId),
+      offline: true,
+    });
+    if (error) {
+      console.error("[Tickets] downloadOfflineTokens error:", error.message);
       return [];
     }
+    return data?.ok ? (data.qr_tokens ?? []).filter(Boolean) : [];
   },
 
   /**
@@ -304,93 +273,25 @@ export const ticketsApi = {
   },
 
   /**
-   * Get current user's ticket for a specific event
+   * Get the current user's ticket for a specific event — routed
+   * through the get-my-tickets edge function with an `event_id`
+   * filter, returns the most recent matching row.
    */
   async getMyTicketForEvent(eventId: string): Promise<TicketRecord | null> {
-    try {
-      const eventIdInt = parseInt(eventId, 10);
-      if (!Number.isFinite(eventIdInt)) {
-        console.warn("[Tickets] getMyTicketForEvent: invalid eventId", eventId);
-        return null;
-      }
-
-      const authId = await getCurrentUserAuthId();
-      if (!authId) return null;
-
-      // Query by auth_id + integer user ID string fallback (same as getMyTickets)
-      const intId = getCurrentUserId();
-      const userIdFilter =
-        intId && intId !== authId
-          ? `user_id.eq.${authId},user_id.eq.${intId}`
-          : `user_id.eq.${authId}`;
-
-      console.log(
-        "[Tickets] getMyTicketForEvent:",
-        eventId,
-        "filter:",
-        userIdFilter,
-      );
-
-      const { data, error } = await supabase
-        .from("tickets")
-        .select(
-          "*, ticket_types(name), events(title, cover_image_url, start_date, end_date, location)",
-        )
-        .or(userIdFilter)
-        .eq("event_id", eventIdInt)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) {
-        console.error(
-          "[Tickets] getMyTicketForEvent join error:",
-          error.message,
-          error.code,
-        );
-        // Fallback: try without joins in case FK relationship is broken
-        const { data: fbData, error: fbError } = await supabase
-          .from("tickets")
-          .select("*")
-          .or(userIdFilter)
-          .eq("event_id", eventIdInt)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        console.log(
-          "[Tickets] getMyTicketForEvent fallback:",
-          fbData ? "found" : "null",
-          fbError?.message,
-        );
-        if (fbError || !fbData) return null;
-        return {
-          ...fbData,
-          ticket_type_name: "General",
-          event_title: "",
-          event_image: "",
-          event_date: "",
-          event_location: "",
-        } as TicketRecord;
-      }
-
-      console.log(
-        "[Tickets] getMyTicketForEvent result:",
-        data ? "found" : "null",
-      );
-      if (!data) return null;
-
-      return {
-        ...data,
-        ticket_type_name: data.ticket_types?.name || "General",
-        event_title: data.events?.title || "",
-        event_image: data.events?.cover_image_url || "",
-        event_date: data.events?.start_date || "",
-        event_location: data.events?.location || "",
-      } as TicketRecord;
-    } catch (error) {
-      console.error("[Tickets] getMyTicketForEvent error:", error);
+    const eventIdInt = parseInt(eventId, 10);
+    if (!Number.isFinite(eventIdInt)) {
+      console.warn("[Tickets] getMyTicketForEvent: invalid eventId", eventId);
       return null;
     }
+    const { data, error } = await invokeEdge<{
+      ok: boolean;
+      tickets: TicketRecord[];
+    }>("get-my-tickets", { event_id: eventIdInt });
+    if (error) {
+      console.error("[Tickets] getMyTicketForEvent error:", error.message);
+      return null;
+    }
+    return data?.ok ? (data.tickets?.[0] ?? null) : null;
   },
 
   // ── Ticket Transfers ──────────────────────────────────────────

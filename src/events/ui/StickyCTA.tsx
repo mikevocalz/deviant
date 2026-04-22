@@ -1,7 +1,7 @@
 import React, { memo, useEffect } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ticket, Check, Clock } from "lucide-react-native";
+import { Ticket, Check, Clock, BellRing, BellOff } from "lucide-react-native";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -18,6 +18,11 @@ interface StickyCTAProps {
   isPast?: boolean;
   onGetTickets: () => void;
   onViewTicket: () => void;
+  /** Whether the current user is on the waitlist for the selected tier. */
+  waitlistJoined?: boolean;
+  onJoinWaitlist?: () => void;
+  onLeaveWaitlist?: () => void;
+  isWaitlistBusy?: boolean;
 }
 
 export const StickyCTA = memo(function StickyCTA({
@@ -26,6 +31,10 @@ export const StickyCTA = memo(function StickyCTA({
   isPast,
   onGetTickets,
   onViewTicket,
+  waitlistJoined = false,
+  onJoinWaitlist,
+  onLeaveWaitlist,
+  isWaitlistBusy = false,
 }: StickyCTAProps) {
   const insets = useSafeAreaInsets();
   const glowPulse = useSharedValue(0);
@@ -110,25 +119,56 @@ export const StickyCTA = memo(function StickyCTA({
             glowStyle,
           ]}
         >
-          <Pressable
-            onPress={onGetTickets}
-            disabled={isSoldOut}
-            style={[
-              styles.ctaButton,
-              { backgroundColor: isSoldOut ? "#333" : glowColor },
-            ]}
-          >
-            {isSoldOut ? (
-              <Text style={styles.ctaText}>Sold Out</Text>
-            ) : (
-              <>
-                <Ticket size={18} color="#000" />
-                <Text style={[styles.ctaText, { color: "#000" }]}>
-                  {price === 0 ? "RSVP Free" : "Get Tickets"}
-                </Text>
-              </>
-            )}
-          </Pressable>
+          {isSoldOut ? (
+            <Pressable
+              onPress={
+                waitlistJoined ? onLeaveWaitlist : onJoinWaitlist
+              }
+              disabled={
+                isWaitlistBusy ||
+                (!onJoinWaitlist && !waitlistJoined) ||
+                (waitlistJoined && !onLeaveWaitlist)
+              }
+              style={[
+                styles.ctaButton,
+                {
+                  backgroundColor: waitlistJoined
+                    ? "rgba(34,197,94,0.18)"
+                    : "rgba(255,255,255,0.10)",
+                  borderWidth: 1,
+                  borderColor: waitlistJoined
+                    ? "rgba(34,197,94,0.45)"
+                    : "rgba(255,255,255,0.18)",
+                },
+              ]}
+            >
+              {isWaitlistBusy ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : waitlistJoined ? (
+                <>
+                  <BellOff size={16} color="#22c55e" />
+                  <Text style={[styles.ctaText, { color: "#22c55e" }]}>
+                    On Waitlist · Tap to leave
+                  </Text>
+                </>
+              ) : (
+                <>
+                  <BellRing size={16} color="#fff" />
+                  <Text style={styles.ctaText}>Join Waitlist</Text>
+                </>
+              )}
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={onGetTickets}
+              style={[styles.ctaButton, { backgroundColor: glowColor }]}
+            >
+              <Ticket size={18} color="#000" />
+              <Text style={[styles.ctaText, { color: "#000" }]}>
+                {price === 0 ? "RSVP Free" : "Get Tickets"}
+              </Text>
+            </Pressable>
+          )}
         </Animated.View>
       </View>
     </View>
@@ -144,7 +184,6 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(0,0,0,0.92)",
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
-    backdropFilter: "blur(20px)",
   },
   inner: {
     flexDirection: "row",

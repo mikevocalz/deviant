@@ -8,7 +8,9 @@ import { EventCard } from "@/components/event-card";
 import { PublicBrowseBanner } from "@/components/access/PublicBrowseBanner";
 import { EventCardSkeleton } from "@/components/skeletons";
 import { useEvents } from "@/lib/hooks/use-events";
+import { usePromotedEventIds } from "@/lib/hooks/use-promotions";
 import { usePublicGateStore } from "@/lib/stores/public-gate-store";
+import { useMemo } from "react";
 
 function formatLikes(likes: number) {
   if (likes >= 1000) return `${(likes / 1000).toFixed(1)}k`;
@@ -20,6 +22,21 @@ export default function PublicEventsScreen() {
   const openGate = usePublicGateStore((s) => s.openGate);
   const { data: events = [], isLoading, isRefetching, refetch, error } =
     useEvents({ sort: "soonest" });
+  const { data: promotedIds } = usePromotedEventIds();
+
+  // Tag promoted events + pin them to the top, preserving the backend's
+  // chronological order for everyone else.
+  const orderedEvents = useMemo(() => {
+    if (!promotedIds || promotedIds.size === 0) return events;
+    const promoted: any[] = [];
+    const rest: any[] = [];
+    for (const ev of events) {
+      const isPromoted = promotedIds.has(parseInt(String(ev.id)));
+      if (isPromoted) promoted.push({ ...ev, isPromoted: true });
+      else rest.push(ev);
+    }
+    return [...promoted, ...rest];
+  }, [events, promotedIds]);
 
   const onScroll = useAnimatedScrollHandler((event) => {
     scrollY.value = event.contentOffset.y;
@@ -63,7 +80,7 @@ export default function PublicEventsScreen() {
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         <PublicBrowseBanner variant="events" />
-        {events.slice(0, 12).map((event, index) => (
+        {orderedEvents.slice(0, 12).map((event, index) => (
           <EventCard
             key={event.id}
             event={event}

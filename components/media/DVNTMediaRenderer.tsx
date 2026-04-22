@@ -25,6 +25,9 @@ interface DVNTMediaRendererProps {
     livePhotoVideoUrl?: string;
     thumbnail?: string;
     mimeType?: string;
+    /** Timestamp the media was last updated — appended to thumbnail URLs as a
+     *  cache buster so re-uploads don't show stale posters. */
+    updatedAt?: string | number;
   };
   width: number | string;
   height: number | string;
@@ -36,6 +39,12 @@ interface DVNTMediaRendererProps {
   videoSlot?: React.ReactNode;
   /** Controls playback for GIF and animated_video when in feed (viewport-aware). Defaults to true. */
   isPlaying?: boolean;
+}
+
+function withCacheBuster(url: string | undefined, version: string | number | undefined): string | undefined {
+  if (!url || version == null) return url;
+  const sep = url.includes("?") ? "&" : "?";
+  return `${url}${sep}v=${encodeURIComponent(String(version))}`;
 }
 
 export function DVNTMediaRenderer({
@@ -108,12 +117,13 @@ export function DVNTMediaRenderer({
   }
 
   if (kind === "video") {
+    const thumbUri = withCacheBuster(item.thumbnail ?? item.url, item.updatedAt);
     return (
       <View style={containerStyle}>
         {videoSlot ?? (
           // Fallback: show thumbnail if no video slot provided
           <Image
-            source={{ uri: item.thumbnail ?? item.url }}
+            source={{ uri: thumbUri }}
             style={{ width: "100%", height: "100%" } as ImageStyle}
             contentFit={contentFit}
             cachePolicy="memory-disk"

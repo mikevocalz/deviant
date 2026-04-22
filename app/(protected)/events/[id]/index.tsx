@@ -112,6 +112,11 @@ import {
 } from "@/lib/hooks/use-ticket-upgrade";
 import { useMyTicketForEvent } from "@/lib/hooks/use-tickets";
 import { useTicketTypes } from "@/lib/hooks/use-tickets";
+import {
+  useEventWaitlistStatus,
+  useJoinWaitlist,
+  useLeaveWaitlist,
+} from "@/lib/hooks/use-event-waitlist";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 420;
@@ -553,6 +558,66 @@ function EventDetailScreenContent() {
   const handleSelectTier = useCallback((tier: TicketTier) => {
     setSelectedTier(tier);
   }, []);
+
+  // ── Waitlist (visible only when the selected tier is sold out) ──
+  const waitlistTierId = selectedTier?.id ? String(selectedTier.id) : null;
+  const { data: waitlistStatus } = useEventWaitlistStatus(
+    eventId,
+    waitlistTierId,
+  );
+  const waitlistJoined = !!waitlistStatus?.joined;
+  const joinWaitlistMutation = useJoinWaitlist();
+  const leaveWaitlistMutation = useLeaveWaitlist();
+  const isWaitlistBusy =
+    joinWaitlistMutation.isPending || leaveWaitlistMutation.isPending;
+
+  const handleJoinWaitlist = useCallback(() => {
+    if (!eventId || isWaitlistBusy) return;
+    joinWaitlistMutation.mutate(
+      { eventId, ticketTypeId: waitlistTierId },
+      {
+        onSuccess: () => {
+          showToast(
+            "success",
+            "You're on the waitlist",
+            selectedTier?.name
+              ? `We'll let you know if a ${selectedTier.name} spot opens up.`
+              : "We'll let you know if a spot opens up.",
+          );
+        },
+        onError: (err: any) => {
+          showToast(
+            "error",
+            "Couldn't join waitlist",
+            err?.message || "Try again in a moment.",
+          );
+        },
+      },
+    );
+  }, [
+    eventId,
+    isWaitlistBusy,
+    joinWaitlistMutation,
+    selectedTier?.name,
+    showToast,
+    waitlistTierId,
+  ]);
+
+  const handleLeaveWaitlist = useCallback(() => {
+    if (!eventId || isWaitlistBusy) return;
+    leaveWaitlistMutation.mutate(
+      { eventId, ticketTypeId: waitlistTierId },
+      {
+        onError: (err: any) => {
+          showToast(
+            "error",
+            "Couldn't leave waitlist",
+            err?.message || "Try again in a moment.",
+          );
+        },
+      },
+    );
+  }, [eventId, isWaitlistBusy, leaveWaitlistMutation, showToast, waitlistTierId]);
 
   // FIX: Replace useState with Zustand
   const { isCheckingOut, setIsCheckingOut, promoCode, setPromoCode } =
@@ -1511,6 +1576,27 @@ function EventDetailScreenContent() {
               <Text style={s.mutedText}>Loading reviews...</Text>
             ) : reviews.length > 0 ? (
               <View style={{ gap: 10 }}>
+                {reviews.length > 3 ? (
+                  <Pressable
+                    onPress={() =>
+                      router.push(
+                        `/(protected)/events/${eventId}/reviews` as any,
+                      )
+                    }
+                    hitSlop={8}
+                    style={{ alignSelf: "flex-end", paddingVertical: 4 }}
+                  >
+                    <Text
+                      style={{
+                        color: "#FF5BFC",
+                        fontSize: 13,
+                        fontWeight: "700",
+                      }}
+                    >
+                      See all {reviews.length} reviews →
+                    </Text>
+                  </Pressable>
+                ) : null}
                 {reviews.slice(0, 3).map((review: any) => (
                   <View key={review.id} style={s.reviewCard}>
                     <View style={s.reviewHeader}>
@@ -1743,6 +1829,10 @@ function EventDetailScreenContent() {
         isPast={isPast}
         onGetTickets={handleGetTickets}
         onViewTicket={handleViewTicket}
+        waitlistJoined={waitlistJoined}
+        onJoinWaitlist={handleJoinWaitlist}
+        onLeaveWaitlist={handleLeaveWaitlist}
+        isWaitlistBusy={isWaitlistBusy}
       />
 
       {/* Rating Modal */}

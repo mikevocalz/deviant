@@ -31,9 +31,9 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useAppStore } from "@/lib/stores/app-store";
 import { ProfileSkeleton } from "@/components/skeletons";
 import { Motion } from "@legendapp/motion";
-import { useProfilePosts, usePostsByIds } from "@/lib/hooks/use-posts";
+import { useProfilePosts } from "@/lib/hooks/use-posts";
 import { useMyProfile } from "@/lib/hooks/use-profile";
-import { useBookmarks } from "@/lib/hooks/use-bookmarks";
+import { useBookmarks, useBookmarkedPosts } from "@/lib/hooks/use-bookmarks";
 import { useMyEvents, useLikedEvents } from "@/lib/hooks/use-events";
 import { useTaggedPosts } from "@/lib/hooks/use-post-tags";
 import { useScreenTrace } from "@/lib/perf/screen-trace";
@@ -528,8 +528,12 @@ function ProfileScreenContent() {
     return safeGridTiles(visibleUserPosts);
   }, [visibleUserPosts]);
 
-  // Fetch bookmarked posts
-  const { data: bookmarkedPostsData = [] } = usePostsByIds(bookmarkedPosts);
+  // Fetch bookmarked posts in ONE round trip via the get-bookmarks edge
+  // function with { withPosts: true } — replaces the old
+  // `useBookmarks() + usePostsByIds()` waterfall (IDs then N parallel
+  // post fetches). `useBookmarks()` above still runs for the is-this-
+  // bookmarked boolean used across other screens / the zustand sync.
+  const { data: bookmarkedPostsData = [] } = useBookmarkedPosts();
 
   // Transform saved posts using SAFE mapper - NEVER throws
   const savedPosts: SafeGridTile[] = useMemo(() => {

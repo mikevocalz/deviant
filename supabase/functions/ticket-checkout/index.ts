@@ -2,12 +2,22 @@
  * Ticket Checkout Edge Function
  *
  * POST /ticket-checkout
- * Body: { event_id, ticket_type_id, quantity, user_id }
+ * Body:
+ *   Authenticated:
+ *     { event_id, ticket_type_id, quantity, promo_code? }
+ *   Guest:
+ *     { event_id, ticket_type_id, quantity, promo_code?,
+ *       guest_email, guest_name? }
  *
  * Creates a Stripe Checkout Session with:
- *   - Destination charge to connected organizer account
+ *   - Destination charge to the connected organizer account
  *   - application_fee_amount = 5% + $1 per ticket (DVNT platform fee)
  *   - Deep link success/cancel URLs
+ *
+ * Guest path: when no Better Auth session is present BUT a valid
+ * `guest_email` is supplied, the request is accepted as a guest
+ * checkout. The ticket row stores the email (no user_id) and the
+ * webhook emails a QR + magic-link to the buyer via Resend.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -18,6 +28,8 @@ import {
   validateAndApplyPromo,
   incrementPromoUsage,
 } from "../_shared/apply-promo-code.ts";
+import { maybeFireCapacityAlerts } from "../_shared/capacity-alerts.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -63,21 +75,63 @@ Deno.serve(async (req: Request) => {
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
 
-    // ── Session auth (mandatory) ──────────────────────────
-    const user_id = await verifySession(supabase, req);
-    if (!user_id) {
-      return new Response(
-        JSON.stringify({ error: "Unauthorized — invalid or expired session" }),
-        { status: 401, headers: { "Content-Type": "application/json" } },
-      );
-    }
-
     const {
       event_id,
       ticket_type_id,
       quantity = 1,
       promo_code,
+      guest_email,
+      guest_name,
     } = await req.json();
+
+    // ── Session auth — required UNLESS guest_email is provided ──
+    const user_id = await verifySession(supabase, req);
+    const trimmedGuestEmail =
+      typeof guest_email === "string" ? guest_email.trim().toLowerCase() : "";
+    const trimmedGuestName =
+      typeof guest_name === "string" ? guest_name.trim() : "";
+
+    // Input caps: stop oversized payloads BEFORE hitting the DB or Stripe.
+    // RFC 5321 caps the full email path at 254 chars; names get 120.
+    if (trimmedGuestEmail.length > 254 || trimmedGuestName.length > 120) {
+      return new Response(
+        JSON.stringify({ error: "Input too long" }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedGuestEmail);
+    const isGuest = !user_id && !!trimmedGuestEmail && isValidEmail;
+
+    if (!user_id && !isGuest) {
+      return new Response(
+        JSON.stringify({
+          error: trimmedGuestEmail
+            ? "Invalid guest email address"
+            : "Unauthorized — sign in or provide a guest email",
+        }),
+        { status: 401, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
+    const buyerKey = user_id || `guest:${trimmedGuestEmail}`;
+
+    // Rate-limit ticket holds by buyer. A single buyer starting more
+    // than 5 checkouts in 10 minutes is almost certainly scripted —
+    // each attempt creates a 10-min ticket_hold that blocks inventory
+    // from real buyers until it expires.
+    const rl = checkRateLimit(buyerKey, "ticket-checkout", {
+      maxRequests: 5,
+      windowMs: 10 * 60_000,
+    });
+    if (!rl.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: `Too many checkout attempts. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.`,
+        }),
+        { status: 429, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
     if (!event_id || !ticket_type_id) {
       return new Response(
@@ -111,6 +165,32 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // Enforce tier sale window — early-bird style pricing.
+    // `sale_start` / `sale_end` already exist on ticket_types; until now
+    // they were declarative only. Reject purchases outside the window
+    // with an actionable message.
+    const now = new Date();
+    if (ticketType.sale_start) {
+      const saleStartAt = new Date(ticketType.sale_start);
+      if (!isNaN(saleStartAt.getTime()) && now < saleStartAt) {
+        return new Response(
+          JSON.stringify({
+            error: `This tier goes on sale ${saleStartAt.toLocaleString()}.`,
+          }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    }
+    if (ticketType.sale_end) {
+      const saleEndAt = new Date(ticketType.sale_end);
+      if (!isNaN(saleEndAt.getTime()) && now >= saleEndAt) {
+        return new Response(
+          JSON.stringify({ error: "Sales for this tier have ended." }),
+          { status: 400, headers: { "Content-Type": "application/json" } },
+        );
+      }
+    }
+
     // Check availability (including active holds from other checkouts)
     const remaining =
       (ticketType.quantity_total || Infinity) - (ticketType.quantity_sold || 0);
@@ -131,14 +211,18 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Check max per user (including already-owned tickets)
+    // Check max per user (including already-owned tickets).
+    // For guests we count by email; for users we count by user_id.
     const maxPerUser = ticketType.max_per_user || 4;
-    const { count: ownedCount } = await supabase
+    let ownedQuery = supabase
       .from("tickets")
       .select("*", { count: "exact", head: true })
       .eq("ticket_type_id", ticket_type_id)
-      .eq("user_id", user_id)
       .in("status", ["active", "scanned", "transfer_pending"]);
+    ownedQuery = isGuest
+      ? ownedQuery.eq("guest_email", trimmedGuestEmail)
+      : ownedQuery.eq("user_id", user_id as string);
+    const { count: ownedCount } = await ownedQuery;
 
     if ((ownedCount || 0) + quantity > maxPerUser) {
       const ticketsRemaining = maxPerUser - (ownedCount || 0);
@@ -146,7 +230,7 @@ Deno.serve(async (req: Request) => {
         JSON.stringify({
           error:
             ticketsRemaining <= 0
-              ? `You already have the maximum ${maxPerUser} tickets`
+              ? `Already at the maximum ${maxPerUser} tickets for this email`
               : `You can only buy ${ticketsRemaining} more (max ${maxPerUser} per person)`,
         }),
         { status: 400, headers: { "Content-Type": "application/json" } },
@@ -191,7 +275,10 @@ Deno.serve(async (req: Request) => {
           id: ticketUuid,
           event_id: eventIdInt,
           ticket_type_id,
-          user_id,
+          user_id: isGuest ? null : user_id,
+          guest_email: isGuest ? trimmedGuestEmail : null,
+          guest_name: isGuest ? trimmedGuestName || null : null,
+          guest_lookup_token: isGuest ? crypto.randomUUID() : null,
           status: "active",
           qr_token: qrToken,
           qr_payload: qrPayload,
@@ -214,6 +301,12 @@ Deno.serve(async (req: Request) => {
         })
         .eq("id", ticket_type_id);
 
+      // Capacity milestone alerts (75 / 90 / 100 %) — idempotent
+      await maybeFireCapacityAlerts(supabase, {
+        eventId: parseInt(event_id),
+        ticketTypeId: ticket_type_id,
+      });
+
       // Increment promo usage if a promo was used
       if (promoResult) {
         await incrementPromoUsage(supabase, promoResult.promo_code_id);
@@ -223,7 +316,8 @@ Deno.serve(async (req: Request) => {
       const { data: freeOrder } = await supabase
         .from("orders")
         .insert({
-          user_id,
+          user_id: isGuest ? null : user_id,
+          guest_email: isGuest ? trimmedGuestEmail : null,
           type: "event_ticket",
           status: "paid",
           subtotal_cents: 0,
@@ -321,7 +415,14 @@ Deno.serve(async (req: Request) => {
       "metadata[type]": "event_ticket",
       "metadata[event_id]": event_id.toString(),
       "metadata[ticket_type_id]": ticket_type_id,
-      "metadata[user_id]": user_id,
+      ...(isGuest
+        ? {
+            "metadata[guest_email]": trimmedGuestEmail,
+            ...(trimmedGuestName
+              ? { "metadata[guest_name]": trimmedGuestName }
+              : {}),
+          }
+        : { "metadata[user_id]": user_id as string }),
       "metadata[quantity]": quantity.toString(),
       "metadata[subtotal_cents]": fees.subtotal.toString(),
       "metadata[buyer_fee_cents]": fees.buyer_fee.toString(),
@@ -337,6 +438,9 @@ Deno.serve(async (req: Request) => {
         : {}),
       // Stripe Tax: automatic collection
       "automatic_tax[enabled]": "true",
+      // Pre-fill the buyer's email on the Stripe page when we already
+      // have it (guest checkout). Stripe also uses this for the receipt.
+      ...(isGuest ? { customer_email: trimmedGuestEmail } : {}),
       success_url: `${APP_SCHEME}://tickets/success?eventId=${event_id}&session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${APP_SCHEME}://tickets/cancel?eventId=${event_id}`,
     };
@@ -344,9 +448,12 @@ Deno.serve(async (req: Request) => {
     const session = await stripeRequest("/checkout/sessions", params);
 
     // ── Create inventory hold (10 min TTL, prevents overselling) ──
+    // For guests we still need an "owner" key — use the email so a
+    // single buyer can't double-stack holds with the same address.
     const holdExpiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
     await supabase.from("ticket_holds").insert({
-      user_id,
+      user_id: isGuest ? null : user_id,
+      guest_email: isGuest ? trimmedGuestEmail : null,
       ticket_type_id,
       event_id: parseInt(event_id),
       quantity,
@@ -394,7 +501,7 @@ Deno.serve(async (req: Request) => {
   } catch (err: any) {
     console.error("[ticket-checkout] Error:", err);
     return new Response(
-      JSON.stringify({ error: err.message || "Internal error" }),
+      JSON.stringify({ error: "Checkout failed — please try again." }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }

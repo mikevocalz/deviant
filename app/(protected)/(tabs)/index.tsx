@@ -6,11 +6,22 @@ import {
   SpicyToggleFAB,
   supportsNativeTabsBottomAccessory,
 } from "@/components/spicy-toggle-fab";
+import { StoriesBar } from "@/components/stories/stories-bar";
 import { useAppStore } from "@/lib/stores/app-store";
 import { LayoutGrid, List } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useCallback, memo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
+
+/**
+ * StoriesBar memoized at module level. Rendering it as a sibling of the
+ * feed swap (not a child) keeps it MOUNTED across feed-mode toggles and
+ * immune to re-renders driven by the feed's own state (nsfwEnabled,
+ * feedMode, scroll position, etc.).
+ */
+const MemoStoriesBar = memo(function MemoStoriesBar() {
+  return <StoriesBar />;
+});
 
 export const FeedModeToggle = memo(function FeedModeToggle() {
   const feedMode = useAppStore((s) => s.feedMode);
@@ -117,6 +128,13 @@ export default function HomeScreen() {
         }}
       >
         <FeedModeToggle />
+      </View>
+      {/* Sibling of the feed swap — stays mounted across feed-mode toggles
+          and the spicy toggle (which only rerenders the feed body). */}
+      <View style={{ paddingTop: 40 }}>
+        <ErrorBoundary screenName="StoriesBar">
+          <MemoStoriesBar />
+        </ErrorBoundary>
       </View>
       <Main className="flex-1">
         <ErrorBoundary screenName="Feed">

@@ -1,6 +1,12 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Pressable } from 'react-native';
-import * as Updates from 'expo-updates';
+import { View, Text, Pressable, Platform } from 'react-native';
+
+let Updates: typeof import('expo-updates') | null = null;
+try {
+  if (Platform.OS !== 'web') {
+    Updates = require('expo-updates');
+  }
+} catch {}
 
 export function DebugOTAStatus() {
   const [info, setInfo] = useState<any>(null);
@@ -8,6 +14,10 @@ export function DebugOTAStatus() {
 
   useEffect(() => {
     const getInfo = async () => {
+      if (!Updates) {
+        setInfo({ error: 'expo-updates not available' });
+        return;
+      }
       try {
         setInfo({
           enabled: Updates.isEnabled,
@@ -24,17 +34,21 @@ export function DebugOTAStatus() {
   }, []);
 
   const forceCheck = async () => {
+    if (!Updates) {
+      alert('expo-updates not available in this build');
+      return;
+    }
     setChecking(true);
     try {
       console.log('=== MANUAL OTA CHECK ===');
       const check = await Updates.checkForUpdateAsync();
       console.log('Available:', check.isAvailable);
-      
+
       if (check.isAvailable) {
         console.log('Fetching...');
         const result = await Updates.fetchUpdateAsync();
         console.log('Downloaded:', result.isNew);
-        
+
         if (result.isNew) {
           console.log('RELOADING NOW');
           await Updates.reloadAsync();

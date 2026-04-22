@@ -10,7 +10,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
 import { useLayoutEffect, useState, useEffect } from "react";
-import * as Updates from "expo-updates";
+import { Platform } from "react-native";
+
+let Updates: typeof import("expo-updates") | null = null;
+try {
+  if (Platform.OS !== "web") {
+    Updates = require("expo-updates");
+  }
+} catch {}
 import {
   User,
   Bell,
@@ -103,6 +110,7 @@ export default function SettingsScreenIOS() {
   // Check for updates on mount
   useEffect(() => {
     const checkForUpdate = async () => {
+      if (!Updates) { setUpdateAvailable(false); return; }
       try {
         const update = await Updates.checkForUpdateAsync();
         setUpdateAvailable(update.isAvailable);
@@ -117,6 +125,10 @@ export default function SettingsScreenIOS() {
   }, []);
 
   const handleCheckForUpdates = async () => {
+    if (!Updates) {
+      toast.info("Updates are not available in this build");
+      return;
+    }
     setIsCheckingUpdate(true);
     try {
       const update = await Updates.checkForUpdateAsync();
@@ -134,7 +146,7 @@ export default function SettingsScreenIOS() {
               text: "Restart Now",
               onPress: async () => {
                 try {
-                  await Updates.reloadAsync();
+                  await Updates?.reloadAsync();
                 } catch {
                   // reloadAsync may fail on some OS versions — update applies on next cold start
                 }

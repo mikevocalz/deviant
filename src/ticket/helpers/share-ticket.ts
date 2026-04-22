@@ -6,6 +6,7 @@
 
 import { Share } from "react-native";
 import type { Ticket } from "@/lib/stores/ticket-store";
+import { shareUrls } from "@/lib/deep-linking/share-link";
 
 export interface ShareTicketResult {
   success: boolean;
@@ -44,7 +45,12 @@ export async function shareTicket(
   try {
     const title = ticket.eventTitle || "Event";
     const tierLabel = ticket.tierName || ticket.tier?.toUpperCase() || "";
-    const deepLink = `dvnt://ticket/${ticket.eventId}`;
+    // Share the EVENT (public route) — the receiver doesn't own the
+    // ticket, so deep-linking to /ticket/<id> would just 403. Opens
+    // the event detail where they can buy their own if it's still on
+    // sale. HTTPS universal link works for both signed-in and guest
+    // receivers thanks to resolveGuestPublicTarget.
+    const deepLink = shareUrls.event(ticket.eventId);
 
     const lines: string[] = [title];
 

@@ -8,6 +8,8 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { Image } from "expo-image";
+import { DVNTGifView } from "@/components/media/DVNTGifView";
+import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import {
   X,
   Image as ImageIcon,
@@ -539,7 +541,8 @@ function CreateScreenContent() {
               }
             }
 
-            showToast("success", "Posted!", "Your post is now live");
+            // No success toast — the user lands back on the feed where
+            // their new post is already at the top (optimistic insert).
             reset();
             setSelectedTagUsers([]);
             router.back();
@@ -1108,32 +1111,32 @@ function CreateScreenContent() {
                     backgroundColor: "#111",
                   }}
                 >
-                  <Image
-                    key={media.uri}
-                    source={{ uri: media.uri }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                    cachePolicy="none"
-                    autoplay={media.kind === "gif"}
-                  />
-
-                  {/* Kind badge (GIF / LOOP / LIVE) */}
-                  {(media.kind === "gif" || media.kind === "animated_video" || media.kind === "livePhoto") && (
-                    <View
-                      style={{
-                        position: "absolute",
-                        bottom: 8,
-                        left: 8,
-                        backgroundColor: "rgba(0,0,0,0.75)",
-                        paddingHorizontal: 6,
-                        paddingVertical: 2,
-                        borderRadius: 4,
-                      }}
-                    >
-                      <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
-                        {media.kind === "gif" ? "GIF" : media.kind === "animated_video" ? "LOOP" : "LIVE"}
-                      </Text>
-                    </View>
+                  {media.kind === "gif" ? (
+                    <DVNTGifView
+                      key={media.uri}
+                      uri={media.uri}
+                      width="100%"
+                      height="100%"
+                      contentFit="cover"
+                      isPlaying
+                    />
+                  ) : media.kind === "animated_video" ? (
+                    <DVNTAnimatedVideoView
+                      key={media.uri}
+                      uri={media.uri}
+                      width="100%"
+                      height="100%"
+                      contentFit="cover"
+                      isPlaying
+                    />
+                  ) : (
+                    <Image
+                      key={media.uri}
+                      source={{ uri: media.uri }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                      cachePolicy="memory-disk"
+                    />
                   )}
 
                   <View

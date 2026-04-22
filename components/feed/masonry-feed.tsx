@@ -34,7 +34,8 @@ import { useAppStore } from "@/lib/stores/app-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
 import { FeedSkeleton } from "@/components/skeletons";
-import { StoriesBar } from "@/components/stories/stories-bar";
+// StoriesBar is rendered at the HomeScreen level (app/(protected)/(tabs)/index.tsx)
+// so it survives feed-mode toggles and the spicy toggle without remounting.
 import { EmptyState } from "@/components/ui/empty-state";
 import { ImageOff } from "lucide-react-native";
 import { seedLikeState, usePostLikeState } from "@/lib/hooks/usePostLikeState";
@@ -614,8 +615,16 @@ export function MasonryFeed() {
         />
       }
     >
-      <View style={{ height: 40 }} />
-      <StoriesBar stories={stories} isLoadingOverride={!storiesReady} />
+      {/* StoriesBar lifted to HomeScreen (app/(protected)/(tabs)/index.tsx)
+          so it stays mounted across feed-mode toggles and the spicy toggle.
+          Thin divider restores the separator that used to sit above the grid. */}
+      <View
+        style={{
+          height: 8,
+          borderTopWidth: 1,
+          borderTopColor: "rgba(255,255,255,0.06)",
+        }}
+      />
 
       {filteredPosts.length === 0 ? (
         <EmptyState

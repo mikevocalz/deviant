@@ -25,7 +25,8 @@ import {
   type ReactNode,
 } from "react";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
-import { StoriesBar } from "@/components/stories/stories-bar";
+// StoriesBar is rendered at the HomeScreen level (app/(protected)/(tabs)/index.tsx)
+// so it survives feed-mode toggles and the spicy toggle without remounting.
 import { EmptyState } from "@/components/ui/empty-state";
 import { ImageOff } from "lucide-react-native";
 import type { Post } from "@/lib/types";
@@ -606,8 +607,15 @@ export function Feed({
         style: "destructive",
         onPress: () => {
           deletePostMutation.mutate(actionSheetPostId, {
-            onSuccess: () => showToast("success", "Deleted", "Post deleted"),
-            onError: () => showToast("error", "Error", "Failed to delete post"),
+            // No success toast — the post disappears from the feed, which IS
+            // the confirmation. Keep the error toast so a failed delete is
+            // surfaced explicitly.
+            onError: () =>
+              showToast(
+                "error",
+                "Delete failed",
+                "Couldn't delete post. Try again.",
+              ),
           });
           setActionSheetPostId(null);
         },
@@ -641,9 +649,13 @@ export function Feed({
       await createStoryMutation.mutateAsync({
         items: [{ type: media.type || "image", url: media.url }],
       });
-      showToast("success", "Shared", "Post shared to your story!");
+      showToast("success", "Added to your story", "");
     } catch {
-      showToast("error", "Error", "Failed to share to story");
+      showToast(
+        "error",
+        "Share failed",
+        "Couldn't add this post to your story.",
+      );
     }
     setActionSheetPostId(null);
   }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);
@@ -707,13 +719,16 @@ export function Feed({
           guestMode ? (
             <>{headerContent}</>
           ) : (
-            <>
-              <View style={{ height: 40 }} />
-              <StoriesBar
-                stories={stories}
-                isLoadingOverride={!storiesReady && !guestMode}
-              />
-            </>
+            // StoriesBar lifted to HomeScreen (app/(protected)/(tabs)/index.tsx)
+            // so it stays mounted across feed-mode toggles and the spicy toggle.
+            // Restore the thin divider that used to sit above the first post.
+            <View
+              style={{
+                height: 8,
+                borderTopWidth: 1,
+                borderTopColor: "rgba(255,255,255,0.06)",
+              }}
+            />
           )
         }
         ListFooterComponent={renderFooter}

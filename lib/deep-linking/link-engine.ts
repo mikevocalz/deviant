@@ -162,6 +162,23 @@ function resolveGuestPublicTarget(
         params: { ...parsed.params, ...match.params },
         valid: true,
       };
+    case "/e/:id":
+    case "/events/:id":
+      // Public event detail exists at app/(public)/events/[id].tsx —
+      // allows a guest to see the event + buy a ticket without
+      // signing up. Post-session addition.
+      return {
+        path: `/(public)/events/${match.params.id}`,
+        params: { ...parsed.params, ...match.params },
+        valid: true,
+      };
+    case "/tickets/guest/:token":
+      // Guest magic-link from the ticket confirmation email.
+      return {
+        path: `/(public)/tickets/guest/${match.params.token}`,
+        params: { ...parsed.params, ...match.params },
+        valid: true,
+      };
     case "/home":
       return {
         path: "/(public)/(tabs)",

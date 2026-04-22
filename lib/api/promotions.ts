@@ -31,12 +31,30 @@ async function getFunctionErrorMessage(
   return fallback;
 }
 
+// Best-effort spotlight housekeeping: flip past-ends_at campaigns
+// to 'expired'. Throttled to once per 60s per process so a burst of
+// spotlight feed reads doesn't hammer the RPC.
+let lastExpirySweepMs = 0;
+async function sweepExpiredCampaigns(): Promise<void> {
+  const now = Date.now();
+  if (now - lastExpirySweepMs < 60_000) return;
+  lastExpirySweepMs = now;
+  const { error } = await supabase.rpc("expire_spotlight_campaigns");
+  if (error) {
+    console.warn("[Promotions] sweep error (non-fatal):", error.message);
+  }
+}
+
 export const promotionsApi = {
   /**
    * Get active spotlight feed items for a city.
    * Returns up to 8 promoted events with image + event summary.
    */
   async getSpotlightFeed(cityId?: number | null): Promise<SpotlightItem[]> {
+    // Kick off the expiry sweep before reading. The feed RPC already
+    // filters by now() BETWEEN starts_at AND ends_at, so users never
+    // see expired campaigns — this keeps the status column honest.
+    void sweepExpiredCampaigns();
     try {
       const { data, error } = await supabase.rpc("get_spotlight_feed", {
         p_city_id: cityId ?? null,

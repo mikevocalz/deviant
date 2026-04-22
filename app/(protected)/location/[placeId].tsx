@@ -25,6 +25,7 @@ import {
   Bookmark,
 } from "lucide-react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useColorScheme } from "@/lib/hooks";
 import { DvntMap } from "@/src/components/map";
 import { LegendList } from "@/components/list";
@@ -87,12 +88,18 @@ function LocationHeader({
       )}
 
       {/* Location Info Overlay */}
-      <View
-        className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-8"
-        style={{
-          backgroundImage: "linear-gradient(transparent, rgba(0,0,0,0.8))",
-        }}
-      >
+      <View className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-8">
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.8)"]}
+          style={{
+            position: "absolute",
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: 0,
+          }}
+          pointerEvents="none"
+        />
         <Text className="text-2xl font-bold text-white" numberOfLines={1}>
           {location.name}
         </Text>

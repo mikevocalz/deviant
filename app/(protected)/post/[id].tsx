@@ -1353,19 +1353,22 @@ function PostDetailScreenContent() {
                           const galeriaIndex = isValidUrl
                             ? imageUrls.indexOf(medium.url)
                             : -1;
+                          // For GIF / Live Photo / animated video, DVNTMediaRenderer
+                          // routes to the correct player component. Wrapping it in
+                          // Galeria.Image still works — the lightbox zoom will show
+                          // a still of the first frame, which is acceptable UX.
                           return (
                             <View key={index}>
                               {isValidUrl ? (
                                 <Galeria.Image
                                   index={galeriaIndex >= 0 ? galeriaIndex : 0}
                                 >
-                                  <Image
-                                    source={{ uri: medium.url }}
-                                    style={{
-                                      width: SCREEN_WIDTH,
-                                      height: PORTRAIT_HEIGHT,
-                                    }}
+                                  <DVNTMediaRenderer
+                                    item={medium as any}
+                                    width={SCREEN_WIDTH}
+                                    height={PORTRAIT_HEIGHT}
                                     contentFit="cover"
+                                    isPlaying={index === currentSlide}
                                   />
                                 </Galeria.Image>
                               ) : (

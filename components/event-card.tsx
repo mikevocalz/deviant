@@ -1,6 +1,6 @@
 import { View, Text, Pressable } from "react-native";
 import { Image } from "expo-image";
-import { Heart, Share2, Bookmark } from "lucide-react-native";
+import { Heart, Share2, Bookmark, Zap } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Motion } from "@legendapp/motion";
 import Animated, { useAnimatedStyle } from "react-native-reanimated";
@@ -74,12 +74,16 @@ export function EventCard({
 
   const handleOpen = useCallback(() => {
     if (guestMode) {
-      requireAuth("events");
+      // Guest-mode taps open the public event detail, where the visitor
+      // can pick a tier and complete a guest (email-only) purchase.
+      // The auth gate is still one tap away from inside that screen.
+      screenPrefetch.eventDetail(queryClient, event.id);
+      router.push(`/(public)/events/${event.id}` as any);
       return;
     }
     screenPrefetch.eventDetail(queryClient, event.id);
     router.push(`/(protected)/events/${event.id}` as any);
-  }, [event.id, guestMode, queryClient, requireAuth, router]);
+  }, [event.id, guestMode, queryClient, router]);
 
   // Responsive sizing: full width on phone, max 614px centered on tablet
   const {
@@ -187,10 +191,45 @@ export function EventCard({
 
             {/* Event Details */}
             <Animated.View className="absolute bottom-0 left-0 right-0 p-6">
-              <View className="bg-white/20 px-3 py-1.5 rounded-xl self-start mb-3">
-                <Text className="text-white text-xs font-medium">
-                  {event.category}
-                </Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  gap: 6,
+                  flexWrap: "wrap",
+                  alignSelf: "flex-start",
+                  marginBottom: 12,
+                }}
+              >
+                <View className="bg-white/20 px-3 py-1.5 rounded-xl">
+                  <Text className="text-white text-xs font-medium">
+                    {event.category}
+                  </Text>
+                </View>
+                {event.isPromoted ? (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      gap: 4,
+                      paddingHorizontal: 10,
+                      paddingVertical: 5,
+                      borderRadius: 12,
+                      backgroundColor: "rgba(245,158,11,0.90)",
+                    }}
+                  >
+                    <Zap size={10} color="#fff" fill="#fff" />
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 10,
+                        fontWeight: "800",
+                        letterSpacing: 0.5,
+                      }}
+                    >
+                      PROMOTED
+                    </Text>
+                  </View>
+                ) : null}
               </View>
               <View style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 8, gap: 10 }}>
                 <Text

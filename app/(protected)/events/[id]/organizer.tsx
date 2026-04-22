@@ -16,6 +16,7 @@ import {
   Pressable,
   RefreshControl,
   ActivityIndicator,
+  Alert,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -30,7 +31,10 @@ import {
   WifiOff,
   CloudUpload,
   Tag,
+  BarChart3,
+  Undo2,
 } from "lucide-react-native";
+import { organizerApi } from "@/lib/api/organizer";
 import { useColorScheme } from "@/lib/hooks";
 import { tickets } from "@/lib/api/tickets";
 import { ticketsApi } from "@/lib/api/tickets";
@@ -150,6 +154,53 @@ function EventOrganizerScreenContent() {
     // Reload tickets after successful check-in
     loadTickets();
   };
+
+  // ── Refund a ticket (host-initiated) ──
+  const [refundingTicketId, setRefundingTicketId] = useState<string | null>(
+    null,
+  );
+  const handleRefundTicket = useCallback(
+    (ticketId: string, buyerName: string) => {
+      Alert.alert(
+        "Refund this ticket?",
+        `This cancels the ticket for ${buyerName} and refunds the full purchase back to their card. Cannot be undone.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Refund",
+            style: "destructive",
+            onPress: async () => {
+              setRefundingTicketId(ticketId);
+              try {
+                const res = await organizerApi.refundTicket(ticketId);
+                if (res.error) {
+                  showToast("error", "Refund failed", res.error);
+                  return;
+                }
+                showToast(
+                  "success",
+                  res.free ? "Ticket voided" : "Refund started",
+                  res.free
+                    ? "The ticket is marked refunded — no payment to reverse."
+                    : "Stripe is processing the refund. The ticket status updates shortly.",
+                );
+                await loadTickets();
+              } catch (err: any) {
+                showToast(
+                  "error",
+                  "Refund failed",
+                  err?.message || "Try again in a moment.",
+                );
+              } finally {
+                setRefundingTicketId(null);
+              }
+            },
+          },
+        ],
+      );
+    },
+    [showToast],
+  );
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -394,34 +445,65 @@ function EventOrganizerScreenContent() {
           </Text>
         )}
 
-        {/* Promo Codes */}
-        <Pressable
-          onPress={() =>
-            router.push(`/(protected)/events/${eventId}/promo-codes` as any)
-          }
-          style={{
-            backgroundColor: "rgba(255,255,255,0.06)",
-            borderWidth: 1,
-            borderColor: colors.border,
-            paddingVertical: 12,
-            borderRadius: 12,
-            flexDirection: "row",
-            alignItems: "center",
-            justifyContent: "center",
-            gap: 6,
-          }}
-        >
-          <Tag size={16} color="#8A40CF" />
-          <Text
+        {/* Analytics + Promo Codes — two-column row */}
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          <Pressable
+            onPress={() =>
+              router.push(`/(protected)/events/${eventId}/analytics` as any)
+            }
             style={{
-              color: colors.foreground,
-              fontSize: 13,
-              fontWeight: "600",
+              flex: 1,
+              backgroundColor: "rgba(255,255,255,0.06)",
+              borderWidth: 1,
+              borderColor: colors.border,
+              paddingVertical: 12,
+              borderRadius: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
             }}
           >
-            Promo Codes
-          </Text>
-        </Pressable>
+            <BarChart3 size={16} color="#22c55e" />
+            <Text
+              style={{
+                color: colors.foreground,
+                fontSize: 13,
+                fontWeight: "600",
+              }}
+            >
+              Analytics
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() =>
+              router.push(`/(protected)/events/${eventId}/promo-codes` as any)
+            }
+            style={{
+              flex: 1,
+              backgroundColor: "rgba(255,255,255,0.06)",
+              borderWidth: 1,
+              borderColor: colors.border,
+              paddingVertical: 12,
+              borderRadius: 12,
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 6,
+            }}
+          >
+            <Tag size={16} color="#8A40CF" />
+            <Text
+              style={{
+                color: colors.foreground,
+                fontSize: 13,
+                fontWeight: "600",
+              }}
+            >
+              Promo Codes
+            </Text>
+          </Pressable>
+        </View>
       </View>
 
       {/* Tickets List */}
@@ -596,6 +678,52 @@ function EventOrganizerScreenContent() {
                       Checked in: {formatDate(ticket.checkedInAt)}
                     </Text>
                   )}
+
+                  {/* Refund button — only on tickets that CAN be refunded */}
+                  {ticket.status !== "revoked" &&
+                  ticket.status !== "checked_in" ? (
+                    <Pressable
+                      onPress={() =>
+                        handleRefundTicket(
+                          ticket.id,
+                          ticket.user?.name ||
+                            ticket.user?.username ||
+                            "Guest",
+                        )
+                      }
+                      disabled={refundingTicketId === ticket.id}
+                      style={{
+                        marginTop: 10,
+                        flexDirection: "row",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        gap: 6,
+                        paddingVertical: 8,
+                        borderRadius: 10,
+                        backgroundColor: "rgba(239,68,68,0.10)",
+                        borderWidth: 1,
+                        borderColor: "rgba(239,68,68,0.25)",
+                        opacity: refundingTicketId === ticket.id ? 0.5 : 1,
+                      }}
+                    >
+                      {refundingTicketId === ticket.id ? (
+                        <ActivityIndicator size="small" color="#ef4444" />
+                      ) : (
+                        <>
+                          <Undo2 size={13} color="#ef4444" />
+                          <Text
+                            style={{
+                              color: "#ef4444",
+                              fontSize: 12,
+                              fontWeight: "700",
+                            }}
+                          >
+                            Refund ticket
+                          </Text>
+                        </>
+                      )}
+                    </Pressable>
+                  ) : null}
                 </View>
               ))}
             </View>

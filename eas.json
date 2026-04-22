@@ -40,6 +40,7 @@
         "buildType": "apk"
       },
       "env": {
+        "STRICT_PATCHES": "1",
         "APP_ENV": "preview",
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
@@ -65,6 +66,7 @@
         "buildType": "apk"
       },
       "env": {
+        "STRICT_PATCHES": "1",
         "APP_ENV": "production",
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
@@ -89,7 +91,12 @@
       "ios": {
         "image": "latest"
       },
+      "android": {
+        "buildType": "app-bundle",
+        "resourceClass": "large"
+      },
       "env": {
+        "STRICT_PATCHES": "1",
         "APP_ENV": "production",
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",

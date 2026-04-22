@@ -43,6 +43,11 @@ export default function PublicLayout() {
       <Stack.Screen name="dev/location-picker" options={{ headerShown: false }} />
       <Stack.Screen name="dev/telemetry" options={{ headerShown: false }} />
       <Stack.Screen name="profile/[username]" options={{ headerShown: false }} />
+      <Stack.Screen name="events/[id]" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="tickets/guest/[token]"
+        options={{ headerShown: false }}
+      />
       <Stack.Screen name="search" options={{ headerShown: false }} />
     </Stack>
   );
