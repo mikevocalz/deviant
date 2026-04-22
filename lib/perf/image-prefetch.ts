@@ -110,8 +110,14 @@ export function extractFeedImageUrls(
   for (const post of posts) {
     if (!post.media?.length) continue;
     // Only prefetch the first image per post (hero image)
+    // Skip GIFs — prefetch caches only the first frame on iOS, causing DVNTGifView
+    // to render black. GIFs load fresh when rendered and animate correctly.
     const firstMedia = post.media[0];
-    if (firstMedia?.url && firstMedia.type !== "video") {
+    if (
+      firstMedia?.url &&
+      firstMedia.type !== "video" &&
+      firstMedia.type !== "gif"
+    ) {
       urls.push(firstMedia.url);
     }
   }
