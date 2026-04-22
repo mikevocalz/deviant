@@ -65,6 +65,12 @@ export function GuestCheckoutSheet({
   const isValid = EMAIL_RE.test(trimmedEmail);
   const total = pricePerTicketCents * quantity;
 
+  const inputStyle = {
+    color: colors.foreground,
+    borderColor: colors.border,
+    backgroundColor: "rgba(255,255,255,0.03)",
+  };
+
   const handleClose = useCallback(() => {
     if (submitting) return;
     setEmail("");
@@ -214,14 +220,7 @@ export function GuestCheckoutSheet({
                 keyboardType="email-address"
                 autoComplete="email"
                 editable={!submitting}
-                style={[
-                  styles.input,
-                  {
-                    color: colors.foreground,
-                    borderColor: colors.border,
-                    backgroundColor: "rgba(255,255,255,0.03)",
-                  },
-                ]}
+                style={[styles.input, inputStyle]}
               />
             </View>
 
@@ -239,14 +238,7 @@ export function GuestCheckoutSheet({
                 placeholderTextColor={colors.mutedForeground}
                 autoCapitalize="words"
                 editable={!submitting}
-                style={[
-                  styles.input,
-                  {
-                    color: colors.foreground,
-                    borderColor: colors.border,
-                    backgroundColor: "rgba(255,255,255,0.03)",
-                  },
-                ]}
+                style={[styles.input, inputStyle]}
               />
             </View>
 
