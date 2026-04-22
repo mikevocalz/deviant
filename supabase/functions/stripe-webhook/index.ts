@@ -498,6 +498,33 @@ Deno.serve(async (req: Request) => {
           console.log(
             `[stripe-webhook] Upgraded ticket ${ticketId}: ${oldTicketTypeId} → ${newTicketTypeId} for event ${eventId}`,
           );
+        } else if (metadata.type === "event_spotlight") {
+          // ── Activate a paid event-spotlight campaign ─────
+          // The pending campaign row was inserted by event-spotlight
+          // with `starts_at = now()` and `ends_at = now() + duration`.
+          // Payment completing flips status → 'active' and attaches
+          // the PaymentIntent for bookkeeping / refunds.
+          const campaignId = Number(metadata.campaign_id);
+          if (Number.isFinite(campaignId) && campaignId > 0) {
+            const { error: activateErr } = await supabase
+              .from("event_spotlight_campaigns")
+              .update({
+                status: "active",
+                stripe_payment_intent_id: session.payment_intent,
+              })
+              .eq("id", campaignId)
+              .eq("status", "pending");
+            if (activateErr) {
+              console.error(
+                "[stripe-webhook] spotlight activate error:",
+                activateErr,
+              );
+            } else {
+              console.log(
+                `[stripe-webhook] Activated spotlight campaign ${campaignId}`,
+              );
+            }
+          }
         }
         break;
       }
