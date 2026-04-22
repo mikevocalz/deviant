@@ -114,10 +114,8 @@ Deno.serve(async (req: Request) => {
           .eq("event_id", eventIdNum)
           .order("created_at", { ascending: true });
         if (narrowErr) {
-          return errorResponse(
-            "Could not fetch attendees: " + narrowErr.message,
-            500,
-          );
+          console.error("[event-analytics] attendees narrow select:", narrowErr);
+          return errorResponse("Could not fetch attendees", 500);
         }
         return jsonResponse({
           ok: true,
@@ -293,6 +291,6 @@ Deno.serve(async (req: Request) => {
     });
   } catch (err: any) {
     console.error("[event-analytics] Unexpected error:", err);
-    return errorResponse(err?.message || "Internal error", 500);
+    return errorResponse("Internal error", 500);
   }
 });

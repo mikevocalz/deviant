@@ -29,6 +29,7 @@ import {
   incrementPromoUsage,
 } from "../_shared/apply-promo-code.ts";
 import { maybeFireCapacityAlerts } from "../_shared/capacity-alerts.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -87,6 +88,18 @@ Deno.serve(async (req: Request) => {
     const user_id = await verifySession(supabase, req);
     const trimmedGuestEmail =
       typeof guest_email === "string" ? guest_email.trim().toLowerCase() : "";
+    const trimmedGuestName =
+      typeof guest_name === "string" ? guest_name.trim() : "";
+
+    // Input caps: stop oversized payloads BEFORE hitting the DB or Stripe.
+    // RFC 5321 caps the full email path at 254 chars; names get 120.
+    if (trimmedGuestEmail.length > 254 || trimmedGuestName.length > 120) {
+      return new Response(
+        JSON.stringify({ error: "Input too long" }),
+        { status: 400, headers: { "Content-Type": "application/json" } },
+      );
+    }
+
     const isValidEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedGuestEmail);
     const isGuest = !user_id && !!trimmedGuestEmail && isValidEmail;
 
@@ -102,6 +115,23 @@ Deno.serve(async (req: Request) => {
     }
 
     const buyerKey = user_id || `guest:${trimmedGuestEmail}`;
+
+    // Rate-limit ticket holds by buyer. A single buyer starting more
+    // than 5 checkouts in 10 minutes is almost certainly scripted —
+    // each attempt creates a 10-min ticket_hold that blocks inventory
+    // from real buyers until it expires.
+    const rl = checkRateLimit(buyerKey, "ticket-checkout", {
+      maxRequests: 5,
+      windowMs: 10 * 60_000,
+    });
+    if (!rl.allowed) {
+      return new Response(
+        JSON.stringify({
+          error: `Too many checkout attempts. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.`,
+        }),
+        { status: 429, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
     if (!event_id || !ticket_type_id) {
       return new Response(
@@ -221,7 +251,7 @@ Deno.serve(async (req: Request) => {
           ticket_type_id,
           user_id: isGuest ? null : user_id,
           guest_email: isGuest ? trimmedGuestEmail : null,
-          guest_name: isGuest ? (typeof guest_name === "string" ? guest_name.trim() : null) : null,
+          guest_name: isGuest ? trimmedGuestName || null : null,
           guest_lookup_token: isGuest ? crypto.randomUUID() : null,
           status: "active",
           qr_token: qrToken,
@@ -362,8 +392,8 @@ Deno.serve(async (req: Request) => {
       ...(isGuest
         ? {
             "metadata[guest_email]": trimmedGuestEmail,
-            ...(typeof guest_name === "string" && guest_name.trim()
-              ? { "metadata[guest_name]": guest_name.trim() }
+            ...(trimmedGuestName
+              ? { "metadata[guest_name]": trimmedGuestName }
               : {}),
           }
         : { "metadata[user_id]": user_id as string }),
@@ -445,7 +475,7 @@ Deno.serve(async (req: Request) => {
   } catch (err: any) {
     console.error("[ticket-checkout] Error:", err);
     return new Response(
-      JSON.stringify({ error: err.message || "Internal error" }),
+      JSON.stringify({ error: "Checkout failed — please try again." }),
       { status: 500, headers: { "Content-Type": "application/json" } },
     );
   }

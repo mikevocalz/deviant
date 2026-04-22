@@ -23,6 +23,7 @@ import {
   errorResponse,
   optionsResponse,
 } from "../_shared/verify-session.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -67,6 +68,15 @@ Deno.serve(async (req: Request) => {
     if (!event) return errorResponse("Event not found", 404);
 
     if (action === "join") {
+      // Anti-spam: a real user joining + leaving should be measured in
+      // seconds, not hundreds-of-requests per minute.
+      const rl = checkRateLimit(authId, "event-waitlist-join", {
+        maxRequests: 10,
+        windowMs: 60_000,
+      });
+      if (!rl.allowed) {
+        return errorResponse("Too many waitlist requests", 429);
+      }
       // Idempotent: try to insert; if the unique index trips, return the existing row.
       const insertPayload: Record<string, unknown> = {
         event_id: eventIdNum,
@@ -100,7 +110,7 @@ Deno.serve(async (req: Request) => {
           });
         }
         console.error("[event-waitlist] join error:", insertErr);
-        return errorResponse(insertErr.message || "Could not join waitlist", 500);
+        return errorResponse("Could not join waitlist", 500);
       }
       return jsonResponse({
         ok: true,
@@ -121,7 +131,7 @@ Deno.serve(async (req: Request) => {
       const { error: deleteErr } = await q;
       if (deleteErr) {
         console.error("[event-waitlist] leave error:", deleteErr);
-        return errorResponse(deleteErr.message || "Could not leave waitlist", 500);
+        return errorResponse("Could not leave waitlist", 500);
       }
       return jsonResponse({ ok: true, joined: false });
     }
@@ -136,7 +146,7 @@ Deno.serve(async (req: Request) => {
       const { data, error } = await q.maybeSingle();
       if (error) {
         console.error("[event-waitlist] status error:", error);
-        return errorResponse(error.message || "Status check failed", 500);
+        return errorResponse("Status check failed", 500);
       }
       return jsonResponse({
         ok: true,
@@ -204,6 +214,6 @@ Deno.serve(async (req: Request) => {
     return errorResponse("Unknown action", 400);
   } catch (err: any) {
     console.error("[event-waitlist] unexpected:", err);
-    return errorResponse(err?.message || "Internal error", 500);
+    return errorResponse("Internal error", 500);
   }
 });
