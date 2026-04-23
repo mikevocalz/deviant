@@ -117,6 +117,7 @@ import {
   useJoinWaitlist,
   useLeaveWaitlist,
 } from "@/lib/hooks/use-event-waitlist";
+import { ensureOnlineOrToast } from "@/lib/connectivity/guard";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const HERO_HEIGHT = 420;
@@ -665,6 +666,17 @@ function EventDetailScreenContent() {
     const hasDbTiers =
       Array.isArray(eventData.ticketTiers) && eventData.ticketTiers.length > 0;
     if (eventData.ticketingEnabled && hasDbTiers && selectedTier?.id) {
+      // Billable action — never fire while confirmed offline. The
+      // PaymentSheet would open, the card confirm would fail, and the
+      // user would be left wondering if they were charged.
+      if (
+        ensureOnlineOrToast(
+          "Reconnect to finish your ticket purchase.",
+          "No connection",
+        )
+      ) {
+        return;
+      }
       setIsCheckingOut(true);
       try {
         // Use native PaymentSheet for in-app checkout

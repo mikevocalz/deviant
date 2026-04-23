@@ -50,15 +50,29 @@ function ViewerRow({
         pressed && { backgroundColor: "rgba(255,255,255,0.06)" },
       ]}
     >
-      <Avatar
-        uri={viewer.avatar}
-        username={viewer.username}
-        size={44}
-        variant="roundedSquare"
-      />
+      <View style={styles.avatarSlot}>
+        <Avatar
+          uri={viewer.avatar}
+          username={viewer.username}
+          size={44}
+          variant="roundedSquare"
+        />
+      </View>
       <View style={styles.viewerInfo}>
-        <Text style={styles.viewerUsername}>{viewer.username}</Text>
-        <Text style={styles.viewerTime}>{formatViewedAt(viewer.viewedAt)}</Text>
+        <Text
+          style={styles.viewerUsername}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {viewer.username}
+        </Text>
+        <Text
+          style={styles.viewerTime}
+          numberOfLines={1}
+          ellipsizeMode="tail"
+        >
+          {formatViewedAt(viewer.viewedAt)}
+        </Text>
       </View>
     </Pressable>
   );
@@ -191,8 +205,16 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 10,
   },
+  avatarSlot: {
+    // Lock the avatar's slot so it never shrinks; keeps the username +
+    // time column reliably to the RIGHT of the ring on every row.
+    width: 44,
+    flexShrink: 0,
+  },
   viewerInfo: {
     flex: 1,
+    minWidth: 0,
+    justifyContent: "center",
   },
   viewerUsername: {
     fontSize: 15,

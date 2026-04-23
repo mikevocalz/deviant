@@ -227,13 +227,19 @@ export function useDeleteStory() {
 }
 
 // Fetch viewers for a story (only useful for own stories) — polls every 5s
+// but returns cached data INSTANTLY while the refresh runs in the background.
+// Previously `staleTime: 0` meant every reopen showed a spinner before any
+// row rendered; now the sheet opens with the last-known list and refreshes
+// seamlessly.
 export function useStoryViewers(storyId: string | undefined) {
   const persistedStoryId = normalizePersistedStoryId(storyId);
   return useQuery({
     queryKey: storyViewKeys.viewers(persistedStoryId || ""),
     queryFn: () => storyViewsApi.getViewers(persistedStoryId!),
     enabled: !!persistedStoryId,
-    staleTime: 0,
+    // One tick shy of the poll interval — cached list renders immediately
+    // on reopen, then the next 5s poll refreshes it.
+    staleTime: 4500,
     refetchInterval: 5000,
   });
 }

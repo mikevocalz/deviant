@@ -19,6 +19,7 @@ import { logChat } from "@/lib/auth/auth-logger";
 import { invalidateTokenCache, getQueryClient } from "@/lib/auth-client";
 import { messageKeys } from "@/lib/messages/query-keys";
 import type { Conversation } from "@/lib/api/messages";
+import { ensureOnlineOrToast } from "@/lib/connectivity/guard";
 
 /**
  * Optimistically move the just-sent conversation to the top of the list
@@ -431,6 +432,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Send message to backend with Bunny CDN upload
   sendMessageToBackend: async (conversationId: string) => {
+    // Premium offline UX: if the device has been confirmed offline for
+    // longer than the flap window, don't fire the send. The optimistic
+    // message would be inserted then fail with a non-obvious error.
+    // Better to short-circuit with a clear toast and keep the user's
+    // text in the input so they can tap send again once reconnected.
+    if (
+      ensureOnlineOrToast(
+        "Message will send when you’re back online.",
+        "No connection",
+      )
+    ) {
+      return;
+    }
+
     const { currentMessage, pendingMedia, isSending } = get();
     // Re-entrance guard with staleness check — if stuck for >15s, force-reset
     if (isSending) {

@@ -54,7 +54,9 @@ import {
   useStoryViewerCount,
   useRecordStoryView,
   useDeleteStory,
+  storyViewKeys,
 } from "@/lib/hooks/use-stories";
+import { storyViewsApi } from "@/lib/api/stories";
 import { StoryViewersSheet } from "@/components/stories/story-viewers-sheet";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { messagesApiClient } from "@/lib/api/messages";
@@ -2039,6 +2041,19 @@ function StoryViewerScreenContent() {
           {isOwnStory && persistedStoryItemId && (
             <>
               <Pressable
+                // Prefetch viewers the moment the user's finger presses down
+                // on the pill — by the time the sheet opens (onPress) the data
+                // is already in React Query's cache, so the sheet shows the
+                // list instantly instead of flashing a spinner.
+                onPressIn={() => {
+                  if (!currentStoryId) return;
+                  queryClient.prefetchQuery({
+                    queryKey: storyViewKeys.viewers(String(currentStoryId)),
+                    queryFn: () =>
+                      storyViewsApi.getViewers(String(currentStoryId)),
+                    staleTime: 4500,
+                  });
+                }}
                 onPress={() => {
                   isPaused.current = true;
                   cancelAnimation(progress);

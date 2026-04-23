@@ -4,8 +4,13 @@ import "@/lib/i18n";
 import "@/lib/ota-bootstrap-log";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, onlineManager } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import {
+  initConnectivity,
+  useConnectivityStore,
+} from "@/lib/stores/connectivity-store";
+import { OfflineBanner } from "@/components/offline-banner";
 import {
   persistOptions,
   checkAndClearCacheOnOTAUpdate,
@@ -108,6 +113,32 @@ const queryClient = new QueryClient({
 
 // Register query client with auth module so it can clear cache on user switch
 setQueryClient(queryClient);
+
+// ─── Connectivity wiring ───────────────────────────────────────────────────
+// Module-scope init so exactly ONE network listener is attached for the
+// whole app lifetime. initConnectivity() is idempotent — safe if this
+// module reloads during dev.
+initConnectivity();
+
+// Bridge the Zustand connectivity phase to React Query's onlineManager.
+// When offline:
+//   - queries don't retry/refetch
+//   - paused mutations queue until we go back online
+// When online:
+//   - React Query's reconnect hook fires refetch for any stale queries
+//     (the `refetchOnReconnect: true` default above handles that)
+//
+// We DO NOT pause during the "reconnecting" flap phase — requests fired
+// then may well succeed and it's better to try than to sit idle.
+onlineManager.setEventListener((setOnline) => {
+  setOnline(useConnectivityStore.getState().phase !== "offline");
+  const unsub = useConnectivityStore.subscribe((state, prev) => {
+    if (state.phase !== prev.phase) {
+      setOnline(state.phase !== "offline");
+    }
+  });
+  return unsub;
+});
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
@@ -595,6 +626,12 @@ export default function RootLayout() {
                             descriptionStyle: { color: "#a1a1aa" },
                           }}
                         />
+                        {/* Global offline indicator. Mounted here so it
+                            sits above every stack screen but BELOW the
+                            toaster (so it doesn't block toast taps).
+                            Driven by the flap-debounced connectivity
+                            store so it never appears for brief dips. */}
+                        <OfflineBanner />
                       </View>
                     </LikesSheetProvider>
                   </ThemeProvider>
