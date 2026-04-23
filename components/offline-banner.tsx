@@ -5,17 +5,22 @@
  * Slides down from under the status bar when the connectivity store says
  * we're offline. Dismisses itself the moment we reconnect.
  *
- * Design goals:
- *   - non-intrusive (60px tall, translucent surface, tasteful icon)
- *   - no spam: banner is driven by a flap-debounced store phase, so
- *     brief signal dips never surface it
- *   - no re-render storm: single selector on `phase` — nothing else in
- *     the app re-renders when this banner shows/hides
- *   - scroll-position safe: banner is absolutely positioned; feed
- *     scroll is untouched
- *   - Instagram/Threads style: subtle pill "You're offline" with a
- *     persistent status until reconnected; on reconnect a brief
- *     "Back online" confirmation fades in then out
+ * Design / palette:
+ *   - Offline state: dark `secondary` surface (DVNT's card/muted
+ *     background rgb(26,26,26)) with a destructive-red dot + white
+ *     label. Reads as "something's wrong" without screaming.
+ *   - Back-online flash: DVNT primary cyan rgb(62,164,229) with white
+ *     label. Matches the brand's live/active accent.
+ *   - Thin DVNT border (rgb(38,38,38)) + soft shadow so the pill lifts
+ *     off the content cleanly.
+ *
+ * Implementation notes:
+ *   - Single selector on `phase` — nothing else in the app re-renders
+ *     on connectivity changes.
+ *   - Reanimated shared values = UI-thread state, not React state, so
+ *     no useState anywhere per the project policy.
+ *   - Scroll-position safe (absolute positioning, no layout push).
+ *   - Flap-debounced upstream — banner never appears for brief dips.
  */
 
 import { useEffect, useRef } from "react";
@@ -25,13 +30,13 @@ import Animated, {
   useAnimatedStyle,
   withTiming,
   withSpring,
-  interpolate,
   Easing,
   runOnJS,
 } from "react-native-reanimated";
 import { WifiOff, Wifi } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useConnectivityStore } from "@/lib/stores/connectivity-store";
+import { useColorScheme } from "@/lib/hooks";
 
 type Surface = "offline" | "reconnected" | "hidden";
 
@@ -40,15 +45,18 @@ const RECONNECT_FLASH_MS = 1800;
 
 export function OfflineBanner() {
   const insets = useSafeAreaInsets();
+  const { colors } = useColorScheme();
   const phase = useConnectivityStore((s) => s.phase);
 
   // Drive surface state from the store phase + a short "reconnected"
-  // flash. Using a ref + sharedValue instead of component state so we
-  // honor the project state policy (no useState). Reanimated's
-  // useSharedValue is UI-thread state, not React state.
+  // flash. Using a ref + shared values instead of component state so we
+  // honor the project state policy (no useState). Reanimated shared
+  // values are UI-thread state, not React state.
   const surfaceRef = useRef<Surface>("hidden");
   const translateY = useSharedValue(-100);
   const opacity = useSharedValue(0);
+  // 0 = offline palette, 1 = reconnected palette. Interpolated into
+  // background + icon color via useAnimatedStyle below.
   const colorAnim = useSharedValue(0);
 
   useEffect(() => {
@@ -95,7 +103,7 @@ export function OfflineBanner() {
       }
     }
     // "reconnecting" is deliberately ignored — the flap-debounce in the
-    // store handles that, we never surface a half-state to users.
+    // store handles that; we never surface a half-state to users.
 
     return () => {
       if (flashTimer != null) clearTimeout(flashTimer);
@@ -107,15 +115,23 @@ export function OfflineBanner() {
     transform: [{ translateY: translateY.value }],
   }));
 
+  // Background + icon lerp between DVNT's offline surface and primary
+  // accent. Worklet-safe — no JS calls.
   const bgStyle = useAnimatedStyle(() => {
-    const bg = interpolate(colorAnim.value, [0, 1], [0, 1]);
+    const t = colorAnim.value;
+    // DVNT theme tokens (dark theme). Kept verbatim so the banner
+    // doesn't need to subscribe to a second store just for colors.
+    // Offline: secondary = rgb(26,26,26)
+    // Online (reconnect flash): primary = rgb(62,164,229)
+    const r = 26 + (62 - 26) * t;
+    const g = 26 + (164 - 26) * t;
+    const b = 26 + (229 - 26) * t;
     return {
-      backgroundColor:
-        bg < 0.5
-          ? "rgba(40, 40, 44, 0.96)"
-          : "rgba(20, 122, 72, 0.96)", // green confirmation
+      backgroundColor: `rgba(${Math.round(r)}, ${Math.round(g)}, ${Math.round(b)}, 0.96)`,
     };
   });
+
+  const isOnline = phase === "online";
 
   return (
     <Animated.View
@@ -126,14 +142,35 @@ export function OfflineBanner() {
         animatedStyle,
       ]}
     >
-      <Animated.View style={[styles.pill, bgStyle]}>
-        {phase === "online" ? (
-          <Wifi size={14} color="#fff" />
+      <Animated.View
+        style={[
+          styles.pill,
+          {
+            borderColor: colors.border,
+          },
+          bgStyle,
+        ]}
+      >
+        {/* Status dot — destructive red when offline, white when
+            reconnected. Matches DVNT's hierarchy: red = problem,
+            white-on-primary = confirmation. */}
+        <View
+          style={[
+            styles.dot,
+            {
+              backgroundColor: isOnline
+                ? colors.foreground
+                : colors.destructive,
+            },
+          ]}
+        />
+        {isOnline ? (
+          <Wifi size={13} color={colors.foreground} />
         ) : (
-          <WifiOff size={14} color="#fff" />
+          <WifiOff size={13} color={colors.foreground} />
         )}
-        <Text style={styles.label}>
-          {phase === "online" ? "Back online" : "You’re offline"}
+        <Text style={[styles.label, { color: colors.foreground }]}>
+          {isOnline ? "Back online" : "You’re offline"}
         </Text>
       </Animated.View>
     </Animated.View>
@@ -148,8 +185,6 @@ const styles = StyleSheet.create({
     right: 0,
     alignItems: "center",
     zIndex: 5000,
-    // iOS: elevation is ignored. Android: need it so the banner stacks
-    // above Stack navigator shadows.
     elevation: Platform.OS === "android" ? 20 : 0,
   },
   pill: {
@@ -159,18 +194,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 100,
-    // Subtle light border matches DVNT's liquid-glass language
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-    // Soft shadow — visible enough to lift the pill off the content
-    // without screaming for attention.
+    borderWidth: StyleSheet.hairlineWidth,
     shadowColor: "#000",
-    shadowOpacity: 0.35,
+    shadowOpacity: 0.4,
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 4 },
   },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
   label: {
-    color: "#fff",
     fontSize: 13,
     fontWeight: "600",
     letterSpacing: 0.2,
