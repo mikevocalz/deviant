@@ -413,6 +413,10 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
       try {
         p.loop = false;
         p.muted = false;
+        // Duck background audio while the post video plays instead of
+        // preempting it — the user gets to hear the post sound over a
+        // lowered Spotify, not a silent one.
+        p.audioMixingMode = "duckOthers";
         logVideoHealth("PostDetail", "player configured", {
           postId,
           videoUrl: videoUrl.slice(0, 50),

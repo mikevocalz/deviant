@@ -90,6 +90,10 @@ function DVNTVideoPlayerComponent(
   const player = useVideoPlayer(source ?? "", (p) => {
     p.loop = loop;
     p.muted = muted;
+    // react-native-video's `mixAudioMode` (equivalent to expo-video's
+    // `audioMixingMode`). Muted → mix alongside background audio;
+    // unmuted → duck background audio instead of preempting it.
+    p.mixAudioMode = muted ? "mixWithOthers" : "duckOthers";
     if (!paused) p.play();
   });
 
@@ -103,6 +107,7 @@ function DVNTVideoPlayerComponent(
   useEffect(() => {
     try {
       player.muted = muted;
+      player.mixAudioMode = muted ? "mixWithOthers" : "duckOthers";
     } catch {}
   }, [muted, player]);
 

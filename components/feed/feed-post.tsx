@@ -328,6 +328,12 @@ function FeedPostComponent({
       try {
         p.loop = false;
         p.muted = isMuted;
+        // Never preempt background audio from feed scrolling. Muted
+        // videos: always mixWithOthers. Unmuted (user tapped to
+        // hear it): duck other audio (lower their Spotify) rather
+        // than stopping it entirely — matches the user contract
+        // "audio should only stop when a story plays".
+        p.audioMixingMode = isMuted ? "mixWithOthers" : "duckOthers";
         logVideoHealth("FeedPost", "player configured", { id });
       } catch (error) {
         logVideoHealth("FeedPost", "config error", { error: String(error) });
@@ -335,10 +341,16 @@ function FeedPostComponent({
     }
   });
 
-  // Mute sync
+  // Mute sync — also re-assigns audioMixingMode so toggling the speaker
+  // in the feed switches between "don't touch background audio" (muted)
+  // and "duck it while video plays" (unmuted). Without this the mode
+  // stays whatever it was on first render.
   useEffect(() => {
     if (hasPlayableVideo && player) {
       safeMute(player, isMountedRef, isMuted, "FeedPost");
+      try {
+        player.audioMixingMode = isMuted ? "mixWithOthers" : "duckOthers";
+      } catch {}
     }
   }, [hasPlayableVideo, player, isMuted, isMountedRef]);
 
