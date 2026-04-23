@@ -16,7 +16,50 @@ import { uploadToServer } from "@/lib/server-upload";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { logChat } from "@/lib/auth/auth-logger";
-import { invalidateTokenCache } from "@/lib/auth-client";
+import { invalidateTokenCache, getQueryClient } from "@/lib/auth-client";
+import { messageKeys } from "@/lib/messages/query-keys";
+import type { Conversation } from "@/lib/api/messages";
+
+/**
+ * Optimistically move the just-sent conversation to the top of the list
+ * with the new lastMessage text, so the user sees their own send reflected
+ * in the chat list INSTANTLY — no wait for the server round-trip or
+ * realtime subscription. Preserves every other field on the conversation
+ * row so profile data doesn't flicker. If the conversation isn't in the
+ * cache yet (e.g. brand-new chat), this is a no-op and the list refetch
+ * on focus will pick it up.
+ */
+function bumpConversationToTopOptimistically(
+  viewerId: string | undefined,
+  conversationId: string,
+  lastMessagePreview: string,
+) {
+  if (!viewerId || !conversationId) return;
+  const qc = getQueryClient();
+  if (!qc) return;
+  try {
+    qc.setQueryData<Conversation[]>(
+      messageKeys.conversations(viewerId),
+      (old) => {
+        if (!Array.isArray(old)) return old;
+        const existing = old.find((c) => String(c.id) === String(conversationId));
+        if (!existing) return old;
+        const bumped: Conversation = {
+          ...existing,
+          lastMessage: lastMessagePreview || existing.lastMessage,
+          timestamp: new Date().toISOString(),
+          unread: false,
+        };
+        const rest = old.filter((c) => String(c.id) !== String(conversationId));
+        return [bumped, ...rest];
+      },
+    );
+  } catch (err) {
+    // Non-fatal — chat send continues; worst case the list refreshes on focus.
+    if (__DEV__)
+      console.warn("[ChatStore] bumpConversationToTop failed:", err);
+  }
+}
 
 export interface MediaAttachment {
   type: "image" | "video";
@@ -456,6 +499,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ],
       },
     }));
+
+    // Optimistic chat-list reorder: move this conversation to the top
+    // of the messages list with the just-sent preview. Instant UX —
+    // no waiting for the server round-trip or realtime push.
+    const previewText =
+      messageText.trim() ||
+      (mediaToSend.length > 0
+        ? mediaToSend[0]?.type === "video"
+          ? "📹 Video"
+          : "📷 Photo"
+        : "");
+    bumpConversationToTopOptimistically(
+      String(user.id),
+      conversationId,
+      previewText,
+    );
 
     try {
       // Upload media to Bunny CDN first, then send CDN URL

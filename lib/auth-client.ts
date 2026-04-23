@@ -98,6 +98,15 @@ export function setQueryClient(client: QueryClient) {
   globalQueryClient = client;
 }
 
+/**
+ * Access the app-wide QueryClient outside a React tree. Safe for use from
+ * Zustand stores / API layer for optimistic cache updates. Returns null
+ * until `setQueryClient` has been called during app boot.
+ */
+export function getQueryClient(): QueryClient | null {
+  return globalQueryClient;
+}
+
 // Clear all cached data when switching users
 export function clearAllCachedData() {
   console.log("[Auth] === CLEARING ALL USER DATA ===");

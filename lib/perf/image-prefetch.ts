@@ -52,19 +52,30 @@ export function prefetchImages(urls: string[]) {
 
 /**
  * Prefetch a small batch of critical images synchronously before first paint.
- * Used sparingly for above-the-fold feed media to avoid visible waterfalling.
+ *
+ * Races against a hard timeout so a slow CDN or stalled URL never holds
+ * the feed render. If the timeout fires first, the feed renders anyway
+ * (images will pop in as they finish loading in the background) — this
+ * is strictly better than holding the UI blank waiting for network.
  */
 export async function prefetchImagesBlocking(urls: string[]) {
   if (!urls.length) return;
 
-  const batch = urls.slice(0, Math.min(MAX_PREFETCH_BATCH, 12)).filter(Boolean);
+  const batch = urls
+    .slice(0, Math.min(MAX_PREFETCH_BATCH, 8))
+    .filter(Boolean);
   if (!batch.length) return;
 
+  const BLOCKING_BUDGET_MS = 1200;
+
   try {
-    await Image.prefetch(batch);
+    await Promise.race([
+      Image.prefetch(batch),
+      new Promise<void>((resolve) => setTimeout(resolve, BLOCKING_BUDGET_MS)),
+    ]);
     if (__DEV__) {
       console.log(
-        `[ImagePrefetch] expo-image: awaited ${batch.length} critical images`,
+        `[ImagePrefetch] expo-image: critical batch (${batch.length}) done or timed out at ${BLOCKING_BUDGET_MS}ms`,
       );
     }
   } catch (err) {

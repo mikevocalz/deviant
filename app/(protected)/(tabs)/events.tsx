@@ -416,29 +416,30 @@ function EventsScreenContent() {
     debouncedSearch.length >= 2;
 
   // Filter events by tab — server handles pill filters
-  // Tab indices: 0=For You, 1=All Events, 2=Upcoming, 3=Past
-  // Uses eventsWithPromotion (has is_promoted flag + de-duped) for All/Upcoming/Past
-  // When filters/search are active on For You tab, fall back to filtered "All Events"
-  // so that filter pills, search, and sort always take effect regardless of tab.
+  // Tab indices: 0=Upcoming, 1=For You, 2=All Events, 3=Past Events
+  // Uses eventsWithPromotion (has is_promoted flag + de-duped) for
+  // Upcoming/All/Past. For You uses the personalized feed unless
+  // filters/search are active, in which case we fall back to filtered
+  // "All Events" so pills + sort + search always apply.
   const getFilteredEvents = useCallback(
     (tabIndex: number) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       switch (tabIndex) {
-        case 0: // For You — use filtered results when any filter/search is active
-          return hasActiveFilters ? eventsWithPromotion : forYouEvents;
-        case 2: // upcoming
+        case 0: // Upcoming — default landing tab
           return eventsWithPromotion.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) >= today,
           );
+        case 1: // For You — use filtered results when any filter/search is active
+          return hasActiveFilters ? eventsWithPromotion : forYouEvents;
         case 3: // past_events
           return eventsWithPromotion.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) < today,
           );
-        default: // All Events (1)
+        default: // All Events (2)
           return eventsWithPromotion;
       }
     },
@@ -461,9 +462,9 @@ function EventsScreenContent() {
   );
 
   const tabs = [
+    { key: "upcoming", label: "Upcoming" },
     { key: "for_you", label: "For You" },
     { key: "all_events", label: "All Events" },
-    { key: "upcoming", label: "Upcoming" },
     { key: "past_events", label: "Past Events" },
   ];
 

@@ -156,95 +156,99 @@ function CreateEventScreenContent() {
     cancelUpload: cancelMediaUpload,
   } = useMediaUpload({ folder: "events" });
 
-  // All form state from Zustand (MMKV-persisted draft)
-  const store = useCreateEventStore();
-  const {
-    title,
-    setTitle,
-    description,
-    setDescription,
-    location,
-    setLocation,
-    locationData,
-    setLocationData,
-    eventImages,
-    setEventImages,
-    tags,
-    toggleTag,
-    customTag,
-    setCustomTag,
-    addCustomTag,
-    eventDate: eventDateISO,
-    setEventDate: setEventDateISO,
-    endDate: endDateISO,
-    setEndDate: setEndDateISO,
-    ticketPrice,
-    setTicketPrice,
-    maxAttendees,
-    setMaxAttendees,
-    youtubeUrl,
-    setYoutubeUrl,
-    isSubmitting,
-    setIsSubmitting,
-    uploadProgress,
-    setUploadProgress,
-    ticketingEnabled,
-    setTicketingEnabled,
-    ticketTierName,
-    setTicketTierName,
-    showDatePicker,
-    setShowDatePicker,
-    showTimePicker,
-    setShowTimePicker,
-    showEndDatePicker,
-    setShowEndDatePicker,
-    showEndTimePicker,
-    setShowEndTimePicker,
-    visibility,
-    setVisibility,
-    ageRestriction,
-    setAgeRestriction,
-    isOnline,
-    setIsOnline,
-    dressCode,
-    setDressCode,
-    doorPolicy,
-    setDoorPolicy,
-    lineup,
-    setLineup,
-    lineupInput,
-    setLineupInput,
-    perks,
-    setPerks,
-    perksInput,
-    setPerksInput,
-    ticketTiers,
-    setTicketTiers,
-    addLineupItem,
-    addPerk,
-    coOrganizers,
-    addCoOrganizer,
-    removeCoOrganizer,
-    coOrganizerSearch,
-    setCoOrganizerSearch,
-    coOrganizerResults,
-    setCoOrganizerResults,
-    removeLineupItem,
-    removePerk,
-    currentStep,
-    setCurrentStep,
-    nextStep,
-    prevStep,
-    canProceed,
-    totalSteps,
-    resetDraft,
-    eventType,
-    setEventType,
-    disclaimers,
-    setDisclaimers,
-    agreementAccepted,
-    setAgreementAccepted,
-  } = store;
+  // All form state lives in Zustand (MMKV-persisted draft). Each field is
+  // selected INDIVIDUALLY — the previous whole-store destructure subscribed
+  // this 2000-line component to every field, so every keystroke in every
+  // input re-rendered the whole tree. That's why date/time pickers felt
+  // laggy, the scroll stuttered, and quantity inputs could drop characters
+  // (Zustand setters are stable so action selectors are free).
+  const title = useCreateEventStore((s) => s.title);
+  const setTitle = useCreateEventStore((s) => s.setTitle);
+  const description = useCreateEventStore((s) => s.description);
+  const setDescription = useCreateEventStore((s) => s.setDescription);
+  const location = useCreateEventStore((s) => s.location);
+  const setLocation = useCreateEventStore((s) => s.setLocation);
+  const locationData = useCreateEventStore((s) => s.locationData);
+  const setLocationData = useCreateEventStore((s) => s.setLocationData);
+  const eventImages = useCreateEventStore((s) => s.eventImages);
+  const setEventImages = useCreateEventStore((s) => s.setEventImages);
+  const tags = useCreateEventStore((s) => s.tags);
+  const toggleTag = useCreateEventStore((s) => s.toggleTag);
+  const customTag = useCreateEventStore((s) => s.customTag);
+  const setCustomTag = useCreateEventStore((s) => s.setCustomTag);
+  const addCustomTag = useCreateEventStore((s) => s.addCustomTag);
+  const eventDateISO = useCreateEventStore((s) => s.eventDate);
+  const setEventDateISO = useCreateEventStore((s) => s.setEventDate);
+  const endDateISO = useCreateEventStore((s) => s.endDate);
+  const setEndDateISO = useCreateEventStore((s) => s.setEndDate);
+  const ticketPrice = useCreateEventStore((s) => s.ticketPrice);
+  const setTicketPrice = useCreateEventStore((s) => s.setTicketPrice);
+  const maxAttendees = useCreateEventStore((s) => s.maxAttendees);
+  const setMaxAttendees = useCreateEventStore((s) => s.setMaxAttendees);
+  const youtubeUrl = useCreateEventStore((s) => s.youtubeUrl);
+  const setYoutubeUrl = useCreateEventStore((s) => s.setYoutubeUrl);
+  const isSubmitting = useCreateEventStore((s) => s.isSubmitting);
+  const setIsSubmitting = useCreateEventStore((s) => s.setIsSubmitting);
+  const uploadProgress = useCreateEventStore((s) => s.uploadProgress);
+  const setUploadProgress = useCreateEventStore((s) => s.setUploadProgress);
+  const ticketingEnabled = useCreateEventStore((s) => s.ticketingEnabled);
+  const setTicketingEnabled = useCreateEventStore((s) => s.setTicketingEnabled);
+  const ticketTierName = useCreateEventStore((s) => s.ticketTierName);
+  const setTicketTierName = useCreateEventStore((s) => s.setTicketTierName);
+  const showDatePicker = useCreateEventStore((s) => s.showDatePicker);
+  const setShowDatePicker = useCreateEventStore((s) => s.setShowDatePicker);
+  const showTimePicker = useCreateEventStore((s) => s.showTimePicker);
+  const setShowTimePicker = useCreateEventStore((s) => s.setShowTimePicker);
+  const showEndDatePicker = useCreateEventStore((s) => s.showEndDatePicker);
+  const setShowEndDatePicker = useCreateEventStore((s) => s.setShowEndDatePicker);
+  const showEndTimePicker = useCreateEventStore((s) => s.showEndTimePicker);
+  const setShowEndTimePicker = useCreateEventStore((s) => s.setShowEndTimePicker);
+  const visibility = useCreateEventStore((s) => s.visibility);
+  const setVisibility = useCreateEventStore((s) => s.setVisibility);
+  const ageRestriction = useCreateEventStore((s) => s.ageRestriction);
+  const setAgeRestriction = useCreateEventStore((s) => s.setAgeRestriction);
+  const isOnline = useCreateEventStore((s) => s.isOnline);
+  const setIsOnline = useCreateEventStore((s) => s.setIsOnline);
+  const dressCode = useCreateEventStore((s) => s.dressCode);
+  const setDressCode = useCreateEventStore((s) => s.setDressCode);
+  const doorPolicy = useCreateEventStore((s) => s.doorPolicy);
+  const setDoorPolicy = useCreateEventStore((s) => s.setDoorPolicy);
+  const lineup = useCreateEventStore((s) => s.lineup);
+  const setLineup = useCreateEventStore((s) => s.setLineup);
+  const lineupInput = useCreateEventStore((s) => s.lineupInput);
+  const setLineupInput = useCreateEventStore((s) => s.setLineupInput);
+  const perks = useCreateEventStore((s) => s.perks);
+  const setPerks = useCreateEventStore((s) => s.setPerks);
+  const perksInput = useCreateEventStore((s) => s.perksInput);
+  const setPerksInput = useCreateEventStore((s) => s.setPerksInput);
+  const ticketTiers = useCreateEventStore((s) => s.ticketTiers);
+  const setTicketTiers = useCreateEventStore((s) => s.setTicketTiers);
+  const addLineupItem = useCreateEventStore((s) => s.addLineupItem);
+  const addPerk = useCreateEventStore((s) => s.addPerk);
+  const coOrganizers = useCreateEventStore((s) => s.coOrganizers);
+  const addCoOrganizer = useCreateEventStore((s) => s.addCoOrganizer);
+  const removeCoOrganizer = useCreateEventStore((s) => s.removeCoOrganizer);
+  const coOrganizerSearch = useCreateEventStore((s) => s.coOrganizerSearch);
+  const setCoOrganizerSearch = useCreateEventStore((s) => s.setCoOrganizerSearch);
+  const coOrganizerResults = useCreateEventStore((s) => s.coOrganizerResults);
+  const setCoOrganizerResults = useCreateEventStore((s) => s.setCoOrganizerResults);
+  const removeLineupItem = useCreateEventStore((s) => s.removeLineupItem);
+  const removePerk = useCreateEventStore((s) => s.removePerk);
+  const currentStep = useCreateEventStore((s) => s.currentStep);
+  const setCurrentStep = useCreateEventStore((s) => s.setCurrentStep);
+  const nextStep = useCreateEventStore((s) => s.nextStep);
+  const prevStep = useCreateEventStore((s) => s.prevStep);
+  const canProceed = useCreateEventStore((s) => s.canProceed);
+  const totalSteps = useCreateEventStore((s) => s.totalSteps);
+  const resetDraft = useCreateEventStore((s) => s.resetDraft);
+  const eventType = useCreateEventStore((s) => s.eventType);
+  const setEventType = useCreateEventStore((s) => s.setEventType);
+  const disclaimers = useCreateEventStore((s) => s.disclaimers);
+  const setDisclaimers = useCreateEventStore((s) => s.setDisclaimers);
+  const agreementAccepted = useCreateEventStore((s) => s.agreementAccepted);
+  const setAgreementAccepted = useCreateEventStore((s) => s.setAgreementAccepted);
+  const flyerImage = useCreateEventStore((s) => s.flyerImage);
+  const setFlyerImage = useCreateEventStore((s) => s.setFlyerImage);
 
   // Convert ISO strings to Date objects for pickers
   const eventDate = useMemo(() => new Date(eventDateISO), [eventDateISO]);
@@ -468,16 +472,16 @@ function CreateEventScreenContent() {
 
       // Upload flyer image if provided
       let flyerImageUrl = "";
-      if (store.flyerImage) {
+      if (flyerImage) {
         console.log("[CreateEvent] Uploading flyer image");
         const normalizedFlyerUri = await persistLocalMediaSelection(
-          store.flyerImage,
+          flyerImage,
           {
             scope: "event-drafts/flyers",
           },
         );
-        if (normalizedFlyerUri !== store.flyerImage) {
-          store.setFlyerImage(normalizedFlyerUri);
+        if (normalizedFlyerUri !== flyerImage) {
+          setFlyerImage(normalizedFlyerUri);
         }
 
         if (isRemoteMediaUri(normalizedFlyerUri)) {
@@ -1269,18 +1273,18 @@ function CreateEventScreenContent() {
                 </View>
               </View>
 
-              {store.flyerImage ? (
+              {flyerImage ? (
                 <View
                   className="relative rounded-2xl overflow-hidden self-start"
                   style={{ width: "60%", aspectRatio: 3 / 5 }}
                 >
                   <Image
-                    source={{ uri: store.flyerImage }}
+                    source={{ uri: flyerImage }}
                     style={{ width: "100%", height: "100%" }}
                     contentFit="cover"
                   />
                   <Pressable
-                    onPress={() => store.setFlyerImage(null)}
+                    onPress={() => setFlyerImage(null)}
                     className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 items-center justify-center"
                   >
                     <X size={16} color="#fff" />
@@ -1305,7 +1309,7 @@ function CreateEventScreenContent() {
                           result,
                           "event-drafts/flyers",
                         );
-                        store.setFlyerImage(persistedFlyerUri);
+                        setFlyerImage(persistedFlyerUri);
                       } catch (error) {
                         console.error(
                           "[CreateEvent] Failed to persist flyer image:",

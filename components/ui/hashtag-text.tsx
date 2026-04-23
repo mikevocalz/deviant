@@ -114,6 +114,10 @@ export function HashtagText({
 
   return (
     <Text
+      // `selectable` allows long-press-to-copy on both iOS and Android so
+      // users can copy captions, mentions, hashtags, URLs etc. directly
+      // from feed cards + post detail.
+      selectable
       style={[styles.container, style, textStyle, { color }]}
       numberOfLines={numberOfLines}
     >
