@@ -32,15 +32,12 @@ import React, { memo, useCallback, useMemo } from "react";
 import {
   StyleSheet,
   Text,
-  TextInput,
   View,
   useWindowDimensions,
 } from "react-native";
 import Animated, {
   Easing,
-  Extrapolation,
   interpolate,
-  useAnimatedProps,
   useAnimatedScrollHandler,
   useAnimatedStyle,
   useSharedValue,
@@ -68,7 +65,11 @@ const TILE_GAP = 8;
 const TILES_PER_ROW = 2;
 const ROWS_PER_PAGE = 2;
 const TILES_PER_PAGE = TILES_PER_ROW * ROWS_PER_PAGE; // 4
-const NUMERIC_INDICATOR_THRESHOLD = 6; // pages > this → show "N/M"
+
+// Sneaky Lynk room dot colors — alternating DVNT cyan/pink. Rotates
+// per-index so every page gets a visually distinct dot, same pattern
+// as the DVNT spotlight carousel's AnimatedDot.
+const DOT_COLORS = ["rgb(62,164,229)", "rgb(255,109,193)"];
 
 export const RoomStage = memo(function RoomStage({
   participants,
@@ -117,7 +118,6 @@ export const RoomStage = memo(function RoomStage({
 
   const pageCount = pages.length;
   const showPagination = pageCount > 1;
-  const useNumericIndicator = pageCount > NUMERIC_INDICATOR_THRESHOLD;
 
   // Scroll offset shared value → pagination morphs smoothly with
   // gesture, not on discrete page boundaries. Gives the lighting-cue
@@ -180,19 +180,9 @@ export const RoomStage = memo(function RoomStage({
             <Text style={styles.crowdCountText}>{attendeeCount}</Text>
           </View>
         </View>
-        {showPagination && useNumericIndicator ? (
-          <NumericPagination scrollX={scrollX} pageWidth={pageWidth} pageCount={pageCount} />
-        ) : null}
       </View>
     );
-  }, [
-    attendeeCount,
-    showPagination,
-    useNumericIndicator,
-    scrollX,
-    pageWidth,
-    pageCount,
-  ]);
+  }, [attendeeCount]);
 
   const renderPage = useCallback(
     (pageIndex: number) => {
@@ -298,8 +288,8 @@ export const RoomStage = memo(function RoomStage({
               {pages.map((_, i) => renderPage(i))}
             </Animated.ScrollView>
 
-            {showPagination && !useNumericIndicator ? (
-              <PaginationPill
+            {showPagination ? (
+              <PaginationDots
                 scrollX={scrollX}
                 pageWidth={pageWidth}
                 pageCount={pageCount}
@@ -312,13 +302,11 @@ export const RoomStage = memo(function RoomStage({
   );
 });
 
-// ── Pagination pill — cyan→pink gradient morph on scroll offset ─────
+// ── Pagination dots — DVNT pattern: width + opacity interpolate on
+// scroll, per-dot brand colors. Active dot pill-widens to 20, inactive
+// dots shrink to 5. Scales cleanly from 2 pages to 20+.
 
-const PILL_TRACK_WIDTH = 112;
-const PILL_DOT = 5;
-const PILL_ACTIVE = 22;
-
-const PaginationPill = memo(function PaginationPill({
+const PaginationDots = memo(function PaginationDots({
   scrollX,
   pageWidth,
   pageCount,
@@ -327,101 +315,61 @@ const PaginationPill = memo(function PaginationPill({
   pageWidth: number;
   pageCount: number;
 }) {
-  // Bound the active-dot slot to [0, pageCount-1] fractional.
-  const activeStyle = useAnimatedStyle(() => {
-    const progress = interpolate(
-      scrollX.value,
-      [0, pageWidth * (pageCount - 1)],
-      [0, pageCount - 1],
-      Extrapolation.CLAMP,
-    );
-    const slotWidth = PILL_TRACK_WIDTH / pageCount;
-    const translateX = progress * slotWidth + (slotWidth - PILL_ACTIVE) / 2;
-    return { transform: [{ translateX }] };
-  });
-
   return (
-    <View style={styles.pillWrap} pointerEvents="none">
-      <View style={[styles.pillTrack, { width: PILL_TRACK_WIDTH }]}>
-        {Array.from({ length: pageCount }).map((_, i) => (
-          <View
-            key={`dot-${i}`}
-            style={[
-              styles.pillDot,
-              {
-                width: PILL_DOT,
-                height: PILL_DOT,
-                borderRadius: PILL_DOT / 2,
-              },
-            ]}
-          />
-        ))}
-        <Animated.View
-          style={[
-            styles.pillActiveShell,
-            { width: PILL_ACTIVE, height: PILL_DOT + 1 },
-            activeStyle,
-          ]}
-        >
-          <LinearGradient
-            colors={["rgb(62,164,229)", "rgb(255,109,193)"]}
-            start={{ x: 0, y: 0.5 }}
-            end={{ x: 1, y: 0.5 }}
-            style={{ flex: 1, borderRadius: 999 }}
-          />
-        </Animated.View>
-      </View>
+    <View style={styles.dotsWrap} pointerEvents="none">
+      {Array.from({ length: pageCount }).map((_, i) => (
+        <AnimatedDot
+          key={`dot-${i}`}
+          index={i}
+          scrollX={scrollX}
+          pageWidth={pageWidth}
+          dotColor={DOT_COLORS[i % DOT_COLORS.length]}
+        />
+      ))}
     </View>
   );
 });
 
-// ── Numeric "N/M" fallback for packed rooms ────────────────────────
-
-// Reanimated updates animated TextInput `text` props from the UI thread
-// without crossing the JS bridge → no useState needed for the page
-// number. editable={false} + pointerEvents="none" makes it render as
-// a pure text readout.
-const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
-
-const NumericPagination = memo(function NumericPagination({
+const AnimatedDot = memo(function AnimatedDot({
+  index,
   scrollX,
   pageWidth,
-  pageCount,
+  dotColor,
 }: {
+  index: number;
   scrollX: SharedValue<number>;
   pageWidth: number;
-  pageCount: number;
+  dotColor: string;
 }) {
-  const animatedProps = useAnimatedProps(() => {
-    const page =
-      Math.round(
-        interpolate(
-          scrollX.value,
-          [0, pageWidth * (pageCount - 1)],
-          [0, pageCount - 1],
-          Extrapolation.CLAMP,
-        ),
-      ) + 1;
-    return { text: String(page), defaultValue: String(page) } as any;
+  const animatedStyle = useAnimatedStyle(() => {
+    const input = pageWidth > 0 ? scrollX.value / pageWidth : 0;
+    const width = interpolate(
+      input,
+      [index - 1, index, index + 1],
+      [5, 20, 5],
+      "clamp",
+    );
+    const opacity = interpolate(
+      input,
+      [index - 1, index, index + 1],
+      [0.3, 1, 0.3],
+      "clamp",
+    );
+    return { width, opacity };
   });
 
   return (
-    <View style={styles.numericWrap} pointerEvents="none">
-      <View style={styles.numericRow}>
-        <AnimatedTextInput
-          editable={false}
-          style={[styles.numericTextBase, styles.numericTextActive]}
-          animatedProps={animatedProps}
-          defaultValue="1"
-        />
-        <Text style={[styles.numericTextBase, styles.numericTextSlash]}>
-          {" / "}
-        </Text>
-        <Text style={[styles.numericTextBase, styles.numericTextTotal]}>
-          {pageCount}
-        </Text>
-      </View>
-    </View>
+    <Animated.View
+      style={[
+        {
+          height: 5,
+          borderRadius: 3,
+          backgroundColor: dotColor,
+          marginHorizontal: 3,
+        },
+        animatedStyle,
+      ]}
+    />
   );
 });
 
@@ -494,60 +442,12 @@ const styles = StyleSheet.create({
     gap: TILE_GAP,
   },
 
-  pillWrap: {
+  dotsWrap: {
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 10,
+    paddingTop: 12,
     paddingBottom: 4,
-  },
-  pillTrack: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-around",
-    height: PILL_DOT + 2,
-    position: "relative",
-  },
-  pillDot: {
-    backgroundColor: "rgba(255,255,255,0.24)",
-  },
-  pillActiveShell: {
-    position: "absolute",
-    left: 0,
-    top: 1,
-    overflow: "hidden",
-    borderRadius: 999,
-  },
-
-  numericWrap: {
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
-    backgroundColor: "rgba(255,255,255,0.06)",
-    borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.08)",
-  },
-  numericRow: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  numericTextBase: {
-    fontSize: 11,
-    fontWeight: "700",
-    fontVariant: ["tabular-nums"],
-    padding: 0,
-    margin: 0,
-    includeFontPadding: false,
-  },
-  numericTextActive: {
-    color: "rgb(62,164,229)",
-    minWidth: 12,
-    textAlign: "center",
-  },
-  numericTextSlash: {
-    color: "rgba(255,255,255,0.35)",
-  },
-  numericTextTotal: {
-    color: "rgba(255,255,255,0.72)",
   },
 
   emptyWrap: {
