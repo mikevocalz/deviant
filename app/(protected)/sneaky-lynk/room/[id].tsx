@@ -862,6 +862,7 @@ function LocalRoom({
       roomTitle={roomTitle}
       participantCount={participantCount}
       allParticipants={allParticipants}
+      hostUserId={localUser.id}
       activeSpeakers={activeSpeakers}
       effectiveMuted={effectiveMuted}
       effectiveVideoOn={effectiveVideoOn}
@@ -1992,6 +1993,7 @@ function ServerRoom({
         roomTitle={roomTitle}
         participantCount={totalParticipants}
         allParticipants={allParticipants}
+        hostUserId={roomSnapshot?.host?.id ?? null}
         activeSpeakers={activeSpeakerIds}
         effectiveMuted={effectiveMuted}
         effectiveVideoOn={effectiveVideoOn}
@@ -2164,6 +2166,7 @@ function RoomLayout({
   roomTitle,
   participantCount,
   allParticipants,
+  hostUserId,
   activeSpeakers,
   effectiveMuted,
   effectiveVideoOn,
@@ -2206,6 +2209,7 @@ function RoomLayout({
   roomTitle: string;
   participantCount: number;
   allParticipants: VideoParticipant[];
+  hostUserId?: string | null;
   activeSpeakers: Set<string>;
   effectiveMuted: boolean;
   effectiveVideoOn: boolean;
@@ -2521,6 +2525,7 @@ function RoomLayout({
             participants={allParticipants}
             activeSpeakers={activeSpeakers}
             isHost={isHost}
+            hostUserId={hostUserId}
             onParticipantPress={onParticipantPress}
           />
         </View>

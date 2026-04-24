@@ -50,12 +50,18 @@ import { Users } from "lucide-react-native";
 import { VideoTile, type VideoParticipant } from "./VideoGrid";
 
 interface RoomStageProps {
-  /** Full flat list including local/host + remotes. Host is picked out
-   *  automatically (first participant with role === "host"). If no host
-   *  is found, the first local participant is used as the hero tile. */
+  /** Full flat list including local/host + remotes. */
   participants: VideoParticipant[];
   activeSpeakers: Set<string>;
   isHost: boolean;
+  /** Authoritative host userId from the room snapshot. The stage
+   *  ALWAYS pins this participant as the hero tile — the host owns the
+   *  top slot whether or not the viewer is the host. If this id isn't
+   *  in the participants list yet (host hasn't joined the SFU), we
+   *  fall back to a participant with role === "host", then to the
+   *  first participant. Non-hosts NEVER see themselves in the hero
+   *  slot; they appear in the attendee carousel instead. */
+  hostUserId?: string | null;
   onParticipantPress?: (participant: VideoParticipant) => void;
 }
 
@@ -75,22 +81,31 @@ export const RoomStage = memo(function RoomStage({
   participants,
   activeSpeakers,
   isHost,
+  hostUserId,
   onParticipantPress,
 }: RoomStageProps) {
   const { width: screenWidth } = useWindowDimensions();
 
   // ── Host/attendee partition ──────────────────────────────────────
+  // Priority: authoritative hostUserId (from room snapshot) → role
+  // marker → first participant. We deliberately never fall back to
+  // the local user here — if the viewer is NOT the host, they must
+  // never see themselves in the hero slot. Earlier versions used
+  // `participants.find(p => p.isLocal)` as a fallback, which is what
+  // caused listeners to see themselves up top.
   const { host, attendees } = useMemo(() => {
     const hostParticipant =
+      (hostUserId
+        ? participants.find((p) => p.id === hostUserId)
+        : undefined) ||
       participants.find((p) => p.role === "host") ||
-      participants.find((p) => p.isLocal) ||
       participants[0] ||
       null;
     const rest = hostParticipant
       ? participants.filter((p) => p.id !== hostParticipant.id)
       : participants;
     return { host: hostParticipant, attendees: rest };
-  }, [participants]);
+  }, [participants, hostUserId]);
 
   const totalCount = participants.length;
   const attendeeCount = attendees.length;
