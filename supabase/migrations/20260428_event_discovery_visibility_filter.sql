@@ -258,3 +258,6 @@ GRANT EXECUTE ON FUNCTION public.get_events_home(integer, integer, integer, inte
 GRANT EXECUTE ON FUNCTION public.get_events_for_you(integer, integer, integer) TO authenticated, service_role;
 
 NOTIFY pgrst, 'reload schema';
+
+-- HOTFIX applied via 20260429b: e.category::text cast added.
+-- See 20260429b_fix_events_home_category_cast.sql for the corrected function.
