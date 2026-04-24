@@ -48,6 +48,7 @@ import { supabase } from "@/lib/supabase/client";
 import {
   VideoStage,
   VideoGrid,
+  RoomStage,
   ParticipantActions,
   SpeakerGrid,
   ListenerGrid,
@@ -2490,9 +2491,13 @@ function RoomLayout({
 
         <View
           className="flex-1"
-          style={{ paddingHorizontal: 6, paddingBottom: controlsClearance }}
+          style={{ paddingBottom: controlsClearance }}
         >
-          <VideoGrid
+          {/* RoomStage = Zoom-parity host-hero + paged attendee carousel.
+              Replaces the old adaptive VideoGrid. Layering with the
+              controls dock is preserved via the existing controlsClearance
+              padding above (dock stays absolute, zIndex 60). */}
+          <RoomStage
             participants={allParticipants}
             activeSpeakers={activeSpeakers}
             isHost={isHost}

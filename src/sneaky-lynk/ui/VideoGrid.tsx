@@ -109,7 +109,7 @@ const SpeakingBars = memo(function SpeakingBars() {
 
 // ── Single video tile ─────────────────────────────────────────────
 
-const VideoTile = memo(function VideoTile({
+export const VideoTile = memo(function VideoTile({
   participant,
   isSpeaking,
   tileWidth,

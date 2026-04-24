@@ -4,6 +4,7 @@
 
 export { VideoStage } from "./VideoStage";
 export { VideoGrid } from "./VideoGrid";
+export { RoomStage } from "./RoomStage";
 export type { VideoParticipant } from "./VideoGrid";
 export { ParticipantActions } from "./ParticipantActions";
 export { RoomParticipantsSheet } from "./RoomParticipantsSheet";
