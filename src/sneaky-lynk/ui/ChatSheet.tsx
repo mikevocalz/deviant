@@ -880,7 +880,11 @@ export function ChatSheet({
   }, []);
 
   // 50% and 75% snap points for detachable behavior
-  const snapPoints = useMemo(() => ["60%", "90%"], []);
+  // 72% default puts the composer above the fold on every screen size
+  // (previous 60% left the input clipped on devices with a big bottom
+  // inset — users couldn't see where to type until they dragged
+  // to expand). 92% is the "focus" snap when the input is tapped.
+  const snapPoints = useMemo(() => ["72%", "92%"], []);
 
   const handleSheetChanges = useCallback(
     (index: number) => {
