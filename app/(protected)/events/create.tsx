@@ -1694,6 +1694,31 @@ function CreateEventScreenContent() {
                         }
                       />
 
+                      {/* Field captions — without these the three compact
+                          inputs below (Price / Quantity / Max per order)
+                          all look identical and buyers/hosts couldn't
+                          tell what the "4" on Max/user meant. */}
+                      <View className="flex-row gap-2 mb-1 px-1">
+                        <Text
+                          className="flex-1 text-[11px] font-semibold text-muted-foreground"
+                          style={{ letterSpacing: 0.4 }}
+                        >
+                          PRICE
+                        </Text>
+                        <Text
+                          className="flex-1 text-[11px] font-semibold text-muted-foreground"
+                          style={{ letterSpacing: 0.4 }}
+                        >
+                          QUANTITY
+                        </Text>
+                        <Text
+                          className="flex-1 text-[11px] font-semibold text-muted-foreground"
+                          style={{ letterSpacing: 0.4 }}
+                        >
+                          MAX / ORDER
+                        </Text>
+                      </View>
+
                       <View className="flex-row gap-2 mb-2">
                         <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
                           <DollarSign
