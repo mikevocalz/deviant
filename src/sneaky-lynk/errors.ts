@@ -24,6 +24,17 @@ export type SneakyLynkErrorReason =
   | "unauthorized"
   | "unknown";
 
+/**
+ * Structured detail payload the backend can attach to an error for
+ * classifications that need rich UX (currently just capacity). Matches
+ * the `error.detail` field from the edge function ApiResponse.
+ */
+export interface CapacityDetail {
+  current: number;
+  max: number;
+  isHost: boolean;
+}
+
 export interface ClassifiedError {
   reason: SneakyLynkErrorReason;
   /** User-facing title — short, tasteful, no jargon. */
@@ -34,6 +45,12 @@ export interface ClassifiedError {
   ctaLabel: string | null;
   /** The raw message, preserved for debug logs. NEVER shown to users. */
   rawMessage: string;
+  /**
+   * Capacity-specific metadata when reason === "room_full". Drives the
+   * seat count hero + host/viewer branching in RoomFullSheet. Absent
+   * for all other reasons.
+   */
+  capacity?: CapacityDetail;
 }
 
 const ROOM_FULL_MATCHERS = [/room is full/i, /at capacity/i, /room full/i];
@@ -48,21 +65,33 @@ const ROOM_ENDED_MATCHERS = [
 export function classifySneakyLynkError(
   code: string | undefined,
   message: string | undefined,
+  detail?: Record<string, unknown>,
 ): ClassifiedError {
   const raw = message ?? "";
 
   // Capacity — the reason we're building this layer in the first place.
+  // Prefer the structured `detail.reason === "room_full"` signal from
+  // newer backends; fall back to message-text matching for older builds
+  // that haven't been redeployed yet.
+  const detailReason = typeof detail?.reason === "string" ? detail.reason : null;
   if (
-    code === "conflict" &&
-    ROOM_FULL_MATCHERS.some((re) => re.test(raw))
+    detailReason === "room_full" ||
+    (code === "conflict" && ROOM_FULL_MATCHERS.some((re) => re.test(raw)))
   ) {
+    const current =
+      typeof detail?.current === "number" ? detail.current : 0;
+    const max = typeof detail?.max === "number" ? detail.max : 0;
+    const isHost = detail?.isHost === true;
+
     return {
       reason: "room_full",
-      title: "This room is full",
-      body:
-        "Every spot is taken right now. Hang tight — if someone leaves, you can try again in a few seconds.",
-      ctaLabel: "Try again",
+      title: isHost ? "Your room is full" : "This room is full",
+      body: isHost
+        ? "You're at the seat limit on your current plan. Upgrade to host larger rooms."
+        : "Every seat is taken right now. We'll slide you in the moment one opens up.",
+      ctaLabel: isHost ? "Upgrade" : "Notify me",
       rawMessage: raw,
+      capacity: { current, max, isHost },
     };
   }
 

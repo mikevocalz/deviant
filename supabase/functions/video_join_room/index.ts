@@ -30,7 +30,17 @@ type ErrorCode =
 interface ApiResponse<T = unknown> {
   ok: boolean;
   data?: T;
-  error?: { code: ErrorCode; message: string };
+  error?: {
+    code: ErrorCode;
+    message: string;
+    /**
+     * Structured detail payload — populated for error reasons where
+     * the client renders a rich surface (e.g. capacity). Never contains
+     * secrets; safe to display directly. Consumers should treat
+     * unknown keys as forward-compatible additions.
+     */
+    detail?: Record<string, unknown>;
+  };
 }
 
 function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
@@ -40,8 +50,15 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: ErrorCode, message: string): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, 200);
+function errorResponse(
+  code: ErrorCode,
+  message: string,
+  detail?: Record<string, unknown>,
+): Response {
+  return jsonResponse(
+    { ok: false, error: { code, message, ...(detail ? { detail } : {}) } },
+    200,
+  );
 }
 
 function generateJti(): string {
@@ -181,7 +198,18 @@ Deno.serve(async (req) => {
     );
 
     if (participantCount >= room.max_participants) {
-      return errorResponse("conflict", "Room is full");
+      // Include structured capacity data so the client can render a
+      // rich "room is full" surface with the real counts + host context
+      // rather than a bare message. Client treats this as the source
+      // of truth for the capacity flow.
+      return errorResponse("conflict", "Room is full", {
+        reason: "room_full",
+        current: participantCount,
+        max: room.max_participants,
+        // Was the user requesting this join the host? Lets the client
+        // show an upgrade CTA for hosts vs a wait-notify UX for viewers.
+        isHost: session.userId === room.host_id,
+      });
     }
 
     // Check existing membership

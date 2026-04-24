@@ -56,7 +56,19 @@ interface UseVideoRoomOptions {
   anonymous?: boolean;
   onEjected?: (reason: EjectPayload) => void;
   onRoomEnded?: () => void;
-  onError?: (error: string) => void;
+  /**
+   * Fired on join/reconnect failure. The second arg carries the full
+   * error envelope (code + structured detail) for consumers that want
+   * to render rich UX like the capacity flow. `message` is kept as
+   * the first arg for backwards-compat with older call sites.
+   */
+  onError?: (
+    message: string,
+    envelope?: {
+      code?: string;
+      detail?: Record<string, unknown>;
+    },
+  ) => void;
 }
 
 function resolvePeerTracks(peer: any) {
@@ -495,7 +507,13 @@ export function useVideoRoom({
 
       if (!result.ok) {
         getStore().setConnectionStatus("error", result.error?.message);
-        onErrorRef.current?.(result.error?.message || "Failed to join room");
+        onErrorRef.current?.(
+          result.error?.message || "Failed to join room",
+          {
+            code: result.error?.code,
+            detail: result.error?.detail,
+          },
+        );
         return false;
       }
 

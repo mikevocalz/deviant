@@ -17,7 +17,13 @@ import type {
 interface ApiResponse<T> {
   ok: boolean;
   data?: T;
-  error?: { code: string; message: string };
+  error?: {
+    code: string;
+    message: string;
+    /** Structured detail payload for errors that render rich UX
+     *  (currently capacity: { reason, current, max, isHost }). */
+    detail?: Record<string, unknown>;
+  };
 }
 
 const ROOM_UUID_REGEX =

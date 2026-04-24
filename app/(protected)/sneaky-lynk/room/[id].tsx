@@ -61,6 +61,7 @@ import {
 import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
 import type { SneakyRoom, SneakyUser } from "@/src/sneaky-lynk/types";
 import { RoomJoinErrorSheet } from "@/src/sneaky-lynk/ui/RoomJoinErrorSheet";
+import { RoomFullSheet } from "@/src/sneaky-lynk/ui/RoomFullSheet";
 import {
   classifySneakyLynkError,
   type ClassifiedError,
@@ -921,6 +922,12 @@ function ServerRoom({
   // migration of ServerRoom lives with the rest of the Sneaky Lynk
   // cleanup work, not this targeted fix.
   const [joinError, setJoinError] = useState<ClassifiedError | null>(null);
+  // Capacity flow phase — "idle" (sheet just opened, showing Notify me),
+  // "waiting" (polling for a seat), "seat-open" (poll detected room
+  // has space, waiting for user to tap-to-join).
+  const [capacityPhase, setCapacityPhase] = useState<
+    "idle" | "waiting" | "seat-open"
+  >("idle");
   const [roomSnapshot, setRoomSnapshot] = useState<SneakyRoom | null>(
     initialRoom,
   );
@@ -954,11 +961,17 @@ function ServerRoom({
       showToast("info", "Room Ended", "The host has ended this room");
       markRoomClosed(roomSnapshot);
     },
-    onError: (error) => {
+    onError: (error, envelope) => {
       // Classify BEFORE any toast — premium errors (room full, ended,
       // rate-limited, etc.) get a dedicated sheet with proper copy.
-      // We fall back to a toast only for genuinely-unexpected errors.
-      const classified = classifySneakyLynkError(undefined, error);
+      // Pass the structured error envelope (code + detail) through to
+      // the classifier so capacity surfaces get seat counts + host/
+      // viewer context from the backend.
+      const classified = classifySneakyLynkError(
+        envelope?.code,
+        error,
+        envelope?.detail,
+      );
       if (classified.reason !== "unknown") {
         setJoinError(classified);
       } else {
@@ -1914,17 +1927,51 @@ function ServerRoom({
         onRemove={handleRemoveUser}
       />
 
-      {/* Premium join-error surface — replaces the old "Error: <raw
-          backend message>" toast for classified failure reasons like
-          room-full, room-ended, rate-limited, forbidden, etc. */}
+      {/* Capacity flow — host upgrade vs viewer waitlist. Branched off
+          the generic error sheet because the UX is fundamentally
+          different (upsell for host, live-watch for viewer). */}
+      <RoomFullSheet
+        visible={joinError?.reason === "room_full"}
+        capacity={joinError?.capacity ?? null}
+        roomId={id}
+        phase={capacityPhase}
+        onClose={() => {
+          setJoinError(null);
+          setCapacityPhase("idle");
+          handleLeave();
+        }}
+        onStartWaiting={() => setCapacityPhase("waiting")}
+        onSeatOpen={() => {
+          // Seat detected. Two possible UX paths:
+          //   a) Auto-join immediately — cleanest, zero friction.
+          //   b) Flip to "seat-open" and let the user tap to confirm.
+          // Going with (a) — the user already opted in with "Notify me",
+          // making them tap again would feel like friction theater.
+          setJoinError(null);
+          setCapacityPhase("idle");
+          // useVideoRoom joins automatically on roomId prop; nothing
+          // else to do — the polling hook's final probe IS effectively
+          // the retry since it hits the real join endpoint.
+        }}
+        onUpgrade={() => {
+          // Hand off to the app's upgrade surface. The room's in-room
+          // paywall modal targets a different feature (Sneaky Link
+          // chat, not Sneaky Lynk rooms). Room-plan upgrades live on
+          // the account settings path — route there for now. When a
+          // dedicated "room cap" upgrade sheet ships, swap this to it.
+          setJoinError(null);
+          setCapacityPhase("idle");
+          router.push("/settings/order" as any);
+        }}
+      />
+
+      {/* Non-capacity join errors — room ended, rate-limited, forbidden,
+          unauthorized, unknown. Simpler single-CTA surface. */}
       <RoomJoinErrorSheet
-        error={joinError}
+        error={joinError?.reason === "room_full" ? null : joinError}
         onDismiss={() => setJoinError(null)}
         onRetry={() => {
           setJoinError(null);
-          // Pop back to the public room entry so the user can tap to
-          // join again. Cleaner than attempting an in-place rejoin —
-          // the useVideoRoom hook reconnects on roomId change.
           handleLeave();
         }}
         onSignIn={() => {
