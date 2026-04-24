@@ -62,6 +62,7 @@ import {
   type LocationData,
 } from "@/components/ui/location-autocomplete-v3";
 import { useCreateEvent } from "@/lib/hooks/use-events";
+import { organizerApi } from "@/lib/api/organizer";
 import {
   ticketTypesApi,
   type CreateTicketTypeParams,
@@ -393,6 +394,48 @@ function CreateEventScreenContent() {
     if (!location.trim()) {
       showToast("error", "Error", "Please enter a location");
       return;
+    }
+
+    // ── MANDATORY STRIPE CONNECT CHECK ───────────────────────────────
+    // If the organizer is enabling paid ticketing and has any tier
+    // priced > 0, they MUST have completed Stripe Connect onboarding
+    // (charges_enabled + payouts_enabled) before the event can go
+    // live. Previously buyers tapped "Get Tickets" and saw a generic
+    // "Organizer has not completed payment setup" error — by then the
+    // damage (embarrassment + lost sale) was done. We block at
+    // publish time and route the host to the onboarding screen.
+    const hasPaidTier =
+      ticketingEnabled &&
+      (ticketTiers.some((t) => t.priceCents > 0) ||
+        (ticketTiers.length === 0 &&
+          !!ticketPrice &&
+          parseFloat(ticketPrice) > 0));
+
+    if (hasPaidTier) {
+      try {
+        const status = await organizerApi.getStatus();
+        const ready =
+          status.connected &&
+          status.charges_enabled === true &&
+          status.payouts_enabled === true;
+        if (!ready) {
+          showToast(
+            "error",
+            "Connect your bank first",
+            "Paid events need a Stripe payout account so you can actually get paid. Let's finish that now.",
+          );
+          router.push("/(protected)/events/organizer-setup" as any);
+          return;
+        }
+      } catch (err) {
+        console.error("[CreateEvent] Stripe status check failed:", err);
+        showToast(
+          "error",
+          "Couldn't verify payout setup",
+          "We couldn't confirm your Stripe account status. Please try again.",
+        );
+        return;
+      }
     }
 
     setIsSubmitting(true);

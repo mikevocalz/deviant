@@ -50,6 +50,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { eventsApi } from "@/lib/api/events";
+import { organizerApi } from "@/lib/api/organizer";
 import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { useQueryClient } from "@tanstack/react-query";
 import { eventKeys } from "@/lib/hooks/use-events";
@@ -388,6 +389,42 @@ function EditEventScreenContent() {
     if (!title.trim()) {
       showToast("error", "Error", "Title is required");
       return;
+    }
+
+    // MANDATORY STRIPE CONNECT CHECK — match the create flow. If the
+    // organizer enabled paid ticketing here (or flipped tiers from
+    // free → paid on an existing event), they must complete Stripe
+    // onboarding before save, otherwise buyers hit "Organizer has
+    // not completed payment setup" at checkout.
+    const hasPaidTier =
+      ticketingEnabled &&
+      ticketTiers.some((t) => parseFloat(t.priceDollars || "0") > 0);
+
+    if (hasPaidTier) {
+      try {
+        const status = await organizerApi.getStatus();
+        const ready =
+          status.connected &&
+          status.charges_enabled === true &&
+          status.payouts_enabled === true;
+        if (!ready) {
+          showToast(
+            "error",
+            "Connect your bank first",
+            "Paid events need a Stripe payout account. Let's finish that now.",
+          );
+          router.push("/(protected)/events/organizer-setup" as any);
+          return;
+        }
+      } catch (err) {
+        console.error("[EditEvent] Stripe status check failed:", err);
+        showToast(
+          "error",
+          "Couldn't verify payout setup",
+          "We couldn't confirm your Stripe account status. Please try again.",
+        );
+        return;
+      }
     }
 
     setIsSaving(true);
