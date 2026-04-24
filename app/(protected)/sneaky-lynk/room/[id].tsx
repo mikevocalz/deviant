@@ -1488,8 +1488,17 @@ function ServerRoom({
     videoRoom.room?.title || roomSnapshot?.title || paramTitle || "Room";
 
   const handleLeave = useCallback(async () => {
+    // Optimistic leave — navigate + tear down local state IMMEDIATELY,
+    // fire the backend call in the background. The user's tap feels
+    // instant (Zoom/Meet parity) instead of waiting on a round-trip.
+    //
+    // HOST path keeps its previous confirm-before-navigate behavior
+    // for the "end room for everyone" call — that action is consequential
+    // (it evicts every other participant) and we want to avoid a
+    // UX where the host "left" but the room stays open due to a
+    // silently-failed end request. Non-host leave is idempotent and
+    // safe to fire-and-forget.
     if (isHost) {
-      // Host ends the room for everyone
       const result = await sneakyLynkApi.endRoom(id);
       if (!result.ok && !isClosedRoomError(result.error?.message)) {
         console.error(
@@ -1512,34 +1521,38 @@ function ServerRoom({
           result.error?.message,
         );
       }
-    } else {
-      // Non-host: leave room (decrement participant_count, auto-end if empty)
-      const result = await sneakyLynkApi.leaveRoom(id);
-      if (!result.ok && !isClosedRoomError(result.error?.message)) {
-        console.error(
-          "[SneakyLynk:Server] Failed to leave room in DB:",
-          result.error?.message,
-        );
-        showToast(
-          "error",
-          "Couldn't leave Lynk",
-          result.error?.message || "Try again.",
-        );
-        return;
-      }
 
-      if (result.ok) {
-        console.log("[SneakyLynk:Server] Left room in DB:", id);
-      } else {
-        console.warn(
-          "[SneakyLynk:Server] Room already closed or unavailable:",
-          result.error?.message,
-        );
-      }
+      reset();
+      endRoomHistory(id, storeListeners.length);
+      router.back();
+      return;
     }
+
+    // Non-host: navigate first, then reconcile with the server.
     reset();
     endRoomHistory(id, storeListeners.length);
     router.back();
+
+    // Fire-and-forget — the user is already gone. Surface a background
+    // log for ops; do NOT toast on failure because the user's already
+    // on the previous screen and a "leave failed" toast post-leave is
+    // confusing UX. The server will reconcile the participant count on
+    // its own (Fishjam disconnect + heartbeat).
+    sneakyLynkApi
+      .leaveRoom(id)
+      .then((result) => {
+        if (!result.ok && !isClosedRoomError(result.error?.message)) {
+          console.error(
+            "[SneakyLynk:Server] Background leaveRoom failed:",
+            result.error?.message,
+          );
+        } else if (result.ok) {
+          console.log("[SneakyLynk:Server] Background leaveRoom ok:", id);
+        }
+      })
+      .catch((err) => {
+        console.error("[SneakyLynk:Server] Background leaveRoom threw:", err);
+      });
   }, [
     router,
     id,
@@ -1805,13 +1818,32 @@ function ServerRoom({
   // Build SneakyUser from a Fishjam participant
   const peerToUser = (p: any): SneakyUser => {
     const anonLabel = normalizeSneakyAnonLabel(p.anonLabel || p.username);
-    const name = anonLabel || p.username || p.displayName || "Guest";
     const isAnon = !!(p.isAnonymous || anonLabel);
+    // Prefer anon label → real username → displayName. Only use "Guest"
+    // as an absolute last resort — hosts in particular were hitting this
+    // fallback before the backend started stuffing user metadata into
+    // Fishjam peer.metadata. If the peer is the known host of THIS
+    // room, prefer the room snapshot's host info over a generic Guest.
+    const snapshotHost =
+      p.role === "host" ? roomSnapshot?.host ?? null : null;
+    const hostFallback = snapshotHost
+      ? snapshotHost.displayName || snapshotHost.username || null
+      : null;
+    const name =
+      anonLabel ||
+      p.username ||
+      p.displayName ||
+      hostFallback ||
+      "Guest";
     return {
       id: p.userId || p.oderId || p.odId,
       username: name,
       displayName: name,
-      avatar: isAnon ? "" : p.avatar || "",
+      avatar: isAnon
+        ? ""
+        : p.avatar ||
+          (snapshotHost ? snapshotHost.avatar || "" : "") ||
+          "",
       isVerified: false,
       isAnonymous: isAnon,
       anonLabel: isAnon ? anonLabel : null,
@@ -2083,7 +2115,13 @@ function RoomLayout({
     roomId,
     currentUser: localUser,
   });
-  const controlsClearance = insets.bottom + 168;
+  // Bottom padding below the speaker grid so the controls bar never
+  // clips participant name labels rendered on the last row of tiles.
+  // ControlsBar has: reactions row (~46) + mic/video/hand/share row
+  // (~64) + vertical padding (~24) + safe-area inset. Keeping a
+  // comfortable 200px floor (plus insets.bottom) so the name label
+  // + verified badge + role pill all sit above the dock cleanly.
+  const controlsClearance = insets.bottom + 200;
 
   return (
     <View className="flex-1 bg-background">
