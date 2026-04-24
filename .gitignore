@@ -94,7 +94,13 @@ logs/
 .qodo/
 .adal/
 .augment/
-.claude/
+# Per-user Claude Code state — transcripts, tokens, local settings.
+# Project-scoped skills live in .claude/skills/ and are intentionally
+# tracked (see that directory's README for the full list).
+.claude/settings.local.json
+.claude/commands-local/
+.claude/cache/
+.claude/history/
 .codebuddy/
 .commandcode/
 .continue/
@@ -118,7 +124,11 @@ logs/
 .trae/
 .vibe/
 .zencoder/
-skills/
+# Generic `skills/` at repo root is noise from unrelated tooling.
+# Do NOT use `skills/` — it matches `.claude/skills/` too. If you need
+# an ignore for a top-level `skills/` add `/skills/` (leading slash).
+# Project Claude Code skills live in .claude/skills/ and are tracked.
+/skills/
 
 # Build artifacts
 *.tgz
