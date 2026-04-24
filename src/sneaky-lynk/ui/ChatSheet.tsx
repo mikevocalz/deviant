@@ -1261,6 +1261,12 @@ export function ChatSheet({
               commentReactions={commentReactions}
             />
           )}
+          // `flex: 1` is what keeps the composer visible at the initial
+          // snap point. Without it, the list grows to its content height
+          // — when there are many comments that height exceeds the
+          // visible 72% area and the composer ends up below the fold,
+          // forcing the user to drag the sheet up to type.
+          style={{ flex: 1 }}
           contentContainerStyle={{
             paddingHorizontal: 16,
             paddingTop: 16,

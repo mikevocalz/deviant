@@ -1984,7 +1984,7 @@ function ServerRoom({
   const totalParticipants = allParticipants.length;
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <RoomLayout
         insets={insets}
         connectionState={connectionState}
@@ -2034,7 +2034,26 @@ function ServerRoom({
         onOpenHandQueue={isHost ? openHandQueue : undefined}
       />
 
-      <HandQueueSheet
+      {/* Sheet overlay — absolute full-screen wrapper that sits ABOVE
+          RoomLayout's controls dock. Without this, gorhom BottomSheet
+          shared a stacking context with the dock (both absolute-positioned
+          inside RoomLayout's outer View) and the dock's zIndex 60 won on
+          Android. pointerEvents="box-none" lets taps pass through to the
+          layout below when no sheet is open; descendants (backdrop,
+          sheet body) still capture taps when a sheet is up. */}
+      <View
+        pointerEvents="box-none"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 10000,
+          elevation: 10000,
+        }}
+      >
+        <HandQueueSheet
         visible={isHandQueueOpen && isHost}
         participants={allParticipants}
         raisedHandOrder={raisedHandOrder}
@@ -2131,7 +2150,8 @@ function ServerRoom({
         onRemove={handleRemoveUser}
         onClose={() => setActionTarget(null)}
       />
-    </>
+      </View>
+    </View>
   );
 }
 

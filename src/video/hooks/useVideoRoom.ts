@@ -260,17 +260,29 @@ export function useVideoRoom({
 
   const getPreferredCameraId = useCallback((facing: "front" | "back") => {
     const devices = cameraRef.current.cameraDevices || [];
-    const facingNeedle = facing.toLowerCase();
+    // Accept BOTH human-label values ("front"/"back") AND the WebRTC
+    // spec values that react-native-webrtc exposes on facingMode:
+    //   front  ↔  "user"
+    //   back   ↔  "environment"
+    // Older devices expose `position`, newer builds expose `facingMode`;
+    // some Android builds only populate the `label`. We check all of
+    // them so the matcher works on every platform Fishjam runs on.
+    const needles =
+      facing === "front"
+        ? ["front", "user", "facingmodeuser"]
+        : ["back", "environment", "facingmodeenvironment", "rear"];
+
     const match = devices.find((device: any) => {
       const label = String(device?.label || "").toLowerCase();
       const deviceId = String(device?.deviceId || "").toLowerCase();
       const position = String(device?.position || "").toLowerCase();
       const facingMode = String(device?.facingMode || "").toLowerCase();
-      return (
-        label.includes(facingNeedle) ||
-        deviceId.includes(facingNeedle) ||
-        position.includes(facingNeedle) ||
-        facingMode.includes(facingNeedle)
+      return needles.some(
+        (n) =>
+          label.includes(n) ||
+          deviceId.includes(n) ||
+          position.includes(n) ||
+          facingMode.includes(n),
       );
     });
 
