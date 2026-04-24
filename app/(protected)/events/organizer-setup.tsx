@@ -11,7 +11,6 @@ import {
   Text,
   Pressable,
   ActivityIndicator,
-  Platform,
 } from "react-native";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useState, useCallback, useEffect } from "react";
@@ -71,12 +70,11 @@ function OrganizerSetupContent() {
 
   const openStripeUrl = useCallback(
     async (url: string) => {
-      await WebBrowser.openBrowserAsync(url, {
-        presentationStyle:
-          Platform.OS === "ios"
-            ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
-            : undefined,
-      });
+      // openAuthSessionAsync monitors for the dvnt:// redirect that the
+      // edge function issues after Stripe completes, and closes the browser
+      // automatically. This avoids the raw-HTML display caused by Supabase's
+      // edge runtime forcing Content-Type: text/plain on GET responses.
+      await WebBrowser.openAuthSessionAsync(url, "dvnt://stripe/connect");
       await checkStatus();
     },
     [checkStatus],

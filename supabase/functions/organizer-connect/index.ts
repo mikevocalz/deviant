@@ -52,17 +52,6 @@ async function stripeGet(endpoint: string): Promise<any> {
 
 // ── Callback HTML pages (served on GET for Stripe redirects) ─
 
-const RETURN_HTML = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Setup Complete</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}.c{text-align:center;padding:24px}h1{font-size:22px;margin-bottom:8px}p{color:#9ca3af;font-size:15px;line-height:1.5}</style>
-</head><body><div class="c"><h1>&#10003; Setup Complete</h1><p>You can close this window and return to DVNT.</p></div></body></html>`;
-
-const REFRESH_HTML = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Link Expired</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}.c{text-align:center;padding:24px}h1{font-size:22px;margin-bottom:8px}p{color:#9ca3af;font-size:15px;line-height:1.5}</style>
-</head><body><div class="c"><h1>Link Expired</h1><p>Please close this window and tap Continue Setup again.</p></div></body></html>`;
 
 // ── JSON response helper ────────────────────────────────────
 
@@ -88,16 +77,23 @@ Deno.serve(async (req: Request) => {
 
   // ── GET: Stripe callback landing pages ────────────────────
   if (req.method === "GET") {
+    // Supabase edge runtime forces text/plain on GET responses and adds
+    // CSP: default-src 'none'; sandbox — HTML can never render here.
+    // Redirect to the app's custom scheme instead; openAuthSessionAsync
+    // in the client catches the dvnt:// redirect and closes the browser.
     const url = new URL(req.url);
     const callback = url.searchParams.get("callback");
     if (callback === "return") {
-      return new Response(RETURN_HTML, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
+      return new Response(null, {
+        status: 302,
+        headers: { Location: "dvnt://stripe/connect/success" },
       });
     }
     if (callback === "refresh") {
-      return new Response(REFRESH_HTML, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
+      // Link expired — redirect back to the app so the user can retry
+      return new Response(null, {
+        status: 302,
+        headers: { Location: "dvnt://stripe/connect/refresh" },
       });
     }
     return new Response("Not found", { status: 404 });
