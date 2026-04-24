@@ -636,34 +636,41 @@ export function useVideoRoom({
     }
     cameraSwitchInFlightRef.current = true;
     try {
-      const stream = cameraRef.current.cameraStream;
-      const videoTrack = stream?.getVideoTracks?.()[0];
       const currentCameraId = cameraRef.current.currentCamera?.deviceId;
       const nextFacing = getStore().isFrontCamera ? "back" : "front";
       const targetCameraId = getPreferredCameraId(nextFacing);
 
-      if (videoTrack && typeof (videoTrack as any)._switchCamera === "function") {
-        (videoTrack as any)._switchCamera();
-        getStore().setFrontCamera(nextFacing === "front");
-        return;
-      }
+      // NOTE: we intentionally do NOT use `track._switchCamera()` here.
+      // It's marked `@deprecated` in
+      // @fishjam-cloud/react-native-webrtc/src/MediaStreamTrack.ts:118
+      // and — the root-cause of the "flip camera doesn't work for the
+      // host" bug — it reads `_settings.facingMode` to decide direction.
+      // Fishjam starts cameras by deviceId, which leaves
+      // `_settings.facingMode` undefined, so the toggle silently
+      // resolves to `'user'` every time and no-ops on a device that
+      // was already front-facing. Always use the supported
+      // `selectCamera(deviceId)` path instead — it internally calls
+      // `tsClient.replaceTrack` so remote peers see the new camera
+      // immediately.
 
       if (targetCameraId && targetCameraId !== currentCameraId) {
-        // selectCamera internally: gets new stream → tsClient.replaceTrack → remote
-        // peers see new camera immediately. Do NOT call stopCamera+startCamera after —
-        // that would tear down the track that selectCamera just published.
         const selectError = await cameraRef.current.selectCamera(targetCameraId);
         if (!selectError) {
           getStore().setFrontCamera(nextFacing === "front");
           return;
         }
         console.warn(
-          "[useVideoRoom] selectCamera failed, falling back to track switch:",
+          "[useVideoRoom] selectCamera failed:",
           selectError,
         );
       }
 
-      console.warn("[useVideoRoom] No camera-switch path available");
+      console.warn("[useVideoRoom] No camera-switch path available", {
+        nextFacing,
+        targetCameraId,
+        currentCameraId,
+        devices: cameraRef.current.cameraDevices?.length ?? 0,
+      });
       onErrorRef.current?.("Couldn't reverse camera");
     } catch (error) {
       console.error("[useVideoRoom] switchCamera failed:", error);

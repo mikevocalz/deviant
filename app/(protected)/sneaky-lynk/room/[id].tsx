@@ -730,18 +730,11 @@ function LocalRoom({
   const handleSwitchCamera = useCallback(async () => {
     const devices = cameraRef.current.cameraDevices || [];
     const nextFacing = isFrontCamera ? "back" : "front";
-    const liveVideoTrack = cameraRef.current.cameraStream?.getVideoTracks?.()[0];
 
-    if (
-      liveVideoTrack &&
-      typeof (liveVideoTrack as any)._switchCamera === "function"
-    ) {
-      (liveVideoTrack as any)._switchCamera();
-      setIsFrontCamera((prev) => !prev);
-      return;
-    }
-
-    const wasCameraOn = localVideoOn && !!cameraRef.current.cameraStream;
+    // See the matching comment in src/video/hooks/useVideoRoom.ts —
+    // the track's `_switchCamera()` is deprecated AND buggy for us
+    // because Fishjam starts cameras by deviceId (facingMode left
+    // undefined). Always use `selectCamera(deviceId)` directly.
     const nextCamera = devices.find((device: any) => {
       const label = String(device?.label || "").toLowerCase();
       const deviceId = String(device?.deviceId || "").toLowerCase();
@@ -761,10 +754,7 @@ function LocalRoom({
         setIsFrontCamera((prev) => !prev);
         return;
       }
-      console.warn(
-        "[SneakyLynk:Local] selectCamera failed:",
-        error,
-      );
+      console.warn("[SneakyLynk:Local] selectCamera failed:", error);
     }
 
     showToast(
