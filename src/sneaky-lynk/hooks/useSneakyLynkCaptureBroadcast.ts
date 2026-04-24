@@ -35,6 +35,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
+import { messagesApi } from "@/lib/api/messages-impl";
 import {
   useSneakyLynkCaptureStore,
   type CaptureEvent,
@@ -42,11 +43,26 @@ import {
 
 interface Params {
   roomId: string | undefined;
+  /** Room title — used in the host DM so they know which room the
+   *  screenshot was taken in. Optional — falls back to "your Sneaky
+   *  Lynk room" if omitted. */
+  roomTitle?: string | undefined;
   localUserId: string | undefined;
   localUsername: string | undefined;
+  /** The host's user id — needed ONLY when the local user is
+   *  anonymous, so we can deliver a private DM containing the real
+   *  username to the host out-of-band from the public broadcast.
+   *  Must be compatible with `messagesApi.getOrCreateConversation`
+   *  (integer user id or auth_id — see docstring on that method).
+   */
+  hostUserId?: string | undefined;
   /** Set false for anonymous joiners — we broadcast a generic "Someone"
-   *  attribution instead of their handle. */
+   *  attribution to the room INSTEAD of the real handle. The host
+   *  still gets the real handle via a private chat DM. */
   attributable?: boolean;
+  /** Local user's REAL username (pre-anonymization). Used for the
+   *  host-DM path only — never broadcast. */
+  realUsername?: string | undefined;
 }
 
 interface ReturnShape {
@@ -60,9 +76,12 @@ const TILE_PULSE_MS = 1200;
 
 export function useSneakyLynkCaptureBroadcast({
   roomId,
+  roomTitle,
   localUserId,
   localUsername,
+  hostUserId,
   attributable = true,
+  realUsername,
 }: Params): ReturnShape {
   const recordCapture = useSneakyLynkCaptureStore((s) => s.recordCapture);
   const clearCapture = useSneakyLynkCaptureStore((s) => s.clearCapture);
@@ -76,6 +95,23 @@ export function useSneakyLynkCaptureBroadcast({
   // captures stale Zustand setters.
   const actionsRef = useRef({ recordCapture, clearCapture, clearPulse });
   actionsRef.current = { recordCapture, clearCapture, clearPulse };
+
+  // Stash the DM-path params so `notifyLocalScreenshot` sees the
+  // latest values without re-creating the callback identity every
+  // time the caller's props shift. (Avoids React warning spam and
+  // keeps the protection-hook listener stable.)
+  const dmParamsRef = useRef({
+    hostUserId,
+    realUsername,
+    attributable,
+    roomTitle,
+  });
+  dmParamsRef.current = {
+    hostUserId,
+    realUsername,
+    attributable,
+    roomTitle,
+  };
 
   useEffect(() => {
     if (!roomId || !localUserId) return;
@@ -182,7 +218,75 @@ export function useSneakyLynkCaptureBroadcast({
           console.warn("[SneakyLynkCapture] broadcast failed:", err);
         }
       });
+
+    // Anonymous actor → send the host a PRIVATE chat DM with the real
+    // username. The public broadcast above only carries the anon
+    // label, so non-host participants can never see the real identity.
+    // The host sees the anon label in their banner AND a private DM
+    // in their inbox with the full attribution for moderation.
+    const { hostUserId, realUsername, roomTitle } = dmParamsRef.current;
+    if (!attributable && hostUserId && realUsername) {
+      void _notifyHostViaChat({
+        hostUserId,
+        realUsername,
+        anonLabel: broadcastUsername,
+        roomTitle,
+      });
+    }
   }, [attributable, localUserId, localUsername]);
 
   return { notifyLocalScreenshot };
+}
+
+/**
+ * Private DM path. Opens (or reuses) a conversation with the host and
+ * drops a system-style notification naming the real user who captured
+ * the room. Fire-and-forget — never throw back to the caller. If the
+ * DM fails (network, auth, bad user id), we log in dev and move on;
+ * the offender's screenshot has still been broadcast to the room, so
+ * the host gets the anon-label signal either way.
+ */
+async function _notifyHostViaChat({
+  hostUserId,
+  realUsername,
+  anonLabel,
+  roomTitle,
+}: {
+  hostUserId: string;
+  realUsername: string;
+  anonLabel: string;
+  roomTitle?: string;
+}): Promise<void> {
+  try {
+    // `getOrCreateConversation` returns the conversation id directly
+    // as a string (not an object). Empty string means the edge
+    // function didn't find/create one — bail quietly.
+    const conversationId = await messagesApi.getOrCreateConversation(
+      hostUserId,
+    );
+    if (!conversationId) return;
+
+    const roomLabel = roomTitle
+      ? `your Sneaky Lynk room "${roomTitle}"`
+      : "your Sneaky Lynk room";
+    const content = `📸 @${realUsername} took a screenshot in ${roomLabel} (shown to the room as "${anonLabel}").`;
+
+    await messagesApi.sendMessage({
+      conversationId,
+      content,
+      metadata: {
+        system: true,
+        systemKind: "sneaky_lynk_capture_notice",
+        // Fields the host's client or a future moderation tool can act on.
+        realUsername,
+        anonLabel,
+        roomTitle: roomTitle ?? null,
+        at: Date.now(),
+      },
+    });
+  } catch (err) {
+    if (__DEV__) {
+      console.warn("[SneakyLynkCapture] host DM failed:", err);
+    }
+  }
 }

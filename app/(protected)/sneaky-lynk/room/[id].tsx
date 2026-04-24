@@ -559,15 +559,16 @@ function LocalRoom({
   const effectiveVideoOn = localVideoOn && hasCamPermission;
 
   // LocalRoom is the self-hosted "practice" space (id starts with
-  // "space-" / "my-room"). Screenshots here shouldn't broadcast to
-  // the room — there IS no remote room. But we still want to protect
-  // capture + emit a local "You took a screenshot" confirmation so
-  // the user is told the protection fired.
+  // "space-" / "my-room"). No remote participants so no broadcast
+  // peers + no separate host to DM — the local user IS the host.
+  // Still wire the protection hook so screenshots get blocked +
+  // the "You took a screenshot" self-confirmation banner fires.
   const captureBroadcast = useSneakyLynkCaptureBroadcast({
     roomId: id,
     localUserId: localUser.id,
     localUsername: localUser.displayName || localUser.username,
     attributable: !localUser.isAnonymous,
+    // hostUserId intentionally omitted — the local user IS the host.
   });
   useSneakyLynkCaptureProtection(captureBroadcast.notifyLocalScreenshot);
 
@@ -1051,11 +1052,19 @@ function ServerRoom({
   // `notifyLocalScreenshot` callback that we pass into the existing
   // capture-protection hook — which is the ONLY place the local
   // screenshot listener is attached (avoiding double-subscription).
+  //
+  // For anonymous joiners, the hook ALSO sends a private DM to the
+  // host with the real username so moderators see the full picture
+  // while the public room banner only carries the anon label.
   const captureBroadcast = useSneakyLynkCaptureBroadcast({
     roomId: id,
+    roomTitle:
+      videoRoom.room?.title || roomSnapshot?.title || paramTitle || undefined,
     localUserId: localUser.id,
     localUsername: localUser.displayName || localUser.username,
+    hostUserId: roomSnapshot?.host?.id,
     attributable: !localUser.isAnonymous,
+    realUsername: authUser?.username ?? undefined,
   });
   useSneakyLynkCaptureProtection(captureBroadcast.notifyLocalScreenshot);
   const connectionState =

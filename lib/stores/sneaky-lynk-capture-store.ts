@@ -23,6 +23,13 @@ export type CaptureKind = "screenshot" | "recording_start" | "recording_stop";
 export interface CaptureEvent {
   kind: CaptureKind;
   actorId: string;
+  /**
+   * Display name for the general audience. For anonymous actors this
+   * is the anon label (e.g. "Anon 42") or the generic "Someone".
+   * The broadcast payload NEVER carries the real username — that goes
+   * to the host out-of-band via a direct chat message (see
+   * `useSneakyLynkCaptureBroadcast`). Keeps the trust boundary clean.
+   */
   actorUsername: string;
   /** ms-epoch when the capture was detected on the actor's device. */
   at: number;
