@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { View, Text, Pressable } from "react-native";
 import {
   BottomSheetBackdrop,
@@ -88,9 +88,14 @@ export function RoomParticipantsSheet({
   const modalRef = useRef<BottomSheetModal>(null);
   const snapPoints = useMemo(() => ["78%"], []);
 
-  if (!visible) {
-    return null;
-  }
+  // CRITICAL: ALL hooks must run on EVERY render. The previous version
+  // had an `if (!visible) return null` above the useMemo/useCallback
+  // hooks below — when visible flipped false→true React saw more
+  // hooks than the prior render, crashing with
+  //   "Rendered more hooks than during the previous render."
+  // That's the "crashes when you press users list" bug.
+  // The sheet is now permanently mounted; open/close is driven
+  // imperatively below via present() / dismiss() in an effect.
 
   const sortedParticipants = useMemo(
     () =>
@@ -109,6 +114,20 @@ export function RoomParticipantsSheet({
       }),
     [participants, localUserId],
   );
+
+  // Drive the BottomSheetModal imperatively from the `visible` prop.
+  // `BottomSheetModal` exposes `present()` / `dismiss()` via its ref;
+  // it does NOT honor a `visible` prop or re-index when props change.
+  // The old code tried to fake that by mounting/unmounting the whole
+  // component, which combined with the hook-order violation to crash
+  // the second time it opened.
+  useEffect(() => {
+    if (visible) {
+      modalRef.current?.present();
+    } else {
+      modalRef.current?.dismiss();
+    }
+  }, [visible]);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (
@@ -359,11 +378,12 @@ export function RoomParticipantsSheet({
   return (
     <BottomSheetModal
       ref={modalRef}
-      index={0}
+      // index intentionally omitted — open is imperative via present()
+      // from the effect above. Setting index={0} here would snap open
+      // on every mount regardless of `visible`.
       snapPoints={snapPoints}
       detached={true}
       bottomInset={20}
-      animateOnMount
       enablePanDownToClose
       onDismiss={onDismiss}
       backdropComponent={renderBackdrop}
