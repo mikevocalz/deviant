@@ -1657,18 +1657,25 @@ function PostDetailScreenContent() {
                 tagProgress={tagProgress}
               />
             </Pressable>
+          </View>
 
-            {/* Action pill overlay — matches feed design */}
+          {/* Action rail — sits directly UNDER the image and is locked to
+              the same width so the like / comment / share / bookmark
+              controls align edge-to-edge with the media above. Prior
+              design floated this as a glass pill INSIDE the image which
+              covered part of the post. The inline variant reads much
+              cleaner and lets us kill the overlap. */}
+          {!isTextPost ? (
             <View
               style={{
-                position: "absolute",
-                bottom: 12,
-                left: 12,
-                zIndex: 50,
+                width: SCREEN_WIDTH,
+                paddingHorizontal: 12,
+                paddingTop: 10,
+                paddingBottom: 6,
               }}
             >
               <PostDetailActionBar
-                variant="glass"
+                variant="inline"
                 isLiked={isLiked}
                 likeCount={likeCount}
                 commentCount={commentCount}
@@ -1688,7 +1695,7 @@ function PostDetailScreenContent() {
                 onBookmark={handleBookmarkPress}
               />
             </View>
-          </View>
+          ) : null}
 
           {/* Text-only post */}
           {isTextPost && (
