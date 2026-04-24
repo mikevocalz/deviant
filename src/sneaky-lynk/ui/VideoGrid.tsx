@@ -28,6 +28,7 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { getSneakyUserLabel } from "./user-labels";
 import type { SneakyUser } from "../types";
+import { useSneakyLynkCaptureStore } from "@/lib/stores/sneaky-lynk-capture-store";
 import Animated, {
   ZoomIn,
   ZoomOut,
@@ -153,14 +154,60 @@ const VideoTile = memo(function VideoTile({
     glowAnim.value = withTiming(isSpeaking ? 1 : 0, { duration: 250 });
   }, [isSpeaking, glowAnim]);
 
-  const glowStyle = useAnimatedStyle(() => ({
-    borderColor: glowAnim.value > 0.5 ? "#3FDCFF" : "transparent",
-    borderWidth: glowAnim.value * 2.5,
-    shadowColor: glowAnim.value > 0.5 ? "#3FDCFF" : "#000",
-    shadowOpacity: 0.14 + glowAnim.value * 0.18,
-    shadowRadius: 12 + glowAnim.value * 6,
-    shadowOffset: { width: 0, height: 10 },
-  }));
+  // Red pulse for "this participant just captured the room". Scoped
+  // selector on pulseUserIds[userId] so tiles that aren't the
+  // offender never re-render when a capture event fires.
+  const isCapturing = useSneakyLynkCaptureStore(
+    (s) => user.id in s.pulseUserIds,
+  );
+  const capturePulse = useSharedValue(0);
+  useEffect(() => {
+    if (isCapturing) {
+      // Single theatrical pulse — fade in fast, hold briefly, ease out.
+      // 1.2s total to match the store's TILE_PULSE_MS window.
+      capturePulse.value = withTiming(1, {
+        duration: 160,
+        easing: Easing.out(Easing.cubic),
+      });
+      capturePulse.value = withTiming(0, {
+        duration: 900,
+        easing: Easing.in(Easing.cubic),
+      });
+    } else {
+      capturePulse.value = withTiming(0, { duration: 160 });
+    }
+  }, [isCapturing, capturePulse]);
+
+  const glowStyle = useAnimatedStyle(() => {
+    // Capture pulse takes precedence over speaking glow — a capture
+    // signal is more important to communicate than who's talking.
+    const showCapture = capturePulse.value > 0.05;
+    const showSpeaking = !showCapture && glowAnim.value > 0.5;
+    return {
+      borderColor: showCapture
+        ? "rgb(240,82,82)"
+        : showSpeaking
+          ? "#3FDCFF"
+          : "transparent",
+      borderWidth: showCapture
+        ? 2 + capturePulse.value * 2
+        : glowAnim.value * 2.5,
+      shadowColor: showCapture
+        ? "rgb(240,82,82)"
+        : showSpeaking
+          ? "#3FDCFF"
+          : "#000",
+      shadowOpacity:
+        0.14 +
+        (showCapture
+          ? capturePulse.value * 0.5
+          : glowAnim.value * 0.18),
+      shadowRadius:
+        12 +
+        (showCapture ? capturePulse.value * 10 : glowAnim.value * 6),
+      shadowOffset: { width: 0, height: 10 },
+    };
+  });
 
   return (
     <Animated.View

@@ -62,6 +62,8 @@ import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
 import type { SneakyRoom, SneakyUser } from "@/src/sneaky-lynk/types";
 import { RoomJoinErrorSheet } from "@/src/sneaky-lynk/ui/RoomJoinErrorSheet";
 import { RoomFullSheet } from "@/src/sneaky-lynk/ui/RoomFullSheet";
+import { CaptureNotificationBanner } from "@/src/sneaky-lynk/ui/CaptureNotificationBanner";
+import { useSneakyLynkCaptureBroadcast } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureBroadcast";
 import {
   classifySneakyLynkError,
   type ClassifiedError,
@@ -373,8 +375,11 @@ function PreJoinScreen({
 // ── Router entry point ──────────────────────────────────────────────
 
 function SneakyLynkRoomScreenContent() {
-  // Prevent screen capture for the entire room lifecycle
-  useSneakyLynkCaptureProtection();
+  // Capture protection is mounted INSIDE ServerRoom + LocalRoom, not
+  // here, so the local screenshot listener has access to roomId +
+  // localUser for room-wide broadcast. Ref counter inside the hook
+  // guarantees a single active listener even if both child variants
+  // ever mount simultaneously.
 
   const {
     id,
@@ -552,6 +557,19 @@ function LocalRoom({
   const localUser = buildLocalUser(authUser);
   const effectiveMuted = !localMicEnabled;
   const effectiveVideoOn = localVideoOn && hasCamPermission;
+
+  // LocalRoom is the self-hosted "practice" space (id starts with
+  // "space-" / "my-room"). Screenshots here shouldn't broadcast to
+  // the room — there IS no remote room. But we still want to protect
+  // capture + emit a local "You took a screenshot" confirmation so
+  // the user is told the protection fired.
+  const captureBroadcast = useSneakyLynkCaptureBroadcast({
+    roomId: id,
+    localUserId: localUser.id,
+    localUsername: localUser.displayName || localUser.username,
+    attributable: !localUser.isAnonymous,
+  });
+  useSneakyLynkCaptureProtection(captureBroadcast.notifyLocalScreenshot);
 
   // Reset store on mount, request permissions
   useEffect(() => {
@@ -1028,6 +1046,18 @@ function ServerRoom({
   const isHost = videoRoom.localUser?.role === "host";
   const effectiveMuted = !videoRoom.isMicOn;
   const effectiveVideoOn = videoRoom.isCameraOn;
+
+  // Wire the screenshot broadcast channel. The hook returns a
+  // `notifyLocalScreenshot` callback that we pass into the existing
+  // capture-protection hook — which is the ONLY place the local
+  // screenshot listener is attached (avoiding double-subscription).
+  const captureBroadcast = useSneakyLynkCaptureBroadcast({
+    roomId: id,
+    localUserId: localUser.id,
+    localUsername: localUser.displayName || localUser.username,
+    attributable: !localUser.isAnonymous,
+  });
+  useSneakyLynkCaptureProtection(captureBroadcast.notifyLocalScreenshot);
   const connectionState =
     videoRoom.connectionState.status === "error"
       ? "disconnected"
@@ -2125,6 +2155,11 @@ function RoomLayout({
 
   return (
     <View className="flex-1 bg-background">
+      {/* Single instance — serves both LocalRoom + ServerRoom. Absolute-
+          positioned via its own styles + zIndex, so this mount location
+          just needs to live inside the RoomLayout tree to receive the
+          store updates. */}
+      <CaptureNotificationBanner />
       <LinearGradient
         colors={["#090B10", "#0C1118", "#05070B"]}
         start={{ x: 0.05, y: 0 }}
