@@ -2522,13 +2522,14 @@ function RoomLayout({
           onSendReaction={sendReaction}
         />
 
-        {showEjectModal ? (
-          <EjectModal
-            visible={showEjectModal}
-            payload={ejectPayload}
-            onDismiss={onEjectDismiss}
-          />
-        ) : null}
+        {/* Mount unconditionally so the sheet can run its close
+            animation when showEjectModal flips false. The sheet itself
+            drives visibility from the `visible` prop via index. */}
+        <EjectModal
+          visible={showEjectModal}
+          payload={ejectPayload}
+          onDismiss={onEjectDismiss}
+        />
 
         {/*
           ChatSheet is mounted unconditionally so it can fetch + subscribe
