@@ -118,27 +118,34 @@ setQueryClient(queryClient);
 // Module-scope init so exactly ONE network listener is attached for the
 // whole app lifetime. initConnectivity() is idempotent — safe if this
 // module reloads during dev.
-initConnectivity();
+//
+// CRITICAL: this block runs at module-eval time, BEFORE React mounts.
+// A throw here takes down the entire app bundle (the exact OTA crash
+// pattern we hit in prod). Everything is defensive — if connectivity
+// wiring fails, we continue with the optimistic-online seed and React
+// Query's onlineManager default. No user-visible impact beyond losing
+// the offline banner and mutation pause-on-offline behavior.
+try {
+  initConnectivity();
+} catch (e) {
+  console.warn("[Boot] initConnectivity failed (non-fatal):", e);
+}
 
 // Bridge the Zustand connectivity phase to React Query's onlineManager.
-// When offline:
-//   - queries don't retry/refetch
-//   - paused mutations queue until we go back online
-// When online:
-//   - React Query's reconnect hook fires refetch for any stale queries
-//     (the `refetchOnReconnect: true` default above handles that)
-//
-// We DO NOT pause during the "reconnecting" flap phase — requests fired
-// then may well succeed and it's better to try than to sit idle.
-onlineManager.setEventListener((setOnline) => {
-  setOnline(useConnectivityStore.getState().phase !== "offline");
-  const unsub = useConnectivityStore.subscribe((state, prev) => {
-    if (state.phase !== prev.phase) {
-      setOnline(state.phase !== "offline");
-    }
+// Same defensive envelope as above — a failure here must not crash boot.
+try {
+  onlineManager.setEventListener((setOnline) => {
+    setOnline(useConnectivityStore.getState().phase !== "offline");
+    const unsub = useConnectivityStore.subscribe((state, prev) => {
+      if (state.phase !== prev.phase) {
+        setOnline(state.phase !== "offline");
+      }
+    });
+    return unsub;
   });
-  return unsub;
-});
+} catch (e) {
+  console.warn("[Boot] onlineManager wiring failed (non-fatal):", e);
+}
 
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();

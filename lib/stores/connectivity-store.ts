@@ -21,10 +21,39 @@
  */
 
 import { create } from "zustand";
-import {
-  addNetworkStateListener,
-  getNetworkStateAsync,
-} from "expo-network";
+
+// expo-network is loaded defensively so that a missing/mismatched
+// native module in the installed binary can't take down startup. On
+// OTA-only deliveries, the native side of expo-network may not exist
+// on the binary — static `import from "expo-network"` would resolve
+// to an object with undefined exports in that case, and calling
+// `addNetworkStateListener(...).remove` at module scope would throw
+// a TypeError during Hermes module eval, crashing the app before
+// React ever mounts. The dynamic require + null-guard pattern
+// degrades gracefully: if expo-network isn't available, connectivity
+// stays pinned to the optimistic "online" seed and nothing throws.
+type NetworkState = {
+  isConnected?: boolean | null;
+  isInternetReachable?: boolean | null;
+};
+type NetworkSubscription = { remove?: () => void } | undefined | null;
+type ExpoNetworkModule = {
+  addNetworkStateListener?: (
+    cb: (event: NetworkState) => void,
+  ) => NetworkSubscription;
+  getNetworkStateAsync?: () => Promise<NetworkState>;
+};
+
+let _expoNetwork: ExpoNetworkModule | null = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  _expoNetwork = require("expo-network");
+} catch (e) {
+  console.warn(
+    "[Connectivity] expo-network not available in this binary — running in optimistic-online mode",
+  );
+  _expoNetwork = null;
+}
 
 export type ConnectivityPhase = "online" | "offline" | "reconnecting";
 
@@ -143,23 +172,50 @@ export function initConnectivity() {
   if (_subscribed) return;
   _subscribed = true;
 
-  // Seed from a one-shot query so we reflect reality before the first
-  // event arrives. Don't block — fire-and-forget.
-  getNetworkStateAsync()
-    .then((state) => {
-      applyNetworkEvent(
-        !!state.isConnected,
-        state.isInternetReachable,
-      );
-    })
-    .catch(() => {
-      // expo-network failed — keep the optimistic "online" assumption
-      // rather than falsely marking everyone offline.
-    });
+  // All expo-network access is wrapped in try/catch + null-guards
+  // because this function is called from module-scope in _layout.tsx
+  // and must never throw. A throw here crashes startup before React
+  // can mount — exactly the failure mode we're hardening against.
+  try {
+    // Seed from a one-shot query so we reflect reality before the first
+    // event arrives. Don't block — fire-and-forget.
+    const getState = _expoNetwork?.getNetworkStateAsync;
+    if (typeof getState === "function") {
+      getState()
+        .then((state) => {
+          applyNetworkEvent(
+            !!state?.isConnected,
+            state?.isInternetReachable ?? undefined,
+          );
+        })
+        .catch(() => {
+          // expo-network failed — keep the optimistic "online" assumption
+          // rather than falsely marking everyone offline.
+        });
+    }
 
-  _unsubscribe = addNetworkStateListener((event) => {
-    applyNetworkEvent(!!event.isConnected, event.isInternetReachable);
-  }).remove;
+    const addListener = _expoNetwork?.addNetworkStateListener;
+    if (typeof addListener === "function") {
+      const sub = addListener((event) => {
+        applyNetworkEvent(
+          !!event?.isConnected,
+          event?.isInternetReachable ?? undefined,
+        );
+      });
+      // sub may be undefined on older expo-network builds; .remove may
+      // also be undefined. Both are tolerated — we just won't be able
+      // to unsubscribe on hot reload (fine for prod which never does).
+      const remove =
+        sub && typeof (sub as { remove?: unknown }).remove === "function"
+          ? (sub as { remove: () => void }).remove
+          : null;
+      _unsubscribe = remove;
+    }
+  } catch (e) {
+    // Any throw here would crash module eval. Swallow and stay in
+    // the optimistic-online seed state.
+    console.warn("[Connectivity] init failed — staying optimistic-online:", e);
+  }
 }
 
 /**
