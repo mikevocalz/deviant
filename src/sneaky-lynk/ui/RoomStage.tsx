@@ -1,35 +1,48 @@
 /**
  * RoomStage
  *
- * Zoom-parity stage for Sneaky Lynk rooms. Replaces the adaptive
- * N-up VideoGrid with a decisive two-zone layout:
+ * Zoom-parity stage for Sneaky Lynk rooms. Two zones:
  *
  *   ┌──────────────────────────┐
- *   │  HOST HERO  (58% | 55%)  │  ← pinned, never scrolls
+ *   │  HOST HERO   (16:9)      │  ← aspect-sized, capped by maxHeight
  *   ├──────────────────────────┤
- *   │  Crowd · N     1/3       │  ← divider + label + count
+ *   │  CROWD · N               │  ← divider + label (fixed height)
  *   │  ┌───┬───┐   ┌───┬───┐   │
  *   │  │ A │ B │ → │ E │ F │   │  ← horizontal paged carousel
  *   │  │ C │ D │   │ G │ H │   │    (2x2 per page)
  *   │  └───┴───┘   └───┴───┘   │
- *   │       •  o  o            │  ← pagination pill (morphs on scroll)
+ *   │       •  o  o            │  ← DVNT dot pagination (width+opacity)
  *   └──────────────────────────┘
  *
- * Scaling:
- *   1           → host hero fills 100% vertical, empty-crowd state
- *   2–4 total   → hero 58% + single-page carousel, dots hidden
- *   5–9 total   → hero 58% + multi-page carousel, pill dots
- *   10+ total   → hero 55% + multi-page carousel, numeric N/M indicator
+ * Sizing (rewritten after the "attendee tiles cut off" bug):
+ *   The hero is sized by aspect-ratio (16:9), not flex percent. Flex
+ *   percentages were fighting with fixed-height attendee tiles — on
+ *   small phones, 42% of stage height was smaller than the tiles'
+ *   natural height, so the scroller clipped the bottom half off.
  *
- * Design direction (via the frontend-design skill): DJ-booth + crowd.
- * Host on the plinth, attendees in the paged pit. DVNT cyan + accent
- * pink appear only where they signal state (the pagination pill is
- * the one place they cross — a cyan→pink gradient that morphs across
- * the row as you swipe, like a lighting cue).
+ *   Now: hero = min(pageWidth/HERO_ASPECT, availableHeight * heroCap).
+ *   Crowd zone = flex:1 of the remaining space, with overflow:hidden
+ *   so content can never spill onto the hero. Attendee tiles size
+ *   themselves from the measured crowd height via onLayout — 2 rows
+ *   always fit the visible area.
+ *
+ *   heroCap drops from 0.5 → 0.42 when the room has 10+ participants
+ *   so the crowd gets more breathing room.
+ *
+ * Scaling:
+ *   1           → hero fills, empty-crowd halo (no carousel)
+ *   2–4 total   → hero + single 2x2 page, dots hidden
+ *   5–9 total   → hero + multi-page carousel, cyan/pink AnimatedDot
+ *   10+ total   → hero shrinks, multi-page carousel, same dot pattern
+ *
+ * Design direction (frontend-design skill): DJ-booth + crowd. Host on
+ * the plinth, attendees in the paged pit. DVNT cyan + accent pink
+ * cross only at the pagination dots.
  */
 
-import React, { memo, useCallback, useMemo } from "react";
+import React, { memo, useCallback, useMemo, useState } from "react";
 import {
+  LayoutChangeEvent,
   StyleSheet,
   Text,
   View,
@@ -65,12 +78,21 @@ interface RoomStageProps {
   onParticipantPress?: (participant: VideoParticipant) => void;
 }
 
-const HERO_ASPECT = 16 / 10; // landscape-feel main stage
+const HERO_ASPECT = 16 / 9; // webcam-native landscape main stage
 const SIDE_PAD = 12;
 const TILE_GAP = 8;
 const TILES_PER_ROW = 2;
 const ROWS_PER_PAGE = 2;
 const TILES_PER_PAGE = TILES_PER_ROW * ROWS_PER_PAGE; // 4
+// Reserved vertical inside the crowd zone for chrome (divider + label
+// row + vertical padding + pagination dots). Tiles get what's left
+// after this overhead is subtracted from the measured crowd height.
+const CROWD_CHROME_HEIGHT = 86;
+// Tile dimensions fall back to this minimum when the crowd zone
+// hasn't been measured yet (first render before onLayout fires).
+// Matches a reasonable small-phone tile so the first paint doesn't
+// flash oversized tiles that get snapped smaller a frame later.
+const FALLBACK_TILE_HEIGHT = 110;
 
 // Sneaky Lynk room dot colors — alternating DVNT cyan/pink. Rotates
 // per-index so every page gets a visually distinct dot, same pattern
@@ -84,7 +106,7 @@ export const RoomStage = memo(function RoomStage({
   hostUserId,
   onParticipantPress,
 }: RoomStageProps) {
-  const { width: screenWidth } = useWindowDimensions();
+  const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
   // ── Host/attendee partition ──────────────────────────────────────
   // Priority: authoritative hostUserId (from room snapshot) → role
@@ -110,17 +132,39 @@ export const RoomStage = memo(function RoomStage({
   const totalCount = participants.length;
   const attendeeCount = attendees.length;
 
-  // Hero shrinks slightly when the room is packed to give the crowd
-  // room to breathe. Under 10 participants, hero takes 58%; past 10
-  // it drops to 55%. The rest of the vertical budget belongs to the
-  // carousel + its label + pagination.
-  const heroFlex = totalCount >= 10 ? 55 : 58;
-  const crowdFlex = 100 - heroFlex;
-
-  // ── Carousel math ────────────────────────────────────────────────
+  // ── Hero sizing — aspect-ratio, capped by screen height ──────────
+  // Use aspect-ratio instead of flex percent so the hero never
+  // competes with the crowd zone's fixed-height tiles. The maxHeight
+  // cap prevents the hero from dominating small phones (where
+  // pageWidth / HERO_ASPECT could eat more of the stage than we want).
   const pageWidth = screenWidth - SIDE_PAD * 2;
-  const tileWidth = (pageWidth - TILE_GAP) / TILES_PER_ROW;
-  const tileHeight = tileWidth * 1.1; // slight portrait bias for faces
+  const heroCap = totalCount >= 10 ? 0.42 : 0.5;
+  const heroMaxHeight = Math.round(screenHeight * heroCap);
+  const heroAspectHeight = Math.round(pageWidth / HERO_ASPECT);
+  const heroHeight = Math.min(heroAspectHeight, heroMaxHeight);
+
+  // ── Crowd-zone measurement — tile dimensions derive from this ────
+  // `crowdHeight` is measured from the onLayout callback on the
+  // crowd container. On first render (before layout settles) we use
+  // a fallback so tiles don't flash at the wrong size.
+  const [crowdHeight, setCrowdHeight] = useState<number | null>(null);
+
+  const handleCrowdLayout = useCallback((e: LayoutChangeEvent) => {
+    const h = Math.round(e.nativeEvent.layout.height);
+    setCrowdHeight((prev) => (prev === h ? prev : h));
+  }, []);
+
+  const tilesAreaHeight =
+    crowdHeight !== null
+      ? Math.max(160, crowdHeight - CROWD_CHROME_HEIGHT)
+      : FALLBACK_TILE_HEIGHT * ROWS_PER_PAGE + TILE_GAP;
+
+  const tileHeight = Math.floor(
+    (tilesAreaHeight - TILE_GAP * (ROWS_PER_PAGE - 1)) / ROWS_PER_PAGE,
+  );
+  const tileWidth = Math.floor(
+    (pageWidth - TILE_GAP * (TILES_PER_ROW - 1)) / TILES_PER_ROW,
+  );
 
   const pages = useMemo<VideoParticipant[][]>(() => {
     if (attendees.length === 0) return [];
@@ -159,11 +203,17 @@ export const RoomStage = memo(function RoomStage({
   const renderHero = useCallback(() => {
     if (!host) return null;
     return (
-      <View style={{ paddingHorizontal: SIDE_PAD, paddingTop: 4 }}>
+      <View
+        style={{
+          paddingHorizontal: SIDE_PAD,
+          paddingTop: 4,
+          height: heroHeight + 4,
+        }}
+      >
         <View
           style={{
             width: pageWidth,
-            aspectRatio: HERO_ASPECT,
+            height: heroHeight,
             borderRadius: 20,
             overflow: "hidden",
           }}
@@ -172,7 +222,7 @@ export const RoomStage = memo(function RoomStage({
             participant={host}
             isSpeaking={activeSpeakers.has(host.user.id)}
             tileWidth={pageWidth}
-            tileHeight={pageWidth / HERO_ASPECT}
+            tileHeight={heroHeight}
             isHost={isHost}
             onPress={
               isHost && !host.isLocal
@@ -183,7 +233,7 @@ export const RoomStage = memo(function RoomStage({
         </View>
       </View>
     );
-  }, [host, isHost, pageWidth, activeSpeakers, onParticipantPress]);
+  }, [host, isHost, pageWidth, heroHeight, activeSpeakers, onParticipantPress]);
 
   const renderCrowdLabel = useCallback(() => {
     if (attendeeCount === 0) return null;
@@ -261,13 +311,18 @@ export const RoomStage = memo(function RoomStage({
 
   return (
     <View style={{ flex: 1 }}>
-      {/* Hero zone — pinned, non-scrolling. Gets its % of flex so the
-          carousel underneath always has a stable home regardless of
-          attendee count. */}
-      <View style={{ flex: heroFlex }}>{renderHero()}</View>
+      {/* Hero zone — fixed height (aspect-derived), pinned. Non-flex
+          so it can't steal space from the crowd zone below. */}
+      {renderHero()}
 
-      {/* Crowd zone — label + carousel + pagination. */}
-      <View style={{ flex: crowdFlex, paddingTop: 8 }}>
+      {/* Crowd zone — takes remaining space. overflow:"hidden" is load-
+          bearing: without it, the paged ScrollView's intrinsic content
+          height (2 tile rows = ~400px on large phones) would spill
+          upward into the hero and visually overlap it. */}
+      <View
+        style={{ flex: 1, paddingTop: 8, overflow: "hidden" }}
+        onLayout={handleCrowdLayout}
+      >
         {/* Hairline divider — cyan→pink gradient at low alpha. The one
             and only place the two brand colors cross on this surface. */}
         <LinearGradient
