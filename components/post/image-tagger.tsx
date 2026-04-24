@@ -257,7 +257,7 @@ export function ImageTagger({
               : undefined,
           ]}
           contentFit="cover"
-          transition={200}
+          transition={0}
         />
 
         {/* Existing tags */}

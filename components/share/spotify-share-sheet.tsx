@@ -158,7 +158,7 @@ export const SpotifyShareSheet: React.FC = () => {
                 source={{ uri: oEmbed.thumbnail_url }}
                 style={{ width: "100%", height: 160 }}
                 contentFit="cover"
-                transition={200}
+                transition={0}
                 cachePolicy="memory-disk"
               />
             )}

@@ -110,8 +110,9 @@ export function StoryReplyBubble({
             source={{ uri: storyReply.storyMediaUrl }}
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
-            transition={200}
+            transition={0}
             cachePolicy="memory-disk"
+            recyclingKey={storyReply.storyMediaUrl}
           />
         ) : (
           /* No media URL — gradient placeholder */

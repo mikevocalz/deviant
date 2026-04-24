@@ -265,7 +265,7 @@ const GridCell = memo(function GridCell({
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
             contentPosition="top"
-            transition={200}
+            transition={0}
             cachePolicy="memory-disk"
           />
         ) : (

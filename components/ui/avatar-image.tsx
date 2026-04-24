@@ -1,13 +1,15 @@
 /**
  * Avatar Image Component
  *
- * Uses expo-image with loading placeholder for avatars.
+ * Image-first avatar. No loading spinner, no fade transition — the
+ * image snaps in from cache. Fallback is only rendered when the URI
+ * is missing or an error handler fires via the native onError event.
+ *
  * Dark theme, rounded corners, consistent styling.
  */
 
 import { Image } from "expo-image";
-import { View, ActivityIndicator } from "react-native";
-import { useState } from "react";
+import { View } from "react-native";
 import { User } from "lucide-react-native";
 
 interface AvatarImageProps {
@@ -17,28 +19,20 @@ interface AvatarImageProps {
   showPlaceholder?: boolean;
 }
 
-const blurhash = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
-
 export function AvatarImage({
   uri,
   size = 40,
   className = "",
   showPlaceholder = true,
 }: AvatarImageProps) {
-  const [isLoading, setIsLoading] = useState(true);
-  const [hasError, setHasError] = useState(false);
-
-  const showFallback = !uri || hasError;
+  const showFallback = !uri;
+  const borderRadius = Math.min(Math.round(size * 0.18), 16);
 
   if (showFallback && showPlaceholder) {
     return (
       <View
         className={`bg-muted items-center justify-center ${className}`}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: Math.min(Math.round(size * 0.18), 16),
-        }}
+        style={{ width: size, height: size, borderRadius }}
       >
         <User size={size * 0.5} color="#666" />
       </View>
@@ -49,57 +43,24 @@ export function AvatarImage({
     return (
       <View
         className={`bg-muted ${className}`}
-        style={{
-          width: size,
-          height: size,
-          borderRadius: Math.min(Math.round(size * 0.18), 16),
-        }}
+        style={{ width: size, height: size, borderRadius }}
       />
     );
   }
 
   return (
     <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: Math.min(Math.round(size * 0.18), 16),
-        overflow: "hidden",
-      }}
+      style={{ width: size, height: size, borderRadius, overflow: "hidden" }}
       className={className}
     >
       <Image
         source={{ uri: uri! }}
-        style={{
-          width: size,
-          height: size,
-        }}
+        style={{ width: size, height: size }}
         contentFit="cover"
-        placeholder={{ blurhash }}
-        transition={200}
-        onLoadStart={() => setIsLoading(true)}
-        onLoadEnd={() => setIsLoading(false)}
-        onError={() => {
-          setHasError(true);
-          setIsLoading(false);
-        }}
+        transition={0}
+        cachePolicy="memory-disk"
+        recyclingKey={uri ?? undefined}
       />
-      {isLoading && (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(0,0,0,0.3)",
-          }}
-        >
-          <ActivityIndicator size="small" color="#fff" />
-        </View>
-      )}
     </View>
   );
 }

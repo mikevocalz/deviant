@@ -27,24 +27,28 @@ export interface AvatarProps {
   variant?: AvatarVariant;
   /** Additional style overrides */
   style?: object;
-  /** Image transition duration in ms */
+  /**
+   * Image transition (ms). Defaults to 0 — no fade. Setting this
+   * non-zero reintroduces the "trickle" where initials flash and the
+   * image fades in over them. Leave at 0 unless the caller has a
+   * specific reason (e.g. a hero avatar with dramatic entrance).
+   */
   transition?: number;
 }
 
-const FALLBACK_BG = "#3EA4E5";
+const FALLBACK_BG = "#1a1a1a"; // neutral DVNT muted — no initial flash
 
 /**
  * Reusable UserAvatar component
  *
- * Usage:
- * <UserAvatar uri={user.avatar} username={user.username} size="md" variant="roundedSquare" />
+ * Image-first: when a uri resolves, the image layer owns the tile and
+ * snaps in with no fade (transition=0). Initials are ONLY rendered as
+ * a fallback when the uri is null/empty — this removes the "initials
+ * flash → image trickle" pattern that was showing across the app.
  *
- * Features:
- * - Two variants: roundedSquare (default, Instagram-like) or circle
- * - Preset sizes: xs(24), sm(32), md(44), lg(64), xl(80), xxl(100)
- * - Custom numeric size support
- * - Automatic fallback to UI Avatars API
- * - Memory-disk caching for performance
+ * Cache: `memory-disk` + `recyclingKey={uri}` lets expo-image reuse
+ * native views across re-renders and serve the same URL instantly on
+ * subsequent mounts.
  */
 function AvatarComponent({
   uri,
@@ -52,19 +56,15 @@ function AvatarComponent({
   size = "md",
   variant = "roundedSquare",
   style,
-  transition = 200,
+  transition = 0,
 }: AvatarProps) {
-  // Resolve size to number
   const sizeValue = typeof size === "number" ? size : AvatarSizes[size];
 
-  // Calculate border radius based on variant
   const borderRadius =
     variant === "circle"
       ? sizeValue / 2
-      : Math.min(Math.round(sizeValue * 0.18), 16); // ~18% of size, max 16
+      : Math.min(Math.round(sizeValue * 0.18), 16);
 
-  // CRITICAL: Use resolveAvatarUrl to handle string OR media object
-  // This ensures expo-image ALWAYS gets a valid URL string
   const resolvedUri = resolveAvatarUrl(
     uri,
     __DEV__ ? `Avatar:${username}` : undefined,
@@ -82,7 +82,7 @@ function AvatarComponent({
           width: sizeValue,
           height: sizeValue,
           borderRadius,
-          backgroundColor: FALLBACK_BG,
+          backgroundColor: showImage ? FALLBACK_BG : "#3EA4E5",
           overflow: "hidden",
           borderWidth: 1.5,
           borderColor: "#34A2DF",
@@ -90,28 +90,7 @@ function AvatarComponent({
         style,
       ]}
     >
-      {/* Initials layer — always rendered as background */}
-      <View
-        style={{
-          position: "absolute",
-          width: sizeValue,
-          height: sizeValue,
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <Text
-          style={{
-            color: "#fff",
-            fontWeight: "700",
-            fontSize: Math.round(sizeValue / 2),
-          }}
-        >
-          {usernameInitial}
-        </Text>
-      </View>
-      {/* Image layer — loads on top, fades in over initials */}
-      {showImage && (
+      {showImage ? (
         <Image
           source={{ uri: resolvedUri! }}
           style={{
@@ -121,7 +100,27 @@ function AvatarComponent({
           contentFit="cover"
           transition={transition}
           cachePolicy="memory-disk"
+          recyclingKey={resolvedUri ?? undefined}
         />
+      ) : (
+        <View
+          style={{
+            width: sizeValue,
+            height: sizeValue,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text
+            style={{
+              color: "#fff",
+              fontWeight: "700",
+              fontSize: Math.round(sizeValue / 2),
+            }}
+          >
+            {usernameInitial}
+          </Text>
+        </View>
       )}
     </View>
   );

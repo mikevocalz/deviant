@@ -395,7 +395,7 @@ const MasonryCell = memo(function MasonryCell({
             style={{ width, height }}
             contentFit="cover"
             cachePolicy="memory-disk"
-            transition={200}
+            transition={0}
           />
         ) : (
           <View style={[styles.emptyCell, { width, height }]}>

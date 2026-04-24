@@ -3,10 +3,11 @@
  *
  * Features:
  * - Sizes: xs(20) / sm(28) / md(40) / lg(56) / xl(80) / xxl(120)
- * - Circular crop with consistent padding
+ * - Rounded-square crop with consistent padding
  * - Gradient fallback initials (no external API dependency)
- * - Loading shimmer placeholder
- * - Error fallback with blurred placeholder
+ * - Image-first: snaps in from memory-disk cache with no transition,
+ *   no shimmer, no loading overlay. Fallback to initials only when
+ *   the URI is null/empty or a 404 fires via onError.
  * - Status badge support (online / live / away)
  * - Active speaker ring animation
  */
@@ -51,49 +52,6 @@ function getGradient(name: string): [string, string] {
     hash = name.charCodeAt(i) + ((hash << 5) - hash);
   }
   return GRADIENT_PALETTES[Math.abs(hash) % GRADIENT_PALETTES.length];
-}
-
-// ── Shimmer placeholder ─────────────────────────────────────────────
-function ShimmerPlaceholder({ size }: { size: number }) {
-  const shimmer = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    const animation = Animated.loop(
-      Animated.sequence([
-        Animated.timing(shimmer, {
-          toValue: 1,
-          duration: 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(shimmer, {
-          toValue: 0,
-          duration: 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ]),
-    );
-    animation.start();
-    return () => animation.stop();
-  }, [shimmer]);
-
-  const opacity = shimmer.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.3, 0.6],
-  });
-
-  return (
-    <Animated.View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: Math.min(Math.round(size * 0.18), 16),
-        backgroundColor: "#2a2a2a",
-        opacity,
-      }}
-    />
-  );
 }
 
 // ── Speaker ring animation ──────────────────────────────────────────
@@ -228,7 +186,10 @@ function UserAvatarComponent({
   style,
 }: UserAvatarProps) {
   const sizeValue = typeof size === "number" ? size : AVATAR_SIZES[size];
-  const [isLoading, setIsLoading] = useState(true);
+  // hasError fallback is kept so a 404 flips back to the gradient
+  // initials. No isLoading state — the image snaps in from cache and
+  // the shimmer overlay used to BE the "trickle" the user complained
+  // about, so it's gone.
   const [hasError, setHasError] = useState(false);
 
   const resolvedUri = resolveAvatarUrl(uri);
@@ -240,11 +201,7 @@ function UserAvatarComponent({
   const gradient = getGradient(username);
   const fontSize = Math.round(sizeValue * 0.4);
 
-  const handleLoadEnd = useCallback(() => setIsLoading(false), []);
-  const handleError = useCallback(() => {
-    setHasError(true);
-    setIsLoading(false);
-  }, []);
+  const handleError = useCallback(() => setHasError(true), []);
 
   const avatarContent = (
     <View
@@ -259,30 +216,15 @@ function UserAvatarComponent({
       ]}
     >
       {showImage ? (
-        <>
-          <Image
-            source={{ uri: resolvedUri! }}
-            style={{ width: sizeValue, height: sizeValue }}
-            contentFit="cover"
-            transition={200}
-            cachePolicy="memory-disk"
-            onLoadEnd={handleLoadEnd}
-            onError={handleError}
-          />
-          {isLoading && (
-            <View
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-              }}
-            >
-              <ShimmerPlaceholder size={sizeValue} />
-            </View>
-          )}
-        </>
+        <Image
+          source={{ uri: resolvedUri! }}
+          style={{ width: sizeValue, height: sizeValue }}
+          contentFit="cover"
+          transition={0}
+          cachePolicy="memory-disk"
+          recyclingKey={resolvedUri ?? undefined}
+          onError={handleError}
+        />
       ) : (
         <LinearGradient
           colors={gradient}
