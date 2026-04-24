@@ -11,7 +11,6 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
 import { View, Text, Pressable, Platform, ActivityIndicator } from "react-native";
-import { KeyboardAvoidingView } from "react-native-keyboard-controller";
 import { LegendList } from "@/components/list";
 import { PasteInput } from "@/components/ui/paste-input";
 import { Avatar } from "@/components/ui/avatar";
@@ -837,7 +836,14 @@ export function ChatSheet({
       enableOverDrag={false}
       enableDynamicSizing={false}
       backdropComponent={renderBackdrop}
-      keyboardBehavior="extend"
+      // `interactive` lifts the sheet with the keyboard, keeping the
+      // composer glued to the visible bottom. `extend` (the old value)
+      // stretches the sheet to full-screen, which combined with the
+      // inner `KeyboardAvoidingView` + its `keyboardVerticalOffset={100}`
+      // was causing the composer to end up obscured behind the keyboard
+      // or pushed above the visible area on some devices. One
+      // keyboard-avoidance mechanism only — Gorhom's built-in.
+      keyboardBehavior="interactive"
       keyboardBlurBehavior="restore"
       android_keyboardInputMode="adjustResize"
       backgroundStyle={{
@@ -852,11 +858,11 @@ export function ChatSheet({
       detached={false}
       style={{ zIndex: 9999, elevation: 9999 }}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={{ flex: 1 }}
-        keyboardVerticalOffset={100}
-      >
+      {/* No KeyboardAvoidingView here — Gorhom's `keyboardBehavior="interactive"`
+          on the sheet above handles keyboard-lift for us. Having both a
+          KAV and Gorhom's keyboard handling was the source of the
+          "unable to chat / input under UI" bug. */}
+      <View style={{ flex: 1 }}>
         {/* Header */}
         <View
           style={{
@@ -1127,7 +1133,7 @@ export function ChatSheet({
             </Pressable>
           </View>
         </View>
-      </KeyboardAvoidingView>
+      </View>
     </BottomSheet>
   );
 }

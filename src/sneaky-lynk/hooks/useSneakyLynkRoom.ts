@@ -8,6 +8,10 @@ import { AppState, AppStateStatus } from "react-native";
 import { sneakyLynkApi } from "../api/supabase";
 import { useRoomEvents } from "./useRoomEvents";
 import {
+  classifySneakyLynkError,
+  type ClassifiedError,
+} from "../errors";
+import {
   getFishjamClient,
   resetFishjamClient,
   type FishjamPeer,
@@ -74,6 +78,10 @@ interface UseSneakyLynkRoomReturn {
 
   // Errors
   error: string | null;
+  /** UI-ready classified error. Use this to render sheets; `error` is legacy. */
+  classifiedError: ClassifiedError | null;
+  /** Dismiss the current classified error (hides the error sheet). */
+  dismissClassifiedError: () => void;
 }
 
 export function useSneakyLynkRoom(
@@ -103,6 +111,11 @@ export function useSneakyLynkRoom(
 
   // Error state
   const [error, setError] = useState<string | null>(null);
+  // Typed, UI-ready classification of the most recent join failure.
+  // Preferred by screens over the raw `error` string — routes to the
+  // right polished sheet per reason (room full, ended, rate-limited, …).
+  const [classifiedError, setClassifiedError] =
+    useState<ClassifiedError | null>(null);
 
   // Refs
   const tokenExpiresAt = useRef<Date | null>(null);
@@ -169,6 +182,7 @@ export function useSneakyLynkRoom(
     const joinRoom = async () => {
       setConnectionState("connecting");
       setError(null);
+      setClassifiedError(null);
 
       try {
         const response = await sneakyLynkApi.joinRoom(roomId);
@@ -176,7 +190,15 @@ export function useSneakyLynkRoom(
         if (!mounted) return;
 
         if (!response.ok || !response.data) {
-          setError(response.error?.message ?? "Failed to join room");
+          const rawMessage = response.error?.message ?? "Failed to join room";
+          const classified = classifySneakyLynkError(
+            response.error?.code,
+            rawMessage,
+          );
+          // Keep the legacy string field populated for any old consumer,
+          // but screens should render off `classifiedError` going forward.
+          setError(rawMessage);
+          setClassifiedError(classified);
           setConnectionState("disconnected");
           return;
         }
@@ -534,5 +556,7 @@ export function useSneakyLynkRoom(
     ejectReason,
     isRoomEnded,
     error,
+    classifiedError,
+    dismissClassifiedError: () => setClassifiedError(null),
   };
 }

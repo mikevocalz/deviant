@@ -60,6 +60,11 @@ import {
 } from "@/src/sneaky-lynk/ui";
 import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
 import type { SneakyRoom, SneakyUser } from "@/src/sneaky-lynk/types";
+import { RoomJoinErrorSheet } from "@/src/sneaky-lynk/ui/RoomJoinErrorSheet";
+import {
+  classifySneakyLynkError,
+  type ClassifiedError,
+} from "@/src/sneaky-lynk/errors";
 import {
   getSneakyUserLabel,
   normalizeSneakyAnonLabel,
@@ -911,6 +916,11 @@ function ServerRoom({
     hideEject,
     reset,
   } = useRoomStore();
+  // Classified join-error surfaced by the premium error sheet. Follows
+  // the existing useState pattern in this screen; a full no-useState
+  // migration of ServerRoom lives with the rest of the Sneaky Lynk
+  // cleanup work, not this targeted fix.
+  const [joinError, setJoinError] = useState<ClassifiedError | null>(null);
   const [roomSnapshot, setRoomSnapshot] = useState<SneakyRoom | null>(
     initialRoom,
   );
@@ -945,7 +955,16 @@ function ServerRoom({
       markRoomClosed(roomSnapshot);
     },
     onError: (error) => {
-      showToast("error", "Error", error);
+      // Classify BEFORE any toast — premium errors (room full, ended,
+      // rate-limited, etc.) get a dedicated sheet with proper copy.
+      // We fall back to a toast only for genuinely-unexpected errors.
+      const classified = classifySneakyLynkError(undefined, error);
+      if (classified.reason !== "unknown") {
+        setJoinError(classified);
+      } else {
+        showToast("error", "Couldn't join", classified.body);
+      }
+
       if (isClosedRoomError(error)) {
         const normalizedError = error.toLowerCase();
         markRoomClosed(
@@ -1866,12 +1885,22 @@ function ServerRoom({
         onParticipantPress={isHost ? handleParticipantPress : undefined}
         onMuteAll={isHost ? handleToggleMuteAll : undefined}
         allMuted={allMuted}
-        onShare={handleShare}
-        localRole={isHost ? "host" : videoRoom.localUser?.role || "participant"}
-        canOpenParticipants={isHost}
-        onOpenParticipants={
-          isHost ? () => setShowParticipantsSheet(true) : undefined
+        // Share is host + co-host only. Matches the product intent:
+        // "if I am the host or cohost, I should be able to share the
+        // link." Listeners/speakers can forward via any system share
+        // from the browser if they navigated in via URL.
+        onShare={
+          isHost || videoRoom.localUser?.role === "co-host"
+            ? handleShare
+            : undefined
         }
+        localRole={isHost ? "host" : videoRoom.localUser?.role || "participant"}
+        // Everyone can open the participant list — seeing who's in the
+        // room is a core social feature, not a host moderation tool.
+        // Moderation actions (mute/remove) inside the sheet are still
+        // host/cohost-gated via each row's per-participant permissions.
+        canOpenParticipants={true}
+        onOpenParticipants={() => setShowParticipantsSheet(true)}
       />
 
       <RoomParticipantsSheet
@@ -1883,6 +1912,25 @@ function ServerRoom({
         onMute={handleMutePeer}
         onUnmute={handleUnmutePeer}
         onRemove={handleRemoveUser}
+      />
+
+      {/* Premium join-error surface — replaces the old "Error: <raw
+          backend message>" toast for classified failure reasons like
+          room-full, room-ended, rate-limited, forbidden, etc. */}
+      <RoomJoinErrorSheet
+        error={joinError}
+        onDismiss={() => setJoinError(null)}
+        onRetry={() => {
+          setJoinError(null);
+          // Pop back to the public room entry so the user can tap to
+          // join again. Cleaner than attempting an in-place rejoin —
+          // the useVideoRoom hook reconnects on roomId change.
+          handleLeave();
+        }}
+        onSignIn={() => {
+          setJoinError(null);
+          router.replace("/(auth)/login" as any);
+        }}
       />
 
       {/* Host action sheet — mute / co-host / remove */}

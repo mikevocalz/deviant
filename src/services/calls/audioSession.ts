@@ -144,7 +144,9 @@ export const audioSession = {
 
       // Sneaky Lynk rooms are audio-first even when video is enabled.
       // Keep the session in audio/voice-chat mode so remote audio reliably
-      // routes and starts, then explicitly push output to speaker.
+      // routes and starts. iOS will naturally route to wired headphones
+      // or Bluetooth when they're present; we only override with the
+      // built-in speaker if the caller explicitly requests speakerOn.
       InCallManager.start({ media: "audio", auto: true });
       _isActive = true;
 
@@ -154,7 +156,10 @@ export const audioSession = {
         _isCallKitActivated = true;
       }
 
-      InCallManager.setForceSpeakerphoneOn(speakerOn);
+      // Route preference — see `applySpeakerPreference` below. Fires
+      // `setForceSpeakerphoneOn(true)` ONLY when headphones are not
+      // plugged in; otherwise we respect the plugged device.
+      void this.applySpeakerPreference(speakerOn);
       _isSpeakerOn = speakerOn;
       InCallManager.setMicrophoneMute(false);
       _isMicMuted = false;
@@ -166,6 +171,54 @@ export const audioSession = {
         error: e?.message,
       });
       console.error("[AudioSession] startForLynk failed:", e);
+    }
+  },
+
+  /**
+   * Apply a speaker preference while honoring plugged audio devices.
+   *
+   * The previous implementation called
+   * `InCallManager.setForceSpeakerphoneOn(true)` unconditionally at
+   * room join. On iOS this forces the built-in speaker regardless of
+   * plugged hardware — which is exactly the "headphones don't work in
+   * a Lynk room" bug users reported.
+   *
+   * Behavior:
+   *   speakerOn = false → never force speaker. iOS routes naturally:
+   *     wired headphones > Bluetooth > built-in speaker (audio category
+   *     PlayAndRecord with DefaultToSpeaker).
+   *   speakerOn = true → force speaker ONLY when no wired headset is
+   *     currently plugged in. Plugged headset takes priority.
+   *
+   * Call this after a route-change event if you surface a speaker
+   * toggle in the UI.
+   */
+  async applySpeakerPreference(speakerOn: boolean): Promise<void> {
+    try {
+      if (!speakerOn) {
+        InCallManager.setForceSpeakerphoneOn(false);
+        _isSpeakerOn = false;
+        return;
+      }
+
+      // speakerOn === true — check for a wired headset before forcing.
+      const { isWiredHeadsetPluggedIn } =
+        await InCallManager.getIsWiredHeadsetPluggedIn();
+      if (isWiredHeadsetPluggedIn) {
+        // Headphones take priority over the user's speaker preference.
+        // Clear any prior force-speaker state so iOS re-picks the route.
+        InCallManager.setForceSpeakerphoneOn(false);
+        _isSpeakerOn = false;
+        CT.trace("AUDIO", "audioSession_speaker_deferred_to_headset", {});
+        return;
+      }
+
+      InCallManager.setForceSpeakerphoneOn(true);
+      _isSpeakerOn = true;
+    } catch (e: any) {
+      CT.error("AUDIO", "audioSession_applySpeaker_failed", {
+        error: e?.message,
+      });
     }
   },
 
