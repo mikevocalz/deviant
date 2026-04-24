@@ -54,6 +54,51 @@ function formatEventDate(isoDate: string | null | undefined) {
   };
 }
 
+/**
+ * Enrich a page of events with their cheapest ticket-tier price.
+ *
+ * The events.price column is a single-tier fallback. When a user creates
+ * tiered pricing, those tiers live in `ticket_types` (price_cents per
+ * tier) and `events.price` stays at 0 — which is why list cards were
+ * showing "FREE" even though the event detail screen rendered the real
+ * tiered prices.
+ *
+ * This runs one batched query per page (not N+1) and overrides
+ * `event.price` only when the cheapest active tier is > 0. Events with
+ * all-free tiers or no tiers stay as-is.
+ */
+async function enrichEventsWithTierPrices<
+  T extends { id: string; price: number },
+>(events: T[]): Promise<T[]> {
+  if (events.length === 0) return events;
+  const eventIds = events
+    .map((e) => parseInt(e.id, 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (eventIds.length === 0) return events;
+
+  const { data, error } = await supabase
+    .from("ticket_types")
+    .select("event_id, price_cents, is_active")
+    .in("event_id", eventIds)
+    .eq("is_active", true);
+
+  if (error || !data) return events;
+
+  const minByEvent = new Map<number, number>();
+  for (const row of data as Array<{ event_id: number; price_cents: number }>) {
+    const prev = minByEvent.get(row.event_id);
+    if (prev === undefined || row.price_cents < prev) {
+      minByEvent.set(row.event_id, row.price_cents);
+    }
+  }
+
+  return events.map((e) => {
+    const min = minByEvent.get(parseInt(e.id, 10));
+    if (min === undefined || min <= 0) return e;
+    return { ...e, price: min / 100 };
+  });
+}
+
 export const eventsApi = {
   async toggleEventLike(
     eventId: string,
@@ -123,7 +168,7 @@ export const eventsApi = {
       if (error) throw error;
 
       // RPC returns JSON array — map to client shape
-      return ((data as any[]) || []).map((event: any) => {
+      const mapped = ((data as any[]) || []).map((event: any) => {
         const dateParts = formatEventDate(event.start_date);
         const avatars = Array.isArray(event.attendee_avatars)
           ? event.attendee_avatars
@@ -157,6 +202,7 @@ export const eventsApi = {
           },
         };
       });
+      return enrichEventsWithTierPrices(mapped);
     } catch (error) {
       console.error("[Events] getEvents error:", error);
       return [];
@@ -186,7 +232,7 @@ export const eventsApi = {
         return this.getEvents(limit);
       }
 
-      return ((data as any[]) || []).map((event: any) => {
+      const mapped = ((data as any[]) || []).map((event: any) => {
         const dateParts = formatEventDate(event.start_date);
         const avatars = Array.isArray(event.attendee_avatars)
           ? event.attendee_avatars
@@ -217,6 +263,7 @@ export const eventsApi = {
           },
         };
       });
+      return enrichEventsWithTierPrices(mapped);
     } catch (error) {
       console.error("[Events] getForYouEvents error:", error);
       return this.getEvents(limit);
@@ -268,7 +315,7 @@ export const eventsApi = {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map((event: any) => {
+      const mapped = (data || []).map((event: any) => {
         const dateParts = formatEventDate(event[DB.events.startDate]);
         return {
           id: String(event[DB.events.id]),
@@ -281,6 +328,7 @@ export const eventsApi = {
           attendees: Number(event[DB.events.totalAttendees]) || 0,
         };
       });
+      return enrichEventsWithTierPrices(mapped);
     } catch (error) {
       console.error("[Events] getMyEvents error:", error);
       return [];
@@ -323,7 +371,7 @@ export const eventsApi = {
         );
       }
 
-      return (data || []).map((event: any) => {
+      const mapped = (data || []).map((event: any) => {
         const host = hostsMap.get(event[DB.events.hostId]);
         const dateParts = formatEventDate(event[DB.events.startDate]);
         return {
@@ -341,6 +389,7 @@ export const eventsApi = {
           },
         };
       });
+      return enrichEventsWithTierPrices(mapped);
     } catch (error) {
       console.error("[Events] getPastEvents error:", error);
       return [];
@@ -1013,7 +1062,7 @@ export const eventsApi = {
         );
       }
 
-      return (events || []).map((event: any) => {
+      const mapped = (events || []).map((event: any) => {
         const host = hostsMap.get(event[DB.events.hostId]);
         return {
           id: String(event[DB.events.id]),
@@ -1030,6 +1079,7 @@ export const eventsApi = {
           },
         };
       });
+      return enrichEventsWithTierPrices(mapped);
     } catch (error) {
       console.error("[Events] getLikedEvents error:", error);
       return [];
