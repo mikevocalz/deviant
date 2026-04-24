@@ -1153,6 +1153,63 @@ function CreateEventScreenContent() {
                     );
                   })}
                 </View>
+
+                {/* Explainer — what the selected option actually does,
+                    so the host doesn't have to guess Public vs Link Only
+                    vs Private. Copy is intentionally plainspoken. */}
+                <View
+                  className="mt-3 p-3 rounded-xl"
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.04)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <Text
+                    className="text-[12px] leading-[17px]"
+                    style={{ color: colors.mutedForeground }}
+                  >
+                    {visibility === "public" && (
+                      <>
+                        <Text
+                          className="font-bold"
+                          style={{ color: colors.foreground }}
+                        >
+                          Public ·{" "}
+                        </Text>
+                        Appears in the Home feed, For You, and Search. Anyone
+                        can see and buy a ticket. Best for events you want to
+                        fill.
+                      </>
+                    )}
+                    {visibility === "link_only" && (
+                      <>
+                        <Text
+                          className="font-bold"
+                          style={{ color: colors.foreground }}
+                        >
+                          Link Only ·{" "}
+                        </Text>
+                        Hidden from the public feed and Search. Anyone with
+                        the share link can see and buy. Best for soft-launch
+                        events you promote on Instagram, group chats, or
+                        email.
+                      </>
+                    )}
+                    {visibility === "private" && (
+                      <>
+                        <Text
+                          className="font-bold"
+                          style={{ color: colors.foreground }}
+                        >
+                          Private ·{" "}
+                        </Text>
+                        Hidden from the public feed and from people without
+                        the link. Intended for invite-only guest lists.
+                      </>
+                    )}
+                  </Text>
+                </View>
               </View>
 
               {/* Age Restriction */}

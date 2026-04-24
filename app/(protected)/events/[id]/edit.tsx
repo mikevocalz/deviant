@@ -1037,31 +1037,91 @@ function EditEventScreenContent() {
             Visibility
           </Text>
           <View className="flex-row gap-3">
-            {(["public", "private", "unlisted"] as const).map((v) => (
-              <Pressable
-                key={v}
-                onPress={() => setVisibility(v)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  alignItems: "center",
-                  backgroundColor:
-                    visibility === v ? colors.primary : colors.card,
-                }}
-              >
-                <Text
+            {/* Values MUST match the DB CHECK constraint
+                ('public','private','link_only'). The previous value
+                "unlisted" wasn't in that list and would fail to save. */}
+            {(["public", "private", "link_only"] as const).map((v) => {
+              const label =
+                v === "link_only" ? "Link Only" : v === "public" ? "Public" : "Private";
+              return (
+                <Pressable
+                  key={v}
+                  onPress={() => setVisibility(v)}
                   style={{
-                    color: visibility === v ? "#fff" : colors.foreground,
-                    fontSize: 13,
-                    fontWeight: visibility === v ? "600" : "400",
-                    textTransform: "capitalize",
+                    flex: 1,
+                    paddingVertical: 12,
+                    borderRadius: 12,
+                    alignItems: "center",
+                    backgroundColor:
+                      visibility === v ? colors.primary : colors.card,
                   }}
                 >
-                  {v}
-                </Text>
-              </Pressable>
-            ))}
+                  <Text
+                    style={{
+                      color: visibility === v ? "#fff" : colors.foreground,
+                      fontSize: 13,
+                      fontWeight: visibility === v ? "600" : "400",
+                    }}
+                  >
+                    {label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+
+          {/* Explainer — mirrors the create flow so hosts see the same
+              guidance whether they're making or editing an event. */}
+          <View
+            className="mt-3 p-3 rounded-xl"
+            style={{
+              backgroundColor: "rgba(255,255,255,0.04)",
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.06)",
+            }}
+          >
+            <Text
+              className="text-[12px] leading-[17px]"
+              style={{ color: colors.mutedForeground }}
+            >
+              {visibility === "public" && (
+                <>
+                  <Text
+                    className="font-bold"
+                    style={{ color: colors.foreground }}
+                  >
+                    Public ·{" "}
+                  </Text>
+                  Appears in the Home feed, For You, and Search. Anyone can
+                  see and buy a ticket. Best for events you want to fill.
+                </>
+              )}
+              {visibility === "link_only" && (
+                <>
+                  <Text
+                    className="font-bold"
+                    style={{ color: colors.foreground }}
+                  >
+                    Link Only ·{" "}
+                  </Text>
+                  Hidden from the public feed and Search. Anyone with the
+                  share link can see and buy. Best for soft-launch events you
+                  promote on Instagram, group chats, or email.
+                </>
+              )}
+              {visibility === "private" && (
+                <>
+                  <Text
+                    className="font-bold"
+                    style={{ color: colors.foreground }}
+                  >
+                    Private ·{" "}
+                  </Text>
+                  Hidden from the public feed and from people without the
+                  link. Intended for invite-only guest lists.
+                </>
+              )}
+            </Text>
           </View>
         </View>
 
