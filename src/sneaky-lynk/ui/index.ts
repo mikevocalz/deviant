@@ -7,6 +7,7 @@ export { VideoGrid } from "./VideoGrid";
 export type { VideoParticipant } from "./VideoGrid";
 export { ParticipantActions } from "./ParticipantActions";
 export { RoomParticipantsSheet } from "./RoomParticipantsSheet";
+export { HandQueueSheet } from "./HandQueueSheet";
 export { SpeakerGrid } from "./SpeakerGrid";
 export { ListenerGrid } from "./ListenerGrid";
 export { ControlsBar } from "./ControlsBar";

@@ -839,7 +839,11 @@ const MediaSlide = memo(function MediaSlide({
             item={medium as any}
             width={width}
             height={height}
-            contentFit="cover"
+            // Detail view slides: contain so every slide shows the
+            // complete frame from top to bottom. The carousel frame
+            // is a fixed 4:5 box; tall portraits used to lose heads
+            // and wide landscapes used to lose context to center-crop.
+            contentFit="contain"
             isPlaying
           />
         </Galeria.Image>
@@ -1616,7 +1620,12 @@ function PostDetailScreenContent() {
                         item={stableMedia[0] as any}
                         width={SCREEN_WIDTH}
                         height={PORTRAIT_HEIGHT}
-                        contentFit="cover"
+                        // Detail view: contain so the TOP of the photo is
+                        // never cropped out. cover was center-cropping
+                        // tall portraits (heads cut off). The 4:5 frame
+                        // still anchors the composition; any aspect
+                        // mismatch letterboxes cleanly on black.
+                        contentFit="contain"
                         showBadge={true}
                         isPlaying={true}
                       />

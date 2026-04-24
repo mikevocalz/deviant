@@ -29,6 +29,7 @@ import {
   Radio,
   Mic,
   MicOff,
+  Hand,
 } from "lucide-react-native";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { LinearGradient } from "expo-linear-gradient";
@@ -56,6 +57,7 @@ import {
   ChatSheet,
   RoomTimer,
   RoomParticipantsSheet,
+  HandQueueSheet,
   RemoteAudioLayer,
 } from "@/src/sneaky-lynk/ui";
 import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
@@ -912,16 +914,21 @@ function ServerRoom({
   const {
     isHandRaised,
     raisedHands,
+    raisedHandOrder,
     isChatOpen,
+    isHandQueueOpen,
     showEjectModal,
     ejectPayload,
     listeners: storeListeners,
     setIsHandRaised,
     setRaisedHand,
     setRaisedHands,
+    clearRaisedHands,
     setActiveSpeakerId,
     openChat,
     closeChat,
+    openHandQueue,
+    closeHandQueue,
     showEject,
     hideEject,
     reset,
@@ -1820,6 +1827,53 @@ function ServerRoom({
     setActionTarget(p);
   }, []);
 
+  // Host promotes a raised hand to "speaker". We optimistically lower
+  // the visual queue entry so the host sees the moderation complete
+  // instantly — the server broadcasts the real role change, so any
+  // drift self-heals on the next members-refresh tick.
+  const handleInviteToSpeak = useCallback(
+    async (targetUserId: string) => {
+      setRaisedHand(targetUserId, false);
+      // Backend role enum is "co-host" | "participant" — "speaker" isn't
+      // a server-side role, so we use co-host as the promotion target.
+      // From the listener's POV this grants mic + participant controls,
+      // which is the real meaning of "invited to speak".
+      const res = await videoApi.changeRole({
+        roomId: roomUuid,
+        targetUserId,
+        newRole: "co-host",
+      });
+      if (res.ok) {
+        showToast("success", "Invited", "User can now speak");
+      } else {
+        showToast(
+          "error",
+          "Error",
+          res.error?.message || "Couldn't invite to speak",
+        );
+      }
+    },
+    [roomUuid, showToast, setRaisedHand],
+  );
+
+  // Host lowers a raised hand without promotion. Server-side we don't
+  // currently have a "host lowers peer hand" endpoint (toggle_hand is
+  // caller-scoped), so this is a local-only dismissal for now — the
+  // participant's own client still thinks they're raised until they
+  // toggle back. Tracked for follow-up; local clear is Zoom-parity for
+  // hosts who just want to clear the queue visually.
+  const handleLowerHand = useCallback(
+    (targetUserId: string) => {
+      setRaisedHand(targetUserId, false);
+    },
+    [setRaisedHand],
+  );
+
+  const handleLowerAll = useCallback(() => {
+    clearRaisedHands();
+    closeHandQueue();
+  }, [clearRaisedHands, closeHandQueue]);
+
   if (closedReason) {
     return (
       <ClosedRoomScreen
@@ -1975,6 +2029,21 @@ function ServerRoom({
         // host/cohost-gated via each row's per-participant permissions.
         canOpenParticipants={true}
         onOpenParticipants={() => setShowParticipantsSheet(true)}
+        raisedHandCount={raisedHandOrder.length}
+        onOpenHandQueue={isHost ? openHandQueue : undefined}
+      />
+
+      <HandQueueSheet
+        visible={isHandQueueOpen && isHost}
+        participants={allParticipants}
+        raisedHandOrder={raisedHandOrder}
+        onDismiss={closeHandQueue}
+        onInviteToSpeak={(userId) => {
+          closeHandQueue();
+          void handleInviteToSpeak(userId);
+        }}
+        onLowerHand={handleLowerHand}
+        onLowerAll={handleLowerAll}
       />
 
       <RoomParticipantsSheet
@@ -2100,6 +2169,8 @@ function RoomLayout({
   localRole,
   canOpenParticipants,
   onOpenParticipants,
+  raisedHandCount,
+  onOpenHandQueue,
 }: {
   insets: any;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -2139,6 +2210,8 @@ function RoomLayout({
   allMuted?: boolean;
   canOpenParticipants?: boolean;
   onOpenParticipants?: () => void;
+  raisedHandCount?: number;
+  onOpenHandQueue?: () => void;
 }) {
   const { reactions, sendReaction } = useRoomReactions({
     roomId,
@@ -2289,6 +2362,40 @@ function RoomLayout({
                           HOST
                         </Text>
                       </View>
+                    ) : null}
+                    {isHost &&
+                    onOpenHandQueue &&
+                    raisedHandCount !== undefined &&
+                    raisedHandCount > 0 ? (
+                      <Pressable
+                        onPress={onOpenHandQueue}
+                        hitSlop={8}
+                        style={({ pressed }) => ({
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 4,
+                          paddingHorizontal: 9,
+                          paddingVertical: 5,
+                          borderRadius: 12,
+                          backgroundColor: "rgba(255, 109, 193, 0.18)",
+                          borderWidth: 1,
+                          borderColor: "rgba(255, 109, 193, 0.4)",
+                          opacity: pressed ? 0.75 : 1,
+                        })}
+                      >
+                        <Hand size={12} color="#FFC2E2" />
+                        <Text
+                          style={{
+                            color: "#FFD5EA",
+                            fontSize: 10,
+                            fontWeight: "800",
+                            letterSpacing: 0.3,
+                            fontVariant: ["tabular-nums"],
+                          }}
+                        >
+                          {raisedHandCount}
+                        </Text>
+                      </Pressable>
                     ) : null}
                   </View>
 
