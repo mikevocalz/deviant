@@ -10,13 +10,19 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState, memo } from "react";
-import { View, Text, Pressable, Platform, ActivityIndicator } from "react-native";
+import { View, Text, Pressable, Platform, ActivityIndicator, Keyboard } from "react-native";
 import { LegendList } from "@/components/list";
 import { PasteInput } from "@/components/ui/paste-input";
 import { Avatar } from "@/components/ui/avatar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BottomSheet, { BottomSheetBackdrop } from "@gorhom/bottom-sheet";
-import { Send, X, Reply, MessageCircleMore } from "lucide-react-native";
+import {
+  Send,
+  X,
+  Reply,
+  MessageCircleMore,
+  ArrowDown,
+} from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import type { SneakyUser } from "../types";
 import type {
@@ -555,7 +561,18 @@ export function ChatSheet({
     Record<number, CommentReaction[]>
   >({});
   const inputRef = useRef<any>(null);
+  const listRef = useRef<any>(null);
   const authorDirectoryRef = useRef<Record<string, RoomCommentAuthor>>({});
+
+  // Live-chat scroll state. Twitch / Discord pattern:
+  //   - if the user is pinned to the bottom, new messages auto-scroll
+  //     into view (feels like a live stream).
+  //   - if they've scrolled up to read older messages, we DO NOT
+  //     force-scroll; a "↓ N new" pill surfaces above the composer
+  //     so they know new activity is waiting and can snap down with
+  //     a tap.
+  const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
+  const [newMessagesCount, setNewMessagesCount] = useState(0);
 
   const authorDirectory = useMemo(() => {
     const entries: Array<[string, RoomCommentAuthor]> = [];
@@ -642,6 +659,26 @@ export function ChatSheet({
   // Build threaded view
   const threads = useMemo(() => buildCommentThreads(comments), [comments]);
 
+  // When new top-level messages arrive AND the user is scrolled up,
+  // increment the "↓ N new" pill counter. When pinned, the list
+  // auto-scrolls (via maintainScrollAtEnd) so the counter stays 0.
+  const lastThreadCountRef = useRef(threads.length);
+  useEffect(() => {
+    const prev = lastThreadCountRef.current;
+    const next = threads.length;
+    lastThreadCountRef.current = next;
+    if (next > prev && !isPinnedToBottom) {
+      setNewMessagesCount((n) => n + (next - prev));
+    }
+  }, [threads.length, isPinnedToBottom]);
+
+  const handleJumpToLatest = useCallback(() => {
+    try {
+      listRef.current?.scrollToEnd({ animated: true });
+    } catch {}
+    setNewMessagesCount(0);
+  }, []);
+
   // 50% and 75% snap points for detachable behavior
   const snapPoints = useMemo(() => ["60%", "90%"], []);
 
@@ -657,8 +694,27 @@ export function ChatSheet({
 
   const handleRequestClose = useCallback(() => {
     setReplyingTo(null);
+    Keyboard.dismiss();
     bottomSheetRef.current?.close();
   }, []);
+
+  // When the sheet opens, scroll to the latest message so the newest
+  // comment is right above the composer. We don't auto-focus the
+  // input — a keyboard popping up unprompted would hijack the room
+  // UI. Users tap the composer when they want to type; the point of
+  // this redesign is the composer is INSTANTLY visible, not that the
+  // keyboard is instantly open.
+  useEffect(() => {
+    if (!isOpen) return;
+    const t = setTimeout(() => {
+      try {
+        listRef.current?.scrollToEnd({ animated: false });
+      } catch {}
+      setNewMessagesCount(0);
+      setIsPinnedToBottom(true);
+    }, 240);
+    return () => clearTimeout(t);
+  }, [isOpen]);
 
   // Detect @mention in input
   const handleTextChange = useCallback((text: string) => {
@@ -863,8 +919,15 @@ export function ChatSheet({
           KAV and Gorhom's keyboard handling was the source of the
           "unable to chat / input under UI" bug. */}
       <View style={{ flex: 1 }}>
-        {/* Header */}
-        <View
+        {/* Header — tapping anywhere in this row dismisses the keyboard,
+            giving users an obvious tap target outside the composer +
+            list that always closes the keyboard. Complements the
+            list's keyboardDismissMode="interactive" for drag-to-dismiss. */}
+        <Pressable
+          onPress={() => {
+            Keyboard.dismiss();
+            inputRef.current?.blur?.();
+          }}
           style={{
             flexDirection: "row",
             alignItems: "center",
@@ -918,10 +981,17 @@ export function ChatSheet({
           >
             <X size={22} color={TEXT_PRIMARY} />
           </Pressable>
-        </View>
+        </Pressable>
 
-        {/* Threaded Comments */}
+        {/* Threaded Comments — live-chat stream.
+            alignItemsAtEnd stacks short lists at the bottom (glued
+            right above the composer), maintainScrollAtEnd auto-tracks
+            the newest message when the user is pinned down,
+            keyboardDismissMode="interactive" dismisses the keyboard
+            as you drag up through the list. Full keyboard dismiss-on-tap
+            handled by the empty-space Pressable wrapping the list. */}
         <LegendList
+          ref={listRef}
           data={threads}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
@@ -933,12 +1003,36 @@ export function ChatSheet({
               commentReactions={commentReactions}
             />
           )}
-          contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 20, flexGrow: 1 }}
+          contentContainerStyle={{
+            paddingHorizontal: 16,
+            paddingTop: 16,
+            paddingBottom: 20,
+            flexGrow: 1,
+          }}
+          alignItemsAtEnd
           maintainScrollAtEnd
+          maintainVisibleContentPosition
           showsVerticalScrollIndicator={false}
           estimatedItemSize={80}
           recycleItems
           keyboardShouldPersistTaps="handled"
+          keyboardDismissMode={
+            Platform.OS === "ios" ? "interactive" : "on-drag"
+          }
+          onScroll={(e: any) => {
+            const { contentOffset, contentSize, layoutMeasurement } =
+              e.nativeEvent;
+            const distanceFromBottom =
+              contentSize.height -
+              layoutMeasurement.height -
+              contentOffset.y;
+            const pinned = distanceFromBottom < 40;
+            setIsPinnedToBottom(pinned);
+            if (pinned && newMessagesCount > 0) {
+              setNewMessagesCount(0);
+            }
+          }}
+          scrollEventThrottle={64}
           ListEmptyComponent={
             isLoadingComments ? (
               <View
@@ -1050,6 +1144,54 @@ export function ChatSheet({
           participants={participants}
           onSelect={handleMentionSelect}
         />
+
+        {/* "↓ N new" pill — appears only when the user is scrolled up
+            AND new messages have arrived. Tap to snap to the newest
+            message. Twitch / Discord pattern. */}
+        {!isPinnedToBottom && newMessagesCount > 0 ? (
+          <View
+            style={{
+              position: "absolute",
+              bottom: Math.max(insets.bottom, 12) + 78,
+              left: 0,
+              right: 0,
+              alignItems: "center",
+              zIndex: 30,
+            }}
+            pointerEvents="box-none"
+          >
+            <Pressable
+              onPress={handleJumpToLatest}
+              hitSlop={8}
+              style={({ pressed }) => ({
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                paddingHorizontal: 12,
+                paddingVertical: 7,
+                borderRadius: 100,
+                backgroundColor: ACCENT,
+                opacity: pressed ? 0.85 : 1,
+                shadowColor: "#000",
+                shadowOpacity: 0.35,
+                shadowRadius: 10,
+                shadowOffset: { width: 0, height: 4 },
+              })}
+            >
+              <ArrowDown size={13} color="#000" />
+              <Text
+                style={{
+                  color: "#000",
+                  fontSize: 12,
+                  fontWeight: "800",
+                  letterSpacing: 0.2,
+                }}
+              >
+                {newMessagesCount} new
+              </Text>
+            </Pressable>
+          </View>
+        ) : null}
 
         {/* Input */}
         <View
