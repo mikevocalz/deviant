@@ -16,6 +16,16 @@ import { PasteInput } from "@/components/ui/paste-input";
 import { Avatar } from "@/components/ui/avatar";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import BottomSheet, { BottomSheetBackdrop } from "@gorhom/bottom-sheet";
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withRepeat,
+  withDelay,
+  Easing,
+} from "react-native-reanimated";
+import { supabase } from "@/lib/supabase/client";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import {
   Send,
   X,
@@ -255,7 +265,9 @@ const CommentBubble = memo(function CommentBubble({
   return (
     <View
       style={{
-        marginBottom: hasReactions ? 6 : isReply ? 10 : 14,
+        // Tighter vertical rhythm — more messages fit in view without
+        // losing the bubble feel. Was 14/10/6; now 10/8/4.
+        marginBottom: hasReactions ? 4 : isReply ? 8 : 10,
         marginLeft: isReply ? 22 : 0,
         paddingLeft: isReply ? 14 : 0,
         borderLeftWidth: isReply ? 1 : 0,
@@ -271,14 +283,16 @@ const CommentBubble = memo(function CommentBubble({
           style={{
             flexDirection: "row",
             alignItems: "flex-start",
-            gap: 10,
+            gap: 9,
             opacity,
           }}
         >
           <Avatar
             uri={comment.author?.avatar}
             username={avatarName}
-            size={isReply ? 24 : 32}
+            // Slightly smaller avatars — keeps attribution while
+            // reclaiming horizontal space for the bubble.
+            size={isReply ? 22 : 28}
             variant="roundedSquare"
           />
           <View style={{ flex: 1 }}>
@@ -541,6 +555,99 @@ const ThreadItem = memo(function ThreadItem({
   );
 });
 
+// ── Typing indicator ─────────────────────────────────────────────────
+
+/**
+ * One-line typing presence row. Collapses gracefully whether 0, 1, 2,
+ * or N people are typing. Renders nothing when no one is typing — no
+ * reserved space, no layout shift.
+ *
+ *   0       → null
+ *   1       → "alice is typing…"
+ *   2       → "alice & bob are typing…"
+ *   3+      → "N people are typing…"
+ *
+ * Three-dot bounce on the ellipsis via Reanimated. UI-thread only,
+ * zero JS cost while visible.
+ */
+const TypingIndicator = memo(function TypingIndicator({
+  typingUsers,
+}: {
+  typingUsers: Record<string, string>;
+}) {
+  const names = useMemo(() => Object.values(typingUsers), [typingUsers]);
+  const count = names.length;
+
+  const dot1 = useSharedValue(0);
+  const dot2 = useSharedValue(0);
+  const dot3 = useSharedValue(0);
+
+  useEffect(() => {
+    if (count === 0) return;
+    const cycle = {
+      duration: 900,
+      easing: Easing.inOut(Easing.quad),
+    };
+    dot1.value = withRepeat(withTiming(1, cycle), -1, true);
+    dot2.value = withDelay(180, withRepeat(withTiming(1, cycle), -1, true));
+    dot3.value = withDelay(360, withRepeat(withTiming(1, cycle), -1, true));
+    return () => {
+      dot1.value = 0;
+      dot2.value = 0;
+      dot3.value = 0;
+    };
+  }, [count, dot1, dot2, dot3]);
+
+  const dot1Style = useAnimatedStyle(() => ({ opacity: 0.35 + dot1.value * 0.65 }));
+  const dot2Style = useAnimatedStyle(() => ({ opacity: 0.35 + dot2.value * 0.65 }));
+  const dot3Style = useAnimatedStyle(() => ({ opacity: 0.35 + dot3.value * 0.65 }));
+
+  if (count === 0) return null;
+
+  const label =
+    count === 1
+      ? `${names[0]} is typing`
+      : count === 2
+        ? `${names[0]} & ${names[1]} are typing`
+        : `${count} people are typing`;
+
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        paddingHorizontal: 18,
+        paddingVertical: 6,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 6,
+      }}
+    >
+      <Text
+        style={{
+          color: TEXT_TERTIARY,
+          fontSize: 12,
+          fontWeight: "500",
+          fontStyle: "italic",
+        }}
+        numberOfLines={1}
+      >
+        {label}
+      </Text>
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 2 }}>
+        <Animated.Text style={[{ color: TEXT_TERTIARY, fontSize: 12 }, dot1Style]}>
+          .
+        </Animated.Text>
+        <Animated.Text style={[{ color: TEXT_TERTIARY, fontSize: 12 }, dot2Style]}>
+          .
+        </Animated.Text>
+        <Animated.Text style={[{ color: TEXT_TERTIARY, fontSize: 12 }, dot3Style]}>
+          .
+        </Animated.Text>
+      </View>
+    </View>
+  );
+});
+
 // ── Main ChatSheet ───────────────────────────────────────────────────
 
 export function ChatSheet({
@@ -573,6 +680,21 @@ export function ChatSheet({
   //     a tap.
   const [isPinnedToBottom, setIsPinnedToBottom] = useState(true);
   const [newMessagesCount, setNewMessagesCount] = useState(0);
+
+  // Typing presence — which remote users are currently composing.
+  // `typingChannelRef` holds the Supabase realtime broadcast channel;
+  // we send `{ event: "typing" }` pings on keystrokes (throttled) and
+  // `{ event: "stopped" }` when the user stops for 2s. Remote users'
+  // typing state is tracked here with an expiry timestamp — we clear
+  // each entry 3s after the last ping in case the "stopped" broadcast
+  // never lands.
+  const [typingUsers, setTypingUsers] = useState<Record<string, string>>({});
+  const typingChannelRef = useRef<RealtimeChannel | null>(null);
+  const lastTypingSentAtRef = useRef(0);
+  const stopTypingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingExpiryTimersRef = useRef<
+    Record<string, ReturnType<typeof setTimeout>>
+  >({});
 
   const authorDirectory = useMemo(() => {
     const entries: Array<[string, RoomCommentAuthor]> = [];
@@ -656,6 +778,84 @@ export function ChatSheet({
     };
   }, [roomId]);
 
+  // ── Typing presence channel ────────────────────────────────────────
+  //
+  // Lightweight broadcast-only channel separate from the comments sub.
+  // Design goals:
+  //   - Remote clients know immediately when ANOTHER user is composing.
+  //   - No DB writes — typing state is ephemeral.
+  //   - Self-echo suppressed (we don't show our own name in the
+  //     typing row).
+  //   - Expiry safety — if the "stopped" broadcast is lost, each
+  //     remote typer times out after 3s so the indicator doesn't
+  //     stick forever.
+  useEffect(() => {
+    if (!roomId || !currentUser.id) return;
+
+    const channel = supabase.channel(`sneaky-typing-${roomId}`, {
+      config: { broadcast: { self: false } },
+    });
+
+    channel.on("broadcast", { event: "typing" }, (msg) => {
+      const payload = msg.payload as {
+        userId?: string;
+        username?: string;
+      } | null;
+      if (!payload?.userId || !payload?.username) return;
+      if (payload.userId === currentUser.id) return;
+
+      setTypingUsers((prev) => ({
+        ...prev,
+        [payload.userId!]: payload.username!,
+      }));
+
+      // Reset the 3s expiry timer for this user.
+      const existing = typingExpiryTimersRef.current[payload.userId];
+      if (existing) clearTimeout(existing);
+      typingExpiryTimersRef.current[payload.userId!] = setTimeout(() => {
+        setTypingUsers((prev) => {
+          const next = { ...prev };
+          delete next[payload.userId!];
+          return next;
+        });
+        delete typingExpiryTimersRef.current[payload.userId!];
+      }, 3000);
+    });
+
+    channel.on("broadcast", { event: "stopped" }, (msg) => {
+      const payload = msg.payload as { userId?: string } | null;
+      if (!payload?.userId || payload.userId === currentUser.id) return;
+
+      setTypingUsers((prev) => {
+        const next = { ...prev };
+        delete next[payload.userId!];
+        return next;
+      });
+      const existing = typingExpiryTimersRef.current[payload.userId];
+      if (existing) {
+        clearTimeout(existing);
+        delete typingExpiryTimersRef.current[payload.userId];
+      }
+    });
+
+    channel.subscribe();
+    typingChannelRef.current = channel;
+
+    return () => {
+      typingChannelRef.current = null;
+      try {
+        supabase.removeChannel(channel);
+      } catch {}
+      Object.values(typingExpiryTimersRef.current).forEach(clearTimeout);
+      typingExpiryTimersRef.current = {};
+      if (stopTypingTimerRef.current) {
+        clearTimeout(stopTypingTimerRef.current);
+        stopTypingTimerRef.current = null;
+      }
+      setTypingUsers({});
+    };
+  }, [roomId, currentUser.id]);
+
   // Build threaded view
   const threads = useMemo(() => buildCommentThreads(comments), [comments]);
 
@@ -717,22 +917,76 @@ export function ChatSheet({
   }, [isOpen]);
 
   // Detect @mention in input
-  const handleTextChange = useCallback((text: string) => {
-    setInputText(text);
+  const handleTextChange = useCallback(
+    (text: string) => {
+      setInputText(text);
 
-    // Check for active @mention
-    const cursorPos = text.length; // Simplified: assume cursor at end
-    const lastAt = text.lastIndexOf("@");
-    if (lastAt >= 0) {
-      const afterAt = text.slice(lastAt + 1);
-      // Only show typeahead if no space after @
-      if (!afterAt.includes(" ") && afterAt.length > 0) {
-        setMentionQuery(afterAt);
-        return;
+      // Typing presence — throttle pings to one every 1200ms while the
+      // user is typing. Idle reset fires a single "stopped" event 2s
+      // after the last keystroke.
+      const channel = typingChannelRef.current;
+      if (channel && currentUser.id) {
+        const now = Date.now();
+        if (text.length > 0) {
+          if (now - lastTypingSentAtRef.current > 1200) {
+            lastTypingSentAtRef.current = now;
+            channel
+              .send({
+                type: "broadcast",
+                event: "typing",
+                payload: {
+                  userId: currentUser.id,
+                  username:
+                    currentUser.displayName ||
+                    currentUser.username ||
+                    "Someone",
+                },
+              })
+              .catch(() => {});
+          }
+          if (stopTypingTimerRef.current) {
+            clearTimeout(stopTypingTimerRef.current);
+          }
+          stopTypingTimerRef.current = setTimeout(() => {
+            channel
+              .send({
+                type: "broadcast",
+                event: "stopped",
+                payload: { userId: currentUser.id },
+              })
+              .catch(() => {});
+          }, 2000);
+        } else if (lastTypingSentAtRef.current > 0) {
+          // User cleared the input — send the stopped event immediately.
+          lastTypingSentAtRef.current = 0;
+          if (stopTypingTimerRef.current) {
+            clearTimeout(stopTypingTimerRef.current);
+            stopTypingTimerRef.current = null;
+          }
+          channel
+            .send({
+              type: "broadcast",
+              event: "stopped",
+              payload: { userId: currentUser.id },
+            })
+            .catch(() => {});
+        }
       }
-    }
-    setMentionQuery("");
-  }, []);
+
+      // Check for active @mention
+      const lastAt = text.lastIndexOf("@");
+      if (lastAt >= 0) {
+        const afterAt = text.slice(lastAt + 1);
+        // Only show typeahead if no space after @
+        if (!afterAt.includes(" ") && afterAt.length > 0) {
+          setMentionQuery(afterAt);
+          return;
+        }
+      }
+      setMentionQuery("");
+    },
+    [currentUser.id, currentUser.displayName, currentUser.username],
+  );
 
   const handleMentionSelect = useCallback(
     (user: SneakyUser) => {
@@ -1137,6 +1391,13 @@ export function ChatSheet({
             </Pressable>
           </View>
         )}
+
+        {/* Typing presence — a one-line indicator above the composer.
+            "alice is typing…" for 1, "alice & bob are typing…" for 2,
+            "N people are typing…" for 3+. Driven by the typing
+            broadcast channel above. Three-dot bounce animation on
+            the trailing ellipsis for liveness. */}
+        <TypingIndicator typingUsers={typingUsers} />
 
         {/* @Mention typeahead */}
         <MentionTypeahead

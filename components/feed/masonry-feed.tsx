@@ -38,7 +38,9 @@ import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
 // StoriesBar is rendered at the HomeScreen level (app/(protected)/(tabs)/index.tsx)
 // so it survives feed-mode toggles and the spicy toggle without remounting.
 import { EmptyState } from "@/components/ui/empty-state";
-import { ImageOff } from "lucide-react-native";
+import { ImageOff, WifiOff } from "lucide-react-native";
+import { useConnectivityStore } from "@/lib/stores/connectivity-store";
+import { useColorScheme } from "@/lib/hooks";
 import { seedLikeState, usePostLikeState } from "@/lib/hooks/usePostLikeState";
 import { navigateToPost } from "@/lib/routes/post-routes";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
@@ -97,6 +99,95 @@ function formatCount(n: number): string {
 }
 
 // ─── Grid-shaped loading placeholder ────────────────────────────────────────
+
+/**
+ * OfflineFeedEmpty
+ *
+ * Premium offline surface for when the user opens the feed with no
+ * cached data AND the app is confirmed offline. Replaces the generic
+ * "Failed to load posts" dev-looking message.
+ *
+ * Reads tokens from `useColorScheme` so it tracks DVNT's palette.
+ * Retry CTA fires `refetch()` — does nothing destructive even when
+ * still offline (React Query knows we're offline via onlineManager
+ * and pauses the retry until we're back online).
+ */
+function OfflineFeedEmpty({ onRetry }: { onRetry: () => void }) {
+  const { colors } = useColorScheme();
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 32,
+        paddingBottom: 120,
+        gap: 16,
+      }}
+    >
+      <View
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 20,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: `${colors.primary}18`,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: `${colors.primary}40`,
+        }}
+      >
+        <WifiOff size={26} color={colors.primary} />
+      </View>
+      <View style={{ alignItems: "center", gap: 6 }}>
+        <Text
+          style={{
+            color: colors.foreground,
+            fontSize: 18,
+            fontWeight: "700",
+            letterSpacing: 0.1,
+          }}
+        >
+          You're offline
+        </Text>
+        <Text
+          style={{
+            color: colors.mutedForeground,
+            fontSize: 14,
+            textAlign: "center",
+            lineHeight: 20,
+          }}
+        >
+          We'll refresh the feed the moment you reconnect.
+        </Text>
+      </View>
+      <Pressable
+        onPress={onRetry}
+        style={({ pressed }) => ({
+          marginTop: 4,
+          paddingHorizontal: 18,
+          paddingVertical: 10,
+          borderRadius: 12,
+          backgroundColor: `${colors.foreground}10`,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        <Text
+          style={{
+            color: colors.foreground,
+            fontSize: 14,
+            fontWeight: "600",
+            letterSpacing: 0.1,
+          }}
+        >
+          Try again
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
 
 function MasonryGridSkeleton({ columnWidth }: { columnWidth: number }) {
   const heights = [
@@ -526,6 +617,11 @@ export function MasonryFeed() {
   const nsfwLoaded = useAppStore((s) => s.nsfwLoaded);
   const loadNsfwSetting = useAppStore((s) => s.loadNsfwSetting);
 
+  // Drives the OfflineFeedEmpty branch below — shown only when we
+  // have no cached posts AND the flap-debounced connectivity store
+  // says we're confirmed offline (not just flapping).
+  const isOffline = useConnectivityStore((s) => s.isOffline);
+
   useEffect(() => {
     loadNsfwSetting("masonry_feed_mount");
   }, [loadNsfwSetting]);
@@ -651,6 +747,14 @@ export function MasonryFeed() {
   // must never gate the grid body.
   if (isLoading || !nsfwLoaded) {
     return <MasonryGridSkeleton columnWidth={columnWidth} />;
+  }
+
+  // Offline + no cached feed → show a deliberate offline surface
+  // instead of the generic error state. Uses the flap-debounced
+  // connectivity store, so we only render this after the app has
+  // been confirmed offline for 1.5s (no flash on brief dips).
+  if (isOffline && allPosts.length === 0) {
+    return <OfflineFeedEmpty onRetry={() => refetch()} />;
   }
 
   if (error) {
