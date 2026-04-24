@@ -20,6 +20,12 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 const HEARTBEAT_INTERVAL = 30_000; // 30s heartbeat
 const PRESENCE_CHANNEL = "global-presence";
 
+// Singleton: supabase.channel(name) returns the SAME object for the same name,
+// so if the channel is already subscribed, calling .on("presence",...) throws
+// "cannot add presence callbacks after subscribe()". Keep a module-level ref
+// and skip re-subscribing if the channel is still live.
+let _presenceChannel: import("@supabase/supabase-js").RealtimeChannel | null = null;
+
 /**
  * Call once at app root. Manages:
  * - Setting current user online/offline based on AppState
@@ -88,6 +94,11 @@ export function usePresenceManager() {
   useEffect(() => {
     if (!userId || isNaN(userId)) return;
 
+    // Guard: if a channel is already live, don't create a duplicate.
+    // supabase.channel(name) returns the same object for the same name, so
+    // calling .on("presence",...) on an already-subscribed channel throws.
+    if (_presenceChannel) return;
+
     const channel = supabase.channel(PRESENCE_CHANNEL, {
       config: { presence: { key: String(userId) } },
     });
@@ -97,13 +108,11 @@ export function usePresenceManager() {
         const state = channel.presenceState();
         const store = usePresenceStore.getState();
 
-        // Build online set from presence state
         const onlineIds = new Set<string>();
         for (const key of Object.keys(state)) {
           onlineIds.add(key);
         }
 
-        // Update store for all tracked users
         const updates: Array<{
           userId: string;
           isOnline: boolean;
@@ -112,7 +121,6 @@ export function usePresenceManager() {
         for (const id of onlineIds) {
           updates.push({ userId: id, isOnline: true });
         }
-        // Mark previously online users who left as offline
         for (const id of Object.keys(store.onlineUsers)) {
           if (store.onlineUsers[id] && !onlineIds.has(id)) {
             updates.push({
@@ -136,11 +144,15 @@ export function usePresenceManager() {
         }
       });
 
+    _presenceChannel = channel;
     channelRef.current = channel;
 
     return () => {
-      channel.untrack();
-      supabase.removeChannel(channel);
+      if (_presenceChannel) {
+        _presenceChannel.untrack();
+        supabase.removeChannel(_presenceChannel);
+        _presenceChannel = null;
+      }
       channelRef.current = null;
     };
   }, [userId]);

@@ -59,50 +59,52 @@ function OrganizerSetupContent() {
     checkStatus();
   }, [checkStatus]);
 
-  const handleStartOnboarding = useCallback(async () => {
-    setIsOnboarding(true);
-    try {
-      console.log("[OrganizerSetup] Starting onboarding flow...");
-      const result = await organizerApi.startOnboarding();
+  const isFullyConnected =
+    status.connected && status.charges_enabled && status.payouts_enabled;
 
-      if (result.error) {
-        showToast("error", "Error", result.error);
-        return;
-      }
+  // Restricted = connected + details submitted but charges/payouts disabled.
+  // These accounts need account_update (re-verification), NOT account_onboarding.
+  const isRestricted =
+    status.connected &&
+    status.details_submitted &&
+    (!status.charges_enabled || !status.payouts_enabled);
 
-      if (!result.url) {
-        showToast(
-          "error",
-          "Error",
-          "No onboarding URL returned. Please try again.",
-        );
-        return;
-      }
-
-      console.log(
-        "[OrganizerSetup] Opening URL:",
-        result.url.substring(0, 50) + "...",
-      );
-      await WebBrowser.openBrowserAsync(result.url, {
+  const openStripeUrl = useCallback(
+    async (url: string) => {
+      await WebBrowser.openBrowserAsync(url, {
         presentationStyle:
           Platform.OS === "ios"
             ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
             : undefined,
       });
-
-      // Re-check status after browser closes
-      console.log("[OrganizerSetup] Browser closed, re-checking status...");
       await checkStatus();
+    },
+    [checkStatus],
+  );
+
+  const handleStartOnboarding = useCallback(async () => {
+    setIsOnboarding(true);
+    try {
+      // Restricted accounts need account_update link, not account_onboarding
+      const result = isRestricted
+        ? await organizerApi.resumeVerification()
+        : await organizerApi.startOnboarding();
+
+      if (result.error) {
+        showToast("error", "Error", result.error);
+        return;
+      }
+      if (!result.url) {
+        showToast("error", "Error", "No URL returned. Please try again.");
+        return;
+      }
+      await openStripeUrl(result.url);
     } catch (err: any) {
-      console.error("[OrganizerSetup] Unexpected error:", err);
-      showToast("error", "Error", err.message || "Failed to start onboarding");
+      showToast("error", "Error", err.message || "Failed to open Stripe");
     } finally {
       setIsOnboarding(false);
     }
-  }, [checkStatus, showToast]);
-
-  const isFullyConnected =
-    status.connected && status.charges_enabled && status.payouts_enabled;
+  }, [checkStatus, showToast, isRestricted, openStripeUrl]);
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
@@ -192,9 +194,11 @@ function OrganizerSetupContent() {
                   <>
                     <ExternalLink size={18} color="#000" />
                     <Text className="text-base font-sans-bold text-primary-foreground">
-                      {status.connected
-                        ? "Continue Setup"
-                        : "Connect with Stripe"}
+                      {isRestricted
+                        ? "Update Verification"
+                        : status.connected
+                          ? "Continue Setup"
+                          : "Connect with Stripe"}
                     </Text>
                   </>
                 )}

@@ -215,6 +215,35 @@ Deno.serve(async (req: Request) => {
       return json({ url: link.url, account_id: stripeAccountId });
     }
 
+    // "update": create an account_update link for restricted/re-verification flow.
+    // Use this (NOT "start") when the account already exists but needs to satisfy
+    // Stripe's currently_due requirements (charges or payouts disabled).
+    if (action === "update") {
+      const { data: account } = await supabase
+        .from("organizer_accounts")
+        .select("stripe_account_id")
+        .eq("host_id", host_id)
+        .maybeSingle();
+
+      if (!account?.stripe_account_id) {
+        return json({ error: "No connected Stripe account found. Start onboarding first." });
+      }
+
+      console.log("[organizer-connect] creating account_update link for", account.stripe_account_id);
+      const link = await stripeRequest("/account_links", {
+        account: account.stripe_account_id,
+        refresh_url: `${FUNCTION_BASE}?callback=refresh`,
+        return_url: `${FUNCTION_BASE}?callback=return`,
+        type: "account_update",
+      });
+
+      if (!link.url || typeof link.url !== "string" || !link.url.startsWith("https://")) {
+        return json({ error: "Stripe returned an invalid verification URL" });
+      }
+
+      return json({ url: link.url, account_id: account.stripe_account_id });
+    }
+
     if (action === "status") {
       const { data: account } = await supabase
         .from("organizer_accounts")
