@@ -1727,7 +1727,7 @@ function CreateEventScreenContent() {
                           />
                           <TextInput
                             className="flex-1 ml-2 py-3 text-sm text-foreground"
-                            placeholder="Price"
+                            placeholder="0"
                             placeholderTextColor={colors.mutedForeground}
                             value={
                               tier.priceCents > 0
@@ -1749,13 +1749,17 @@ function CreateEventScreenContent() {
                               )
                             }
                             keyboardType="decimal-pad"
+                            autoCorrect={false}
+                            autoComplete="off"
+                            spellCheck={false}
+                            textContentType="none"
                           />
                         </View>
                         <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
                           <Users size={14} color={colors.mutedForeground} />
                           <TextInput
                             className="flex-1 ml-2 py-3 text-sm text-foreground"
-                            placeholder="Quantity"
+                            placeholder="100"
                             placeholderTextColor={colors.mutedForeground}
                             value={
                               tier.quantity > 0 ? tier.quantity.toString() : ""
@@ -1773,12 +1777,16 @@ function CreateEventScreenContent() {
                               )
                             }
                             keyboardType="number-pad"
+                            autoCorrect={false}
+                            autoComplete="off"
+                            spellCheck={false}
+                            textContentType="none"
                           />
                         </View>
                         <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
                           <TextInput
                             className="flex-1 py-3 text-sm text-foreground"
-                            placeholder="Max/user"
+                            placeholder="0"
                             placeholderTextColor={colors.mutedForeground}
                             value={
                               tier.maxPerUser > 0
@@ -1791,13 +1799,17 @@ function CreateEventScreenContent() {
                                   t.id === tier.id
                                     ? {
                                         ...t,
-                                        maxPerUser: v ? parseInt(v, 10) : 4,
+                                        maxPerUser: v ? parseInt(v, 10) : 0,
                                       }
                                     : t,
                                 ),
                               )
                             }
                             keyboardType="number-pad"
+                            autoCorrect={false}
+                            autoComplete="off"
+                            spellCheck={false}
+                            textContentType="none"
                           />
                         </View>
                       </View>
@@ -1814,7 +1826,7 @@ function CreateEventScreenContent() {
                           name: "",
                           priceCents: 0,
                           quantity: 100,
-                          maxPerUser: 4,
+                          maxPerUser: 0,
                           description: "",
                           saleStart: "",
                           saleEnd: "",
