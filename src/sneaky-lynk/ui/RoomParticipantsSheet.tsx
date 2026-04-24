@@ -40,6 +40,7 @@ import {
   X,
 } from "lucide-react-native";
 import { Avatar } from "@/components/ui/avatar";
+import { DVNTLiquidGlassIconButton } from "@/components/media/DVNTLiquidGlass";
 import { useColorScheme } from "@/lib/hooks";
 import type { VideoParticipant } from "./VideoGrid";
 import { getSneakyUserLabel } from "./user-labels";
@@ -442,18 +443,10 @@ export function RoomParticipantsSheet({
               : "Tap an avatar to view a profile."}
           </Text>
         </View>
-        <Pressable
-          onPress={onDismiss}
-          hitSlop={12}
-          style={[
-            styles.closeBtn,
-            {
-              backgroundColor: `${colors.foreground}10`,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <X size={18} color={colors.foreground} />
+        <Pressable onPress={onDismiss} hitSlop={12}>
+          <DVNTLiquidGlassIconButton size={36}>
+            <X size={16} color="#fff" />
+          </DVNTLiquidGlassIconButton>
         </Pressable>
       </View>
 
@@ -507,15 +500,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     marginTop: 4,
   },
-  closeBtn: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-
   // Row
   row: {
     borderRadius: 16,

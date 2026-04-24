@@ -1172,11 +1172,7 @@ export function ChatSheet({
       detached={false}
       style={{ zIndex: 9999, elevation: 9999 }}
     >
-      {/* No KeyboardAvoidingView here — Gorhom's `keyboardBehavior="interactive"`
-          on the sheet above handles keyboard-lift for us. Having both a
-          KAV and Gorhom's keyboard handling was the source of the
-          "unable to chat / input under UI" bug. */}
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1, overflow: "hidden" }}>
         {/* Header — tapping anywhere in this row dismisses the keyboard,
             giving users an obvious tap target outside the composer +
             list that always closes the keyboard. Complements the
@@ -1261,12 +1257,11 @@ export function ChatSheet({
               commentReactions={commentReactions}
             />
           )}
-          // `flex: 1` is what keeps the composer visible at the initial
-          // snap point. Without it, the list grows to its content height
-          // — when there are many comments that height exceeds the
-          // visible 72% area and the composer ends up below the fold,
-          // forcing the user to drag the sheet up to type.
-          style={{ flex: 1 }}
+          // flexGrow + flexShrink lets the list fill available space while
+          // yielding to fixed siblings (header + input). Pure flex: 1
+          // caused the list to expand beyond the sheet boundary, pushing
+          // the input below the fold.
+          style={{ flexGrow: 1, flexShrink: 1, minHeight: 0 }}
           contentContainerStyle={{
             paddingHorizontal: 16,
             paddingTop: 16,
@@ -1423,7 +1418,7 @@ export function ChatSheet({
           <View
             style={{
               position: "absolute",
-              bottom: Math.max(insets.bottom, 12) + 78,
+              bottom: 94,
               left: 0,
               right: 0,
               alignItems: "center",
@@ -1464,12 +1459,15 @@ export function ChatSheet({
           </View>
         ) : null}
 
-        {/* Input */}
+        {/* Input — paddingBottom is a flat 16px. The sheet handles
+            its own safe-area positioning; using insets.bottom here was
+            adding ~44px of extra space that pushed the input below the
+            visible fold at the 72% snap point. */}
         <View
           style={{
             paddingHorizontal: 16,
             paddingTop: 2,
-            paddingBottom: Math.max(insets.bottom, 12) + 10,
+            paddingBottom: 16,
             borderTopWidth: 1,
             borderTopColor: BORDER,
             backgroundColor: SHEET_BG,
