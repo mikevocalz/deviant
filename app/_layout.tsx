@@ -1,12 +1,17 @@
 import "../global.css";
+// Install the global JS error handler FIRST — must be armed before
+// any other side-effect import can throw. Captures uncaught JS
+// errors + unhandled Promise rejections, persists to MMKV for the
+// next session to surface. OTA-safe — pure JS.
+import "@/lib/global-error-handler";
 import "@/lib/query-focus-manager";
 import "@/lib/i18n";
 import "@/lib/ota-bootstrap-log";
-// Reads + logs any uncaught NSException report written by the native
-// handler installed via plugins/with-uncaught-exception-handler.js. If
-// the prior session was killed by an unhandled ObjC exception (the
-// 1.0.247 dispatch-worker / TurboModule crash pattern), this surfaces
-// the symbolicated name + reason + stack on this session's logs.
+// Reads + logs prior-session crashes from BOTH layers:
+//   - JS errors persisted by global-error-handler (OTA-safe)
+//   - Native NSExceptions persisted by the AppDelegate handler from
+//     plugins/with-uncaught-exception-handler.js (requires native
+//     rebuild — the file just won't exist on OTA-only builds)
 import "@/lib/native-exception-log";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";

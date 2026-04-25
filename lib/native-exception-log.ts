@@ -31,6 +31,7 @@
  */
 
 import { Platform } from "react-native";
+import { readAndClearLastJSError } from "@/lib/global-error-handler";
 
 interface NativeExceptionPayload {
   timestamp: string;
@@ -116,15 +117,41 @@ function readPriorNativeCrashReport(): void {
   if (_hasReportedThisSession) return;
   _hasReportedThisSession = true;
 
-  // Run async without awaiting — boot continues immediately. The
-  // report (if present) lands a tick later in the device logs.
+  // ── JS-side persisted error (OTA-safe layer) ──────────────────
+  // This ALWAYS runs (no Platform gate, no native handler dependency).
+  // The global JS error handler installed on this OTA bundle will
+  // catch any uncaught JS error or unhandled promise rejection from
+  // the prior session and stash it in MMKV. We surface it here.
+  try {
+    const jsReport = readAndClearLastJSError();
+    if (jsReport) {
+      console.error("╔══════════════════════════════════════════════════════════════╗");
+      console.error("║  [PRIOR-JS-CRASH] Prior session ended with uncaught JS    ║");
+      console.error("╚══════════════════════════════════════════════════════════════╝");
+      console.error("[PRIOR-JS-CRASH] timestamp:", jsReport.timestamp);
+      console.error("[PRIOR-JS-CRASH] source:   ", jsReport.source);
+      console.error("[PRIOR-JS-CRASH] isFatal:  ", jsReport.isFatal);
+      console.error("[PRIOR-JS-CRASH] name:     ", jsReport.name);
+      console.error("[PRIOR-JS-CRASH] message:  ", jsReport.message);
+      if (jsReport.stack) {
+        for (const line of jsReport.stack.split("\n")) {
+          console.error("[PRIOR-JS-CRASH]   " + line);
+        }
+      }
+      console.error("[PRIOR-JS-CRASH] ════════════════════════════════════════");
+    }
+  } catch {
+    /* never throw from boot path */
+  }
+
+  // ── Native-side persisted exception (requires native rebuild) ──
+  // Only fires once the AppDelegate/RCTTurboModule patches ship in
+  // a native binary. Until then this returns null and is a no-op.
+  // Run async without awaiting — boot continues immediately.
   readAndClearAsync()
     .then((report) => {
       if (!report) return;
       logToConsole(report);
-      // If a crash reporter (Sentry / Firebase) is wired up, this is
-      // the place to forward the report. We don't have one wired
-      // currently — when one is added, augment this function.
     })
     .catch(() => {
       /* never throw from boot path */
