@@ -2,6 +2,12 @@ import "../global.css";
 import "@/lib/query-focus-manager";
 import "@/lib/i18n";
 import "@/lib/ota-bootstrap-log";
+// Reads + logs any uncaught NSException report written by the native
+// handler installed via plugins/with-uncaught-exception-handler.js. If
+// the prior session was killed by an unhandled ObjC exception (the
+// 1.0.247 dispatch-worker / TurboModule crash pattern), this surfaces
+// the symbolicated name + reason + stack on this session's logs.
+import "@/lib/native-exception-log";
 import { Stack, router } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, onlineManager } from "@tanstack/react-query";

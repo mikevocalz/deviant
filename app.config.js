@@ -147,6 +147,12 @@ export default {
     plugins: [
       "./plugins/disable-user-script-sandboxing",
       "./plugins/with-app-controller-init",
+      // Install NSSetUncaughtExceptionHandler EARLY so it's the first
+      // thing in didFinishLaunchingWithOptions — captures any
+      // uncaught NSException from any thread (TurboModule dispatch
+      // workers, AVAudioSession callbacks, Stripe sheets, etc.) with
+      // name / reason / call-stack-symbols persisted for next launch.
+      "./plugins/with-uncaught-exception-handler",
       "./plugins/android-fixes",
       "./plugins/fix-wgpu-headers",
       "./plugins/with-cube-luts",
