@@ -2,16 +2,18 @@ import { View, Text, Pressable } from "react-native";
 import { Main } from "@expo/html-elements";
 import { Feed } from "@/components/feed/feed";
 import { MasonryFeed } from "@/components/feed/masonry-feed";
-import {
-  SpicyToggleFAB,
-  supportsNativeTabsBottomAccessory,
-} from "@/components/spicy-toggle-fab";
+
 import { StoriesBar } from "@/components/stories/stories-bar";
 import { useAppStore } from "@/lib/stores/app-store";
-import { LayoutGrid, List } from "lucide-react-native";
+import { LayoutGrid, List, SlidersHorizontal } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useCallback, memo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
+import {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "@/components/ui/popover";
 
 /**
  * StoriesBar memoized at module level. Rendering it as a sibling of the
@@ -26,6 +28,8 @@ const MemoStoriesBar = memo(function MemoStoriesBar() {
 export const FeedModeToggle = memo(function FeedModeToggle() {
   const feedMode = useAppStore((s) => s.feedMode);
   const setFeedMode = useAppStore((s) => s.setFeedMode);
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
+  const setNsfwEnabled = useAppStore((s) => s.setNsfwEnabled);
 
   const setClassic = useCallback(() => {
     if (feedMode !== "classic") {
@@ -41,78 +45,214 @@ export const FeedModeToggle = memo(function FeedModeToggle() {
     }
   }, [feedMode, setFeedMode]);
 
+  const toggleSpicy = useCallback(() => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setNsfwEnabled(!nsfwEnabled, "feed_popover");
+  }, [nsfwEnabled, setNsfwEnabled]);
+
   return (
-    <View
-      style={{
-        flexDirection: "row",
-        alignSelf: "center",
-        backgroundColor: "rgba(255,255,255,0.06)",
-        borderRadius: 10,
-        padding: 3,
-        marginVertical: 8,
-      }}
-    >
-      <Pressable
-        onPress={setClassic}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 5,
-          paddingHorizontal: 14,
-          paddingVertical: 7,
-          borderRadius: 8,
-          backgroundColor:
-            feedMode === "classic" ? "rgba(255,255,255,0.12)" : "transparent",
-        }}
-      >
-        <List
-          size={14}
-          color={feedMode === "classic" ? "#fff" : "rgba(255,255,255,0.4)"}
-        />
-        <Text
+    <Popover>
+      <PopoverTrigger>
+        <View
           style={{
-            color: feedMode === "classic" ? "#fff" : "rgba(255,255,255,0.4)",
-            fontSize: 12,
-            fontWeight: "600",
+            flexDirection: "row",
+            alignItems: "center",
+            alignSelf: "center",
+            gap: 6,
+            backgroundColor: "rgba(255,255,255,0.06)",
+            borderRadius: 10,
+            paddingHorizontal: 12,
+            paddingVertical: 7,
+            marginVertical: 8,
           }}
         >
-          Feed
-        </Text>
-      </Pressable>
-      <Pressable
-        onPress={setMasonry}
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 5,
-          paddingHorizontal: 14,
-          paddingVertical: 7,
-          borderRadius: 8,
-          backgroundColor:
-            feedMode === "masonry" ? "rgba(255,255,255,0.12)" : "transparent",
-        }}
-      >
-        <LayoutGrid
-          size={14}
-          color={feedMode === "masonry" ? "#fff" : "rgba(255,255,255,0.4)"}
-        />
-        <Text
-          style={{
-            color: feedMode === "masonry" ? "#fff" : "rgba(255,255,255,0.4)",
-            fontSize: 12,
-            fontWeight: "600",
-          }}
-        >
-          Grid
-        </Text>
-      </Pressable>
-    </View>
+          {feedMode === "masonry" ? (
+            <LayoutGrid size={14} color="#fff" />
+          ) : (
+            <List size={14} color="#fff" />
+          )}
+          <Text style={{ fontSize: 16, lineHeight: 18 }}>
+            {nsfwEnabled ? "😈" : "😇"}
+          </Text>
+          <SlidersHorizontal size={12} color="rgba(255,255,255,0.5)" />
+        </View>
+      </PopoverTrigger>
+
+      <PopoverContent>
+        <View style={{ padding: 16, gap: 16 }}>
+          {/* Layout section */}
+          <View>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "700",
+                color: "rgba(255,255,255,0.4)",
+                letterSpacing: 0.8,
+                marginBottom: 10,
+              }}
+            >
+              LAYOUT
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                backgroundColor: "rgba(255,255,255,0.06)",
+                borderRadius: 10,
+                padding: 3,
+              }}
+            >
+              <Pressable
+                onPress={setClassic}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingVertical: 9,
+                  borderRadius: 8,
+                  backgroundColor:
+                    feedMode === "classic"
+                      ? "rgba(255,255,255,0.12)"
+                      : "transparent",
+                }}
+              >
+                <List
+                  size={15}
+                  color={
+                    feedMode === "classic" ? "#fff" : "rgba(255,255,255,0.4)"
+                  }
+                />
+                <Text
+                  style={{
+                    color:
+                      feedMode === "classic" ? "#fff" : "rgba(255,255,255,0.4)",
+                    fontSize: 13,
+                    fontWeight: "600",
+                  }}
+                >
+                  Feed
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={setMasonry}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingVertical: 9,
+                  borderRadius: 8,
+                  backgroundColor:
+                    feedMode === "masonry"
+                      ? "rgba(255,255,255,0.12)"
+                      : "transparent",
+                }}
+              >
+                <LayoutGrid
+                  size={15}
+                  color={
+                    feedMode === "masonry" ? "#fff" : "rgba(255,255,255,0.4)"
+                  }
+                />
+                <Text
+                  style={{
+                    color:
+                      feedMode === "masonry" ? "#fff" : "rgba(255,255,255,0.4)",
+                    fontSize: 13,
+                    fontWeight: "600",
+                  }}
+                >
+                  Grid
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+
+          {/* Content filter section */}
+          <View>
+            <Text
+              style={{
+                fontSize: 11,
+                fontWeight: "700",
+                color: "rgba(255,255,255,0.4)",
+                letterSpacing: 0.8,
+                marginBottom: 10,
+              }}
+            >
+              CONTENT
+            </Text>
+            <View
+              style={{
+                flexDirection: "row",
+                backgroundColor: "rgba(255,255,255,0.06)",
+                borderRadius: 10,
+                padding: 3,
+              }}
+            >
+              <Pressable
+                onPress={nsfwEnabled ? toggleSpicy : undefined}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingVertical: 9,
+                  borderRadius: 8,
+                  backgroundColor: !nsfwEnabled
+                    ? "rgba(255,255,255,0.12)"
+                    : "transparent",
+                }}
+              >
+                <Text style={{ fontSize: 16 }}>😇</Text>
+                <Text
+                  style={{
+                    color: !nsfwEnabled ? "#fff" : "rgba(255,255,255,0.4)",
+                    fontSize: 13,
+                    fontWeight: "600",
+                  }}
+                >
+                  Sweet
+                </Text>
+              </Pressable>
+              <Pressable
+                onPress={!nsfwEnabled ? toggleSpicy : undefined}
+                style={{
+                  flex: 1,
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 6,
+                  paddingVertical: 9,
+                  borderRadius: 8,
+                  backgroundColor: nsfwEnabled
+                    ? "rgba(153,27,27,0.4)"
+                    : "transparent",
+                }}
+              >
+                <Text style={{ fontSize: 16 }}>😈</Text>
+                <Text
+                  style={{
+                    color: nsfwEnabled ? "#fff" : "rgba(255,255,255,0.4)",
+                    fontSize: 13,
+                    fontWeight: "600",
+                  }}
+                >
+                  Spicy
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </PopoverContent>
+    </Popover>
   );
 });
 
 export default function HomeScreen() {
   const feedMode = useAppStore((s) => s.feedMode);
-  const shouldRenderScreenFab = !supportsNativeTabsBottomAccessory();
 
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
@@ -123,14 +263,13 @@ export default function HomeScreen() {
           left: 0,
           right: 0,
           zIndex: 10,
-          alignItems: "center",
           pointerEvents: "box-none",
         }}
       >
         <FeedModeToggle />
       </View>
       {/* Sibling of the feed swap — stays mounted across feed-mode toggles
-          and the spicy toggle (which only rerenders the feed body). */}
+          and the content filter (which only rerenders the feed body). */}
       <View style={{ paddingTop: 40 }}>
         <ErrorBoundary screenName="StoriesBar">
           <MemoStoriesBar />
@@ -141,7 +280,6 @@ export default function HomeScreen() {
           {feedMode === "masonry" ? <MasonryFeed /> : <Feed />}
         </ErrorBoundary>
       </Main>
-      {shouldRenderScreenFab ? <SpicyToggleFAB /> : null}
     </View>
   );
 }

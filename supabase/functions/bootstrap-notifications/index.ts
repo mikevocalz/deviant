@@ -83,7 +83,7 @@ Deno.serve(async (req: Request) => {
           `
           id, type, created_at, read_at, content,
           entity_type, entity_id, actor_id,
-          sender:users!notifications_sender_id_fkey(
+          sender:users!notifications_actor_id_fk(
             id, username, avatar:avatar_id(url)
           )
         `,
@@ -103,6 +103,30 @@ Deno.serve(async (req: Request) => {
     const notifications = notificationsResult.data || [];
     const isCommentActivity = (notification: any) =>
       notification.type === "comment" || notification.type === "mention";
+
+    // ── Resolve event titles for event_invite / event_update notifications ──
+    const eventNotifIds = [
+      ...new Set(
+        notifications
+          .filter(
+            (n: any) =>
+              (n.type === "event_invite" || n.type === "event_update") &&
+              n.entity_id,
+          )
+          .map((n: any) => parseInt(String(n.entity_id), 10))
+          .filter((id: number) => !isNaN(id)),
+      ),
+    ];
+    const eventTitleById = new Map<number, string>();
+    if (eventNotifIds.length > 0) {
+      const { data: eventRows } = await supabase
+        .from("events")
+        .select("id, title")
+        .in("id", eventNotifIds);
+      for (const row of eventRows || []) {
+        eventTitleById.set((row as any).id, (row as any).title || "");
+      }
+    }
     const commentContextByNotificationId = new Map<
       string,
       { commentId: string; postId: string; content?: string }
@@ -313,6 +337,13 @@ Deno.serve(async (req: Request) => {
             ? String(n.entity_id)
             : commentContext?.commentId,
         commentText: commentContext?.content || n.content || undefined,
+        event:
+          (n.type === "event_invite" || n.type === "event_update") && n.entity_id
+            ? {
+                id: String(n.entity_id),
+                title: eventTitleById.get(parseInt(String(n.entity_id), 10)) || undefined,
+              }
+            : undefined,
       };
     });
 

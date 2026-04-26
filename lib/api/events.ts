@@ -890,29 +890,28 @@ export const eventsApi = {
   },
 
   /**
-   * Add co-organizer to event (only host can add)
+   * Add co-organizer to event (only host can add).
+   * Calls invite-co-organizer edge function which also sends push notification.
    */
   async addCoOrganizer(
     eventId: string,
     coOrganizerUserId: string,
-    role: "viewer" | "scanner" | "editor" | "admin" = "scanner",
+    role: "viewer" | "scanner" | "editor" | "admin" = "editor",
   ) {
     try {
-      const authId = getCurrentUserAuthId();
-      if (!authId) throw new Error("Not authenticated");
+      const { requireBetterAuthToken } = await import("../auth/identity");
+      const token = await requireBetterAuthToken();
 
-      const { error } = await supabase.from("event_co_organizers").upsert(
+      const { data, error } = await supabase.functions.invoke(
+        "invite-co-organizer",
         {
-          event_id: parseInt(eventId),
-          user_id: coOrganizerUserId,
-          role,
-          invited_by: authId,
-          accepted: false,
+          body: { event_id: parseInt(eventId), invitee_auth_id: coOrganizerUserId, role },
+          headers: { "x-auth-token": token },
         },
-        { onConflict: "event_id,user_id" },
       );
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       return true;
     } catch (err) {
       console.error("[Events] addCoOrganizer error:", err);

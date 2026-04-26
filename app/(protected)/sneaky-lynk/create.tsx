@@ -134,6 +134,29 @@ function CreateLynkScreenContent() {
         keyboardShouldPersistTaps="handled"
         bottomOffset={40}
       >
+        {/* Intro / Pricing Banner */}
+        <View
+          className="rounded-2xl p-4 mb-6"
+          style={{ backgroundColor: "rgba(252, 37, 58, 0.08)", borderWidth: 1, borderColor: "rgba(252, 37, 58, 0.2)" }}
+        >
+          <Text className="text-base font-bold text-foreground mb-1">
+            Sneaky Link 😈
+          </Text>
+          <Text className="text-sm text-muted-foreground leading-5">
+            Here's where things get real private OR sexy. Hosting less than 5 persons in a session under 5 minutes is completely free.
+          </Text>
+          <View className="flex-row gap-3 mt-3">
+            <View className="flex-1 rounded-xl p-3" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
+              <Text className="text-xs font-bold text-foreground">$15 / mo</Text>
+              <Text className="text-[11px] text-muted-foreground mt-0.5">Up to 15 screens</Text>
+            </View>
+            <View className="flex-1 rounded-xl p-3" style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
+              <Text className="text-xs font-bold text-foreground">$25 / mo</Text>
+              <Text className="text-[11px] text-muted-foreground mt-0.5">Unlimited screens</Text>
+            </View>
+          </View>
+        </View>
+
         {/* Title Input */}
         <View className="mb-6">
           <Text className="text-sm font-semibold text-muted-foreground mb-2">

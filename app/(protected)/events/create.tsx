@@ -62,6 +62,7 @@ import {
   type LocationData,
 } from "@/components/ui/location-autocomplete-v3";
 import { useCreateEvent } from "@/lib/hooks/use-events";
+import { eventsApi } from "@/lib/api/events";
 import { organizerApi } from "@/lib/api/organizer";
 import {
   ticketTypesApi,
@@ -616,6 +617,18 @@ function CreateEventScreenContent() {
               });
               console.log("[CreateEvent] Default ticket type created");
             }
+          }
+
+          // Invite co-organizers (best-effort, non-blocking)
+          if (coOrganizers.length > 0 && data?.id) {
+            for (const org of coOrganizers) {
+              try {
+                await eventsApi.addCoOrganizer(String(data.id), org.id, "editor");
+              } catch (coOrgErr) {
+                console.error("[CreateEvent] Failed to invite co-organizer:", org.username, coOrgErr);
+              }
+            }
+            console.log("[CreateEvent] Invited", coOrganizers.length, "co-organizer(s)");
           }
 
           setUploadProgress(100);

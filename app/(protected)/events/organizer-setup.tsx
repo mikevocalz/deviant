@@ -62,7 +62,8 @@ function OrganizerSetupContent() {
     status.connected && status.charges_enabled && status.payouts_enabled;
 
   // Restricted = connected + details submitted but charges/payouts disabled.
-  // These accounts need account_update (re-verification), NOT account_onboarding.
+  // These accounts need account_onboarding to complete verification (account_update
+  // is only valid for fully-onboarded accounts — Stripe rejects it otherwise).
   const isRestricted =
     status.connected &&
     status.details_submitted &&

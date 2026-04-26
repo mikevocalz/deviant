@@ -73,8 +73,20 @@ Deno.serve(async (req: Request) => {
       return errorResponse("Event lookup failed", 500);
     }
     if (!event) return errorResponse("Event not found", 404);
-    if (String(event.host_id) !== String(authId)) {
-      return errorResponse("Not your event", 403);
+
+    const isHost = String(event.host_id) === String(authId);
+    if (!isHost) {
+      // Allow accepted co-organizers with admin role to view analytics
+      const { data: coOrg } = await supabase
+        .from("event_co_organizers")
+        .select("role")
+        .eq("event_id", eventIdNum)
+        .eq("user_id", authId)
+        .eq("accepted", true)
+        .in("role", ["admin"])
+        .maybeSingle();
+
+      if (!coOrg) return errorResponse("Not your event", 403);
     }
 
     // ── action: attendees ────────────────────────────────────

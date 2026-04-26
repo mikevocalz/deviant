@@ -211,9 +211,11 @@ Deno.serve(async (req: Request) => {
       return json({ url: link.url, account_id: stripeAccountId });
     }
 
-    // "update": create an account_update link for restricted/re-verification flow.
+    // "update": create an account_onboarding link for restricted/re-verification flow.
     // Use this (NOT "start") when the account already exists but needs to satisfy
     // Stripe's currently_due requirements (charges or payouts disabled).
+    // Note: account_update is only valid for fully-onboarded accounts; use
+    // account_onboarding which Stripe accepts for all account states.
     if (action === "update") {
       const { data: account } = await supabase
         .from("organizer_accounts")
@@ -225,12 +227,12 @@ Deno.serve(async (req: Request) => {
         return json({ error: "No connected Stripe account found. Start onboarding first." });
       }
 
-      console.log("[organizer-connect] creating account_update link for", account.stripe_account_id);
+      console.log("[organizer-connect] creating account_onboarding link for", account.stripe_account_id);
       const link = await stripeRequest("/account_links", {
         account: account.stripe_account_id,
         refresh_url: `${FUNCTION_BASE}?callback=refresh`,
         return_url: `${FUNCTION_BASE}?callback=return`,
-        type: "account_update",
+        type: "account_onboarding",
       });
 
       if (!link.url || typeof link.url !== "string" || !link.url.startsWith("https://")) {
