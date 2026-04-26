@@ -88,6 +88,7 @@ import {
 } from "@/components/media/DVNTLiquidGlass";
 import { useRoomReactions } from "@/src/sneaky-lynk/hooks/useRoomReactions";
 import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureProtection";
+import { SneakySubscriptionModal } from "@/src/sneaky-lynk/components/SneakySubscriptionModal";
 
 // ── Error Boundary (per-route) — surfaces real crash message ────────
 
@@ -679,6 +680,33 @@ function LocalRoom({
     endRoom(id, storeListeners.length);
     router.back();
   }, [router, id, endRoom, reset, storeListeners.length, showToast]);
+
+  // Subscription check — determines if the host has a paid plan (timer hidden
+  // for paid hosts; free hosts see the time-up paywall instead of being kicked)
+  const [showTimesUpPaywall, setShowTimesUpPaywall] = useState(false);
+  const [isPaidHost, setIsPaidHost] = useState(false);
+  useEffect(() => {
+    if (!authUser?.id) return;
+    supabase
+      .from("sneaky_subscriptions")
+      .select("status, plan_id")
+      .eq("host_id", authUser.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setIsPaidHost(
+          data?.status === "active" && data?.plan_id !== "free",
+        );
+      });
+  }, [authUser?.id]);
+
+  const handleTimeUp = useCallback(() => {
+    if (isPaidHost) {
+      // Shouldn't happen (hideTimer=true), but just in case
+      return;
+    }
+    setShowTimesUpPaywall(true);
+  }, [isPaidHost]);
+
   const handleShare = useCallback(async () => {
     const shareTargetUrl = buildLynkShareUrl(id, roomHasVideo);
     const shareResult = await shareUrl(shareTargetUrl, {
@@ -855,35 +883,44 @@ function LocalRoom({
   const participantCount = allParticipants.length;
 
   return (
-    <RoomLayout
-      insets={insets}
-      connectionState={storeConnectionState}
-      isHost={true}
-      roomTitle={roomTitle}
-      participantCount={participantCount}
-      allParticipants={allParticipants}
-      hostUserId={localUser.id}
-      activeSpeakers={activeSpeakers}
-      effectiveMuted={effectiveMuted}
-      effectiveVideoOn={effectiveVideoOn}
-      isHandRaised={isHandRaised}
-      hasVideo={roomHasVideo}
-      isChatOpen={isChatOpen}
-      showEjectModal={showEjectModal}
-      ejectPayload={ejectPayload}
-      roomId={id}
-      localUser={localUser}
-      onLeave={handleLeave}
-      onToggleMic={handleToggleMic}
-      onToggleVideo={handleToggleVideo}
-      onSwitchCamera={handleSwitchCamera}
-      onToggleHand={handleToggleHand}
-      onChat={handleChat}
-      onCloseChat={handleCloseChat}
-      onEjectDismiss={handleEjectDismiss}
-      onShare={handleShare}
-      localRole="host"
-    />
+    <>
+      <RoomLayout
+        insets={insets}
+        connectionState={storeConnectionState}
+        isHost={true}
+        roomTitle={roomTitle}
+        participantCount={participantCount}
+        allParticipants={allParticipants}
+        hostUserId={localUser.id}
+        activeSpeakers={activeSpeakers}
+        effectiveMuted={effectiveMuted}
+        effectiveVideoOn={effectiveVideoOn}
+        isHandRaised={isHandRaised}
+        hasVideo={roomHasVideo}
+        isChatOpen={isChatOpen}
+        showEjectModal={showEjectModal}
+        ejectPayload={ejectPayload}
+        roomId={id}
+        localUser={localUser}
+        onLeave={handleLeave}
+        onToggleMic={handleToggleMic}
+        onToggleVideo={handleToggleVideo}
+        onSwitchCamera={handleSwitchCamera}
+        onToggleHand={handleToggleHand}
+        onChat={handleChat}
+        onCloseChat={handleCloseChat}
+        onEjectDismiss={handleEjectDismiss}
+        onShare={handleShare}
+        localRole="host"
+        onTimeUp={handleTimeUp}
+        hideTimer={isPaidHost}
+      />
+      <SneakySubscriptionModal
+        visible={showTimesUpPaywall}
+        onClose={() => setShowTimesUpPaywall(false)}
+        reason="duration_limit"
+      />
+    </>
   );
 }
 
@@ -1600,6 +1637,34 @@ function ServerRoom({
     isHost,
     showToast,
   ]);
+
+  // Subscription check for host — paid hosts skip the 16-min timer;
+  // free hosts see the upgrade paywall when time is up.
+  const [showTimesUpPaywall, setShowTimesUpPaywall] = useState(false);
+  const [isPaidHost, setIsPaidHost] = useState(false);
+  useEffect(() => {
+    if (!isHost || !authUser?.id) return;
+    supabase
+      .from("sneaky_subscriptions")
+      .select("status, plan_id")
+      .eq("host_id", authUser.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setIsPaidHost(
+          data?.status === "active" && data?.plan_id !== "free",
+        );
+      });
+  }, [isHost, authUser?.id]);
+
+  const handleTimeUp = useCallback(() => {
+    if (isHost && !isPaidHost) {
+      setShowTimesUpPaywall(true);
+    } else {
+      // Guests just leave when time is up
+      handleLeave();
+    }
+  }, [isHost, isPaidHost, handleLeave]);
+
   const handleToggleMic = useCallback(async () => {
     const actuallyOn = videoRoomRef.current.isMicOn;
     const nextEnabled = !actuallyOn;
@@ -2034,6 +2099,14 @@ function ServerRoom({
         onOpenParticipants={() => setShowParticipantsSheet(true)}
         raisedHandCount={raisedHandOrder.length}
         onOpenHandQueue={isHost ? openHandQueue : undefined}
+        onTimeUp={handleTimeUp}
+        hideTimer={isHost && isPaidHost}
+      />
+
+      <SneakySubscriptionModal
+        visible={showTimesUpPaywall}
+        onClose={() => setShowTimesUpPaywall(false)}
+        reason="duration_limit"
       />
 
       {/* Sheet overlay — absolute full-screen wrapper that sits ABOVE
@@ -2195,6 +2268,8 @@ function RoomLayout({
   onOpenParticipants,
   raisedHandCount,
   onOpenHandQueue,
+  onTimeUp,
+  hideTimer,
 }: {
   insets: any;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -2237,6 +2312,8 @@ function RoomLayout({
   onOpenParticipants?: () => void;
   raisedHandCount?: number;
   onOpenHandQueue?: () => void;
+  onTimeUp?: () => void;
+  hideTimer?: boolean;
 }) {
   const { reactions, sendReaction } = useRoomReactions({
     roomId,
@@ -2542,7 +2619,7 @@ function RoomLayout({
 
         <RemoteAudioLayer participants={allParticipants} />
 
-        <RoomTimer onTimeUp={onLeave} />
+        {!hideTimer && <RoomTimer onTimeUp={onTimeUp ?? onLeave} />}
 
         <ControlsBar
           isMuted={effectiveMuted}
