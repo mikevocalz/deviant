@@ -288,7 +288,7 @@ function EventDetailScreenContent() {
   const deviceLng = useEventsLocationStore(
     (s) => s.activeCity?.lng ?? s.deviceLng,
   );
-  const { hasValidTicket, setTicket } = useTicketStore();
+  const { hasValidTicket, setTicket, clearTicket } = useTicketStore();
   const showToast = useUIStore((s) => s.showToast);
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
@@ -418,13 +418,24 @@ function EventDetailScreenContent() {
     eventData?.userRsvpStatus && eventData.userRsvpStatus !== "none"
   );
 
-  // myTicketData is the DB source of truth for paid Stripe tickets —
-  // Zustand store is empty after restart, userRsvpStatus only tracks free RSVPs
-  const hasTicket =
-    hasValidTicket(eventId) ||
-    isRsvped[eventId] ||
-    serverHasTicket ||
-    !!(myTicketData && (myTicketData.status === "active" || myTicketData.status === "scanned"));
+  // When the server tells us the ticket is refunded/cancelled, clear the
+  // stale Zustand entry so hasValidTicket() no longer returns true.
+  useEffect(() => {
+    if (
+      myTicketData &&
+      myTicketData.status !== "active" &&
+      myTicketData.status !== "scanned"
+    ) {
+      clearTicket(eventId);
+    }
+  }, [myTicketData?.status, eventId, clearTicket]);
+
+  // myTicketData is the DB source of truth for paid Stripe tickets.
+  // When present, treat it as authoritative — a refunded ticket must
+  // not show "View Ticket" even if the Zustand store still says "valid".
+  const hasTicket = myTicketData
+    ? myTicketData.status === "active" || myTicketData.status === "scanned"
+    : hasValidTicket(eventId) || isRsvped[eventId] || serverHasTicket;
 
   // Fall back to eventData.ticketTiers when the standalone ticket_types query returns empty
   const upgradeSourceTiers = useMemo((): import("@/lib/api/ticket-types").TicketTypeRecord[] => {

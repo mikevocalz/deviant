@@ -219,16 +219,17 @@ export function useSneakyLynkCaptureBroadcast({
         }
       });
 
-    // Anonymous actor → send the host a PRIVATE chat DM with the real
-    // username. The public broadcast above only carries the anon
-    // label, so non-host participants can never see the real identity.
-    // The host sees the anon label in their banner AND a private DM
-    // in their inbox with the full attribution for moderation.
+    // Always send the host a PRIVATE chat DM so they have a persistent
+    // moderation record. For anonymous actors the DM reveals the real
+    // identity that the room broadcast deliberately omits. For
+    // attributable actors the banner is ephemeral (6 s), so the DM
+    // acts as an audit trail the host can revisit later.
     const { hostUserId, realUsername, roomTitle } = dmParamsRef.current;
-    if (!attributable && hostUserId && realUsername) {
+    const dmRealUsername = realUsername || localUsername;
+    if (hostUserId && dmRealUsername) {
       void _notifyHostViaChat({
         hostUserId,
-        realUsername,
+        realUsername: dmRealUsername,
         anonLabel: broadcastUsername,
         roomTitle,
       });
@@ -269,7 +270,12 @@ async function _notifyHostViaChat({
     const roomLabel = roomTitle
       ? `your Sneaky Lynk room "${roomTitle}"`
       : "your Sneaky Lynk room";
-    const content = `📸 @${realUsername} took a screenshot in ${roomLabel} (shown to the room as "${anonLabel}").`;
+    // Only append the anon-label clause when the identity was hidden —
+    // i.e. the broadcast used a different name than the real username.
+    const content =
+      anonLabel === realUsername
+        ? `📸 @${realUsername} took a screenshot in ${roomLabel}.`
+        : `📸 @${realUsername} took a screenshot in ${roomLabel} (shown to the room as "${anonLabel}").`;
 
     await messagesApi.sendMessage({
       conversationId,

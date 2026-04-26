@@ -117,17 +117,27 @@ export const RoomStage = memo(function RoomStage({
   // caused listeners to see themselves up top.
   const { host, attendees } = useMemo(() => {
     const hostParticipant =
+      // 1. Authoritative host ID from room snapshot
       (hostUserId
         ? participants.find((p) => p.id === hostUserId)
         : undefined) ||
+      // 2. Role marker from Fishjam peer metadata
       participants.find((p) => p.role === "host") ||
+      // 3. Local user — only if the viewer actually IS the host.
+      //    Without this guard, anonymous guests (isLocal=true, role≠host)
+      //    fall into the hero slot via the participants[0] catch-all below.
+      (isHost ? participants.find((p) => p.isLocal) : undefined) ||
+      // 4. First remote participant (avoids local anon in hero when host
+      //    hasn't joined the SFU yet)
+      participants.find((p) => !p.isLocal) ||
+      // 5. Absolute last resort
       participants[0] ||
       null;
     const rest = hostParticipant
       ? participants.filter((p) => p.id !== hostParticipant.id)
       : participants;
     return { host: hostParticipant, attendees: rest };
-  }, [participants, hostUserId]);
+  }, [participants, hostUserId, isHost]);
 
   const totalCount = participants.length;
   const attendeeCount = attendees.length;
