@@ -2250,6 +2250,11 @@ function RoomLayout({
   // + verified badge + role pill all sit above the dock cleanly.
   const controlsClearance = insets.bottom + 200;
 
+  // Measured usable height for the stage area (container height minus
+  // controlsClearance padding). Passed to RoomStage so crowd tiles
+  // can be sized accurately without relying on inner onLayout timing.
+  const [stageContentHeight, setStageContentHeight] = useState(0);
+
   return (
     <View className="flex-1 bg-background">
       {/* Single instance — serves both LocalRoom + ServerRoom. Absolute-
@@ -2516,6 +2521,10 @@ function RoomLayout({
         <View
           className="flex-1"
           style={{ paddingBottom: controlsClearance }}
+          onLayout={(e) => {
+            const h = Math.round(e.nativeEvent.layout.height) - controlsClearance;
+            setStageContentHeight((prev) => (prev === h ? prev : h));
+          }}
         >
           {/* RoomStage = Zoom-parity host-hero + paged attendee carousel.
               Replaces the old adaptive VideoGrid. Layering with the
@@ -2527,6 +2536,7 @@ function RoomLayout({
             isHost={isHost}
             hostUserId={hostUserId}
             onParticipantPress={onParticipantPress}
+            stageHeight={stageContentHeight}
           />
         </View>
 

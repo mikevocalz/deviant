@@ -40,9 +40,8 @@
  * cross only at the pagination dots.
  */
 
-import React, { memo, useCallback, useMemo, useState } from "react";
+import React, { memo, useCallback, useMemo } from "react";
 import {
-  LayoutChangeEvent,
   StyleSheet,
   Text,
   View,
@@ -76,6 +75,11 @@ interface RoomStageProps {
    *  slot; they appear in the attendee carousel instead. */
   hostUserId?: string | null;
   onParticipantPress?: (participant: VideoParticipant) => void;
+  /** The usable pixel height of the stage area (excludes controls
+   *  clearance and padding). Measured by the parent container via
+   *  onLayout. When 0 we fall back to a screenHeight-based estimate
+   *  so tiles are never stuck at the first-render fallback size. */
+  stageHeight?: number;
 }
 
 const HERO_ASPECT = 16 / 9; // webcam-native landscape main stage
@@ -105,6 +109,7 @@ export const RoomStage = memo(function RoomStage({
   isHost,
   hostUserId,
   onParticipantPress,
+  stageHeight: stageHeightProp = 0,
 }: RoomStageProps) {
   const { width: screenWidth, height: screenHeight } = useWindowDimensions();
 
@@ -153,21 +158,25 @@ export const RoomStage = memo(function RoomStage({
   const heroAspectHeight = Math.round(pageWidth / HERO_ASPECT);
   const heroHeight = Math.min(heroAspectHeight, heroMaxHeight);
 
-  // ── Crowd-zone measurement — tile dimensions derive from this ────
-  // `crowdHeight` is measured from the onLayout callback on the
-  // crowd container. On first render (before layout settles) we use
-  // a fallback so tiles don't flash at the wrong size.
-  const [crowdHeight, setCrowdHeight] = useState<number | null>(null);
+  // ── Crowd-zone height — derived from the measured stage height ───
+  // The parent (RoomLayout) measures the stage container via onLayout
+  // and passes it as `stageHeight`. We subtract the hero zone to get
+  // the crowd zone height. When stageHeight hasn't been measured yet
+  // (0 on the first render), we fall back to a screenHeight-based
+  // estimate so tiles are sized reasonably from the very first frame.
+  const effectiveStageHeight =
+    stageHeightProp > 0
+      ? stageHeightProp
+      : Math.round(screenHeight * 0.62); // generous fallback
+  const crowdZoneHeight = Math.max(
+    FALLBACK_TILE_HEIGHT * ROWS_PER_PAGE + CROWD_CHROME_HEIGHT,
+    effectiveStageHeight - heroHeight - 4,
+  );
 
-  const handleCrowdLayout = useCallback((e: LayoutChangeEvent) => {
-    const h = Math.round(e.nativeEvent.layout.height);
-    setCrowdHeight((prev) => (prev === h ? prev : h));
-  }, []);
-
-  const tilesAreaHeight =
-    crowdHeight !== null
-      ? Math.max(160, crowdHeight - CROWD_CHROME_HEIGHT)
-      : FALLBACK_TILE_HEIGHT * ROWS_PER_PAGE + TILE_GAP;
+  const tilesAreaHeight = Math.max(
+    160,
+    crowdZoneHeight - CROWD_CHROME_HEIGHT,
+  );
 
   const tileHeight = Math.floor(
     (tilesAreaHeight - TILE_GAP * (ROWS_PER_PAGE - 1)) / ROWS_PER_PAGE,
@@ -329,10 +338,7 @@ export const RoomStage = memo(function RoomStage({
           bearing: without it, the paged ScrollView's intrinsic content
           height (2 tile rows = ~400px on large phones) would spill
           upward into the hero and visually overlap it. */}
-      <View
-        style={{ flex: 1, paddingTop: 8, overflow: "hidden" }}
-        onLayout={handleCrowdLayout}
-      >
+      <View style={{ flex: 1, paddingTop: 8, overflow: "hidden" }}>
         {/* Hairline divider — cyan→pink gradient at low alpha. The one
             and only place the two brand colors cross on this surface. */}
         <LinearGradient
