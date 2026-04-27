@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useMemo } from "react";
+import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import {
   View,
   Text,
@@ -251,6 +252,8 @@ function CreateEventScreenContent() {
   const setAgreementAccepted = useCreateEventStore((s) => s.setAgreementAccepted);
   const flyerImage = useCreateEventStore((s) => s.flyerImage);
   const setFlyerImage = useCreateEventStore((s) => s.setFlyerImage);
+  const flyerMediaType = useCreateEventStore((s) => s.flyerMediaType);
+  const setFlyerMediaType = useCreateEventStore((s) => s.setFlyerMediaType);
 
   // Convert ISO strings to Date objects for pickers
   const eventDate = useMemo(() => new Date(eventDateISO), [eventDateISO]);
@@ -514,10 +517,10 @@ function CreateEventScreenContent() {
         );
       }
 
-      // Upload flyer image if provided
+      // Upload flyer (image or video) if provided
       let flyerImageUrl = "";
       if (flyerImage) {
-        console.log("[CreateEvent] Uploading flyer image");
+        console.log("[CreateEvent] Uploading flyer", flyerMediaType);
         const normalizedFlyerUri = await persistLocalMediaSelection(
           flyerImage,
           {
@@ -532,7 +535,7 @@ function CreateEventScreenContent() {
           flyerImageUrl = normalizedFlyerUri;
         } else {
           const flyerResults = await uploadMultiple([
-            { uri: normalizedFlyerUri, type: "image" as const },
+            { uri: normalizedFlyerUri, type: flyerMediaType as "image" | "video" },
           ]);
           if (flyerResults[0]?.success) {
             flyerImageUrl = flyerResults[0].url;
@@ -1373,7 +1376,7 @@ function CreateEventScreenContent() {
               </View>
             </View>
 
-            {/* Flyer Image (Optional) — 3:5 aspect ratio for Spotlight */}
+            {/* Flyer (Optional) — image or video, 3:5 aspect ratio */}
             <View className="mb-6">
               <View className="flex-row justify-between items-center mb-3">
                 <View>
@@ -1381,7 +1384,7 @@ function CreateEventScreenContent() {
                     Flyer (Optional)
                   </Text>
                   <Text className="text-xs text-muted-foreground mt-0.5">
-                    3:5 portrait for Spotlight carousel
+                    Photo or video · 3:5 portrait · up to 60 sec
                   </Text>
                 </View>
               </View>
@@ -1391,20 +1394,34 @@ function CreateEventScreenContent() {
                   className="relative rounded-2xl overflow-hidden self-start"
                   style={{ width: "60%", aspectRatio: 3 / 5 }}
                 >
-                  <Image
-                    source={{ uri: flyerImage }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                  />
+                  {flyerMediaType === "video" ? (
+                    <DVNTAnimatedVideoView
+                      uri={flyerImage}
+                      width="100%"
+                      height="100%"
+                      contentFit="cover"
+                      isPlaying
+                      muted={false}
+                    />
+                  ) : (
+                    <Image
+                      source={{ uri: flyerImage }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                  )}
                   <Pressable
-                    onPress={() => setFlyerImage(null)}
+                    onPress={() => {
+                      setFlyerImage(null);
+                      setFlyerMediaType("image");
+                    }}
                     className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 items-center justify-center"
                   >
                     <X size={16} color="#fff" />
                   </Pressable>
                   <View className="absolute bottom-2 left-2 bg-amber-500/90 px-2 py-1 rounded-lg">
                     <Text className="text-xs font-medium text-white">
-                      Flyer
+                      {flyerMediaType === "video" ? "Video Flyer" : "Flyer"}
                     </Text>
                   </View>
                 </View>
@@ -1415,23 +1432,27 @@ function CreateEventScreenContent() {
                     const result = await pickFromLibrary({
                       allowsMultipleSelection: false,
                       maxSelection: 1,
+                      mediaTypes: ["images", "videos"],
                     });
                     if (result && result.length > 0) {
                       try {
+                        const picked = result[0];
+                        const isVideo = picked.mimeType?.startsWith("video/") || picked.type === "video";
                         const [persistedFlyerUri] = await persistEventDraftAssets(
                           result,
                           "event-drafts/flyers",
                         );
                         setFlyerImage(persistedFlyerUri);
+                        setFlyerMediaType(isVideo ? "video" : "image");
                       } catch (error) {
                         console.error(
-                          "[CreateEvent] Failed to persist flyer image:",
+                          "[CreateEvent] Failed to persist flyer:",
                           error,
                         );
                         showToast(
                           "error",
                           "Media Error",
-                          "Failed to add the flyer image. Please try again.",
+                          "Failed to add the flyer. Please try again.",
                         );
                       }
                     }
@@ -1444,10 +1465,10 @@ function CreateEventScreenContent() {
                       <Plus size={24} color={colors.mutedForeground} />
                     </View>
                     <Text className="text-xs text-muted-foreground font-medium text-center px-4">
-                      Add Flyer Image
+                      Add Flyer
                     </Text>
                     <Text className="text-[10px] text-muted-foreground/60 text-center px-4">
-                      Used for Spotlight promotions
+                      Photo or video ad
                     </Text>
                   </View>
                 </Pressable>

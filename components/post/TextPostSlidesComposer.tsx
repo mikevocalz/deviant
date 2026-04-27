@@ -66,16 +66,6 @@ export function TextPostSlidesComposer({
             <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>
               Slide {activeIndex + 1} of {slides.length}
             </Text>
-            <Text
-              style={{
-                color: "rgba(148,163,184,0.82)",
-                fontSize: 12,
-                marginTop: 4,
-              }}
-            >
-              Up to {TEXT_POST_MAX_SLIDES} cards, {TEXT_POST_MAX_LENGTH}{" "}
-              characters each.
-            </Text>
           </View>
 
           <View
@@ -207,7 +197,7 @@ export function TextPostSlidesComposer({
         <UserMentionAutocomplete
           value={activeSlide?.content || ""}
           onChangeText={(value) => onSlideChange(activeIndex, value)}
-          placeholder="Write a line worth stopping for..."
+          placeholder="Speak your mind…"
           multiline
           maxLength={TEXT_POST_MAX_LENGTH}
           style={{

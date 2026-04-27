@@ -88,6 +88,7 @@ interface DraftFields {
   ticketTiers: TicketTier[];
   coOrganizers: CoOrganizer[];
   flyerImage: string | null;
+  flyerMediaType: "image" | "video";
   eventType: EventType | null;
   disclaimers: string;
 }
@@ -141,6 +142,7 @@ interface CreateEventActions {
     v: TicketTier[] | ((prev: TicketTier[]) => TicketTier[]),
   ) => void;
   setFlyerImage: (v: string | null) => void;
+  setFlyerMediaType: (v: "image" | "video") => void;
   setEventType: (v: EventType | null) => void;
   setDisclaimers: (v: string) => void;
 
@@ -203,6 +205,7 @@ const DRAFT_DEFAULTS: DraftFields = {
   ticketTiers: [],
   coOrganizers: [],
   flyerImage: null,
+  flyerMediaType: "image",
   eventType: null,
   disclaimers: "",
 };
@@ -261,6 +264,7 @@ export const useCreateEventStore = create<CreateEventState>()(
       setTicketTiers: (v) =>
         set((s) => ({ ticketTiers: resolve(v, s.ticketTiers) })),
       setFlyerImage: (v) => set({ flyerImage: v }),
+      setFlyerMediaType: (v) => set({ flyerMediaType: v }),
       setEventType: (v) => set({ eventType: v }),
       setDisclaimers: (v) => set({ disclaimers: v }),
 

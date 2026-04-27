@@ -68,6 +68,7 @@ export interface Event {
   locationName?: string;
   locationAddress?: string;
   isPromoted?: boolean;
+  flyerVideoUrl?: string;
 }
 
 // Query keys

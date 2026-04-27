@@ -15,6 +15,7 @@ interface DVNTAnimatedVideoViewProps {
   contentFit?: "cover" | "contain";
   accessibilityLabel?: string;
   isPlaying?: boolean;
+  muted?: boolean;
 }
 
 export function DVNTAnimatedVideoView({
@@ -24,6 +25,7 @@ export function DVNTAnimatedVideoView({
   style,
   contentFit = "cover",
   isPlaying = true,
+  muted = true,
 }: DVNTAnimatedVideoViewProps) {
   const isMountedRef = useRef(true);
 
@@ -36,13 +38,13 @@ export function DVNTAnimatedVideoView({
 
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
-    p.muted = true;
+    p.muted = muted;
     // CRITICAL: mix with other audio sessions so a muted feed loop
     // NEVER stops the user's Spotify / Apple Music / podcast. The
     // expo-video default (`auto`) activates playback mode on iOS,
     // which preempts background audio — which was the cause of
     // "my music stops the moment I open the feed".
-    p.audioMixingMode = "mixWithOthers";
+    if (muted) p.audioMixingMode = "mixWithOthers";
   });
 
   useEffect(() => {

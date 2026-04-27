@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import {
   View,
   Text,
@@ -113,6 +114,8 @@ function EditEventScreenContent() {
   const [ticketingEnabled, setTicketingEnabled] = useState(false);
   const [ticketTiers, setTicketTiers] = useState<LocalTicketTier[]>([]);
   const [originalTierIds, setOriginalTierIds] = useState<Set<string>>(new Set());
+  const [flyerImage, setFlyerImage] = useState<string | null>(null);
+  const [flyerMediaType, setFlyerMediaType] = useState<"image" | "video">("image");
 
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -222,6 +225,13 @@ function EditEventScreenContent() {
 
         setOriginalData(ev);
 
+        // Load existing flyer
+        const existingFlyerUrl = (ev as any).flyerImageUrl || null;
+        if (existingFlyerUrl) {
+          setFlyerImage(existingFlyerUrl);
+          setFlyerMediaType(/\.(mp4|mov|webm|m4v)(\?|$)/i.test(existingFlyerUrl) ? "video" : "image");
+        }
+
         // Load ticket tiers
         const dbTiers = await ticketTypesApi.getByEvent(id);
         const activeTiers = dbTiers.filter((t: any) => t.active !== false && t.is_active !== false);
@@ -271,7 +281,8 @@ function EditEventScreenContent() {
       doorPolicy !== (od.doorPolicy || "") ||
       lineup !== (od.lineup || "") ||
       youtubeVideoUrl !== (od.youtubeVideoUrl || "") ||
-      ticketingEnabled !== !!od.ticketingEnabled;
+      ticketingEnabled !== !!od.ticketingEnabled ||
+      flyerImage !== ((od as any).flyerImageUrl || null);
 
     setHasChanges(changed);
   }, [
@@ -290,6 +301,7 @@ function EditEventScreenContent() {
     perks,
     youtubeVideoUrl,
     ticketingEnabled,
+    flyerImage,
     originalData,
   ]);
 
@@ -462,6 +474,29 @@ function EditEventScreenContent() {
 
       const allImages = [...remoteImages, ...uploadedImages];
 
+      // Upload flyer if changed
+      let flyerImageUrl: string | null | undefined = undefined; // undefined = no change
+      const originalFlyerUrl = (originalData as any)?.flyerImageUrl || null;
+      if (flyerImage !== originalFlyerUrl) {
+        if (!flyerImage) {
+          flyerImageUrl = null;
+        } else if (isRemoteMediaUri(flyerImage)) {
+          flyerImageUrl = flyerImage;
+        } else {
+          const normalizedFlyerUri = await persistLocalMediaSelection(flyerImage, {
+            scope: "event-drafts/flyers",
+          });
+          if (isRemoteMediaUri(normalizedFlyerUri)) {
+            flyerImageUrl = normalizedFlyerUri;
+          } else {
+            const flyerResults = await uploadMultiple([
+              { uri: normalizedFlyerUri, type: flyerMediaType as "image" | "video" },
+            ]);
+            flyerImageUrl = flyerResults[0]?.success ? flyerResults[0].url : originalFlyerUrl;
+          }
+        }
+      }
+
       // Prepare update data
       const updateData: Record<string, unknown> = {
         title: title.trim(),
@@ -479,6 +514,7 @@ function EditEventScreenContent() {
         perks: perks || undefined,
         youtubeVideoUrl: youtubeVideoUrl.trim() || null,
         ticketingEnabled,
+        ...(flyerImageUrl !== undefined ? { flyerImageUrl } : {}),
       };
 
       if (locationData) {
@@ -636,6 +672,11 @@ function EditEventScreenContent() {
     perks,
     youtubeVideoUrl,
     ticketingEnabled,
+    ticketTiers,
+    originalTierIds,
+    flyerImage,
+    flyerMediaType,
+    originalData,
     isSaving,
     uploadMultiple,
     queryClient,
@@ -734,6 +775,112 @@ function EditEventScreenContent() {
               )}
             </View>
           </ScrollView>
+        </View>
+
+        {/* Flyer (Optional) — image or video */}
+        <View className="mb-6">
+          <View className="flex-row justify-between items-center mb-3">
+            <View>
+              <Text className="text-sm font-medium text-foreground">
+                Flyer (Optional)
+              </Text>
+              <Text className="text-xs text-muted-foreground mt-0.5">
+                Photo or video · 3:5 portrait · up to 60 sec
+              </Text>
+            </View>
+          </View>
+
+          {flyerImage ? (
+            <View
+              className="relative rounded-2xl overflow-hidden self-start"
+              style={{ width: "60%", aspectRatio: 3 / 5 }}
+            >
+              {flyerMediaType === "video" ? (
+                <DVNTAnimatedVideoView
+                  uri={flyerImage}
+                  width="100%"
+                  height="100%"
+                  contentFit="cover"
+                  isPlaying
+                  muted={false}
+                />
+              ) : (
+                <Image
+                  source={{ uri: flyerImage }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                />
+              )}
+              <Pressable
+                onPress={() => {
+                  setFlyerImage(null);
+                  setFlyerMediaType("image");
+                  setHasChanges(true);
+                }}
+                className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 items-center justify-center"
+              >
+                <X size={16} color="#fff" />
+              </Pressable>
+              <View className="absolute bottom-2 left-2 bg-amber-500/90 px-2 py-1 rounded-lg">
+                <Text className="text-xs font-medium text-white">
+                  {flyerMediaType === "video" ? "Video Flyer" : "Flyer"}
+                </Text>
+              </View>
+            </View>
+          ) : (
+            <Pressable
+              onPress={async () => {
+                const result = await pickFromLibrary({
+                  allowsMultipleSelection: false,
+                  maxSelection: 1,
+                  mediaTypes: ["images", "videos"],
+                });
+                if (result && result.length > 0) {
+                  try {
+                    const picked = result[0];
+                    const isVideo = picked.mimeType?.startsWith("video/") || picked.type === "video";
+                    const [persistedUri] = await persistEventDraftAssets(result);
+                    setFlyerImage(persistedUri);
+                    setFlyerMediaType(isVideo ? "video" : "image");
+                    setHasChanges(true);
+                  } catch (error) {
+                    console.error("[EditEvent] Failed to persist flyer:", error);
+                    showToast("error", "Media Error", "Failed to add the flyer. Please try again.");
+                  }
+                }
+              }}
+              style={{
+                width: "60%",
+                aspectRatio: 3 / 5,
+                borderRadius: 16,
+                borderWidth: 2,
+                borderStyle: "dashed",
+                borderColor: colors.border,
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+              }}
+            >
+              <View
+                style={{
+                  width: 48,
+                  height: 48,
+                  borderRadius: 24,
+                  backgroundColor: "rgba(255,255,255,0.06)",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Plus size={24} color={colors.mutedForeground} />
+              </View>
+              <Text className="text-xs text-muted-foreground font-medium text-center px-4">
+                Add Flyer
+              </Text>
+              <Text className="text-[10px] text-muted-foreground/60 text-center px-4">
+                Photo or video ad
+              </Text>
+            </Pressable>
+          )}
         </View>
 
         {/* Title */}

@@ -784,7 +784,7 @@ function CreateScreenContent() {
             <UserMentionAutocomplete
               value={caption}
               onChangeText={setCaption}
-              placeholder="Got a look, a moment, or a vibe? Caption optional."
+              placeholder="Caption"
               multiline
               maxLength={2200}
               style={{
@@ -792,16 +792,6 @@ function CreateScreenContent() {
                 minHeight: 80,
               }}
             />
-            <Text
-              style={{
-                fontSize: 12,
-                color: "#666",
-                marginTop: 8,
-                lineHeight: 18,
-              }}
-            >
-              Caption optional. Add context, @mentions, or leave it visual.
-            </Text>
             <Text
               style={{
                 fontSize: 12,

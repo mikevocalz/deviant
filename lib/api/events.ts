@@ -21,10 +21,21 @@ function parseJsonbArray(value: unknown): any[] {
   return [];
 }
 
+/** Returns true if the URL points to a video file */
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url);
+}
+
 /** Resolve event image URL from multiple DB columns */
 function resolveEventImage(event: any): string {
   // Priority: cover_image_url > image > cover_image_id (would need join)
   return event[DB.events.coverImageUrl] || event["image"] || "";
+}
+
+/** Returns the flyer video URL if the flyer is a video, otherwise undefined */
+function resolveFlyerVideoUrl(event: any): string | undefined {
+  const flyerUrl = event[DB.events.flyerImageUrl];
+  return flyerUrl && isVideoUrl(flyerUrl) ? flyerUrl : undefined;
 }
 
 /** Format a raw ISO date into the fields the EventCard UI expects */
@@ -324,6 +335,7 @@ export const eventsApi = {
           ...dateParts,
           location: event[DB.events.location],
           image: resolveEventImage(event),
+          flyerVideoUrl: resolveFlyerVideoUrl(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
         };
@@ -381,6 +393,7 @@ export const eventsApi = {
           ...dateParts,
           location: event[DB.events.location],
           image: resolveEventImage(event),
+          flyerVideoUrl: resolveFlyerVideoUrl(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
           host: {
@@ -426,6 +439,7 @@ export const eventsApi = {
         location: ev.location,
         image: ev.image || "",
         images: parseJsonbArray(ev.images),
+        flyerImageUrl: ev.flyer_image_url || null,
         youtubeVideoUrl: ev.youtube_video_url || null,
         price: Number(ev.price) || 0,
         likes: 0,
@@ -630,6 +644,7 @@ export const eventsApi = {
         ...dateParts,
         location: data[DB.events.location],
         image: resolveEventImage(data),
+        flyerVideoUrl: resolveFlyerVideoUrl(data),
         price: Number(data[DB.events.price]) || 0,
         attendees: 0,
         totalAttendees: 0,
@@ -704,6 +719,8 @@ export const eventsApi = {
         updateData.ticketing_enabled = updates.ticketingEnabled;
       if (updates.isOnline !== undefined)
         updateData[DB.events.isOnline] = updates.isOnline;
+      if (updates.flyerImageUrl !== undefined)
+        updateData[DB.events.flyerImageUrl] = updates.flyerImageUrl || null;
 
       const { data, error } = await supabase
         .from(DB.events.table)
@@ -1070,6 +1087,7 @@ export const eventsApi = {
           date: event[DB.events.startDate],
           location: event[DB.events.location],
           image: resolveEventImage(event),
+          flyerVideoUrl: resolveFlyerVideoUrl(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
           host: {
