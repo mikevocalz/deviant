@@ -7,8 +7,6 @@
 import React, {
   memo,
   useCallback,
-  useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -18,17 +16,15 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CalendarPlus, Share2, Check, Send } from "lucide-react-native";
-import BottomSheet, {
-  BottomSheetBackdrop,
-  BottomSheetTextInput,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
-import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import * as Haptics from "expo-haptics";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { addTicketToCalendar } from "@/src/ticket/helpers/add-to-calendar";
@@ -118,34 +114,9 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   }, [ticket, shareState, showToast]);
 
   // ── Transfer ──
-  const transferSheetRef = useRef<BottomSheet>(null);
+  const transferInputRef = useRef<TextInput>(null);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [transferUsername, setTransferUsername] = useState("");
-
-  useEffect(() => {
-    if (showTransferModal) {
-      transferSheetRef.current?.expand();
-    } else {
-      transferSheetRef.current?.close();
-    }
-  }, [showTransferModal]);
-
-  const handleTransferSheetChange = useCallback((index: number) => {
-    if (index === -1) setShowTransferModal(false);
-  }, []);
-
-  const renderTransferBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.7}
-        pressBehavior="close"
-      />
-    ),
-    [],
-  );
 
   const handleTransfer = useCallback(() => {
     if (transferState === "loading") return;
@@ -260,55 +231,60 @@ export const TicketActionsBar = memo(function TicketActionsBar({
         </Text>
       </Pressable>
 
-      {/* Transfer username bottom sheet */}
-      <BottomSheet
-        ref={transferSheetRef}
-        index={-1}
-        snapPoints={["45%"]}
-        enablePanDownToClose
-        backdropComponent={renderTransferBackdrop}
-        onChange={handleTransferSheetChange}
-        backgroundStyle={styles.sheetBackground}
-        handleIndicatorStyle={styles.sheetHandle}
-        keyboardBehavior="interactive"
-        keyboardBlurBehavior="restore"
-        android_keyboardInputMode="adjustResize"
+      {/* Transfer username modal */}
+      <Modal
+        visible={showTransferModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTransferModal(false)}
       >
-        <BottomSheetView style={styles.sheetContent}>
-          <Text style={styles.modalTitle}>Transfer Ticket</Text>
-          <Text style={styles.modalSubtitle}>
-            Enter the username of the person you want to transfer this ticket
-            to.
-          </Text>
-          <BottomSheetTextInput
-            style={styles.modalInput}
-            placeholder="Username"
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            value={transferUsername}
-            onChangeText={setTransferUsername}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            onSubmitEditing={() => {
-              if (showTransferModal) handleTransferSubmit();
-            }}
-          />
-          <View style={styles.modalButtons}>
-            <Pressable
-              style={styles.modalCancelBtn}
-              onPress={() => setShowTransferModal(false)}
-            >
-              <Text style={styles.modalCancelText}>Cancel</Text>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowTransferModal(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.modalKAV}
+          >
+            <Pressable style={styles.sheetContent} onPress={() => {}}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.modalTitle}>Transfer Ticket</Text>
+              <Text style={styles.modalSubtitle}>
+                Enter the username of the person you want to transfer this ticket to.
+              </Text>
+              <TextInput
+                ref={transferInputRef}
+                style={styles.modalInput}
+                placeholder="Username"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={transferUsername}
+                onChangeText={setTransferUsername}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="done"
+                autoFocus
+                onSubmitEditing={() => {
+                  if (showTransferModal) handleTransferSubmit();
+                }}
+              />
+              <View style={styles.modalButtons}>
+                <Pressable
+                  style={styles.modalCancelBtn}
+                  onPress={() => setShowTransferModal(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </Pressable>
+                <Pressable
+                  style={[styles.modalSubmitBtn, { backgroundColor: accent }]}
+                  onPress={handleTransferSubmit}
+                >
+                  <Text style={styles.modalSubmitText}>Transfer</Text>
+                </Pressable>
+              </View>
             </Pressable>
-            <Pressable
-              style={[styles.modalSubmitBtn, { backgroundColor: `${accent}` }]}
-              onPress={handleTransferSubmit}
-            >
-              <Text style={styles.modalSubmitText}>Transfer</Text>
-            </Pressable>
-          </View>
-        </BottomSheetView>
-      </BottomSheet>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </View>
   );
 });
@@ -344,16 +320,26 @@ const styles = StyleSheet.create({
   successLabel: {
     color: "#3FDCFF",
   },
-  sheetBackground: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  modalKAV: {
+    justifyContent: "flex-end",
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  sheetContent: {
     backgroundColor: "#1a1a1a",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-  },
-  sheetHandle: {
-    backgroundColor: "rgba(255,255,255,0.3)",
-    width: 36,
-  },
-  sheetContent: {
     padding: 24,
     paddingBottom: 40,
   },

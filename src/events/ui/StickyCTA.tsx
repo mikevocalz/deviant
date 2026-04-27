@@ -18,6 +18,7 @@ interface StickyCTAProps {
   isPast?: boolean;
   onGetTickets: () => void;
   onViewTicket: () => void;
+  onBuyMore?: () => void;
   /** Whether the current user is on the waitlist for the selected tier. */
   waitlistJoined?: boolean;
   onJoinWaitlist?: () => void;
@@ -31,6 +32,7 @@ export const StickyCTA = memo(function StickyCTA({
   isPast,
   onGetTickets,
   onViewTicket,
+  onBuyMore,
   waitlistJoined = false,
   onJoinWaitlist,
   onLeaveWaitlist,
@@ -87,10 +89,19 @@ export const StickyCTA = memo(function StickyCTA({
     return (
       <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
         <View style={styles.inner}>
-          <Pressable onPress={onViewTicket} style={styles.ticketButton}>
-            <Ticket size={20} color="#fff" />
-            <Text style={styles.ticketButtonText}>View Your Ticket</Text>
+          <Pressable onPress={onViewTicket} style={[styles.ticketButton, onBuyMore ? { flex: 1 } : { flex: 1 }]}>
+            <Check size={18} color="#22c55e" />
+            <Text style={styles.ticketButtonText}>View Ticket</Text>
           </Pressable>
+          {onBuyMore && !isPast && (
+            <Pressable
+              onPress={onBuyMore}
+              style={[styles.ticketButton, { flex: 1, backgroundColor: "rgba(138,64,207,0.2)", borderColor: "rgba(138,64,207,0.4)" }]}
+            >
+              <Ticket size={18} color="#8A40CF" />
+              <Text style={[styles.ticketButtonText, { color: "#8A40CF" }]}>Buy More</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     );

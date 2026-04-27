@@ -11,6 +11,8 @@ export interface EventDetail {
   endDate?: string;
   location: string;
   image: string;
+  flyerImageUrl?: string | null;
+  flyerVideoUrl?: string | null;
   images?: { type: string; url: string }[];
   youtubeVideoUrl?: string | null;
   price: number;

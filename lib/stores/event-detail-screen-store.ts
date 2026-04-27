@@ -15,6 +15,7 @@ interface EventDetailScreenState {
   isLiked: boolean;
   isCheckingOut: boolean;
   promoCode: string;
+  ticketQty: number;
 
   setSelectedTier: (tier: TicketTier | null) => void;
   setShowRatingModal: (show: boolean) => void;
@@ -22,6 +23,7 @@ interface EventDetailScreenState {
   setIsLiked: (liked: boolean) => void;
   setIsCheckingOut: (checking: boolean) => void;
   setPromoCode: (code: string) => void;
+  setTicketQty: (qty: number) => void;
   resetEventDetailScreen: () => void;
 }
 
@@ -32,6 +34,7 @@ const initialState = {
   isLiked: false,
   isCheckingOut: false,
   promoCode: "",
+  ticketQty: 1,
 };
 
 export const useEventDetailScreenStore = create<EventDetailScreenState>(
@@ -46,6 +49,8 @@ export const useEventDetailScreenStore = create<EventDetailScreenState>(
     setIsCheckingOut: (checking) => set({ isCheckingOut: checking }),
 
     setPromoCode: (code) => set({ promoCode: code }),
+
+    setTicketQty: (qty) => set({ ticketQty: Math.max(1, qty) }),
 
     resetEventDetailScreen: () => set(initialState),
   }),

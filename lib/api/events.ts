@@ -440,6 +440,7 @@ export const eventsApi = {
         image: ev.image || "",
         images: parseJsonbArray(ev.images),
         flyerImageUrl: ev.flyer_image_url || null,
+        flyerVideoUrl: resolveFlyerVideoUrl(ev) || null,
         youtubeVideoUrl: ev.youtube_video_url || null,
         price: Number(ev.price) || 0,
         likes: 0,

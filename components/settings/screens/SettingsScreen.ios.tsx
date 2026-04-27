@@ -257,7 +257,7 @@ export default function SettingsScreenIOS() {
   };
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+    <SafeAreaView edges={[]} className="flex-1 bg-background">
       <Main className="flex-1">
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           {/* User Info Card - iOS Style */}

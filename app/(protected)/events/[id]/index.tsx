@@ -337,6 +337,8 @@ function EventDetailScreenContent() {
   );
   const isLiked = useEventDetailScreenStore((s) => s.isLiked);
   const setIsLiked = useEventDetailScreenStore((s) => s.setIsLiked);
+  const ticketQty = useEventDetailScreenStore((s) => s.ticketQty);
+  const setTicketQty = useEventDetailScreenStore((s) => s.setTicketQty);
   const resetEventDetailScreen = useEventDetailScreenStore(
     (s) => s.resetEventDetailScreen,
   );
@@ -694,7 +696,7 @@ function EventDetailScreenContent() {
         const result = await nativeCheckout({
           eventId,
           ticketTypeId: selectedTier?.id || "",
-          quantity: 1,
+          quantity: ticketQty,
           ...(promoCode.trim() ? { promoCode: promoCode.trim() } : {}),
         });
 
@@ -729,6 +731,14 @@ function EventDetailScreenContent() {
           queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
             old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
           );
+          queryClient.setQueriesData({ queryKey: eventKeys.all }, (old: any) => {
+            if (!Array.isArray(old)) return old;
+            return old.map((e: any) =>
+              String(e.id) === String(eventId)
+                ? { ...e, attendees: (e.attendees || 0) + 1, totalAttendees: (e.totalAttendees || 0) + 1 }
+                : e,
+            );
+          });
           queryClient.invalidateQueries({ queryKey: eventKeys.all });
           showToast(
             "success",
@@ -774,6 +784,14 @@ function EventDetailScreenContent() {
             queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
               old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
             );
+            queryClient.setQueriesData({ queryKey: eventKeys.all }, (old: any) => {
+              if (!Array.isArray(old)) return old;
+              return old.map((e: any) =>
+                String(e.id) === String(eventId)
+                  ? { ...e, attendees: (e.attendees || 0) + 1, totalAttendees: (e.totalAttendees || 0) + 1 }
+                  : e,
+              );
+            });
             queryClient.invalidateQueries({ queryKey: eventKeys.all });
           }
           showToast(
@@ -806,6 +824,14 @@ function EventDetailScreenContent() {
           }
         : old,
     );
+    queryClient.setQueriesData({ queryKey: eventKeys.all }, (old: any) => {
+      if (!Array.isArray(old)) return old;
+      return old.map((e: any) =>
+        String(e.id) === String(eventId)
+          ? { ...e, attendees: (e.attendees || 0) + 1, totalAttendees: (e.totalAttendees || 0) + 1 }
+          : e,
+      );
+    });
 
     // Persist RSVP to database (increments total_attendees via RPC)
     eventsApi.rsvpEvent(eventId, "going").catch((err) => {
@@ -1220,9 +1246,11 @@ function EventDetailScreenContent() {
           {/* Floating chips */}
           <View style={s.heroChips}>
             {(
-              ticketTiers.length > 0
-                ? ticketTiers.every((t) => t.price === 0)
-                : event.price === 0
+              liveTicketTypes.length > 0
+                ? liveTicketTypes.every((t) => (t.price_cents || 0) === 0)
+                : ticketTiers.length > 0
+                  ? ticketTiers.every((t) => t.price === 0)
+                  : !isLoading && event.price === 0
             ) ? (
               <View style={[s.chip, s.chipFree]}>
                 <Text style={s.chipFreeText}>FREE</Text>
@@ -1335,7 +1363,7 @@ function EventDetailScreenContent() {
                 onPress={() =>
                   usePromotionStore
                     .getState()
-                    .openSheet(eventId, eventData?.title || "Event")
+                    .openSheet(eventId, eventData?.title || "Event", eventData?.image, eventData?.flyerVideoUrl)
                 }
                 style={[
                   s.organizerButton,
@@ -1545,6 +1573,56 @@ function EventDetailScreenContent() {
                     </Text>
                   </Pressable>
                 ) : null}
+              </View>
+            )}
+
+            {/* Quantity selector — shown for paid tiers whether or not user already has a ticket */}
+            {selectedTier && selectedTier.price > 0 && (
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  marginTop: 12,
+                  paddingHorizontal: 4,
+                }}
+              >
+                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
+                  Quantity
+                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                  <Pressable
+                    onPress={() => setTicketQty(ticketQty - 1)}
+                    disabled={ticketQty <= 1}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      backgroundColor: ticketQty <= 1 ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ color: ticketQty <= 1 ? "#555" : "#fff", fontSize: 20, lineHeight: 22 }}>−</Text>
+                  </Pressable>
+                  <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", minWidth: 24, textAlign: "center" }}>
+                    {ticketQty}
+                  </Text>
+                  <Pressable
+                    onPress={() => setTicketQty(ticketQty + 1)}
+                    disabled={ticketQty >= (selectedTier.maxPerOrder || 4)}
+                    style={{
+                      width: 32,
+                      height: 32,
+                      borderRadius: 16,
+                      backgroundColor: ticketQty >= (selectedTier.maxPerOrder || 4) ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Text style={{ color: ticketQty >= (selectedTier.maxPerOrder || 4) ? "#555" : "#fff", fontSize: 20, lineHeight: 22 }}>+</Text>
+                  </Pressable>
+                </View>
               </View>
             )}
           </View>
@@ -1864,6 +1942,7 @@ function EventDetailScreenContent() {
         isPast={isPast}
         onGetTickets={handleGetTickets}
         onViewTicket={handleViewTicket}
+        onBuyMore={selectedTier && selectedTier.price > 0 ? handleGetTickets : undefined}
         waitlistJoined={waitlistJoined}
         onJoinWaitlist={handleJoinWaitlist}
         onLeaveWaitlist={handleLeaveWaitlist}

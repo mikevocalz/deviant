@@ -12,7 +12,10 @@ import {
   Pressable,
   ActivityIndicator,
   Platform,
+  StyleSheet,
 } from "react-native";
+import { Image } from "expo-image";
+import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import {
   BottomSheetModal,
   BottomSheetBackdrop,
@@ -25,6 +28,8 @@ import {
   Check,
   Clock,
   CreditCard,
+  Video,
+  ImageIcon,
 } from "lucide-react-native";
 import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import * as Haptics from "expo-haptics";
@@ -79,10 +84,14 @@ export function PromoteEventSheet() {
   const selectedDuration = usePromotionStore((s) => s.selectedDuration);
   const selectedPlacement = usePromotionStore((s) => s.selectedPlacement);
   const isCheckingOut = usePromotionStore((s) => s.isCheckingOut);
+  const eventImage = usePromotionStore((s) => s.eventImage);
+  const flyerVideoUrl = usePromotionStore((s) => s.flyerVideoUrl);
+  const flyerMediaType = usePromotionStore((s) => s.flyerMediaType);
   const closeSheet = usePromotionStore((s) => s.closeSheet);
   const setDuration = usePromotionStore((s) => s.setDuration);
   const setPlacement = usePromotionStore((s) => s.setPlacement);
   const setCheckingOut = usePromotionStore((s) => s.setCheckingOut);
+  const setFlyerMediaType = usePromotionStore((s) => s.setFlyerMediaType);
 
   const cityId = useEventsLocationStore((s) => s.activeCity?.id ?? null);
 
@@ -167,20 +176,29 @@ export function PromoteEventSheet() {
       }
 
       if (result.url) {
-        await WebBrowser.openBrowserAsync(result.url, {
-          presentationStyle:
-            Platform.OS === "ios"
-              ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
-              : undefined,
-        });
+        // openAuthSessionAsync auto-closes when Stripe redirects to dvnt:// deep link
+        const browserResult = await WebBrowser.openAuthSessionAsync(
+          result.url,
+          "dvnt://",
+          {
+            showInRecents: false,
+            preferEphemeralSession: true,
+          },
+        );
 
-        // After browser closes, invalidate promotion queries
+        // After browser closes (success or cancel), invalidate promotion queries
         queryClient.invalidateQueries({ queryKey: promotionKeys.all });
 
+        const succeeded =
+          browserResult.type === "success" &&
+          browserResult.url?.includes("promoted=true");
+
         showToast(
-          "success",
-          "Promotion Created",
-          `${eventTitle} is now being promoted!`,
+          succeeded ? "success" : "info",
+          succeeded ? "Promotion Created" : "Boost",
+          succeeded
+            ? `${eventTitle} is now being promoted!`
+            : "Payment flow closed.",
         );
         closeSheet();
       }
@@ -229,6 +247,60 @@ export function PromoteEventSheet() {
             Boost "{eventTitle}" with premium visibility
           </Text>
         </View>
+
+        {/* Flyer Preview + Video/Image Toggle */}
+        {(flyerVideoUrl || eventImage) && (
+          <View style={flyerStyles.container}>
+            <View style={flyerStyles.preview}>
+              {flyerMediaType === "video" && flyerVideoUrl ? (
+                <DVNTAnimatedVideoView
+                  uri={flyerVideoUrl}
+                  width="100%"
+                  height="100%"
+                  contentFit="cover"
+                  isPlaying
+                  muted
+                />
+              ) : eventImage ? (
+                <Image
+                  source={{ uri: eventImage }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                />
+              ) : null}
+            </View>
+
+            {/* Toggle row — only shown when both exist */}
+            {flyerVideoUrl && eventImage && (
+              <View style={flyerStyles.toggleRow}>
+                <Pressable
+                  onPress={() => setFlyerMediaType("video")}
+                  style={[
+                    flyerStyles.toggleBtn,
+                    flyerMediaType === "video" && flyerStyles.toggleBtnActive,
+                  ]}
+                >
+                  <Video size={14} color={flyerMediaType === "video" ? "#f59e0b" : "#888"} />
+                  <Text style={[flyerStyles.toggleText, flyerMediaType === "video" && { color: "#f59e0b" }]}>
+                    Video
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={() => setFlyerMediaType("image")}
+                  style={[
+                    flyerStyles.toggleBtn,
+                    flyerMediaType === "image" && flyerStyles.toggleBtnActive,
+                  ]}
+                >
+                  <ImageIcon size={14} color={flyerMediaType === "image" ? "#f59e0b" : "#888"} />
+                  <Text style={[flyerStyles.toggleText, flyerMediaType === "image" && { color: "#f59e0b" }]}>
+                    Image
+                  </Text>
+                </Pressable>
+              </View>
+            )}
+          </View>
+        )}
 
         {/* Active campaign status */}
         {activeCampaign && (
@@ -410,3 +482,46 @@ export function PromoteEventSheet() {
     </BottomSheetModal>
   );
 }
+
+const flyerStyles = StyleSheet.create({
+  container: {
+    marginBottom: 20,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.2)",
+  },
+  preview: {
+    width: "100%",
+    height: 160,
+    backgroundColor: "#111",
+  },
+  toggleRow: {
+    flexDirection: "row",
+    backgroundColor: "rgba(0,0,0,0.4)",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 8,
+  },
+  toggleBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    flex: 1,
+    justifyContent: "center",
+  },
+  toggleBtnActive: {
+    backgroundColor: "rgba(245,158,11,0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(245,158,11,0.4)",
+  },
+  toggleText: {
+    color: "#888",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+});
