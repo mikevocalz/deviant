@@ -101,6 +101,11 @@ function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 }
 
+/** Mirrors the server-side buyer fee: 2.5% + $1/ticket. */
+function buyerFee(diffCents: number): number {
+  return Math.round(diffCents * 0.025) + 100;
+}
+
 interface EnrichedTier extends TicketTypeRecord {
   tierLevel: TierLevel;
   accent: string;
@@ -599,16 +604,21 @@ function ViewTicketUpgradeScreenContent() {
       >
         {selectedTier ? (
           <>
-            <View style={styles.footerSummary}>
-              <Text style={styles.footerSummaryLabel}>Price difference</Text>
-              <Text
-                style={[
-                  styles.footerSummaryAmount,
-                  { color: selectedTier.accent },
-                ]}
-              >
-                +{formatPrice(selectedTier.diffCents)}
-              </Text>
+            <View style={styles.feeBreakdown}>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeLabel}>Price difference</Text>
+                <Text style={styles.feeValue}>+{formatPrice(selectedTier.diffCents)}</Text>
+              </View>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeLabel}>Service fee</Text>
+                <Text style={styles.feeValue}>+{formatPrice(buyerFee(selectedTier.diffCents))}</Text>
+              </View>
+              <View style={[styles.feeRow, styles.feeTotalRow]}>
+                <Text style={styles.feeTotalLabel}>You pay</Text>
+                <Text style={[styles.feeTotalAmount, { color: selectedTier.accent }]}>
+                  {formatPrice(selectedTier.diffCents + buyerFee(selectedTier.diffCents))}
+                </Text>
+              </View>
             </View>
             <Pressable
               onPress={handleConfirm}
@@ -625,7 +635,7 @@ function ViewTicketUpgradeScreenContent() {
               ) : (
                 <>
                   <Text style={styles.confirmBtnText}>
-                    Confirm · Pay {formatPrice(selectedTier.diffCents)}
+                    Confirm · Pay {formatPrice(selectedTier.diffCents + buyerFee(selectedTier.diffCents))}
                   </Text>
                   <ChevronRight size={18} color="#000" strokeWidth={2.5} />
                 </>
@@ -875,18 +885,38 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(255,255,255,0.06)",
     gap: 10,
   },
-  footerSummary: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  feeBreakdown: {
+    gap: 4,
     paddingHorizontal: 2,
+    marginBottom: 2,
   },
-  footerSummaryLabel: {
-    color: "rgba(255,255,255,0.5)",
+  feeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  feeLabel: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  feeValue: {
+    color: "rgba(255,255,255,0.55)",
     fontSize: 13,
     fontWeight: "600",
   },
-  footerSummaryAmount: {
+  feeTotalRow: {
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
+  feeTotalLabel: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  feeTotalAmount: {
     fontSize: 20,
     fontWeight: "800",
   },

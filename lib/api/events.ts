@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { requireBetterAuthToken } from "../auth/identity";
+import { requireBetterAuthToken, getCurrentUserId as getIntUserIdAsync } from "../auth/identity";
 import {
   getCurrentUserId,
   getCurrentUserIdInt,
@@ -161,7 +161,7 @@ export const eventsApi = {
     try {
       console.log("[Events] getEvents (batch RPC)");
 
-      const viewerId = getCurrentUserIdInt();
+      const viewerId = getCurrentUserIdInt() ?? await getIntUserIdAsync();
 
       const { data, error } = await supabase.rpc("get_events_home", {
         p_limit: limit,
@@ -226,7 +226,7 @@ export const eventsApi = {
    */
   async getForYouEvents(limit: number = 20) {
     try {
-      const viewerId = getCurrentUserIdInt();
+      const viewerId = getCurrentUserIdInt() ?? await getIntUserIdAsync();
       if (!viewerId) return this.getEvents(limit);
 
       const { data, error } = await supabase.rpc("get_events_for_you", {
@@ -417,7 +417,7 @@ export const eventsApi = {
   async getEventById(id: string) {
     try {
       console.log("[Events] getEventById (batch RPC)");
-      const viewerId = getCurrentUserIdInt();
+      const viewerId = getCurrentUserIdInt() ?? await getIntUserIdAsync();
 
       const { data, error } = await supabase.rpc("get_event_detail", {
         p_event_id: parseInt(id),
@@ -443,7 +443,7 @@ export const eventsApi = {
         flyerVideoUrl: resolveFlyerVideoUrl(ev) || null,
         youtubeVideoUrl: ev.youtube_video_url || null,
         price: Number(ev.price) || 0,
-        likes: 0,
+        likes: Number(data.likes_count) || 0,
         isLiked: data.is_liked || false,
         attendees: Number(ev.total_attendees) || 0,
         maxAttendees: Number(ev.max_attendees),

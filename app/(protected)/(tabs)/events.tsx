@@ -113,58 +113,44 @@ function EventCard({
           elevation: 2,
         }}
       >
-        <Pressable
-          onPressIn={() => {
-            queryClient.prefetchQuery({
-              queryKey: eventKeys.detail(event.id),
-              queryFn: () => eventsApi.getEventById(event.id),
-              staleTime: 5 * 60 * 1000,
-            });
-          }}
-          onPress={() => router.push(`/(protected)/events/${event.id}` as any)}
-        >
-          <View style={{ height: cardHeight }} className="w-full">
-            {/* Parallax image layer */}
-            <Animated.View
-              style={{
-                width: "100%",
-                height: cardHeight + 100,
-                position: "absolute",
-                top: -50,
-              }}
-            >
-              <Image
-                source={{ uri: event.image }}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-                transition={200}
-                cachePolicy="memory-disk"
-              />
-            </Animated.View>
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.8)"]}
-              className="absolute inset-0"
-            />
-
-            {/* Like Button — top-left */}
-            <View className="absolute top-4 left-4">
-              <Pressable
-                onPress={handleLike}
-                hitSlop={8}
-                className="flex-row items-center gap-1.5 bg-black/40 px-4 py-2 rounded-xl"
+        {/* Wrap card content so the like button can be a sibling of the
+            navigation Pressable — prevents touch conflicts on Android/iOS. */}
+        <View style={{ height: cardHeight }}>
+          <Pressable
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+            onPressIn={() => {
+              queryClient.prefetchQuery({
+                queryKey: eventKeys.detail(event.id),
+                queryFn: () => eventsApi.getEventById(event.id),
+                staleTime: 5 * 60 * 1000,
+              });
+            }}
+            onPress={() => router.push(`/(protected)/events/${event.id}` as any)}
+          >
+            <View style={{ height: cardHeight }} className="w-full">
+              {/* Parallax image layer */}
+              <Animated.View
+                style={{
+                  width: "100%",
+                  height: cardHeight + 100,
+                  position: "absolute",
+                  top: -50,
+                }}
               >
-                <Heart
-                  size={16}
-                  color={event.isLiked ? "#FF5BFC" : "#fff"}
-                  fill={event.isLiked ? "#FF5BFC" : "transparent"}
+                <Image
+                  source={{ uri: event.image }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                  transition={200}
+                  cachePolicy="memory-disk"
                 />
-                <Text className="text-white text-sm font-medium">
-                  {formatLikes(event.likes ?? 0)}
-                </Text>
-              </Pressable>
-            </View>
+              </Animated.View>
+              <LinearGradient
+                colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.8)"]}
+                className="absolute inset-0"
+              />
 
-            {/* Date Badge */}
+              {/* Date Badge */}
             <Motion.View
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -265,8 +251,38 @@ function EventCard({
                 </View>
               </View>
             </Animated.View>
+            </View>
+          </Pressable>
+
+          {/* Like Button — outside navigation Pressable to avoid touch conflicts */}
+          <View
+            pointerEvents="box-none"
+            style={{ position: "absolute", top: 16, left: 16 }}
+          >
+            <Pressable
+              onPress={handleLike}
+              hitSlop={8}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: "rgba(0,0,0,0.4)",
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 12,
+              }}
+            >
+              <Heart
+                size={16}
+                color={event.isLiked ? "#FF5BFC" : "#fff"}
+                fill={event.isLiked ? "#FF5BFC" : "transparent"}
+              />
+              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>
+                {formatLikes(event.likes ?? 0)}
+              </Text>
+            </Pressable>
           </View>
-        </Pressable>
+        </View>
       </Motion.View>
     </Motion.View>
   );

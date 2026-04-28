@@ -13,6 +13,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifySession } from "../_shared/verify-session.ts";
+import { computeFees } from "../_shared/fee-calculator.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -149,7 +150,12 @@ Deno.serve(async (req: Request) => {
       .eq("id", ticket.event_id)
       .single();
 
-    // Create Stripe Checkout Session for the price difference.
+    // Compute buyer fees: 2.5% + $1/ticket (on top of price difference).
+    // The buyer pays customer_charge_amount; organizer fees are handled separately
+    // via Stripe Connect application_fee_amount once organizer accounts are linked.
+    const fees = computeFees(diffCents, 1);
+
+    // Create Stripe Checkout Session for the price difference + buyer fee.
     // Success routes back to the upgrade screen so the user sees the animated
     // success state + wallet refresh CTA. Cancel routes to the ticket detail.
     const successUrl = `${APP_SCHEME}://ticket/upgrade/${ticket.event_id}?upgraded=1`;
@@ -158,10 +164,10 @@ Deno.serve(async (req: Request) => {
     const session = await stripeRequest("/checkout/sessions", {
       mode: "payment",
       "line_items[0][price_data][currency]": "usd",
-      "line_items[0][price_data][unit_amount]": String(diffCents),
+      "line_items[0][price_data][unit_amount]": String(fees.customer_charge_amount),
       "line_items[0][price_data][product_data][name]": `Upgrade to ${newType.name}`,
       "line_items[0][price_data][product_data][description]":
-        `${event?.title || "Event"} — Upgrade from current ticket`,
+        `${event?.title || "Event"} — Upgrade from current ticket (incl. $${(fees.buyer_fee / 100).toFixed(2)} service fee)`,
       "line_items[0][quantity]": "1",
       success_url: successUrl,
       cancel_url: cancelUrl,
@@ -170,9 +176,17 @@ Deno.serve(async (req: Request) => {
       "metadata[new_ticket_type_id]": String(new_ticket_type_id),
       "metadata[event_id]": String(ticket.event_id),
       "metadata[user_auth_id]": authId,
+      "metadata[diff_cents]": String(diffCents),
+      "metadata[buyer_fee_cents]": String(fees.buyer_fee),
+      "metadata[fee_policy_version]": fees.fee_policy_version,
     });
 
-    return json({ url: session.url, diff_cents: diffCents });
+    return json({
+      url: session.url,
+      diff_cents: diffCents,
+      buyer_fee: fees.buyer_fee,
+      customer_charge_amount: fees.customer_charge_amount,
+    });
   } catch (err: any) {
     console.error("[ticket-upgrade]", err);
     return json({ error: err.message || "Internal error" }, 500);
