@@ -16,6 +16,12 @@ interface EventDetailScreenState {
   isCheckingOut: boolean;
   promoCode: string;
   ticketQty: number;
+  // Feature: expandable attendees grid
+  attendeesExpanded: boolean;
+  // Feature: Who All Over There
+  showMomentUploader: boolean;
+  momentViewerIndex: number; // -1 = closed
+  uploadingMoment: boolean;
 
   setSelectedTier: (tier: TicketTier | null) => void;
   setShowRatingModal: (show: boolean) => void;
@@ -24,6 +30,10 @@ interface EventDetailScreenState {
   setIsCheckingOut: (checking: boolean) => void;
   setPromoCode: (code: string) => void;
   setTicketQty: (qty: number) => void;
+  setAttendeesExpanded: (expanded: boolean) => void;
+  setShowMomentUploader: (show: boolean) => void;
+  setMomentViewerIndex: (index: number) => void;
+  setUploadingMoment: (uploading: boolean) => void;
   resetEventDetailScreen: () => void;
 }
 
@@ -35,6 +45,10 @@ const initialState = {
   isCheckingOut: false,
   promoCode: "",
   ticketQty: 1,
+  attendeesExpanded: false,
+  showMomentUploader: false,
+  momentViewerIndex: -1,
+  uploadingMoment: false,
 };
 
 export const useEventDetailScreenStore = create<EventDetailScreenState>(
@@ -45,12 +59,13 @@ export const useEventDetailScreenStore = create<EventDetailScreenState>(
     setShowRatingModal: (show) => set({ showRatingModal: show }),
     setShowAttendeesModal: (show) => set({ showAttendeesModal: show }),
     setIsLiked: (liked) => set({ isLiked: liked }),
-
     setIsCheckingOut: (checking) => set({ isCheckingOut: checking }),
-
     setPromoCode: (code) => set({ promoCode: code }),
-
     setTicketQty: (qty) => set({ ticketQty: Math.max(1, qty) }),
+    setAttendeesExpanded: (expanded) => set({ attendeesExpanded: expanded }),
+    setShowMomentUploader: (show) => set({ showMomentUploader: show }),
+    setMomentViewerIndex: (index) => set({ momentViewerIndex: index }),
+    setUploadingMoment: (uploading) => set({ uploadingMoment: uploading }),
 
     resetEventDetailScreen: () => set(initialState),
   }),

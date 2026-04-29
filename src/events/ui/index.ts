@@ -1,5 +1,7 @@
 export { CountdownTimer } from "./CountdownTimer";
 export { SocialProofRow } from "./SocialProofRow";
+export { GoingAccordion } from "./GoingAccordion";
+export { WhoAllOverThere } from "./WhoAllOverThere";
 export { CollapsibleRow } from "./CollapsibleRow";
 export { TicketTierCard } from "./TicketTierCard";
 export { StickyCTA } from "./StickyCTA";

@@ -83,7 +83,8 @@ import { usePromotionStore } from "@/lib/stores/promotion-store";
 import { PromoteEventSheet } from "@/components/events/promote-event-sheet";
 import {
   CountdownTimer,
-  SocialProofRow,
+  GoingAccordion,
+  WhoAllOverThere,
   CollapsibleRow,
   TicketTierCard,
   StickyCTA,
@@ -1315,12 +1316,12 @@ function EventDetailScreenContent() {
             </Pressable>
           </View>
 
-          {/* ── 3. SOCIAL PROOF ──────────────────────────────────── */}
+          {/* ── 3. GOING — expandable attendees grid ─────────────── */}
           <View style={s.section}>
-            <SocialProofRow
+            <GoingAccordion
               attendees={realAttendees}
-              totalCount={event.attendees || 0}
-              followingCount={0}
+              totalCount={typeof event.attendees === "number" ? event.attendees : (realAttendees.length || 0)}
+              isLoggedIn={true}
               onAttendeePress={handleAttendeePress}
             />
           </View>
@@ -1644,6 +1645,14 @@ function EventDetailScreenContent() {
               ))}
             </View>
           )}
+
+          {/* ── Who's Over Here (ephemeral event moments) ─────────── */}
+          <View style={s.section}>
+            <WhoAllOverThere
+              eventId={eventId}
+              canUpload={isHost || hasTicket}
+            />
+          </View>
 
           {/* ── Ratings & Reviews ─────────────────────────────────── */}
           <View style={s.section}>
