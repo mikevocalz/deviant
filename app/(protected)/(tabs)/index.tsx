@@ -58,83 +58,85 @@ export const FeedModeToggle = memo(function FeedModeToggle() {
       </PopoverTrigger>
 
       <PopoverContent>
-        <View style={{ padding: 16, gap: 16 }}>
-          {/* Content filter section */}
-          <View>
-            <Text
-              style={{
-                fontSize: 11,
-                fontWeight: "700",
-                color: "rgba(255,255,255,0.4)",
-                letterSpacing: 0.8,
-                marginBottom: 10,
-              }}
-            >
-              CONTENT
-            </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                backgroundColor: "rgba(255,255,255,0.06)",
-                borderRadius: 10,
-                padding: 3,
-              }}
-            >
-              <Pressable
-                onPress={nsfwEnabled ? toggleSpicy : undefined}
+        {({ onClose }) => (
+          <View style={{ padding: 16, gap: 16 }}>
+            {/* Content filter section */}
+            <View>
+              <Text
                 style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  paddingVertical: 9,
-                  borderRadius: 8,
-                  backgroundColor: !nsfwEnabled
-                    ? "rgba(255,255,255,0.12)"
-                    : "transparent",
+                  fontSize: 11,
+                  fontWeight: "700",
+                  color: "rgba(255,255,255,0.4)",
+                  letterSpacing: 0.8,
+                  marginBottom: 10,
                 }}
               >
-                <Text style={{ fontSize: 16 }}>😇</Text>
-                <Text
-                  style={{
-                    color: !nsfwEnabled ? "#fff" : "rgba(255,255,255,0.4)",
-                    fontSize: 13,
-                    fontWeight: "600",
-                  }}
-                >
-                  Sweet
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={!nsfwEnabled ? toggleSpicy : undefined}
+                CONTENT
+              </Text>
+              <View
                 style={{
-                  flex: 1,
                   flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  paddingVertical: 9,
-                  borderRadius: 8,
-                  backgroundColor: nsfwEnabled
-                    ? "rgba(153,27,27,0.4)"
-                    : "transparent",
+                  backgroundColor: "rgba(255,255,255,0.06)",
+                  borderRadius: 10,
+                  padding: 3,
                 }}
               >
-                <Text style={{ fontSize: 16 }}>😈</Text>
-                <Text
+                <Pressable
+                  onPress={nsfwEnabled ? () => { toggleSpicy(); onClose(); } : undefined}
                   style={{
-                    color: nsfwEnabled ? "#fff" : "rgba(255,255,255,0.4)",
-                    fontSize: 13,
-                    fontWeight: "600",
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    paddingVertical: 9,
+                    borderRadius: 8,
+                    backgroundColor: !nsfwEnabled
+                      ? "rgba(255,255,255,0.12)"
+                      : "transparent",
                   }}
                 >
-                  Spicy
-                </Text>
-              </Pressable>
+                  <Text style={{ fontSize: 16 }}>😇</Text>
+                  <Text
+                    style={{
+                      color: !nsfwEnabled ? "#fff" : "rgba(255,255,255,0.4)",
+                      fontSize: 13,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Sweet
+                  </Text>
+                </Pressable>
+                <Pressable
+                  onPress={!nsfwEnabled ? () => { toggleSpicy(); onClose(); } : undefined}
+                  style={{
+                    flex: 1,
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: 6,
+                    paddingVertical: 9,
+                    borderRadius: 8,
+                    backgroundColor: nsfwEnabled
+                      ? "rgba(153,27,27,0.4)"
+                      : "transparent",
+                  }}
+                >
+                  <Text style={{ fontSize: 16 }}>😈</Text>
+                  <Text
+                    style={{
+                      color: nsfwEnabled ? "#fff" : "rgba(255,255,255,0.4)",
+                      fontSize: 13,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Spicy
+                  </Text>
+                </Pressable>
+              </View>
             </View>
           </View>
-        </View>
+        )}
       </PopoverContent>
     </Popover>
   );

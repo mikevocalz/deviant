@@ -732,7 +732,7 @@ function CreateScreenContent() {
                   style={{
                     flex: 1,
                     borderRadius: 14,
-                    paddingHorizontal: 14,
+                    paddingHorizontal: 8,
                     paddingVertical: 14,
                     backgroundColor: isActive
                       ? "rgba(62,164,229,0.16)"
@@ -756,6 +756,7 @@ function CreateScreenContent() {
                         color: isActive ? "#fff" : "#C2CAD7",
                         fontSize: 15,
                         fontWeight: "700",
+                        flex: 1,
                       }}
                     >
                       {option.label}
