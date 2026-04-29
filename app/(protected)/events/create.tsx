@@ -210,6 +210,8 @@ function CreateEventScreenContent() {
   const setVisibility = useCreateEventStore((s) => s.setVisibility);
   const ageRestriction = useCreateEventStore((s) => s.ageRestriction);
   const setAgeRestriction = useCreateEventStore((s) => s.setAgeRestriction);
+  const isNsfw = useCreateEventStore((s) => s.isNsfw);
+  const setIsNsfw = useCreateEventStore((s) => s.setIsNsfw);
   const isOnline = useCreateEventStore((s) => s.isOnline);
   const setIsOnline = useCreateEventStore((s) => s.setIsOnline);
   const dressCode = useCreateEventStore((s) => s.dressCode);
@@ -573,6 +575,7 @@ function CreateEventScreenContent() {
         doorPolicy: doorPolicy.trim() || undefined,
         lineup: lineup.length > 0 ? lineup : undefined,
         perks: perks.length > 0 ? perks : undefined,
+        nsfw: isNsfw || undefined,
       };
 
       console.log("[CreateEvent] Creating event with data:", eventData);
@@ -1118,6 +1121,32 @@ function CreateEventScreenContent() {
                   value={isOnline}
                   onValueChange={setIsOnline}
                   trackColor={{ false: "#333", true: colors.primary }}
+                  thumbColor="#fff"
+                />
+              </View>
+
+              {/* Spicy / NSFW toggle */}
+              <View className="flex-row items-center justify-between bg-card rounded-2xl p-4 mb-3">
+                <View className="flex-row items-center gap-3 flex-1 mr-3">
+                  <View
+                    className="w-10 h-10 rounded-xl items-center justify-center"
+                    style={{ backgroundColor: isNsfw ? "rgba(153,27,27,0.25)" : "rgba(255,255,255,0.06)" }}
+                  >
+                    <Text style={{ fontSize: 20 }}>😈</Text>
+                  </View>
+                  <View>
+                    <Text className="text-sm font-semibold text-foreground">
+                      Spicy / 18+ Content
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      Marks event for mature audiences only
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={isNsfw}
+                  onValueChange={setIsNsfw}
+                  trackColor={{ false: "#333", true: "#991b1b" }}
                   thumbColor="#fff"
                 />
               </View>

@@ -87,6 +87,14 @@ export interface SharedPostContext {
   mediaType?: import("@/lib/media/types").MediaKind;
 }
 
+export interface EventShareContext {
+  eventId: string;
+  eventTitle: string;
+  eventDate?: string | null;
+  eventImage?: string | null;
+  eventLocation?: string | null;
+}
+
 export interface MessageReaction {
   emoji: string;
   userId: string;
@@ -106,6 +114,7 @@ export interface Message {
   media?: MediaAttachment[];
   storyReply?: StoryReplyContext;
   sharedPost?: SharedPostContext;
+  eventShare?: EventShareContext;
   reactions?: MessageReaction[];
   status?: MessageStatus;
   clientMessageId?: string;
@@ -348,6 +357,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
           };
         }
 
+        // Detect event share messages via metadata
+        let eventShare: EventShareContext | undefined;
+        if (meta && meta.type === "event_share") {
+          eventShare = {
+            eventId: String(meta.event_id || ""),
+            eventTitle: meta.event_title || "",
+            eventDate: meta.event_date ?? null,
+            eventImage: meta.event_image ?? null,
+            eventLocation: meta.event_location ?? null,
+          };
+        }
+
         return {
           id: String(msg.id),
           text: displayText,
@@ -392,6 +413,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           readAt: msg.readAt || null,
           storyReply,
           sharedPost,
+          eventShare,
           reactions: (() => {
             const r = meta?.reactions;
             return Array.isArray(r) ? r : [];

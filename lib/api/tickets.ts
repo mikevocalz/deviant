@@ -429,6 +429,31 @@ export const ticketsApi = {
     }
   },
 
+  /**
+   * Buyer-initiated ticket refund.
+   * Only works before event starts and for active tickets.
+   */
+  async requestRefund(ticketId: string): Promise<{
+    ok?: boolean;
+    stripe_refund_id?: string;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke("ticket-refund", {
+        body: { ticket_id: ticketId },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (error) throw error;
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      return result;
+    } catch (error: any) {
+      console.error("[Tickets] requestRefund error:", error);
+      return { error: error.message || "Refund request failed" };
+    }
+  },
+
   // Legacy compat
   async checkInTicket(ticketId: string): Promise<{ success: boolean }> {
     return { success: false };

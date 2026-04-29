@@ -5,7 +5,7 @@ import { MasonryFeed } from "@/components/feed/masonry-feed";
 
 import { StoriesBar } from "@/components/stories/stories-bar";
 import { useAppStore } from "@/lib/stores/app-store";
-import { LayoutGrid, List, SlidersHorizontal } from "lucide-react-native";
+import { SlidersHorizontal } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useCallback, memo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -26,24 +26,8 @@ const MemoStoriesBar = memo(function MemoStoriesBar() {
 });
 
 export const FeedModeToggle = memo(function FeedModeToggle() {
-  const feedMode = useAppStore((s) => s.feedMode);
-  const setFeedMode = useAppStore((s) => s.setFeedMode);
   const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
   const setNsfwEnabled = useAppStore((s) => s.setNsfwEnabled);
-
-  const setClassic = useCallback(() => {
-    if (feedMode !== "classic") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setFeedMode("classic");
-    }
-  }, [feedMode, setFeedMode]);
-
-  const setMasonry = useCallback(() => {
-    if (feedMode !== "masonry") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      setFeedMode("masonry");
-    }
-  }, [feedMode, setFeedMode]);
 
   const toggleSpicy = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -66,11 +50,6 @@ export const FeedModeToggle = memo(function FeedModeToggle() {
             marginVertical: 8,
           }}
         >
-          {feedMode === "masonry" ? (
-            <LayoutGrid size={14} color="#fff" />
-          ) : (
-            <List size={14} color="#fff" />
-          )}
           <Text style={{ fontSize: 16, lineHeight: 18 }}>
             {nsfwEnabled ? "😈" : "😇"}
           </Text>
@@ -80,96 +59,6 @@ export const FeedModeToggle = memo(function FeedModeToggle() {
 
       <PopoverContent>
         <View style={{ padding: 16, gap: 16 }}>
-          {/* Layout section */}
-          <View>
-            <Text
-              style={{
-                fontSize: 11,
-                fontWeight: "700",
-                color: "rgba(255,255,255,0.4)",
-                letterSpacing: 0.8,
-                marginBottom: 10,
-              }}
-            >
-              LAYOUT
-            </Text>
-            <View
-              style={{
-                flexDirection: "row",
-                backgroundColor: "rgba(255,255,255,0.06)",
-                borderRadius: 10,
-                padding: 3,
-              }}
-            >
-              <Pressable
-                onPress={setClassic}
-                style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  paddingVertical: 9,
-                  borderRadius: 8,
-                  backgroundColor:
-                    feedMode === "classic"
-                      ? "rgba(255,255,255,0.12)"
-                      : "transparent",
-                }}
-              >
-                <List
-                  size={15}
-                  color={
-                    feedMode === "classic" ? "#fff" : "rgba(255,255,255,0.4)"
-                  }
-                />
-                <Text
-                  style={{
-                    color:
-                      feedMode === "classic" ? "#fff" : "rgba(255,255,255,0.4)",
-                    fontSize: 13,
-                    fontWeight: "600",
-                  }}
-                >
-                  Feed
-                </Text>
-              </Pressable>
-              <Pressable
-                onPress={setMasonry}
-                style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                  paddingVertical: 9,
-                  borderRadius: 8,
-                  backgroundColor:
-                    feedMode === "masonry"
-                      ? "rgba(255,255,255,0.12)"
-                      : "transparent",
-                }}
-              >
-                <LayoutGrid
-                  size={15}
-                  color={
-                    feedMode === "masonry" ? "#fff" : "rgba(255,255,255,0.4)"
-                  }
-                />
-                <Text
-                  style={{
-                    color:
-                      feedMode === "masonry" ? "#fff" : "rgba(255,255,255,0.4)",
-                    fontSize: 13,
-                    fontWeight: "600",
-                  }}
-                >
-                  Grid
-                </Text>
-              </Pressable>
-            </View>
-          </View>
-
           {/* Content filter section */}
           <View>
             <Text

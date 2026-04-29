@@ -39,6 +39,10 @@ interface EventsScreenState {
   toggleMapView: () => void;
   setShowMapView: (visible: boolean) => void;
 
+  // Spicy (nsfw) filter: null = all, true = only spicy, false = hide spicy
+  nsfwFilter: boolean | null;
+  setNsfwFilter: (v: boolean | null) => void;
+
   // Clear all
   clearAllFilters: () => void;
 
@@ -97,15 +101,19 @@ export const useEventsScreenStore = create<EventsScreenState>((set, get) => ({
   toggleMapView: () => set((s) => ({ showMapView: !s.showMapView })),
   setShowMapView: (visible) => set({ showMapView: visible }),
 
+  nsfwFilter: null,
+  setNsfwFilter: (v) => set({ nsfwFilter: v }),
+
   clearAllFilters: () =>
-    set({ activeFilters: [], activeCategories: [], activeSort: "soonest" }),
+    set({ activeFilters: [], activeCategories: [], activeSort: "soonest", nsfwFilter: null }),
 
   activeFilterCount: () => {
     const s = get();
     return (
       s.activeFilters.length +
       s.activeCategories.length +
-      (s.activeSort !== "soonest" ? 1 : 0)
+      (s.activeSort !== "soonest" ? 1 : 0) +
+      (s.nsfwFilter !== null ? 1 : 0)
     );
   },
 }));

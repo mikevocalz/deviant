@@ -88,6 +88,7 @@ import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
 import { StoryReplyBubble } from "@/components/chat/story-reply-bubble";
 import { SharedPostBubble } from "@/components/chat/shared-post-bubble";
+import { EventShareBubble } from "@/components/chat/event-share-bubble";
 import { Galeria } from "@nandorojo/galeria";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { SheetHeader } from "@/components/ui/sheet-header";
@@ -1759,6 +1760,27 @@ function ChatScreenContent() {
                         <StoryReplyBubble
                           storyReply={item.storyReply}
                           replyText={item.text}
+                          isOwnMessage={isMe}
+                        />
+                        <Text
+                          className={`text-[11px] mt-1 px-1 ${
+                            isMe
+                              ? "text-foreground/70"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {item.time}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                }
+                if (item.eventShare) {
+                  return (
+                    <View style={{ flexShrink: 1 }}>
+                      <View className="mb-1">
+                        <EventShareBubble
+                          eventShare={item.eventShare}
                           isOwnMessage={isMe}
                         />
                         <Text

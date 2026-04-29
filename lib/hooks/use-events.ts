@@ -35,6 +35,8 @@ export interface EventFilters {
   cityName?: string | null;
   cityLat?: number | null;
   cityLng?: number | null;
+  /** null = all, true = nsfw only, false = hide nsfw */
+  nsfw?: boolean | null;
 }
 
 // Event type for components

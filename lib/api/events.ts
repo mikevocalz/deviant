@@ -156,6 +156,7 @@ export const eventsApi = {
       search?: string;
       sort?: string;
       cityId?: number | null;
+      nsfw?: boolean | null;
     },
   ) {
     try {
@@ -174,6 +175,7 @@ export const eventsApi = {
         p_search: filters?.search || null,
         p_category: category || null,
         p_sort: filters?.sort || "soonest",
+        p_nsfw: filters?.nsfw ?? null,
       });
 
       if (error) throw error;
@@ -476,6 +478,7 @@ export const eventsApi = {
         entryWindow: ev.entry_window || undefined,
         lineup: ev.lineup || undefined,
         perks: ev.perks || undefined,
+        likesCount: data.likes_count ?? 0,
         // Batch payload fields
         userRsvpStatus: data.user_rsvp_status || null,
         ticketTiers: data.ticket_tiers || [],

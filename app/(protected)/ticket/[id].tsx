@@ -67,7 +67,7 @@ function dbToTicket(rec: TicketRecord): Ticket {
         ? "valid"
         : rec.status === "scanned"
           ? "checked_in"
-          : rec.status === "refunded"
+          : rec.status === "refunded" || rec.status === "void"
             ? "revoked"
             : rec.status === "transfer_pending"
               ? "transfer_pending"
@@ -153,6 +153,9 @@ function ViewTicketScreenContent() {
     );
   }, [pendingTransfers, dbTicket?.id]);
   const [cancelingTransfer, setCancelingTransfer] = React.useState(false);
+  const [refundStep, setRefundStep] = React.useState<
+    "idle" | "confirm" | "loading"
+  >("idle");
   const handleCancelTransfer = React.useCallback(async () => {
     if (!outgoingTransfer?.id || cancelingTransfer) return;
     setCancelingTransfer(true);
@@ -179,6 +182,36 @@ function ViewTicketScreenContent() {
       setCancelingTransfer(false);
     }
   }, [outgoingTransfer?.id, cancelingTransfer, showToast, queryClient, eventId]);
+
+  // Only show refund if event starts MORE than 24 hours from now
+  const refundEligible = React.useMemo(() => {
+    if (!dbTicket?.event_date) return false;
+    const msUntilEvent = new Date(dbTicket.event_date).getTime() - Date.now();
+    return msUntilEvent > 24 * 60 * 60 * 1000;
+  }, [dbTicket?.event_date]);
+
+  const handleRefund = React.useCallback(async () => {
+    if (!dbTicket?.id || refundStep === "loading") return;
+    setRefundStep("loading");
+    const res = await ticketsApi.requestRefund(dbTicket.id);
+    if (res.error) {
+      setRefundStep("confirm");
+      showToast("error", "Refund failed", res.error);
+      return;
+    }
+    showToast(
+      "success",
+      "Ticket cancelled",
+      res.message || "Refund processed successfully",
+    );
+    await queryClient.invalidateQueries({
+      queryKey: ticketKeys.myTicketForEvent(eventId),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ticketKeys.myTickets(),
+    });
+    router.back();
+  }, [dbTicket?.id, refundStep, showToast, queryClient, eventId, router]);
 
   // ── Wallet pass refresh detection ──
   // Detect if ticket was upgraded after wallet pass was created
@@ -463,6 +496,63 @@ function ViewTicketScreenContent() {
 
           {/* ── 3. ACCESS DETAILS ── */}
           <TicketAccessDetails ticket={ticket} />
+
+          {/* ── Danger Zone: Refund (only if >24h before event) ── */}
+          {ticket.status === "valid" && dbTicket && refundEligible && (
+            <View style={styles.dangerZone}>
+              {refundStep === "idle" && (
+                <Pressable
+                  onPress={() => setRefundStep("confirm")}
+                  style={({ pressed }) => [
+                    styles.refundButton,
+                    pressed && { opacity: 0.75 },
+                  ]}
+                >
+                  <TicketX size={15} color="#ef4444" />
+                  <Text style={styles.refundButtonText}>Request Refund</Text>
+                </Pressable>
+              )}
+              {refundStep === "confirm" && (
+                <Motion.View
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ type: "spring", damping: 22, stiffness: 320 }}
+                  style={styles.refundConfirmCard}
+                >
+                  <Text style={styles.refundConfirmTitle}>
+                    Cancel this ticket?
+                  </Text>
+                  <Text style={styles.refundConfirmSub}>
+                    {(dbTicket.purchase_amount_cents ?? 0) > 0
+                      ? "A refund will be issued to your original payment method. Funds typically appear within 5–10 business days."
+                      : "Your free ticket will be cancelled. This cannot be undone."}
+                  </Text>
+                  <View style={styles.refundConfirmActions}>
+                    <Pressable
+                      onPress={() => setRefundStep("idle")}
+                      style={styles.refundKeepBtn}
+                    >
+                      <Text style={styles.refundKeepText}>Keep Ticket</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleRefund}
+                      style={styles.refundConfirmBtn}
+                    >
+                      <Text style={styles.refundConfirmText}>Yes, Cancel</Text>
+                    </Pressable>
+                  </View>
+                </Motion.View>
+              )}
+              {refundStep === "loading" && (
+                <View style={styles.refundLoadingRow}>
+                  <ActivityIndicator size="small" color="#ef4444" />
+                  <Text style={styles.refundLoadingText}>
+                    Processing refund...
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -736,6 +826,86 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.5)",
     fontSize: 12,
     marginTop: 2,
+  },
+  // Danger zone — refund
+  dangerZone: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 4,
+    alignItems: "center",
+  },
+  refundButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.22)",
+  },
+  refundButtonText: {
+    color: "#ef4444",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  refundConfirmCard: {
+    width: "100%",
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: "rgba(239,68,68,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.18)",
+    gap: 10,
+  },
+  refundConfirmTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  refundConfirmSub: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  refundConfirmActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
+  refundKeepBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  refundKeepText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  refundConfirmBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(239,68,68,0.18)",
+  },
+  refundConfirmText: {
+    color: "#ef4444",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  refundLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+  },
+  refundLoadingText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
   },
   // Wallet refresh banner (shown after ticket upgrade)
   walletRefreshBanner: {

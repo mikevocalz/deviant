@@ -91,6 +91,7 @@ interface DraftFields {
   flyerMediaType: "image" | "video";
   eventType: EventType | null;
   disclaimers: string;
+  isNsfw: boolean;
 }
 
 // UI-only fields (not persisted, but in store to comply with no-useState rule)
@@ -145,6 +146,7 @@ interface CreateEventActions {
   setFlyerMediaType: (v: "image" | "video") => void;
   setEventType: (v: EventType | null) => void;
   setDisclaimers: (v: string) => void;
+  setIsNsfw: (v: boolean) => void;
 
   // UI-only setters
   setShowDatePicker: (v: boolean) => void;
@@ -208,6 +210,7 @@ const DRAFT_DEFAULTS: DraftFields = {
   flyerMediaType: "image",
   eventType: null,
   disclaimers: "",
+  isNsfw: false,
 };
 
 const UI_DEFAULTS: UIFields = {
@@ -267,6 +270,7 @@ export const useCreateEventStore = create<CreateEventState>()(
       setFlyerMediaType: (v) => set({ flyerMediaType: v }),
       setEventType: (v) => set({ eventType: v }),
       setDisclaimers: (v) => set({ disclaimers: v }),
+      setIsNsfw: (v) => set({ isNsfw: v }),
 
       // UI-only setters
       setShowDatePicker: (v) => set({ showDatePicker: v }),

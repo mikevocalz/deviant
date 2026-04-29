@@ -39,6 +39,7 @@ import {
   Zap,
   Pencil,
   MoreHorizontal,
+  Send,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -98,6 +99,7 @@ import type {
 import { YouTubeEmbed } from "@/components/youtube-embed";
 import { EventActionSheet } from "@/components/events/event-action-sheet";
 import { EventEditSheet } from "@/components/events/event-edit-sheet";
+import { ShareEventSheet } from "@/components/events/share-event-sheet";
 import { DVNTLiquidGlassIconButton } from "@/components/media/DVNTLiquidGlass";
 import { TranslateButton } from "@/components/ui/translate-button";
 import { useContentTranslation } from "@/lib/stores/translation-store";
@@ -345,6 +347,7 @@ function EventDetailScreenContent() {
 
   // ── Ticket upgrade state ──────────────────────────────────────────────
   const [upgradeSheetOption, setUpgradeSheetOption] = useState<UpgradeTierOption | null>(null);
+  const [showShareSheet, setShowShareSheet] = useState(false);
 
   const { data: myTicketData } = useMyTicketForEvent(eventId);
   const { data: liveTicketTypes = [] } = useTicketTypes(eventId);
@@ -1922,6 +1925,11 @@ function EventDetailScreenContent() {
                 <Share2 size={18} color="#fff" />
               </DVNTLiquidGlassIconButton>
             </Pressable>
+            <Pressable onPress={() => setShowShareSheet(true)} hitSlop={12}>
+              <DVNTLiquidGlassIconButton size={40}>
+                <Send size={18} color="#fff" />
+              </DVNTLiquidGlassIconButton>
+            </Pressable>
             <Pressable onPress={handleToggleLike} hitSlop={12}>
               <DVNTLiquidGlassIconButton size={40}>
                 <Heart
@@ -1974,6 +1982,17 @@ function EventDetailScreenContent() {
         onClose={() => setUpgradeSheetOption(null)}
         onConfirm={handleUpgradeConfirm}
         isPending={isUpgradePending}
+      />
+
+      {/* Share Event to DM Inbox */}
+      <ShareEventSheet
+        visible={showShareSheet}
+        onClose={() => setShowShareSheet(false)}
+        eventId={eventId}
+        eventTitle={eventData?.title || ""}
+        eventDate={eventData?.fullDate || eventData?.date || undefined}
+        eventImage={eventData?.image || undefined}
+        eventLocation={eventData?.location || undefined}
       />
     </View>
   );

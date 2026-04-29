@@ -327,6 +327,8 @@ function EventsScreenContent() {
   );
   const activeFilterCount = useEventsScreenStore((s) => s.activeFilterCount);
   const activeCategories = useEventsScreenStore((s) => s.activeCategories);
+  const nsfwFilter = useEventsScreenStore((s) => s.nsfwFilter);
+  const setNsfwFilter = useEventsScreenStore((s) => s.setNsfwFilter);
 
   // TanStack Debouncer for search — 400ms delay prevents query-per-keystroke
   const searchDebouncerRef = useRef(
@@ -371,12 +373,14 @@ function EventsScreenContent() {
     if (debouncedSearch.length >= 2) f.search = debouncedSearch;
     if (activeSort !== "soonest") f.sort = activeSort;
     if (activeCategories.length > 0) f.categories = activeCategories;
+    if (nsfwFilter !== null) f.nsfw = nsfwFilter;
     return f;
   }, [
     activeFilters,
     debouncedSearch,
     activeSort,
     activeCategories,
+    nsfwFilter,
     deviceLat,
     deviceLng,
     activeCity,
@@ -583,17 +587,22 @@ function EventsScreenContent() {
                   <Ticket size={18} color={colors.foreground} />
                 </Pressable>
               </Motion.View>
+              {/* Spicy toggle button */}
               <Motion.View
                 whileTap={{ scale: 0.9 }}
-                className="h-10 w-10 items-center justify-center rounded-xl bg-primary"
+                className="h-10 w-10 items-center justify-center rounded-xl bg-card border border-border"
+                style={
+                  nsfwFilter === true
+                    ? { backgroundColor: "rgba(153,27,27,0.3)", borderColor: "rgba(153,27,27,0.6)" }
+                    : undefined
+                }
               >
                 <Pressable
-                  onPress={() =>
-                    router.push("/(protected)/events/create" as any)
-                  }
+                  onPress={() => setNsfwFilter(nsfwFilter === true ? null : true)}
                   className="w-full h-full items-center justify-center"
+                  accessibilityLabel="Toggle spicy events"
                 >
-                  <Plus size={20} color="#fff" />
+                  <Text style={{ fontSize: 18 }}>{nsfwFilter === true ? "😈" : "🔥"}</Text>
                 </Pressable>
               </Motion.View>
             </View>
@@ -656,7 +665,8 @@ function EventsScreenContent() {
         {/* Active filter chips — show inline when filters are active */}
         {(activeFilters.length > 0 ||
           activeCategories.length > 0 ||
-          activeSort !== "soonest") && (
+          activeSort !== "soonest" ||
+          nsfwFilter !== null) && (
           <View className="px-4 pb-1">
             <ScrollView
               horizontal
@@ -717,6 +727,16 @@ function EventsScreenContent() {
                   <X size={12} color={colors.primary} strokeWidth={2} />
                 </Pressable>
               ))}
+              {nsfwFilter === true && (
+                <Pressable
+                  onPress={() => setNsfwFilter(null)}
+                  className="flex-row items-center gap-1 px-3 py-1.5 rounded-full"
+                  style={{ backgroundColor: "rgba(153,27,27,0.15)", borderWidth: 1, borderColor: "rgba(153,27,27,0.4)" }}
+                >
+                  <Text className="text-xs font-semibold" style={{ color: "#f87171" }}>😈 Spicy</Text>
+                  <X size={12} color="#f87171" strokeWidth={2} />
+                </Pressable>
+              )}
             </ScrollView>
           </View>
         )}

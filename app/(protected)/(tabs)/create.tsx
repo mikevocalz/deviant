@@ -20,6 +20,7 @@ import {
   UserPlus,
   Scissors,
   Type,
+  CalendarPlus,
 } from "lucide-react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -709,15 +710,25 @@ function CreateScreenContent() {
                 icon: Type,
                 description: "Words-only conversation starter",
               },
+              {
+                key: "event",
+                label: "Create Event",
+                icon: CalendarPlus,
+                description: "Host a party, meetup, or experience",
+              },
             ].map((option) => {
               const Icon = option.icon;
               const isActive = postKind === option.key;
               return (
                 <Pressable
                   key={option.key}
-                  onPress={() =>
-                    handleSetPostKind(option.key as "media" | "text")
-                  }
+                  onPress={() => {
+                    if (option.key === "event") {
+                      router.push("/(protected)/events/create" as any);
+                    } else {
+                      handleSetPostKind(option.key as "media" | "text");
+                    }
+                  }}
                   style={{
                     flex: 1,
                     borderRadius: 14,
