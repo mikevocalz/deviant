@@ -4,7 +4,7 @@
  * Expires 24h after the event ends.
  */
 
-import React, { memo, useCallback, useRef } from "react";
+import React, { memo, useCallback, useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -19,6 +19,7 @@ import { VideoView, useVideoPlayer } from "expo-video";
 import { X, Camera, ImageIcon, Play, Flag } from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import * as VideoThumbnails from "expo-video-thumbnails";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/lib/supabase/client";
 import { LegendList, type LegendListRef } from "@/components/list";
@@ -94,12 +95,20 @@ function useMoments(eventId: string) {
   });
 }
 
-// Fullscreen video player (one per viewer item)
-function ViewerVideo({ uri }: { uri: string }) {
+// Fullscreen video player — only plays when this item is the active page
+function ViewerVideo({ uri, isActive }: { uri: string; isActive: boolean }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
-    p.play();
   });
+  useEffect(() => {
+    if (isActive) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  // player ref is stable for the component lifetime; only re-run on isActive change
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isActive]);
   return (
     <VideoView
       player={player}
@@ -113,14 +122,16 @@ function ViewerVideo({ uri }: { uri: string }) {
 const ViewerItem = memo(function ViewerItem({
   moment,
   width,
+  isActive,
 }: {
   moment: Moment;
   width: number;
+  isActive: boolean;
 }) {
   return (
     <View style={{ width, flex: 1, backgroundColor: "#000", justifyContent: "center" }}>
       {moment.media_type === "video" ? (
-        <ViewerVideo uri={moment.media_url} />
+        <ViewerVideo uri={moment.media_url} isActive={isActive} />
       ) : (
         <Image
           source={{ uri: moment.media_url }}
@@ -149,6 +160,7 @@ const MomentViewer = memo(function MomentViewer({
   onFlag: () => void;
 }) {
   const { width } = useWindowDimensions();
+  const { top: safeTop } = useSafeAreaInsets();
   const listRef = useRef<LegendListRef>(null);
 
   const handleViewable = useCallback(
@@ -160,6 +172,8 @@ const MomentViewer = memo(function MomentViewer({
     },
     [currentIndex, onIndexChange],
   );
+
+  const btnTop = safeTop + 8;
 
   return (
     <Modal
@@ -180,26 +194,28 @@ const MomentViewer = memo(function MomentViewer({
           estimatedItemSize={width}
           initialScrollIndex={initialIndex}
           keyExtractor={(m) => String(m.id)}
-          renderItem={({ item }) => <ViewerItem moment={item} width={width} />}
+          renderItem={({ item, index }) => (
+            <ViewerItem moment={item} width={width} isActive={index === currentIndex} />
+          )}
           onViewableItemsChanged={handleViewable}
           viewabilityConfig={{ itemVisiblePercentThreshold: 51 }}
           style={{ flex: 1 }}
         />
 
         {/* Counter */}
-        <View style={viewerStyles.counter}>
+        <View style={[viewerStyles.counter, { top: btnTop }]}>
           <Text style={viewerStyles.counterText}>
             {currentIndex + 1} / {moments.length}
           </Text>
         </View>
 
         {/* Close */}
-        <Pressable style={viewerStyles.closeBtn} onPress={onClose} hitSlop={12}>
+        <Pressable style={[viewerStyles.closeBtn, { top: btnTop }]} onPress={onClose} hitSlop={12}>
           <X size={20} color="#fff" />
         </Pressable>
 
         {/* Flag */}
-        <Pressable style={viewerStyles.flagBtn} onPress={onFlag} hitSlop={12}>
+        <Pressable style={[viewerStyles.flagBtn, { top: btnTop }]} onPress={onFlag} hitSlop={12}>
           <Flag size={16} color="rgba(255,255,255,0.55)" />
         </Pressable>
       </View>
@@ -252,6 +268,7 @@ const PickerSheet = memo(function PickerSheet({
   onLibrary: () => void;
   onDismiss: () => void;
 }) {
+  const { bottom } = useSafeAreaInsets();
   return (
     <Modal
       visible
@@ -260,7 +277,7 @@ const PickerSheet = memo(function PickerSheet({
       onRequestClose={onDismiss}
     >
       <Pressable style={pickerStyles.backdrop} onPress={onDismiss} />
-      <View style={pickerStyles.sheet}>
+      <View style={[pickerStyles.sheet, { paddingBottom: Math.max(bottom, 16) + 16 }]}>
         <View style={pickerStyles.handle} />
         <Text style={pickerStyles.title}>Add a Moment</Text>
         <Pressable style={pickerStyles.option} onPress={onCamera}>
@@ -631,7 +648,6 @@ const viewerStyles = StyleSheet.create({
   },
   counter: {
     position: "absolute",
-    top: 56,
     alignSelf: "center",
     backgroundColor: "rgba(0,0,0,0.45)",
     paddingHorizontal: 12,
@@ -646,7 +662,6 @@ const viewerStyles = StyleSheet.create({
   },
   closeBtn: {
     position: "absolute",
-    top: 52,
     right: 20,
     width: 36,
     height: 36,
@@ -657,7 +672,6 @@ const viewerStyles = StyleSheet.create({
   },
   flagBtn: {
     position: "absolute",
-    top: 52,
     left: 20,
     width: 36,
     height: 36,
@@ -678,7 +692,6 @@ const pickerStyles = StyleSheet.create({
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     paddingHorizontal: 20,
-    paddingBottom: 40,
     paddingTop: 12,
     gap: 4,
   },
