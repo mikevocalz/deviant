@@ -630,6 +630,7 @@ export const eventsApi = {
       if (eventData.perks) insertPayload.perks = eventData.perks;
       if (eventData.flyerImageUrl)
         insertPayload.flyer_image_url = eventData.flyerImageUrl;
+      if (eventData.nsfw != null) insertPayload.nsfw = eventData.nsfw;
 
       const { data, error } = await supabase
         .from(DB.events.table)

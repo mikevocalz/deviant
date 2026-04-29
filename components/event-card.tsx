@@ -16,6 +16,7 @@ import type { PublicGateReason } from "@/lib/access/public-gates";
 import { TranslateButton } from "@/components/ui/translate-button";
 import { useContentTranslation } from "@/lib/stores/translation-store";
 import { shouldShowTranslateButton } from "@/lib/utils/language-detection";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 export function EventCard({
   event,
@@ -28,6 +29,7 @@ export function EventCard({
   const router = useRouter();
   const queryClient = useQueryClient();
   const toggleLike = useToggleEventLike();
+  const showToast = useUIStore((s) => s.showToast);
   const { i18n } = useTranslation();
   const targetLang = i18n.language;
 
@@ -69,8 +71,20 @@ export function EventCard({
       requireAuth("events");
       return;
     }
-    toggleLike.mutate({ eventId: event.id, isLiked: event.isLiked ?? false });
-  }, [event.id, event.isLiked, guestMode, requireAuth, toggleLike]);
+    toggleLike.mutate(
+      { eventId: event.id, isLiked: event.isLiked ?? false },
+      {
+        onError: (err: unknown) => {
+          const msg = err instanceof Error ? err.message : String(err || "");
+          if (msg.includes("Not authenticated") || msg.includes("expired")) {
+            showToast("error", "Session expired", "Please log out and back in");
+          } else {
+            showToast("error", "Like failed", msg || "Failed to update like");
+          }
+        },
+      },
+    );
+  }, [event.id, event.isLiked, guestMode, requireAuth, showToast, toggleLike]);
 
   const handleOpen = useCallback(() => {
     if (guestMode) {
