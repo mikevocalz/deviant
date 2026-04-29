@@ -146,7 +146,7 @@ export function useContentTranslation(
   targetLang: string,
 ) {
   const store = useTranslationStore();
-  const contentHash = hashContent(originalText, "auto", targetLang);
+  const contentHash = hashContent(originalText, "en", targetLang);
 
   // Capability: null=checking, false=unavailable, true=available
   const [isCapable, setIsCapable] = useState<boolean | null>(null);
@@ -281,7 +281,9 @@ async function translateViaMyMemory(
   src: string,
   tgt: string,
 ): Promise<string | null> {
-  const langPair = src && src !== tgt ? `${src}|${tgt}` : `auto|${tgt}`;
+  // MyMemory does not accept "auto" as source — default to "en" when unknown.
+  const safeSrc = src && src !== tgt ? src : "en";
+  const langPair = `${safeSrc}|${tgt}`;
   const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=${langPair}`;
   try {
     const resp = await fetchWithTimeout(url, NETWORK_TIMEOUT_MS);
