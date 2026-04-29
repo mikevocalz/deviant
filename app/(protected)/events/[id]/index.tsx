@@ -1650,7 +1650,7 @@ function EventDetailScreenContent() {
             <View style={s.sectionHeader}>
               <View style={s.sectionHeaderLeft}>
                 <Star size={18} color="#FFD700" />
-                <Text style={s.sectionTitle}>Ratings & Reviews</Text>
+                <Text style={[s.sectionTitle, { marginBottom: 0 }]}>Ratings & Reviews</Text>
               </View>
               {eventData?.averageRating != null &&
                 eventData.averageRating > 0 && (
@@ -1763,7 +1763,7 @@ function EventDetailScreenContent() {
             <View style={s.sectionHeader}>
               <View style={s.sectionHeaderLeft}>
                 <MessageCircle size={18} color="#34A2DF" />
-                <Text style={s.sectionTitle}>Comments</Text>
+                <Text style={[s.sectionTitle, { marginBottom: 0 }]}>Comments</Text>
                 {comments.length > 0 && (
                   <Text style={s.commentCount}>({comments.length})</Text>
                 )}

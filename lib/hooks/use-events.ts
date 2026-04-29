@@ -492,6 +492,7 @@ export function useToggleEventLike() {
       return { previousData, previousLikedActivity };
     },
     onError: (_err, _variables, context) => {
+      console.error("[useToggleEventLike] Like failed:", _err);
       // Rollback all event caches
       if (context?.previousData) {
         context.previousData.forEach(([queryKey, data]) => {

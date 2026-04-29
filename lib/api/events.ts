@@ -133,9 +133,11 @@ export const eventsApi = {
     });
 
     if (error) {
+      console.error("[toggleEventLike] invoke error:", error.message, error);
       throw new Error(error.message || "Failed to toggle event like");
     }
     if (!data?.ok || !data.data) {
+      console.error("[toggleEventLike] bad response:", JSON.stringify(data));
       throw new Error(data?.error?.message || "Failed to toggle event like");
     }
 
