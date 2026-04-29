@@ -143,7 +143,7 @@ BEGIN
     SELECT json_agg(json_build_object(
       'id', r.id,
       'rating', r.rating,
-      'content', r.content,
+      'comment', r.comment,
       'created_at', r.created_at,
       'author', json_build_object(
         'username', u.username,
@@ -166,7 +166,7 @@ BEGIN
       )
     ) ORDER BY c.created_at DESC) AS data
     FROM (SELECT * FROM event_comments WHERE event_id = p_event_id ORDER BY created_at DESC LIMIT 5) c
-    JOIN users u ON u.auth_id = c.user_id
+    JOIN users u ON u.id = c.author_id
     LEFT JOIN media m ON m.id = u.avatar_id
   ) top_cmt ON true;
 
