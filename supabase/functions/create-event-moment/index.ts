@@ -35,10 +35,10 @@ Deno.serve(async (req) => {
   const rl = checkRateLimit(authUserId, "create-event-moment", WRITE_LIMIT);
   if (!rl.allowed) return json(req, { ok: false, error: "Rate limited" }, 429);
 
-  let body: { eventId?: number; mediaUrl?: string; mediaType?: string; durationSec?: number };
+  let body: { eventId?: number; mediaUrl?: string; mediaType?: string; durationSec?: number; thumbnailUrl?: string };
   try { body = await req.json(); } catch { return json(req, { ok: false, error: "Invalid body" }, 400); }
 
-  const { eventId, mediaUrl, mediaType, durationSec } = body;
+  const { eventId, mediaUrl, mediaType, durationSec, thumbnailUrl } = body;
   if (!eventId || !mediaUrl || !mediaType) return json(req, { ok: false, error: "Missing fields" }, 400);
   if (!["photo", "video"].includes(mediaType)) return json(req, { ok: false, error: "Invalid mediaType" }, 400);
   if (mediaType === "video" && durationSec != null && durationSec > 31) {
@@ -92,16 +92,20 @@ Deno.serve(async (req) => {
     ? new Date(new Date(eventEnd).getTime() + 24 * 60 * 60 * 1000).toISOString()
     : new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString();
 
+  // Build insert payload; thumbnail_url is optional (column may not exist on older DBs)
+  const insertPayload: Record<string, unknown> = {
+    event_id: eventId,
+    user_id: userId,
+    media_url: mediaUrl,
+    media_type: mediaType,
+    duration_sec: durationSec ?? null,
+    expires_at: expiresAt,
+  };
+  if (thumbnailUrl) insertPayload.thumbnail_url = thumbnailUrl;
+
   const { data: moment, error: insertErr } = await db
     .from("event_moments")
-    .insert({
-      event_id: eventId,
-      user_id: userId,
-      media_url: mediaUrl,
-      media_type: mediaType,
-      duration_sec: durationSec ?? null,
-      expires_at: expiresAt,
-    })
+    .insert(insertPayload)
     .select("id, media_url, media_type, duration_sec, expires_at, created_at")
     .single();
 

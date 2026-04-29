@@ -77,6 +77,7 @@ function folderToKind(folder: string, mime?: string): string {
     "events/covers": "event-cover",
     chat: "message-image",
     uploads: "post-image",
+    "event-moments": "event-moment-photo",
   };
 
   const videoMap: Record<string, string> = {
@@ -84,6 +85,7 @@ function folderToKind(folder: string, mime?: string): string {
     stories: "story-video",
     chat: "message-video",
     uploads: "post-video",
+    "event-moments": "event-moment-video",
   };
 
   if (isVideo) {

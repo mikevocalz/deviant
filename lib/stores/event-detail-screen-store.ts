@@ -22,6 +22,7 @@ interface EventDetailScreenState {
   showMomentUploader: boolean;
   momentViewerIndex: number; // -1 = closed
   uploadingMoment: boolean;
+  momentUploadProgress: number; // 0-100
 
   setSelectedTier: (tier: TicketTier | null) => void;
   setShowRatingModal: (show: boolean) => void;
@@ -34,6 +35,7 @@ interface EventDetailScreenState {
   setShowMomentUploader: (show: boolean) => void;
   setMomentViewerIndex: (index: number) => void;
   setUploadingMoment: (uploading: boolean) => void;
+  setMomentUploadProgress: (progress: number) => void;
   resetEventDetailScreen: () => void;
 }
 
@@ -49,6 +51,7 @@ const initialState = {
   showMomentUploader: false,
   momentViewerIndex: -1,
   uploadingMoment: false,
+  momentUploadProgress: 0,
 };
 
 export const useEventDetailScreenStore = create<EventDetailScreenState>(
@@ -66,6 +69,7 @@ export const useEventDetailScreenStore = create<EventDetailScreenState>(
     setShowMomentUploader: (show) => set({ showMomentUploader: show }),
     setMomentViewerIndex: (index) => set({ momentViewerIndex: index }),
     setUploadingMoment: (uploading) => set({ uploadingMoment: uploading }),
+    setMomentUploadProgress: (progress) => set({ momentUploadProgress: progress }),
 
     resetEventDetailScreen: () => set(initialState),
   }),
