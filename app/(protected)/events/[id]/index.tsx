@@ -486,9 +486,14 @@ function EventDetailScreenContent() {
             showToast("success", "Saved", "Event added to your liked events");
           }
         },
-        onError: () => {
+        onError: (err: unknown) => {
           setIsLiked(wasLiked);
-          showToast("error", "Error", "Failed to update like");
+          const msg = err instanceof Error ? err.message : String(err || "");
+          if (msg.includes("Not authenticated")) {
+            showToast("error", "Session expired", "Please log out and log back in");
+          } else {
+            showToast("error", "Like failed", msg || "Failed to update like");
+          }
         },
       },
     );
