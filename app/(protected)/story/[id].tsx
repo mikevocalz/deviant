@@ -740,6 +740,8 @@ function StoryViewerScreenContent() {
   const isPaused = useRef(false);
   const hasAdvanced = useRef(false);
   const handleNextRef = useRef<() => void>(() => {});
+  const itemDurationRef = useRef(5000);
+  const longPressActivated = useRef(false);
 
   // CRITICAL: Video lifecycle management to prevent crashes
   const {
@@ -1059,26 +1061,38 @@ function StoryViewerScreenContent() {
   ]);
 
   const handleLongPressStart = useCallback(() => {
-    if (!isVideo || !isSafeToOperate()) return;
+    if (!isSafeToOperate()) return;
     longPressTimer.current = setTimeout(() => {
-      setShowSeekBar(true);
+      longPressTimer.current = null;
+      longPressActivated.current = true;
       isPaused.current = true;
-      progress.value = progress.value; // Pause the animation
-      safePause(player, isMountedRef, "StoryViewer");
+      if (isVideo) {
+        setShowSeekBar(true);
+        safePause(player, isMountedRef, "StoryViewer");
+      } else {
+        cancelAnimation(progress);
+      }
     }, LONG_PRESS_DELAY);
   }, [isVideo, player, progress, isSafeToOperate, isMountedRef]);
 
   const handleLongPressEnd = useCallback(() => {
-    if (longPressTimer.current) {
-      clearTimeout(longPressTimer.current);
-      longPressTimer.current = null;
+    if (!longPressActivated.current) return;
+    longPressActivated.current = false;
+    isPaused.current = false;
+    if (isVideo) {
+      if (showSeekBar) setShowSeekBar(false);
+      if (isSafeToOperate()) safePlay(player, isMountedRef, "StoryViewer");
+    } else if (isSafeToOperate()) {
+      const remaining = (1 - progress.value) * itemDurationRef.current;
+      if (remaining > 0) {
+        progress.value = withTiming(1, { duration: remaining }, (finished) => {
+          if (finished && !hasAdvanced.current && isMountedRef.current && !isExitingRef.current) {
+            scheduleOnRN(callHandleNext);
+          }
+        });
+      }
     }
-    if (showSeekBar && isSafeToOperate()) {
-      setShowSeekBar(false);
-      isPaused.current = false;
-      safePlay(player, isMountedRef, "StoryViewer");
-    }
-  }, [showSeekBar, player, isSafeToOperate, isMountedRef]);
+  }, [showSeekBar, isVideo, player, progress, isSafeToOperate, isMountedRef, isExitingRef, callHandleNext]);
 
   const handleSeek = useCallback(
     (time: number) => {
@@ -1142,6 +1156,7 @@ function StoryViewerScreenContent() {
     // For images, use the item duration or default 5 seconds
     // For videos, the video end detection will handle advancement
     const duration = isVideo ? 30000 : currentItem.duration || 5000; // Longer timeout for video as backup
+    itemDurationRef.current = duration;
 
     // Small delay to ensure component is mounted
     const timer = setTimeout(() => {
@@ -1427,6 +1442,27 @@ function StoryViewerScreenContent() {
       goToPrevUser();
     }
   }, [currentItemIndex, currentStoryIndex, setCurrentItemIndex, goToPrevUser]);
+
+  // Press-out handlers for touch zones: short tap = navigate, long press release = resume
+  const handlePrevPressOut = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      handlePrev();
+    } else if (longPressActivated.current) {
+      handleLongPressEnd();
+    }
+  }, [handlePrev, handleLongPressEnd]);
+
+  const handleNextPressOut = useCallback(() => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+      handleNext();
+    } else if (longPressActivated.current) {
+      handleLongPressEnd();
+    }
+  }, [handleNext, handleLongPressEnd]);
 
   // Reset flags when item changes
   useEffect(() => {
@@ -1952,8 +1988,16 @@ function StoryViewerScreenContent() {
             }}
             pointerEvents="box-none"
           >
-            <Pressable onPress={handlePrev} style={{ flex: 1 }} />
-            <Pressable onPress={handleNext} style={{ flex: 1 }} />
+            <Pressable
+              onPressIn={handleLongPressStart}
+              onPressOut={handlePrevPressOut}
+              style={{ flex: 1 }}
+            />
+            <Pressable
+              onPressIn={handleLongPressStart}
+              onPressOut={handleNextPressOut}
+              style={{ flex: 1 }}
+            />
           </View>
 
           {/* ── TAGGED USERS PILL ─────────────────────────────────────────── */}

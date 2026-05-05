@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Galeria } from "@nandorojo/galeria";
 import { LegendList } from "@/components/list";
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useEffect, useCallback, useMemo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
@@ -347,8 +347,10 @@ function EventDetailScreenContent() {
   );
 
   // ── Ticket upgrade state ──────────────────────────────────────────────
-  const [upgradeSheetOption, setUpgradeSheetOption] = useState<UpgradeTierOption | null>(null);
-  const [showShareSheet, setShowShareSheet] = useState(false);
+  const upgradeSheetOption = useEventDetailScreenStore((s) => s.upgradeSheetOption);
+  const setUpgradeSheetOption = useEventDetailScreenStore((s) => s.setUpgradeSheetOption);
+  const showShareSheet = useEventDetailScreenStore((s) => s.showShareSheet);
+  const setShowShareSheet = useEventDetailScreenStore((s) => s.setShowShareSheet);
 
   const { data: myTicketData } = useMyTicketForEvent(eventId);
   const { data: liveTicketTypes = [] } = useTicketTypes(eventId);
@@ -357,7 +359,7 @@ function EventDetailScreenContent() {
 
   const handleUpgradePress = useCallback((option: UpgradeTierOption) => {
     setUpgradeSheetOption(option);
-  }, []);
+  }, [setUpgradeSheetOption]);
 
   const handleUpgradeConfirm = useCallback(() => {
     if (!upgradeSheetOption || !myTicketData) return;
@@ -365,7 +367,7 @@ function EventDetailScreenContent() {
       { ticketId: myTicketData.id, newTicketTypeId: upgradeSheetOption.tier.id },
       { onSettled: () => setUpgradeSheetOption(null) },
     );
-  }, [upgradeSheetOption, myTicketData, initiateUpgrade]);
+  }, [upgradeSheetOption, myTicketData, initiateUpgrade, setUpgradeSheetOption]);
 
   const scrollY = useSharedValue(0);
 
@@ -1290,6 +1292,151 @@ function EventDetailScreenContent() {
 
         {/* ── 2. CORE INFO BLOCK ───────────────────────────────── */}
         <View style={s.content}>
+
+          {/* ── TICKET TIERS — directly beneath hero ──────────── */}
+          {ticketTiers.length > 0 && (
+            <View style={s.section}>
+              <Text style={s.sectionTitle}>Select Your Tier</Text>
+              <LegendList
+                data={ticketTiers}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id}
+                contentContainerStyle={s.tierList}
+                estimatedItemSize={200}
+                renderItem={({ item }) => (
+                  <TicketTierCard
+                    tier={item}
+                    isSelected={selectedTier?.id === item.id}
+                    onSelect={handleSelectTier}
+                  />
+                )}
+              />
+
+              {/* Promo code input */}
+              {selectedTier && selectedTier.price > 0 && !hasTicket && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    marginTop: 12,
+                    gap: 8,
+                  }}
+                >
+                  <TextInput
+                    value={promoCode}
+                    onChangeText={setPromoCode}
+                    placeholder="Promo code"
+                    placeholderTextColor="#71717a"
+                    autoCapitalize="characters"
+                    autoCorrect={false}
+                    style={{
+                      flex: 1,
+                      height: 40,
+                      borderRadius: 10,
+                      backgroundColor: "rgba(255,255,255,0.06)",
+                      borderWidth: 1,
+                      borderColor: promoCode.trim()
+                        ? "#8A40CF60"
+                        : "rgba(255,255,255,0.08)",
+                      paddingHorizontal: 12,
+                      color: "#fff",
+                      fontSize: 14,
+                      fontFamily: "InterSemiBold",
+                      letterSpacing: 1,
+                    }}
+                  />
+                  {promoCode.trim() ? (
+                    <Pressable
+                      onPress={() => setPromoCode("")}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 8,
+                        borderRadius: 8,
+                        backgroundColor: "rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      <Text
+                        style={{
+                          color: "#a1a1aa",
+                          fontSize: 13,
+                          fontFamily: "InterSemiBold",
+                        }}
+                      >
+                        Clear
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              )}
+
+              {/* Quantity selector */}
+              {selectedTier && selectedTier.price > 0 && (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    marginTop: 12,
+                    paddingHorizontal: 4,
+                  }}
+                >
+                  <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
+                    Quantity
+                  </Text>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
+                    <Pressable
+                      onPress={() => setTicketQty(ticketQty - 1)}
+                      disabled={ticketQty <= 1}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: ticketQty <= 1 ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ color: ticketQty <= 1 ? "#555" : "#fff", fontSize: 20, lineHeight: 22 }}>−</Text>
+                    </Pressable>
+                    <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", minWidth: 24, textAlign: "center" }}>
+                      {ticketQty}
+                    </Text>
+                    <Pressable
+                      onPress={() => setTicketQty(ticketQty + 1)}
+                      disabled={ticketQty >= (selectedTier.maxPerOrder || 4)}
+                      style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: 16,
+                        backgroundColor: ticketQty >= (selectedTier.maxPerOrder || 4) ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)",
+                        alignItems: "center",
+                        justifyContent: "center",
+                      }}
+                    >
+                      <Text style={{ color: ticketQty >= (selectedTier.maxPerOrder || 4) ? "#555" : "#fff", fontSize: 20, lineHeight: 22 }}>+</Text>
+                    </Pressable>
+                  </View>
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ── Upgrade options ────────────────────────────────── */}
+          {hasTicket && myTicketData && upgradeOptions.length > 0 && !isPast && (
+            <View style={s.section}>
+              <Text style={s.sectionTitle}>Upgrade Your Ticket</Text>
+              <Text style={[s.sectionSubtitle, { color: "#71717a", marginBottom: 12 }]}>
+                You have: {myTicketData.ticket_type_name || "General Admission"}
+              </Text>
+              {upgradeOptions.map((option) => (
+                <View key={option.tier.id} style={{ marginBottom: 10 }}>
+                  <UpgradeTierCard option={option} onPress={handleUpgradePress} />
+                </View>
+              ))}
+            </View>
+          )}
+
           <View>
             <Text style={s.eventTitle}>{translatedTitle || event.title}</Text>
 
@@ -1508,148 +1655,6 @@ function EventDetailScreenContent() {
               </Galeria>
             </View>
           ) : null}
-
-          {/* ── 5. TICKET TIERS ──────────────────────────────────── */}
-          <View style={s.section}>
-            <Text style={s.sectionTitle}>Select Your Tier</Text>
-            <LegendList
-              data={ticketTiers}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
-              contentContainerStyle={s.tierList}
-              estimatedItemSize={200}
-              renderItem={({ item }) => (
-                <TicketTierCard
-                  tier={item}
-                  isSelected={selectedTier?.id === item.id}
-                  onSelect={handleSelectTier}
-                />
-              )}
-            />
-
-            {/* Promo code input */}
-            {selectedTier && selectedTier.price > 0 && !hasTicket && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  marginTop: 12,
-                  gap: 8,
-                }}
-              >
-                <TextInput
-                  value={promoCode}
-                  onChangeText={setPromoCode}
-                  placeholder="Promo code"
-                  placeholderTextColor="#71717a"
-                  autoCapitalize="characters"
-                  autoCorrect={false}
-                  style={{
-                    flex: 1,
-                    height: 40,
-                    borderRadius: 10,
-                    backgroundColor: "rgba(255,255,255,0.06)",
-                    borderWidth: 1,
-                    borderColor: promoCode.trim()
-                      ? "#8A40CF60"
-                      : "rgba(255,255,255,0.08)",
-                    paddingHorizontal: 12,
-                    color: "#fff",
-                    fontSize: 14,
-                    fontFamily: "InterSemiBold",
-                    letterSpacing: 1,
-                  }}
-                />
-                {promoCode.trim() ? (
-                  <Pressable
-                    onPress={() => setPromoCode("")}
-                    style={{
-                      paddingHorizontal: 12,
-                      paddingVertical: 8,
-                      borderRadius: 8,
-                      backgroundColor: "rgba(255,255,255,0.06)",
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: "#a1a1aa",
-                        fontSize: 13,
-                        fontFamily: "InterSemiBold",
-                      }}
-                    >
-                      Clear
-                    </Text>
-                  </Pressable>
-                ) : null}
-              </View>
-            )}
-
-            {/* Quantity selector — shown for paid tiers whether or not user already has a ticket */}
-            {selectedTier && selectedTier.price > 0 && (
-              <View
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  marginTop: 12,
-                  paddingHorizontal: 4,
-                }}
-              >
-                <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
-                  Quantity
-                </Text>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-                  <Pressable
-                    onPress={() => setTicketQty(ticketQty - 1)}
-                    disabled={ticketQty <= 1}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
-                      backgroundColor: ticketQty <= 1 ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={{ color: ticketQty <= 1 ? "#555" : "#fff", fontSize: 20, lineHeight: 22 }}>−</Text>
-                  </Pressable>
-                  <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", minWidth: 24, textAlign: "center" }}>
-                    {ticketQty}
-                  </Text>
-                  <Pressable
-                    onPress={() => setTicketQty(ticketQty + 1)}
-                    disabled={ticketQty >= (selectedTier.maxPerOrder || 4)}
-                    style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: 16,
-                      backgroundColor: ticketQty >= (selectedTier.maxPerOrder || 4) ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)",
-                      alignItems: "center",
-                      justifyContent: "center",
-                    }}
-                  >
-                    <Text style={{ color: ticketQty >= (selectedTier.maxPerOrder || 4) ? "#555" : "#fff", fontSize: 20, lineHeight: 22 }}>+</Text>
-                  </Pressable>
-                </View>
-              </View>
-            )}
-          </View>
-
-          {/* ── Your Ticket + Upgrade Options ─────────────────────── */}
-          {hasTicket && myTicketData && upgradeOptions.length > 0 && !isPast && (
-            <View style={s.section}>
-              <Text style={s.sectionTitle}>Upgrade Your Ticket</Text>
-              <Text style={[s.sectionSubtitle, { color: "#71717a", marginBottom: 12 }]}>
-                You have: {myTicketData.ticket_type_name || "General Admission"}
-              </Text>
-              {upgradeOptions.map((option) => (
-                <View key={option.tier.id} style={{ marginBottom: 10 }}>
-                  <UpgradeTierCard option={option} onPress={handleUpgradePress} />
-                </View>
-              ))}
-            </View>
-          )}
 
           {/* ── Who's Over Here (ephemeral event moments) ─────────── */}
           <View style={s.section}>
@@ -1962,6 +1967,7 @@ function EventDetailScreenContent() {
         selectedTier={selectedTier}
         hasTicket={hasTicket}
         isPast={isPast}
+        ticketQty={ticketQty}
         onGetTickets={handleGetTickets}
         onViewTicket={handleViewTicket}
         onBuyMore={selectedTier && selectedTier.price > 0 ? handleGetTickets : undefined}

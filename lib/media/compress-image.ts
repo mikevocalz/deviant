@@ -21,7 +21,7 @@ export interface CompressedImage {
 
 const DEFAULT_MAX_LONG_EDGE = 1440;
 const DEFAULT_QUALITY = 0.82;
-const STORY_MAX_LONG_EDGE = 1080;
+const STORY_MAX_LONG_EDGE = 1440;
 
 /**
  * Compress an image for upload
@@ -103,7 +103,7 @@ export async function compressAvatar(uri: string): Promise<CompressedImage> {
 export async function compressStoryImage(uri: string): Promise<CompressedImage> {
   return compressImage(uri, {
     maxLongEdge: STORY_MAX_LONG_EDGE,
-    quality: 0.80,
+    quality: 0.88,
   });
 }
 

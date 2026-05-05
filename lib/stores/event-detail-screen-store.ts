@@ -7,6 +7,7 @@
 
 import { create } from "zustand";
 import type { TicketTier } from "@/src/events/types";
+import type { UpgradeTierOption } from "@/lib/hooks/use-ticket-upgrade";
 
 interface EventDetailScreenState {
   selectedTier: TicketTier | null;
@@ -23,6 +24,10 @@ interface EventDetailScreenState {
   momentViewerIndex: number; // -1 = closed
   uploadingMoment: boolean;
   momentUploadProgress: number; // 0-100
+  // Upgrade sheet
+  upgradeSheetOption: UpgradeTierOption | null;
+  // Share sheet
+  showShareSheet: boolean;
 
   setSelectedTier: (tier: TicketTier | null) => void;
   setShowRatingModal: (show: boolean) => void;
@@ -36,6 +41,8 @@ interface EventDetailScreenState {
   setMomentViewerIndex: (index: number) => void;
   setUploadingMoment: (uploading: boolean) => void;
   setMomentUploadProgress: (progress: number) => void;
+  setUpgradeSheetOption: (option: UpgradeTierOption | null) => void;
+  setShowShareSheet: (show: boolean) => void;
   resetEventDetailScreen: () => void;
 }
 
@@ -52,6 +59,8 @@ const initialState = {
   momentViewerIndex: -1,
   uploadingMoment: false,
   momentUploadProgress: 0,
+  upgradeSheetOption: null,
+  showShareSheet: false,
 };
 
 export const useEventDetailScreenStore = create<EventDetailScreenState>(
@@ -70,6 +79,8 @@ export const useEventDetailScreenStore = create<EventDetailScreenState>(
     setMomentViewerIndex: (index) => set({ momentViewerIndex: index }),
     setUploadingMoment: (uploading) => set({ uploadingMoment: uploading }),
     setMomentUploadProgress: (progress) => set({ momentUploadProgress: progress }),
+    setUpgradeSheetOption: (option) => set({ upgradeSheetOption: option }),
+    setShowShareSheet: (show) => set({ showShareSheet: show }),
 
     resetEventDetailScreen: () => set(initialState),
   }),

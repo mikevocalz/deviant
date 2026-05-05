@@ -373,7 +373,7 @@ function EventsScreenContent() {
     if (debouncedSearch.length >= 2) f.search = debouncedSearch;
     if (activeSort !== "soonest") f.sort = activeSort;
     if (activeCategories.length > 0) f.categories = activeCategories;
-    if (nsfwFilter !== null) f.nsfw = nsfwFilter;
+    if (nsfwFilter === true) f.nsfw = true;
     return f;
   }, [
     activeFilters,
@@ -598,11 +598,11 @@ function EventsScreenContent() {
                 }
               >
                 <Pressable
-                  onPress={() => setNsfwFilter(nsfwFilter === true ? null : true)}
+                  onPress={() => setNsfwFilter(nsfwFilter === true ? false : true)}
                   className="w-full h-full items-center justify-center"
                   accessibilityLabel="Toggle spicy events"
                 >
-                  <Text style={{ fontSize: 18 }}>{nsfwFilter === true ? "😈" : "🔥"}</Text>
+                  <Text style={{ fontSize: 18 }}>{nsfwFilter === true ? "😈" : "😇"}</Text>
                 </Pressable>
               </Motion.View>
             </View>
@@ -666,7 +666,7 @@ function EventsScreenContent() {
         {(activeFilters.length > 0 ||
           activeCategories.length > 0 ||
           activeSort !== "soonest" ||
-          nsfwFilter !== null) && (
+          nsfwFilter === true) && (
           <View className="px-4 pb-1">
             <ScrollView
               horizontal

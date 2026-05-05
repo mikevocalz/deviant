@@ -1,7 +1,7 @@
 import type { TextPostSlide, TextPostThemeKey } from "@/lib/types";
 
 export const TEXT_POST_MAX_SLIDES = 6;
-export const TEXT_POST_MAX_LENGTH = 2000;
+export const TEXT_POST_MAX_LENGTH = 1500;
 const TRAILING_HASHTAG_BLOCK_RE = /\n+(#[^\s#]+(?:\s+#[^\s#]+)*)\s*$/;
 
 export interface TextPostTheme {

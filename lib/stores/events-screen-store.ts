@@ -101,11 +101,11 @@ export const useEventsScreenStore = create<EventsScreenState>((set, get) => ({
   toggleMapView: () => set((s) => ({ showMapView: !s.showMapView })),
   setShowMapView: (visible) => set({ showMapView: visible }),
 
-  nsfwFilter: null,
+  nsfwFilter: false,
   setNsfwFilter: (v) => set({ nsfwFilter: v }),
 
   clearAllFilters: () =>
-    set({ activeFilters: [], activeCategories: [], activeSort: "soonest", nsfwFilter: null }),
+    set({ activeFilters: [], activeCategories: [], activeSort: "soonest", nsfwFilter: false }),
 
   activeFilterCount: () => {
     const s = get();
@@ -113,7 +113,7 @@ export const useEventsScreenStore = create<EventsScreenState>((set, get) => ({
       s.activeFilters.length +
       s.activeCategories.length +
       (s.activeSort !== "soonest" ? 1 : 0) +
-      (s.nsfwFilter !== null ? 1 : 0)
+      (s.nsfwFilter === true ? 1 : 0)
     );
   },
 }));

@@ -60,7 +60,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
 const ASPECT_RATIO = 4 / 5;
 
-const MAX_PHOTOS = 4;
+const MAX_PHOTOS = 10;
 
 function CreateScreenContent() {
   const router = useRouter();
@@ -700,21 +700,21 @@ function CreateScreenContent() {
             {[
               {
                 key: "media",
-                label: "Media post",
+                label: "Media",
                 icon: ImageIcon,
-                description: "Up to 4 photos. Caption optional.",
+                description: "Photos or video",
               },
               {
                 key: "text",
-                label: "Text post",
+                label: "Text",
                 icon: Type,
-                description: "Words-only conversation starter",
+                description: "Text only",
               },
               {
                 key: "event",
-                label: "Create Event",
+                label: "Event",
                 icon: CalendarPlus,
-                description: "Host a party, meetup, or experience",
+                description: "Party, meetup, etc.",
               },
             ].map((option) => {
               const Icon = option.icon;
@@ -780,7 +780,7 @@ function CreateScreenContent() {
           </View>
         </View>
 
-        {isTextPost ? (
+        {isTextPost && (
           <TextPostSlidesComposer
             slides={textSlides}
             activeIndex={activeTextSlideIndex}
@@ -791,30 +791,6 @@ function CreateScreenContent() {
             onRemoveSlide={removeTextSlide}
             onThemeChange={setTextTheme}
           />
-        ) : (
-          <View style={{ padding: 16 }}>
-            <UserMentionAutocomplete
-              value={caption}
-              onChangeText={setCaption}
-              placeholder="Caption"
-              multiline
-              maxLength={2200}
-              style={{
-                fontSize: 16,
-                minHeight: 80,
-              }}
-            />
-            <Text
-              style={{
-                fontSize: 12,
-                color: "#666",
-                marginTop: 6,
-                textAlign: "right",
-              }}
-            >
-              {caption.length}/2200
-            </Text>
-          </View>
         )}
 
         <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
@@ -1067,7 +1043,7 @@ function CreateScreenContent() {
               >
                 <ImageIcon size={20} color="#fff" />
                 <Text style={{ color: "#fff", fontWeight: "600" }}>
-                  Library
+                  Add Photos
                 </Text>
               </Pressable>
 
@@ -1271,6 +1247,33 @@ function CreateScreenContent() {
               }}
             >
               Select up to {MAX_PHOTOS} photos
+            </Text>
+          </View>
+        )}
+
+        {/* Caption — below media for media posts */}
+        {!isTextPost && (
+          <View style={{ padding: 16 }}>
+            <UserMentionAutocomplete
+              value={caption}
+              onChangeText={setCaption}
+              placeholder="Caption (optional)"
+              multiline
+              maxLength={2200}
+              style={{
+                fontSize: 16,
+                minHeight: 80,
+              }}
+            />
+            <Text
+              style={{
+                fontSize: 12,
+                color: "#666",
+                marginTop: 6,
+                textAlign: "right",
+              }}
+            >
+              {caption.length}/2200
             </Text>
           </View>
         )}

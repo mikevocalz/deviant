@@ -16,6 +16,7 @@ interface StickyCTAProps {
   selectedTier: TicketTier | null;
   hasTicket: boolean;
   isPast?: boolean;
+  ticketQty?: number;
   onGetTickets: () => void;
   onViewTicket: () => void;
   onBuyMore?: () => void;
@@ -30,6 +31,7 @@ export const StickyCTA = memo(function StickyCTA({
   selectedTier,
   hasTicket,
   isPast,
+  ticketQty = 1,
   onGetTickets,
   onViewTicket,
   onBuyMore,
@@ -67,6 +69,7 @@ export const StickyCTA = memo(function StickyCTA({
   const price = selectedTier?.price ?? 0;
   const tierName = selectedTier?.name ?? "General";
   const glowColor = selectedTier?.glowColor ?? "rgb(62, 164, 229)";
+  const totalPrice = price * ticketQty;
 
   if (isPast && !hasTicket) {
     return (
@@ -112,9 +115,11 @@ export const StickyCTA = memo(function StickyCTA({
       <View style={styles.inner}>
         {/* Price summary */}
         <View style={styles.priceColumn}>
-          <Text style={styles.priceLabel}>{tierName}</Text>
+          <Text style={styles.priceLabel}>
+            {tierName}{ticketQty > 1 ? ` × ${ticketQty}` : ""}
+          </Text>
           <Text style={[styles.priceValue, { color: glowColor }]}>
-            {price === 0 ? "FREE" : `$${price}`}
+            {price === 0 ? "FREE" : `$${totalPrice}`}
           </Text>
         </View>
 
