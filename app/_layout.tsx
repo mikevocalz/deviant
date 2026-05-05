@@ -79,6 +79,9 @@ import { PublicGateSheet } from "@/components/access/PublicGateSheet";
 import { DeviceTestBridge } from "@/components/dev/DeviceTestBridge";
 import { AppTrace } from "@/lib/diagnostics/app-trace";
 import { OtaUpdateBanner } from "@/components/ota/OtaUpdateBanner";
+import { OtaRecoveryBoundary } from "@/components/system/OtaRecoveryBoundary";
+import { confirmUpdateSuccess } from "@/lib/ota/updateSafety";
+import { captureOtaDiagnostics, logDiagnostics } from "@/lib/ota/otaDiagnostics";
 
 // CRITICAL: Check for OTA update and clear stale cache BEFORE creating QueryClient
 // This prevents crashes from incompatible persisted cache after OTA updates
@@ -205,6 +208,14 @@ export default function RootLayout() {
   useEffect(() => {
     if (splashAnimationFinished && authStatus !== "loading") {
       markBootCompleted();
+      // Confirm OTA update succeeded (clears pending marker, prevents crash-loop blacklisting)
+      try {
+        const Updates = require("expo-updates");
+        const runningUpdateId = Updates?.updateId ?? null;
+        confirmUpdateSuccess(runningUpdateId);
+        const diag = captureOtaDiagnostics();
+        logDiagnostics(diag);
+      } catch {}
       AppTrace.trace("BOOT", "boot_completed", {
         authStatus,
         isAuthenticated,
@@ -476,6 +487,7 @@ export default function RootLayout() {
   }
 
   return (
+    <OtaRecoveryBoundary>
     <ErrorBoundary
       screenName="App"
       onError={(error, errorInfo) => {
@@ -660,5 +672,6 @@ export default function RootLayout() {
         </LayoutAnimationConfig>
       </GestureHandlerRootView>
     </ErrorBoundary>
+    </OtaRecoveryBoundary>
   );
 }

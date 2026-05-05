@@ -61,13 +61,13 @@
     },
     "apk": {
       "distribution": "internal",
-      "channel": "production",
+      "channel": "preview",
       "android": {
         "buildType": "apk"
       },
       "env": {
         "STRICT_PATCHES": "1",
-        "APP_ENV": "production",
+        "APP_ENV": "preview",
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
         "EXPO_PUBLIC_AUTH_URL": "https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth",

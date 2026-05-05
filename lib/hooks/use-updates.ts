@@ -23,6 +23,10 @@ import {
   useOtaUpdateStore,
   OTA_DISMISSED_STORAGE_KEY,
 } from "@/lib/stores/ota-update-store";
+import {
+  isKnownBadUpdate,
+  markUpdatePending,
+} from "@/lib/ota/updateSafety";
 
 const FORCE_OTA_IN_DEV =
   typeof process !== "undefined" &&
@@ -102,6 +106,9 @@ function showUpdateToast(updateId?: string | null) {
 
   const handleApply = () => {
     store.apply(); // clears MMKV dismissed key, sets phase "applying"
+    // SAFETY: write pending marker BEFORE reloadAsync so next-launch
+    // crash detection can identify this update as the cause.
+    markUpdatePending(currentId);
     safeGet(
       () => Updates?.reloadAsync().catch((e) => console.warn("[Updates] reloadAsync failed:", e)),
       undefined,
@@ -241,6 +248,14 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           "[Updates] Update fetched, isNew: true, updateId:",
           newUpdateId,
         );
+        // KILL-SWITCH: refuse to apply known-bad updates
+        if (isKnownBadUpdate(newUpdateId)) {
+          console.error(
+            `[Updates] Update ${newUpdateId} is blacklisted (known-bad) — skipping apply`,
+          );
+          setStatus((prev) => ({ ...prev, isUpdatePending: false }));
+          return;
+        }
         showUpdateToast(newUpdateId);
       } else {
         console.log(
