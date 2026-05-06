@@ -68,6 +68,18 @@
             "comment": "Sneaky Lynk"
           },
           {
+            "/": "/sl/*",
+            "comment": "Sneaky Lynk short link"
+          },
+          {
+            "/": "/user/*",
+            "comment": "User profile by ID"
+          },
+          {
+            "/": "/dm/*",
+            "comment": "Direct message by user ID"
+          },
+          {
             "/": "/search",
             "comment": "Search"
           },

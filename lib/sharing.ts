@@ -40,7 +40,7 @@ export const dvntShare = {
       message: eventTitle
         ? `${eventTitle} — on DVNT`
         : "Check out this event on DVNT",
-      url: `${APP_URL}/event/${eventId}`,
+      url: `${APP_URL}/e/${eventId}`,
     });
   },
 
@@ -48,7 +48,7 @@ export const dvntShare = {
     return shareNative({
       title: `@${username} on DVNT`,
       message: `Check out @${username} on DVNT`,
-      url: `${APP_URL}/@${username}`,
+      url: `${APP_URL}/u/${username}`,
     });
   },
 

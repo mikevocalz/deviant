@@ -169,13 +169,21 @@ interface PushNotificationPayload {
   data?: Record<string, unknown>;
   type:
     | "follow"
+    | "follow_request"
     | "like"
     | "comment"
     | "mention"
+    | "tag"
     | "message"
+    | "dm"
+    | "event"
     | "event_invite"
     | "event_update"
-    | "call"; // NEW: incoming call notification
+    | "ticket"
+    | "sneaky_lynk"
+    | "room_invite"
+    | "post"
+    | "call";
 }
 
 interface ExpoPushMessage {

@@ -289,6 +289,38 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     paramsSchema: idSchema,
     label: "Sneaky Lynk Room",
   },
+  {
+    urlPattern: "/sl/:id",
+    routerPath: "/(protected)/sneaky-lynk/room/:id",
+    auth: "auth-required",
+    paramsSchema: idSchema,
+    label: "Sneaky Lynk Room (short link)",
+  },
+  {
+    urlPattern: "/sneaky/:id",
+    routerPath: "/(protected)/sneaky-lynk/room/:id",
+    auth: "auth-required",
+    paramsSchema: idSchema,
+    label: "Sneaky Lynk Room (alias)",
+  },
+
+  // ── DM / Direct Message ────────────────────────────────────────────
+  {
+    urlPattern: "/dm/:userId",
+    routerPath: "/(protected)/messages",
+    auth: "auth-required",
+    paramsSchema: z.object({ userId: z.string().min(1) }),
+    label: "DM by User ID",
+  },
+
+  // ── User by ID (fallback when no username) ─────────────────────────
+  {
+    urlPattern: "/user/:userId",
+    routerPath: "/(protected)/profile/:userId",
+    auth: "auth-required",
+    paramsSchema: z.object({ userId: z.string().min(1) }),
+    label: "User Profile by ID",
+  },
 
   // ── Settings ───────────────────────────────────────────────────────
   {

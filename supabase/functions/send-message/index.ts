@@ -302,6 +302,8 @@ Deno.serve(async (req) => {
               type: "message",
               conversationId: String(conversationId),
               senderId: String(userId),
+              // Canonical URL — notification router resolves this first
+              url: `https://dvntlive.app/chat/${conversationId}`,
             },
           }));
 

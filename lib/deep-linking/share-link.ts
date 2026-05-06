@@ -13,12 +13,13 @@ const PRODUCTION_DOMAIN = "https://dvntlive.app";
 
 export const shareUrls = {
   profile: (username: string) => `${PRODUCTION_DOMAIN}/u/${username}`,
+  profileById: (userId: string) => `${PRODUCTION_DOMAIN}/user/${userId}`,
   post: (postId: string) => `${PRODUCTION_DOMAIN}/p/${postId}`,
   event: (eventId: string) => `${PRODUCTION_DOMAIN}/e/${eventId}`,
   story: (storyId: string) => `${PRODUCTION_DOMAIN}/story/${storyId}`,
   ticket: (ticketId: string) => `${PRODUCTION_DOMAIN}/ticket/${ticketId}`,
   chat: (chatId: string) => `${PRODUCTION_DOMAIN}/chat/${chatId}`,
-  room: (roomId: string) => `${PRODUCTION_DOMAIN}/room/${roomId}`,
+  sneakyLynk: (roomId: string) => `${PRODUCTION_DOMAIN}/sl/${roomId}`,
   comments: (postId: string) => `${PRODUCTION_DOMAIN}/comments/${postId}`,
 };
 
@@ -72,6 +73,21 @@ export async function shareEvent(
   return shareUrl(url, {
     title: eventName || "Event on DVNT",
     message: eventName ? `${eventName}\n${url}` : url,
+  });
+}
+
+/**
+ * Share a Sneaky Lynk room link via the native share sheet.
+ * Uses the short /sl/:roomId canonical URL.
+ */
+export async function shareSneakyLynk(
+  roomId: string,
+  roomName?: string,
+): Promise<ShareResult> {
+  const url = shareUrls.sneakyLynk(roomId);
+  return shareUrl(url, {
+    title: roomName ? `${roomName} — Sneaky Lynk` : "Sneaky Lynk on DVNT",
+    message: roomName ? `Join ${roomName} on DVNT\n${url}` : url,
   });
 }
 

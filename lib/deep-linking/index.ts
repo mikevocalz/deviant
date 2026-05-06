@@ -20,6 +20,7 @@ export {
   shareProfile,
   sharePost,
   shareEvent,
+  shareSneakyLynk,
   shareStory,
   shareUrl,
   copyShareUrl,

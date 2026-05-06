@@ -53,10 +53,7 @@ import {
 import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { screenPrefetch } from "@/lib/prefetch";
-import {
-  getPostDetailCommentsRoute,
-  getPostDetailRoute,
-} from "@/lib/routes/post-routes";
+import { routeFromNotification } from "@/lib/notifications/notificationRouter";
 import { setQueryClient } from "@/lib/auth-client";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { FeedSkeleton } from "@/components/skeletons";
@@ -288,48 +285,13 @@ export default function RootLayout() {
 
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!response) return;
-      const data = response.notification.request.content.data;
+      const data = response.notification.request.content.data as Record<string, unknown>;
       if (!data?.type) return;
 
       console.log("[RootLayout] Cold start from notification:", data.type);
 
-      // Build the target route based on notification type
-      let route: string | null = null;
-      switch (data.type) {
-        case "message":
-          if (data.conversationId)
-            route = `/(protected)/chat/${data.conversationId}`;
-          break;
-        case "call":
-          // Call notifications are handled by NotificationListener,
-          // but we still skip splash so the call UI shows immediately.
-          if (data.roomId) route = `/(protected)/call/${data.roomId}`;
-          break;
-        case "like":
-        case "comment":
-        case "mention":
-          if (
-            (data.type === "comment" || data.type === "mention") &&
-            data.postId
-          ) {
-            route = getPostDetailCommentsRoute(
-              String(data.postId),
-              typeof data.commentId === "string" ? data.commentId : undefined,
-            );
-          } else if (data.postId) {
-            route = getPostDetailRoute(String(data.postId));
-          }
-          break;
-        case "follow":
-          if (data.senderUsername)
-            route = `/(protected)/profile/${data.senderUsername}`;
-          else if (data.userId || data.senderId)
-            route = `/(protected)/profile/${data.userId || data.senderId}`;
-          break;
-        case "event":
-          if (data.eventId) route = `/(protected)/events/${data.eventId}`;
-          break;
-      }
+      // Central router resolves url > deepLink > typed fields
+      const route = routeFromNotification(data);
 
       // Skip splash for ANY notification tap — user expects immediate content
       const store = useAppStore.getState();
