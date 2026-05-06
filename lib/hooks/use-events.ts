@@ -154,6 +154,7 @@ export function useEvents(filters?: EventFilters) {
         search: filters?.search,
         sort: filters?.sort,
         cityId: filters?.cityId,
+        nsfw: filters?.nsfw,
       });
 
       let filtered = results;

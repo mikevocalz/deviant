@@ -413,6 +413,21 @@ export default function RootLayout() {
     splashAnimationFinished,
   ]);
 
+  // ── Replay pending deep link after auth settles ──────────────────────
+  // +native-intent.tsx may fire before Zustand rehydrates, causing it to
+  // treat an already-authenticated user as a guest and save the link as
+  // pending. Once splash is done + auth settled + user is authenticated,
+  // replay any saved deep link so the user lands on the intended screen.
+  useEffect(() => {
+    if (!splashAnimationFinished || !authSettled || !isAuthenticated) return;
+    const pending = useDeepLinkStore.getState().consumePendingLink();
+    if (!pending) return;
+    setTimeout(() => {
+      console.log("[RootLayout] Replaying pending deep link:", pending.routerPath);
+      router.push(pending.routerPath as any);
+    }, 150);
+  }, [splashAnimationFinished, authSettled, isAuthenticated]);
+
   // Show animated splash until BOTH app is ready AND animation is finished
   // IMPORTANT: Always wait for splashAnimationFinished, even if appReady is true
   const showAnimatedSplash = !splashAnimationFinished;

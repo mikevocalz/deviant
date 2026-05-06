@@ -1193,10 +1193,10 @@ function EventDetailScreenContent() {
     return (
       <View style={s.errorContainer}>
         <StatusBar barStyle="light-content" />
-        <Text style={s.errorEmoji}>🎭</Text>
-        <Text style={s.errorTitle}>Event Not Found</Text>
+        <Text style={s.errorEmoji}>🔒</Text>
+        <Text style={s.errorTitle}>Event Unavailable</Text>
         <Text style={s.errorSubtitle}>
-          This event may have been removed or the link is invalid.
+          This event may be private, require an invite, or no longer exist.
         </Text>
         <Pressable onPress={() => fetchEvent()} style={s.retryButton}>
           <Text style={s.retryText}>Try Again</Text>

@@ -170,10 +170,26 @@ function PublicEventDetailContent() {
           <View style={{ width: 24 }} />
         </View>
         <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>Event unavailable</Text>
+          <Text style={{ fontSize: 48, textAlign: "center", marginBottom: 16 }}>🔒</Text>
+          <Text style={styles.emptyTitle}>Private Event</Text>
           <Text style={styles.emptySub}>
-            We couldn't load this event. Please try again.
+            This event is private or invite-only. Sign in to see if you have access.
           </Text>
+          <Pressable
+            onPress={() => router.push("/(auth)/login" as any)}
+            style={{
+              marginTop: 24,
+              backgroundColor: "#a855f7",
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 12,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>
+              Sign In
+            </Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
