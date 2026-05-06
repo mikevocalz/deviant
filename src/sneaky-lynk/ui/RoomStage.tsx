@@ -468,7 +468,7 @@ const EmptyCrowdState = memo(function EmptyCrowdState({
 }) {
   return (
     <View style={styles.emptyWrap}>
-      <Animated.View style={[styles.emptyHalo, pulseStyle]}>
+      <Animated.View style={[styles.emptyHalo, pulseStyle as any]}>
         <Users size={24} color="rgb(62,164,229)" />
       </Animated.View>
       <Text style={styles.emptyTitle}>Waiting for the crowd</Text>
