@@ -484,7 +484,9 @@ function ViewTicketScreenContent() {
               </View>
               <View style={styles.upgradeBannerText}>
                 <Text style={styles.upgradeBannerTitle}>
-                  Upgrade to {upgradeTiers.length === 1 ? upgradeTiers[0].name : "VIP or Bottle Service"}
+                  Upgrade to {upgradeTiers.length === 1
+                    ? upgradeTiers[0].name
+                    : upgradeTiers.slice(0, 2).map((t: any) => t.name).join(" or ")}
                 </Text>
                 <Text style={styles.upgradeBannerSub}>
                   Pay only the difference · Wallet pass updates instantly

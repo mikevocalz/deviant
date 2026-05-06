@@ -462,14 +462,14 @@ Deno.serve(async (req: Request) => {
       payment_intent_id: session.id,
     });
 
-    // ── Increment promo usage ──
-    if (promoResult) {
-      await incrementPromoUsage(supabase, promoResult.promo_code_id);
-    }
+    // NOTE: Promo usage is intentionally NOT incremented here.
+    // Incrementing at checkout creation would inflate counts for sessions that are never paid.
+    // stripe-webhook increments usage inside checkout.session.completed after payment is confirmed.
 
     // ── Create order row in payment_pending state (fee components stored) ──
     await supabase.from("orders").insert({
-      user_id,
+      user_id: isGuest ? null : user_id,
+      guest_email: isGuest ? trimmedGuestEmail : null,
       type: "event_ticket",
       status: "payment_pending",
       quantity,

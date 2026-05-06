@@ -13,6 +13,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifySignedQrPayload } from "../_shared/hmac-qr.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -64,6 +65,21 @@ Deno.serve(async (req: Request) => {
 
     if (!qr_token && !qr_payload) {
       return json({ error: "Missing qr_token or qr_payload" }, 400);
+    }
+
+    // Rate-limit per scanner identity. A single scanner can realistically process
+    // at most ~1 scan per 2s in a real door line — 30/minute is a generous ceiling.
+    // This prevents brute-force QR token enumeration.
+    const rateLimitKey = scanned_by || device_id || req.headers.get("x-forwarded-for") || "anon";
+    const rl = checkRateLimit(rateLimitKey, "ticket-scan", {
+      maxRequests: 30,
+      windowMs: 60_000,
+    });
+    if (!rl.allowed) {
+      return json(
+        { error: `Too many scan attempts. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
+        429,
+      );
     }
 
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {

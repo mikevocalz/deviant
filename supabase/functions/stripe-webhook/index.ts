@@ -30,6 +30,7 @@ import {
   brandEmailWrapper,
 } from "../_shared/send-resend-email.ts";
 import { voidWalletPass } from "../_shared/wallet-push.ts";
+import { incrementPromoUsage } from "../_shared/apply-promo-code.ts";
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -149,32 +150,27 @@ async function verifyStripeSignature(
   }
 }
 
-function generateQrToken(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
-}
 
 Deno.serve(async (req: Request) => {
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
   }
 
+  // Hard-fail if webhook secret is not configured — never skip signature verification.
+  // A missing secret means anyone could POST fake events and issue tickets, grant access,
+  // or trigger refunds without paying.
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error("[stripe-webhook] STRIPE_WEBHOOK_SECRET is not set — rejecting request");
+    return new Response("Webhook secret not configured", { status: 500 });
+  }
+
   const body = await req.text();
   const sigHeader = req.headers.get("stripe-signature") || "";
 
-  if (STRIPE_WEBHOOK_SECRET) {
-    const valid = await verifyStripeSignature(
-      body,
-      sigHeader,
-      STRIPE_WEBHOOK_SECRET,
-    );
-    if (!valid) {
-      console.error("[stripe-webhook] Invalid signature");
-      return new Response("Invalid signature", { status: 400 });
-    }
+  const valid = await verifyStripeSignature(body, sigHeader, STRIPE_WEBHOOK_SECRET);
+  if (!valid) {
+    console.error("[stripe-webhook] Invalid signature");
+    return new Response("Invalid signature", { status: 400 });
   }
 
   const event = JSON.parse(body);
@@ -285,6 +281,12 @@ Deno.serve(async (req: Request) => {
             eventId,
             ticketTypeId,
           });
+
+          // ── Promo usage — increment here (after confirmed payment), NOT at checkout time.
+          // Incrementing at checkout creation would inflate usage counts for abandoned sessions.
+          if (metadata.promo_code_id) {
+            await incrementPromoUsage(supabase, metadata.promo_code_id);
+          }
 
           // ── Guest tickets: email confirmation with QR + lookup link ──
           if (isGuestPurchase && insertedTickets && insertedTickets.length > 0) {

@@ -167,7 +167,7 @@ export default {
       [
         "@stripe/stripe-react-native",
         {
-          merchantIdentifier: "merchant.com.deviant",
+          merchantIdentifier: "merchant.com.dvnt.app",
           enableGooglePay: true,
         },
       ],

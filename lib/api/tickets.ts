@@ -147,6 +147,7 @@ export const ticketsApi = {
   async scanTicket(
     qrToken: string,
     scannedBy?: string,
+    eventId?: string,
   ): Promise<{
     valid: boolean;
     reason?: string;
@@ -154,7 +155,11 @@ export const ticketsApi = {
   }> {
     try {
       const { data, error } = await supabase.functions.invoke("ticket-scan", {
-        body: { qr_token: qrToken, scanned_by: scannedBy },
+        body: {
+          qr_token: qrToken,
+          scanned_by: scannedBy,
+          ...(eventId ? { event_id: eventId } : {}),
+        },
       });
 
       if (error) throw error;

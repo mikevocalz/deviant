@@ -83,7 +83,7 @@ export function useMyTickets() {
 
       return [...dbTickets, ...storeOnlyTickets];
     },
-    staleTime: STALE_TIMES.bookmarks, // 10min — tickets change only on purchase/scan
+    staleTime: 0, // Tickets change in real-time (scanned, transferred, refunded)
     gcTime: GC_TIMES.standard,
   });
 }
@@ -98,7 +98,7 @@ export function useMyTicketForEvent(eventId: string) {
     queryKey: ticketKeys.myTicketForEvent(eventId),
     queryFn: () => ticketsApi.getMyTicketForEvent(eventId),
     enabled: !!eventId,
-    staleTime: STALE_TIMES.bookmarks,
+    staleTime: 0, // Ticket status changes in real-time
     gcTime: GC_TIMES.standard,
     // If Zustand store has a ticket (from recent RSVP), use it as placeholder
     placeholderData: storeTicket
@@ -168,11 +168,12 @@ export function useScanTicket() {
     mutationFn: ({
       qrToken,
       scannedBy,
+      eventId: scanEventId,
     }: {
       qrToken: string;
       scannedBy?: string;
       eventId?: string;
-    }) => ticketsApi.scanTicket(qrToken, scannedBy),
+    }) => ticketsApi.scanTicket(qrToken, scannedBy, scanEventId),
     onSuccess: (_data, variables) => {
       if (variables.eventId) {
         queryClient.invalidateQueries({
