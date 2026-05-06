@@ -27,33 +27,20 @@
  *   crash_recovery_entered  — flag: recovery UI shown this session
  */
 
-import { Platform } from "react-native";
-import { createMMKV } from "react-native-mmkv";
+import { mmkv as storage } from "@/lib/mmkv-zustand";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const MAX_APPLY_ATTEMPTS = 3;    // Blacklist after 3 failed applies of same ID
 const PENDING_TIMEOUT_MS = 30_000; // If pending > 30s old without confirmation → assume crash
 
-// MMKV Keys
-const K_PENDING_ID    = "pending_update_id";
-const K_PENDING_TS    = "pending_update_ts";
-const K_PENDING_COUNT = "pending_apply_count";
-const K_BAD_IDS       = "bad_update_ids";
-const K_CONFIRMED_ID  = "last_confirmed_update";
-const K_CONFIRMED_AT  = "last_confirmed_at";
-
-// ── Storage ───────────────────────────────────────────────────────────────────
-
-let storage: ReturnType<typeof createMMKV> | null = null;
-
-try {
-  if (Platform.OS !== "web") {
-    storage = createMMKV({ id: "dvnt-ota-safety" });
-  }
-} catch (e) {
-  console.error("[UpdateSafety] Failed to init MMKV:", e);
-}
+// MMKV Keys — prefixed to avoid collisions with Zustand store keys
+const K_PENDING_ID    = "__ota__pending_update_id";
+const K_PENDING_TS    = "__ota__pending_update_ts";
+const K_PENDING_COUNT = "__ota__pending_apply_count";
+const K_BAD_IDS       = "__ota__bad_update_ids";
+const K_CONFIRMED_ID  = "__ota__last_confirmed_update";
+const K_CONFIRMED_AT  = "__ota__last_confirmed_at";
 
 function safeGet<T>(fn: () => T, fallback: T): T {
   try { return fn(); } catch { return fallback; }

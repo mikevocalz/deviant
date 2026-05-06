@@ -9,22 +9,10 @@
  */
 
 import { Platform } from "react-native";
-import { createMMKV } from "react-native-mmkv";
 import Constants from "expo-constants";
 import { getUpdateSafetyDiagnostics } from "./updateSafety";
 import { getBootDiagnostics } from "@/lib/boot-guard";
-
-// ── Storage ───────────────────────────────────────────────────────────────────
-
-let diagStorage: ReturnType<typeof createMMKV> | null = null;
-
-try {
-  if (Platform.OS !== "web") {
-    diagStorage = createMMKV({ id: "dvnt-ota-diagnostics" });
-  }
-} catch (e) {
-  console.warn("[OtaDiag] Failed to init MMKV:", e);
-}
+import { mmkv as diagStorage } from "@/lib/mmkv-zustand";
 
 function safeGet<T>(fn: () => T, fallback: T): T {
   try { return fn(); } catch { return fallback; }
@@ -168,16 +156,16 @@ export function captureOtaDiagnostics(): OtaDiagnosticsSnapshot {
     // Session
     sessionStartedAt: SESSION_START,
     lastSuccessfulLaunchAt: safeGet(
-      () => diagStorage?.getString("last_successful_launch") ?? null,
+      () => diagStorage?.getString("__otadiag__last_successful_launch") ?? null,
       null
     ),
   };
 
   // Persist the snapshot
   try {
-    diagStorage?.set("last_diagnostics", JSON.stringify(snapshot));
+    diagStorage?.set("__otadiag__last_diagnostics", JSON.stringify(snapshot));
     if (!safety.crashedOnPendingUpdate) {
-      diagStorage?.set("last_successful_launch", SESSION_START);
+      diagStorage?.set("__otadiag__last_successful_launch", SESSION_START);
     }
   } catch { /* non-fatal */ }
 
@@ -190,7 +178,7 @@ export function captureOtaDiagnostics(): OtaDiagnosticsSnapshot {
  */
 export function getLastPersistedDiagnostics(): OtaDiagnosticsSnapshot | null {
   try {
-    const raw = diagStorage?.getString("last_diagnostics");
+    const raw = diagStorage?.getString("__otadiag__last_diagnostics");
     if (!raw) return null;
     return JSON.parse(raw) as OtaDiagnosticsSnapshot;
   } catch {
