@@ -302,6 +302,7 @@ function CreateEventScreenContent() {
           setCoOrganizerResults(
             docs.map((u: any) => ({
               id: u.id,
+              authId: u.authId,
               username: u.username,
               avatar: u.avatar,
               name: u.name,
@@ -629,7 +630,7 @@ function CreateEventScreenContent() {
           if (coOrganizers.length > 0 && data?.id) {
             for (const org of coOrganizers) {
               try {
-                await eventsApi.addCoOrganizer(String(data.id), org.id, "editor");
+                await eventsApi.addCoOrganizer(String(data.id), org.authId || org.id, "editor");
               } catch (coOrgErr) {
                 console.error("[CreateEvent] Failed to invite co-organizer:", org.username, coOrgErr);
               }
@@ -1740,6 +1741,7 @@ function CreateEventScreenContent() {
                           onPress={() =>
                             addCoOrganizer({
                               id: user.id,
+                              authId: user.authId,
                               username: user.username,
                               avatar: user.avatar,
                             })

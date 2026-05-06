@@ -49,6 +49,7 @@ interface LocationData {
 
 interface CoOrganizer {
   id: string;
+  authId?: string;
   username: string;
   avatar: string;
 }
@@ -109,6 +110,7 @@ interface UIFields {
   coOrganizerSearch: string;
   coOrganizerResults: {
     id: string;
+    authId?: string;
     username: string;
     avatar: string;
     name: string;
@@ -170,7 +172,7 @@ interface CreateEventActions {
   removeCoOrganizer: (userId: string) => void;
   setCoOrganizerSearch: (v: string) => void;
   setCoOrganizerResults: (
-    v: { id: string; username: string; avatar: string; name: string }[],
+    v: { id: string; authId?: string; username: string; avatar: string; name: string }[],
   ) => void;
   removeLineupItem: (index: number) => void;
   removePerk: (index: number) => void;
