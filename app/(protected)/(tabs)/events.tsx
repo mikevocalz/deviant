@@ -433,7 +433,8 @@ function EventsScreenContent() {
     activeFilters.length > 0 ||
     activeCategories.length > 0 ||
     activeSort !== "soonest" ||
-    debouncedSearch.length >= 2;
+    debouncedSearch.length >= 2 ||
+    nsfwFilter === true;
 
   // Filter events by tab — server handles pill filters
   // Tab indices: 0=Upcoming, 1=For You, 2=All Events, 3=Past Events
@@ -525,7 +526,7 @@ function EventsScreenContent() {
   }, [events]);
 
   const showCollections =
-    debouncedSearch.length < 2 && activeFilters.length === 0;
+    debouncedSearch.length < 2 && activeFilters.length === 0 && !nsfwFilter;
 
   // Whether events are still loading (show inline skeletons, never block layout)
   const showEventSkeletons = isLoading && events.length === 0;
@@ -887,7 +888,8 @@ function EventsScreenContent() {
                       >
                         {tabIndex === 1 &&
                           spotlightItems.length > 0 &&
-                          !showMapView && (
+                          !showMapView &&
+                          !nsfwFilter && (
                             <SpotlightSection items={spotlightItems} />
                           )}
                         <View
@@ -910,7 +912,8 @@ function EventsScreenContent() {
                       >
                         {tabIndex === 1 &&
                           spotlightItems.length > 0 &&
-                          !showMapView && (
+                          !showMapView &&
+                          !nsfwFilter && (
                             <SpotlightSection items={spotlightItems} />
                           )}
                         <View

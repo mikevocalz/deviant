@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DVNT</title>
+  <meta name="description" content="DVNT — The app for the culture." />
+  <meta property="og:title" content="DVNT" />
+  <meta property="og:description" content="The app for the culture." />
+  <meta property="og:image" content="https://dvntlive.app/images/og.png" />
+  <meta property="og:url" content="https://dvntlive.app" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <!-- Smart App Banner (iOS Safari) -->
+  <meta name="apple-itunes-app" content="app-id=PLACEHOLDER_APP_ID" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0a0a;
+      --surface: #141414;
+      --border: #222;
+      --text: #fff;
+      --muted: #888;
+      --accent: #a855f7;
+      --accent-dim: rgba(168,85,247,0.15);
+    }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      min-height: 100dvh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      text-align: center;
+    }
+    .logo {
+      font-size: 36px;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .tagline {
+      font-size: 14px;
+      color: var(--muted);
+      margin-bottom: 48px;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px 28px;
+      max-width: 380px;
+      width: 100%;
+    }
+    .icon {
+      width: 72px;
+      height: 72px;
+      background: var(--accent-dim);
+      border-radius: 18px;
+      margin: 0 auto 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+    }
+    h1 {
+      font-size: 20px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    p {
+      font-size: 14px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin-bottom: 28px;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      padding: 14px 20px;
+      border-radius: 12px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      transition: opacity 0.15s;
+    }
+    .btn:active { opacity: 0.8; }
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+      margin-bottom: 10px;
+    }
+    .btn-secondary {
+      background: var(--border);
+      color: var(--text);
+      border: 1px solid #333;
+    }
+    .status {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 20px;
+    }
+    #open-link { display: none; }
+  </style>
+</head>
+<body>
+  <div class="logo">DVNT</div>
+  <div class="tagline">The app for the culture</div>
+
+  <div class="card">
+    <div class="icon">&#127881;</div>
+    <h1 id="card-title">Open in DVNT</h1>
+    <p id="card-desc">Tap below to open this link in the DVNT app. If you don't have the app yet, download it from the App Store.</p>
+
+    <a href="#" class="btn btn-primary" id="open-btn" onclick="openApp(event)">Open in DVNT</a>
+    <a href="https://apps.apple.com/app/dvnt/idPLACEHOLDER_APP_ID" class="btn btn-secondary" id="store-btn">Download on the App Store</a>
+
+    <div class="status" id="status-msg"></div>
+  </div>
+
+  <!-- Hidden iframe trick for deep link without navigation -->
+  <iframe id="open-link" src="about:blank"></iframe>
+
+  <script>
+    (function () {
+      var path = window.location.pathname; // e.g. "/e/34"
+      var scheme = "dvnt:/";              // dvnt:// + path = dvnt:///e/34 → trim double slash
+      var deepLink = "dvnt:/" + path;     // dvnt://e/34
+
+      // Personalise the card title based on content type
+      var titles = {
+        "/e/": "View Event",
+        "/u/": "View Profile",
+        "/p/": "View Post",
+        "/story/": "View Story",
+        "/sl/": "Join Room",
+        "/sneaky-lynk/": "Join Room",
+      };
+      for (var prefix in titles) {
+        if (path.startsWith(prefix)) {
+          document.getElementById("card-title").textContent = titles[prefix];
+          break;
+        }
+      }
+
+      // Update the open button href
+      document.getElementById("open-btn").href = deepLink;
+
+      // Try to launch the app immediately on mobile
+      var ua = navigator.userAgent || "";
+      var isIOS = /iPhone|iPad|iPod/.test(ua);
+      var isAndroid = /Android/.test(ua);
+
+      if (isIOS || isAndroid) {
+        // Update store link for Android
+        if (isAndroid) {
+          document.getElementById("store-btn").href =
+            "https://play.google.com/store/apps/details?id=com.dvnt.app";
+          document.getElementById("store-btn").textContent = "Get it on Google Play";
+        }
+
+        // Auto-attempt deep link after short delay
+        var launched = false;
+        var timer = setTimeout(function () {
+          if (!launched) {
+            document.getElementById("status-msg").textContent =
+              "App not installed? Download it below.";
+          }
+        }, 1500);
+
+        // Listen for visibility change — if app opened, page goes hidden
+        document.addEventListener("visibilitychange", function () {
+          if (document.hidden) {
+            launched = true;
+            clearTimeout(timer);
+          }
+        });
+
+        // Attempt launch via iframe (doesn't navigate away if app not installed)
+        setTimeout(function () {
+          document.getElementById("open-link").src = deepLink;
+        }, 300);
+      } else {
+        // Desktop: hide open button, just show store link
+        document.getElementById("open-btn").style.display = "none";
+        document.getElementById("card-desc").textContent =
+          "DVNT is a mobile app. Scan the QR code or search for DVNT in the App Store or Google Play.";
+        document.getElementById("store-btn").textContent = "View on App Store";
+      }
+
+      // Manual open button always uses the deep link
+      window.openApp = function (e) {
+        e.preventDefault();
+        window.location.href = deepLink;
+      };
+    })();
+  </script>
+</body>
+</html>
