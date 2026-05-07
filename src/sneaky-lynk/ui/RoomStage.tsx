@@ -91,12 +91,12 @@ const TILES_PER_PAGE = TILES_PER_ROW * ROWS_PER_PAGE; // 4
 // Reserved vertical inside the crowd zone for chrome (divider + label
 // row + vertical padding + pagination dots). Tiles get what's left
 // after this overhead is subtracted from the measured crowd height.
-const CROWD_CHROME_HEIGHT = 86;
+// Reduced from 86 → 52: actual chrome is label-row (~32px) + dots (~14px) + padding (6px).
+const CROWD_CHROME_HEIGHT = 52;
 // Tile dimensions fall back to this minimum when the crowd zone
 // hasn't been measured yet (first render before onLayout fires).
-// Matches a reasonable small-phone tile so the first paint doesn't
-// flash oversized tiles that get snapped smaller a frame later.
-const FALLBACK_TILE_HEIGHT = 110;
+// Raised from 110 → 140 so tiles look Zoom-like from first paint.
+const FALLBACK_TILE_HEIGHT = 140;
 
 // Sneaky Lynk room dot colors — alternating DVNT cyan/pink. Rotates
 // per-index so every page gets a visually distinct dot, same pattern
@@ -153,7 +153,8 @@ export const RoomStage = memo(function RoomStage({
   // cap prevents the hero from dominating small phones (where
   // pageWidth / HERO_ASPECT could eat more of the stage than we want).
   const pageWidth = screenWidth - SIDE_PAD * 2;
-  const heroCap = totalCount >= 10 ? 0.42 : 0.5;
+  // Lower cap gives the crowd zone more height — matches Zoom's ~40/60 split.
+  const heroCap = totalCount >= 10 ? 0.38 : 0.44;
   const heroMaxHeight = Math.round(screenHeight * heroCap);
   const heroAspectHeight = Math.round(pageWidth / HERO_ASPECT);
   const heroHeight = Math.min(heroAspectHeight, heroMaxHeight);
@@ -167,14 +168,14 @@ export const RoomStage = memo(function RoomStage({
   const effectiveStageHeight =
     stageHeightProp > 0
       ? stageHeightProp
-      : Math.round(screenHeight * 0.62); // generous fallback
+      : Math.round(screenHeight * 0.70); // generous fallback — more room for crowd
   const crowdZoneHeight = Math.max(
     FALLBACK_TILE_HEIGHT * ROWS_PER_PAGE + CROWD_CHROME_HEIGHT,
     effectiveStageHeight - heroHeight - 4,
   );
 
   const tilesAreaHeight = Math.max(
-    160,
+    200,
     crowdZoneHeight - CROWD_CHROME_HEIGHT,
   );
 

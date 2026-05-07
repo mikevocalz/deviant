@@ -378,7 +378,7 @@ function getGridLayout(
   screenWidth: number,
   screenHeight: number,
 ) {
-  const availableHeight = screenHeight - 178;
+  const availableHeight = screenHeight - 130;
   const gap = 6;
 
   if (count === 1) {
