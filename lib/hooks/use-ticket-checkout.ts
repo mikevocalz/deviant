@@ -6,13 +6,16 @@
  *
  * Falls back to Stripe Checkout (browser redirect) if PaymentSheet
  * initialization fails for any reason.
+ *
+ * STATE: isLoading lives in usePaymentsStore.checkoutLoading (no useState).
  */
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
 import { useStripeSafe as useStripe } from "@/lib/safe-native-modules";
 import { supabase } from "@/lib/supabase/client";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { requireBetterAuthToken } from "@/lib/auth/identity";
+import { usePaymentsStore } from "@/lib/stores/payments-store";
 
 interface CheckoutParams {
   eventId: string;
@@ -33,12 +36,13 @@ interface CheckoutResult {
 export function useTicketCheckout() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const showToast = useUIStore((s) => s.showToast);
-  const [isLoading, setIsLoading] = useState(false);
+  const setCheckoutLoading = usePaymentsStore((s) => s.setCheckoutLoading);
+  const checkoutLoading = usePaymentsStore((s) => s.checkoutLoading);
 
   const checkout = useCallback(
     async (params: CheckoutParams): Promise<CheckoutResult> => {
       const { eventId, ticketTypeId, quantity, promoCode } = params;
-      setIsLoading(true);
+      setCheckoutLoading(true);
 
       try {
         // Get Better Auth token for session verification
@@ -143,11 +147,11 @@ export function useTicketCheckout() {
         console.error("[useTicketCheckout] Error:", err);
         return { success: false, error: err.message || "Checkout failed" };
       } finally {
-        setIsLoading(false);
+        setCheckoutLoading(false);
       }
     },
-    [initPaymentSheet, presentPaymentSheet],
+    [initPaymentSheet, presentPaymentSheet, setCheckoutLoading],
   );
 
-  return { checkout, isLoading };
+  return { checkout, isLoading: checkoutLoading };
 }

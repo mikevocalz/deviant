@@ -13,9 +13,11 @@
  *
  * To test OTA in development builds: set EXPO_PUBLIC_FORCE_OTA_CHECK=true.
  * Publish updates with: eas update --channel production
+ *
+ * STATE: All mutable state lives in useOtaUpdateStore (Zustand) — no useState.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { Alert, AppState, type AppStateStatus, Platform } from "react-native";
 import { toast } from "sonner-native";
 import { mmkv } from "@/lib/mmkv-zustand";
@@ -144,14 +146,6 @@ function showUpdateToast(updateId?: string | null) {
   }
 }
 
-export interface UpdateStatus {
-  isChecking: boolean;
-  isDownloading: boolean;
-  isUpdateAvailable: boolean;
-  isUpdatePending: boolean;
-  error: string | null;
-}
-
 export interface UseUpdatesOptions {
   /** If false, OTA checks will be deferred until enabled becomes true */
   enabled?: boolean;
@@ -160,13 +154,7 @@ export interface UseUpdatesOptions {
 export function useUpdates(options: UseUpdatesOptions = {}) {
   const { enabled = true } = options;
 
-  const [status, setStatus] = useState<UpdateStatus>({
-    isChecking: false,
-    isDownloading: false,
-    isUpdateAvailable: false,
-    isUpdatePending: false,
-    error: null,
-  });
+  const store = useOtaUpdateStore();
 
   useEffect(() => {
     console.log(
@@ -225,7 +213,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       return;
     }
 
-    setStatus((prev) => ({ ...prev, isDownloading: true }));
+    useOtaUpdateStore.getState().setDownloading(true);
 
     try {
       const result = await safeGet(
@@ -236,11 +224,8 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       );
 
       if (result && result.isNew) {
-        setStatus((prev) => ({
-          ...prev,
-          isDownloading: false,
-          isUpdatePending: true,
-        }));
+        useOtaUpdateStore.getState().setDownloading(false);
+        useOtaUpdateStore.getState().setUpdatePending(true);
         const newUpdateId = safeGet(
           () => (result as any)?.manifest?.id || (result as any)?.updateId,
           null,
@@ -254,7 +239,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           console.error(
             `[Updates] Update ${newUpdateId} is blacklisted (known-bad) — skipping apply`,
           );
-          setStatus((prev) => ({ ...prev, isUpdatePending: false }));
+          useOtaUpdateStore.getState().setUpdatePending(false);
           return;
         }
         showUpdateToast(newUpdateId);
@@ -263,16 +248,14 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           "[Updates] Fetch complete, isNew:",
           !!(result && result.isNew),
         );
-        setStatus((prev) => ({ ...prev, isDownloading: false }));
+        useOtaUpdateStore.getState().setDownloading(false);
       }
     } catch (error) {
       console.error("[Updates] Download failed (non-fatal):", error);
-      setStatus((prev) => ({
-        ...prev,
-        isDownloading: false,
-        error:
-          error instanceof Error ? error.message : "Failed to download update",
-      }));
+      useOtaUpdateStore.getState().setDownloading(false);
+      useOtaUpdateStore.getState().setCheckError(
+        error instanceof Error ? error.message : "Failed to download update",
+      );
     } finally {
       globalIsDownloading = false;
     }
@@ -311,7 +294,8 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       runtimeVersion,
     );
 
-    setStatus((prev) => ({ ...prev, isChecking: true, error: null }));
+    useOtaUpdateStore.getState().setChecking(true);
+    useOtaUpdateStore.getState().setCheckError(null);
 
     try {
       const update = await safeGet(
@@ -345,32 +329,24 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       }
 
       if (update && update.isAvailable) {
-        setStatus((prev) => ({
-          ...prev,
-          isChecking: false,
-          isUpdateAvailable: true,
-        }));
+        useOtaUpdateStore.getState().setChecking(false);
+        useOtaUpdateStore.getState().setUpdateAvailable(true);
         // Reset globalIsChecking BEFORE calling downloadAndApplyUpdate — otherwise
         // downloadAndApplyUpdate sees globalIsChecking=true and immediately bails.
         globalIsChecking = false;
         downloadAndApplyUpdate();
       } else {
-        setStatus((prev) => ({
-          ...prev,
-          isChecking: false,
-          isUpdateAvailable: false,
-        }));
+        useOtaUpdateStore.getState().setChecking(false);
+        useOtaUpdateStore.getState().setUpdateAvailable(false);
       }
     } catch (error) {
       console.warn("[Updates] Check failed (non-fatal):", error);
-      setStatus((prev) => ({
-        ...prev,
-        isChecking: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to check for updates",
-      }));
+      useOtaUpdateStore.getState().setChecking(false);
+      useOtaUpdateStore.getState().setCheckError(
+        error instanceof Error
+          ? error.message
+          : "Failed to check for updates",
+      );
     } finally {
       globalIsChecking = false;
     }
@@ -481,10 +457,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
                 isUpdateAvailable === true
               ) {
                 console.log("[Updates] Update available event received");
-                setStatus((prev) => ({
-                  ...prev,
-                  isUpdateAvailable: true,
-                }));
+                useOtaUpdateStore.getState().setUpdateAvailable(true);
                 downloadAndApplyUpdate();
               }
             } catch (eventError) {
@@ -535,9 +508,14 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
   }, null);
 
   return {
-    ...status,
+    isChecking: store.isChecking,
+    isDownloading: store.isDownloading,
+    isUpdateAvailable: store.isUpdateAvailable,
+    isUpdatePending: store.isUpdatePending,
+    error: store.checkError,
     checkForUpdates,
     downloadAndApplyUpdate,
     currentlyRunning,
+    reloadApp,
   };
 }

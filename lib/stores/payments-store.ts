@@ -127,6 +127,13 @@ interface ConnectSlice {
   setOnboardingLoading: (loading: boolean) => void;
 }
 
+// ─── Ticket Checkout ──────────────────────────────────────────
+
+interface CheckoutSlice {
+  checkoutLoading: boolean;
+  setCheckoutLoading: (loading: boolean) => void;
+}
+
 // ─── Branding ─────────────────────────────────────────────────
 
 interface BrandingSlice {
@@ -149,7 +156,8 @@ type PaymentsState = PaymentMethodsSlice &
   HostPayoutsSlice &
   HostTransactionsSlice &
   ConnectSlice &
-  BrandingSlice & {
+  BrandingSlice &
+  CheckoutSlice & {
     reset: () => void;
   };
 
@@ -242,6 +250,10 @@ export const usePaymentsStore = create<PaymentsState>((set) => ({
   setConnectLoading: (connectLoading) => set({ connectLoading }),
   setOnboardingLoading: (onboardingLoading) => set({ onboardingLoading }),
 
+  // Ticket Checkout
+  checkoutLoading: false,
+  setCheckoutLoading: (checkoutLoading) => set({ checkoutLoading }),
+
   // Branding
   branding: null,
   brandingLoading: false,
@@ -285,5 +297,6 @@ export const usePaymentsStore = create<PaymentsState>((set) => ({
       branding: null,
       brandingLoading: false,
       brandingSaving: false,
+      checkoutLoading: false,
     }),
 }));

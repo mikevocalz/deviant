@@ -39,6 +39,9 @@ interface AppState {
   pendingNotificationRoute: string | null;
   /** Route to navigate to after splash + auth settle (from share intent cold start) */
   pendingShareIntentRoute: PendingAppRoute | null;
+  /** Whether the ShareIntentHandler is ready to mount (deferred after main app) */
+  shareIntentReady: boolean;
+  setShareIntentReady: (ready: boolean) => void;
   setAppReady: (ready: boolean) => void;
   setSplashAnimationFinished: (finished: boolean) => void;
   onAnimationFinish: (isCancelled: boolean) => void;
@@ -73,6 +76,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   })(),
   pendingNotificationRoute: null,
   pendingShareIntentRoute: null,
+  shareIntentReady: false,
+  setShareIntentReady: (ready) => set({ shareIntentReady: ready }),
   setAppReady: (ready) => set({ appReady: ready }),
   setSplashAnimationFinished: (finished) => {
     if (finished) {

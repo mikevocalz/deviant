@@ -66,16 +66,16 @@ export default {
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription:
-          "This app needs access to your camera to take photos and videos for posts and stories.",
+          "DVNT uses your camera to capture photos and videos for posts, stories, and live video rooms. Your camera is only active while you are creating content.",
         NSPhotoLibraryUsageDescription:
-          "This app needs access to your photo library to select photos and videos for posts and stories.",
+          "DVNT accesses your photo library so you can choose photos and videos to share in posts and stories.",
         NSMicrophoneUsageDescription:
-          "This app needs access to your microphone to record videos with audio.",
+          "DVNT uses your microphone to record audio for video posts, stories, and live video rooms. Your microphone is only active while you are recording or in a live room.",
         UIBackgroundModes: ["audio", "voip"],
         NSPhotoLibraryAddUsageDescription:
-          "Allow $(PRODUCT_NAME) to save photos.",
+          "DVNT saves media to your photo library when you choose to download photos or videos.",
         NSLocationWhenInUseUsageDescription:
-          "Allow $(PRODUCT_NAME) to access your location to show nearby events and venues.",
+          "DVNT uses your location to show nearby events and suggest relevant venues while you are using the app. Your location is never stored or shared without your permission.",
       },
     },
     android: {
@@ -202,19 +202,20 @@ export default {
         "expo-image-picker",
         {
           photosPermission:
-            "Allow $(PRODUCT_NAME) to access your photos to share in posts and stories.",
+            "DVNT accesses your photo library so you can choose photos and videos to share in posts and stories.",
           cameraPermission:
-            "Allow $(PRODUCT_NAME) to access your camera to take photos and videos.",
+            "DVNT uses your camera to capture photos and videos for posts, stories, and live video rooms.",
           microphonePermission:
-            "Allow $(PRODUCT_NAME) to access your microphone to record videos with audio.",
+            "DVNT uses your microphone to record audio for video posts, stories, and live video rooms.",
         },
       ],
       [
         "expo-media-library",
         {
           photosPermission:
-            "Allow $(PRODUCT_NAME) to access your photo library.",
-          savePhotosPermission: "Allow $(PRODUCT_NAME) to save photos.",
+            "DVNT accesses your photo library so you can choose media to share in posts and stories.",
+          savePhotosPermission:
+            "DVNT saves media to your photo library when you choose to download photos or videos.",
           isAccessMediaLocationEnabled: true,
         },
       ],
@@ -227,9 +228,10 @@ export default {
       [
         "expo-camera",
         {
-          cameraPermission: "Allow $(PRODUCT_NAME) to access your camera.",
+          cameraPermission:
+            "DVNT uses your camera to capture photos and videos for posts, stories, and live video rooms.",
           microphonePermission:
-            "Allow $(PRODUCT_NAME) to access your microphone.",
+            "DVNT uses your microphone to record audio for video posts, stories, and live video rooms.",
           recordAudioAndroid: true,
         },
       ],
@@ -245,7 +247,7 @@ export default {
           },
           requestLocationPermission: true,
           locationPermission:
-            "Allow $(PRODUCT_NAME) to access your location to show nearby events and venues.",
+            "DVNT uses your location to show nearby events and suggest relevant venues while you are using the app.",
         },
       ],
       "@config-plugins/react-native-callkeep",
@@ -276,14 +278,14 @@ export default {
         "expo-calendar",
         {
           calendarPermission:
-            "Allow $(PRODUCT_NAME) to access your calendar to add event reminders.",
+            "DVNT adds event reminders to your calendar when you choose to save events.",
         },
       ],
       [
         "expo-location",
         {
           locationAlwaysAndWhenInUsePermission:
-            "Allow $(PRODUCT_NAME) to use your location.",
+            "DVNT uses your location to show nearby events and suggest relevant venues while you are using the app.",
         },
       ],
       [

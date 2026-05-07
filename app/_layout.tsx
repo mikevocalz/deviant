@@ -28,7 +28,7 @@ import {
 } from "@/lib/query-persistence";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import AnimatedSplashScreen from "@/components/animated-splash-screen";
@@ -179,11 +179,12 @@ export default function RootLayout() {
     (s) => s.setSplashAnimationFinished,
   );
   const insets = useSafeAreaInsets();
-  const [shareIntentReady, setShareIntentReady] = useState(false);
   const openedFromShareIntent = useDeepLinkStore(
     (s) => s.openedFromShareIntent,
   );
   const pendingShareIntentRoute = useAppStore((s) => s.pendingShareIntentRoute);
+  const shareIntentReady = useAppStore((s) => s.shareIntentReady);
+  const setShareIntentReady = useAppStore((s) => s.setShareIntentReady);
 
   useEffect(() => {
     const delay = openedFromShareIntent ? 0 : 1500;
@@ -486,7 +487,7 @@ export default function RootLayout() {
                 publishableKey={
                   process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ""
                 }
-                merchantIdentifier="merchant.com.deviant"
+                merchantIdentifier="merchant.com.dvnt.app"
               >
                 <PersistQueryClientProvider
                   client={queryClient}

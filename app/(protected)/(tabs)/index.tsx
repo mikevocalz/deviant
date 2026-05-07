@@ -8,6 +8,7 @@ import { useAppStore } from "@/lib/stores/app-store";
 import * as Haptics from "expo-haptics";
 import { useCallback, memo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { Motion } from "@legendapp/motion";
 
 /**
  * StoriesBar memoized at module level. Rendering it as a sibling of the
@@ -29,39 +30,36 @@ export const FeedModeToggle = memo(function FeedModeToggle() {
   }, [nsfwEnabled, setNsfwEnabled]);
 
   return (
-    <Pressable
-      onPress={toggleSpicy}
-      style={{
-        flexDirection: "row",
-        alignItems: "center",
-        alignSelf: "center",
-        gap: 6,
-        backgroundColor: nsfwEnabled
-          ? "rgba(153,27,27,0.35)"
-          : "rgba(255,255,255,0.06)",
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        marginVertical: 8,
-        borderWidth: 1,
-        borderColor: nsfwEnabled
-          ? "rgba(239,68,68,0.4)"
-          : "rgba(255,255,255,0.08)",
-      }}
+    <Motion.View
+      whileTap={{ scale: 0.9 }}
+      style={[
+        {
+          width: 40,
+          height: 40,
+          borderRadius: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          borderWidth: 1,
+          backgroundColor: nsfwEnabled
+            ? "rgba(153,27,27,0.3)"
+            : "rgba(255,255,255,0.06)",
+          borderColor: nsfwEnabled
+            ? "rgba(153,27,27,0.6)"
+            : "rgba(255,255,255,0.12)",
+        },
+      ]}
+      transition={{ type: "spring", damping: 20, stiffness: 300 }}
     >
-      <Text style={{ fontSize: 16, lineHeight: 18 }}>
-        {nsfwEnabled ? "😈" : "😇"}
-      </Text>
-      <Text
-        style={{
-          color: nsfwEnabled ? "rgba(255,100,100,0.9)" : "rgba(255,255,255,0.5)",
-          fontSize: 12,
-          fontWeight: "600",
-        }}
+      <Pressable
+        onPress={toggleSpicy}
+        style={{ width: "100%", height: "100%", alignItems: "center", justifyContent: "center" }}
+        accessibilityLabel={nsfwEnabled ? "Switch to sweet feed" : "Switch to spicy feed"}
       >
-        {nsfwEnabled ? "Spicy" : "Sweet"}
-      </Text>
-    </Pressable>
+        <Text style={{ fontSize: 18 }}>
+          {nsfwEnabled ? "😈" : "😇"}
+        </Text>
+      </Pressable>
+    </Motion.View>
   );
 });
 
@@ -70,12 +68,12 @@ export default function HomeScreen() {
 
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
+      {/* Spicy toggle — right-aligned, matches events header style */}
       <View
         style={{
           position: "absolute",
-          top: 0,
-          left: 0,
-          right: 0,
+          top: 8,
+          right: 12,
           zIndex: 10,
           pointerEvents: "box-none",
         }}
