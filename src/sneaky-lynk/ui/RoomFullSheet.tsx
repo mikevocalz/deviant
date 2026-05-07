@@ -61,6 +61,8 @@ interface RoomFullSheetProps {
   onSeatOpen: () => void;
   /** Fired when the host taps "Upgrade". */
   onUpgrade: () => void;
+  /** Fired when a viewer taps "Pay $2.99 to join". Only shown when provided. */
+  onPayToJoin?: () => void;
 }
 
 export function RoomFullSheet({
@@ -72,6 +74,7 @@ export function RoomFullSheet({
   phase,
   onSeatOpen,
   onUpgrade,
+  onPayToJoin,
 }: RoomFullSheetProps) {
   const { colors } = useColorScheme();
 
@@ -254,6 +257,26 @@ export function RoomFullSheet({
               {primaryLabel}
             </Text>
           </Pressable>
+
+          {/* Pay to join — only shown for viewers when paywall is available */}
+          {!isHost && onPayToJoin && (
+            <Pressable
+              onPress={onPayToJoin}
+              style={({ pressed }) => [
+                styles.secondaryBtn,
+                {
+                  borderColor: accent,
+                  backgroundColor: `${accent}18`,
+                  opacity: pressed ? 0.7 : 1,
+                  marginBottom: 8,
+                },
+              ]}
+            >
+              <Text style={[styles.secondaryLabel, { color: accent }]}>
+                Pay $2.99 to join now
+              </Text>
+            </Pressable>
+          )}
 
           {/* Secondary — hairline close. */}
           <Pressable

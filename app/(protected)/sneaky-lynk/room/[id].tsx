@@ -89,6 +89,8 @@ import {
 import { useRoomReactions } from "@/src/sneaky-lynk/hooks/useRoomReactions";
 import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureProtection";
 import { SneakySubscriptionModal } from "@/src/sneaky-lynk/components/SneakySubscriptionModal";
+import { SneakyPaywallModal } from "@/src/sneaky-lynk/components/SneakyPaywallModal";
+import { isFeatureEnabled } from "@/lib/feature-flags";
 
 // ── Error Boundary (per-route) — surfaces real crash message ────────
 
@@ -1641,6 +1643,7 @@ function ServerRoom({
   // Subscription check for host — paid hosts skip the 16-min timer;
   // free hosts see the upgrade paywall when time is up.
   const [showTimesUpPaywall, setShowTimesUpPaywall] = useState(false);
+  const [showViewerPaywall, setShowViewerPaywall] = useState(false);
   const [isPaidHost, setIsPaidHost] = useState(false);
   useEffect(() => {
     if (!isHost || !authUser?.id) return;
@@ -2109,6 +2112,17 @@ function ServerRoom({
         reason="duration_limit"
       />
 
+      <SneakyPaywallModal
+        visible={showViewerPaywall}
+        sessionId={id}
+        onClose={() => setShowViewerPaywall(false)}
+        onAccessGranted={() => {
+          setShowViewerPaywall(false);
+          setJoinError(null);
+          setCapacityPhase("idle");
+        }}
+      />
+
       {/* Sheet overlay — absolute full-screen wrapper that sits ABOVE
           RoomLayout's controls dock. Without this, gorhom BottomSheet
           shared a stacking context with the dock (both absolute-positioned
@@ -2188,6 +2202,16 @@ function ServerRoom({
           setCapacityPhase("idle");
           router.push("/settings/order" as any);
         }}
+        onPayToJoin={
+          isFeatureEnabled("sneaky_paywall_enabled") &&
+          !joinError?.capacity?.isHost
+            ? () => {
+                setJoinError(null);
+                setCapacityPhase("idle");
+                setShowViewerPaywall(true);
+              }
+            : undefined
+        }
       />
 
       {/* Non-capacity join errors — room ended, rate-limited, forbidden,

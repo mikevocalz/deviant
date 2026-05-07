@@ -1,33 +1,26 @@
 /**
  * RoomParticipantsSheet
  *
- * Live roster of a Sneaky Lynk room. Everyone can open it; moderation
- * actions (mute, remove) only show for the host and never against
- * themselves or the host row.
+ * Live roster of a Sneaky Lynk room. Custom overlay (not gorhom/bottom-sheet)
+ * so it renders above the video room's native stacking context on all devices.
+ * Same pattern as StoryViewersSheet: absolute-fill overlay + Pressable backdrop
+ * + LegendList inside a bottom-anchored card.
  *
- * Architecture decisions (see commit history for context):
- *   - Regular `BottomSheet` (not `BottomSheetModal`). Modal needed a
- *     `BottomSheetModalProvider` in the tree AND an imperative
- *     present()/dismiss() flow that was fighting the `visible` prop
- *     the parent owns. Regular BottomSheet with an `index` prop is
- *     straightforward and reliable.
- *   - NO `detached` — detaching the sheet with side margins was what
- *     rendered the close button visibly OUTSIDE the sheet on some
- *     devices (user-reported bug). Full-width sheet, rounded top
- *     corners, clean edge.
- *   - ALL hooks run every render. No early-return ABOVE hooks
- *     (the prior hook-order violation crashed the app).
- *   - Pressable rounded-square avatars nav to /profile/[username].
- *     Anonymous users are non-pressable and labeled "Anonymous".
+ * Design (DVNT editorial dark):
+ *   - Hero counter: large tabular number + "in the room" suffix
+ *   - Rounded-square avatars (house style — never circular)
+ *   - Role chips (host=cyan fill, co-host/mod=hairline outline)
+ *   - Hand-raised accent pink pill when raised
+ *   - Mic muted: small red icon badge on the right
+ *   - Host moderation: compact icon-only buttons on the right when host
+ *   - Stagger-fade entering animation on first 8 rows (50ms stride)
  */
 
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, { useCallback, useMemo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import BottomSheet, {
-  BottomSheetBackdrop,
-  BottomSheetFlatList,
-} from "@gorhom/bottom-sheet";
-import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
+import Animated, {
+  FadeInDown,
+} from "react-native-reanimated";
 import { useRouter } from "expo-router";
 import {
   Crown,
@@ -40,7 +33,7 @@ import {
   X,
 } from "lucide-react-native";
 import { Avatar } from "@/components/ui/avatar";
-import { DVNTLiquidGlassIconButton } from "@/components/media/DVNTLiquidGlass";
+import { LegendList } from "@/components/list";
 import { useColorScheme } from "@/lib/hooks";
 import type { VideoParticipant } from "./VideoGrid";
 import { getSneakyUserLabel } from "./user-labels";
@@ -68,7 +61,7 @@ const ROLE_ORDER: Record<string, number> = {
 interface RoleMeta {
   label: string;
   icon: (color: string) => React.ReactNode;
-  useAccent: boolean; // true → solid cyan fill, false → hairline outline
+  useAccent: boolean;
 }
 
 function getRoleMeta(role: string): RoleMeta | null {
@@ -92,12 +85,222 @@ function getRoleMeta(role: string): RoleMeta | null {
         useAccent: false,
       };
     default:
-      // Listener / speaker / participant — no chip (their presence
-      // IS their role, Zoom pattern). Returning null collapses the
-      // pill entirely.
       return null;
   }
 }
+
+// ── Participant row ───────────────────────────────────────────────────────────
+
+function ParticipantRow({
+  item,
+  index,
+  localUserId,
+  isHost,
+  colors,
+  onProfilePress,
+  onMute,
+  onUnmute,
+  onRemove,
+}: {
+  item: VideoParticipant;
+  index: number;
+  localUserId: string;
+  isHost: boolean;
+  colors: ReturnType<typeof useColorScheme>["colors"];
+  onProfilePress: (username: string) => void;
+  onMute: (userId: string) => void;
+  onUnmute: (userId: string) => void;
+  onRemove: (userId: string) => void;
+}) {
+  const isSelf = item.id === localUserId;
+  const isAnon = item.user.isAnonymous;
+  const displayLabel = isAnon ? "Anonymous" : getSneakyUserLabel(item.user);
+  const roleMeta = getRoleMeta(item.role);
+  const canModerate = isHost && !isSelf && item.role !== "host";
+  const delay = index < 8 ? index * 50 : 0;
+
+  const avatarEl = isAnon ? (
+    <View
+      style={[
+        styles.avatarAnon,
+        {
+          backgroundColor: `${colors.mutedForeground}14`,
+          borderColor: colors.border,
+        },
+      ]}
+    >
+      <EyeOff size={20} color={colors.mutedForeground} />
+    </View>
+  ) : (
+    <Avatar
+      uri={item.user.avatar}
+      username={item.user.username}
+      size={44}
+      variant="roundedSquare"
+    />
+  );
+
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(delay).duration(200).springify().damping(22)}
+    >
+      <View style={styles.row}>
+        {/* Avatar — tappable if not anon */}
+        {isAnon ? (
+          <View style={styles.avatarSlot}>{avatarEl}</View>
+        ) : (
+          <Pressable
+            onPress={() => onProfilePress(item.user.username)}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.avatarSlot,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            {avatarEl}
+          </Pressable>
+        )}
+
+        {/* Name + chips */}
+        <View style={styles.info}>
+          <Text
+            style={[
+              styles.username,
+              {
+                color: colors.foreground,
+                fontStyle: isAnon ? "italic" : "normal",
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {displayLabel}
+            {isSelf ? (
+              <Text style={{ color: colors.mutedForeground }}>{" (You)"}</Text>
+            ) : null}
+          </Text>
+
+          {(roleMeta || item.isHandRaised) ? (
+            <View style={styles.chipsRow}>
+              {roleMeta ? (
+                <View
+                  style={[
+                    styles.chip,
+                    roleMeta.useAccent
+                      ? {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                        }
+                      : {
+                          backgroundColor: `${colors.primary}1f`,
+                          borderColor: `${colors.primary}40`,
+                        },
+                  ]}
+                >
+                  {roleMeta.icon(
+                    roleMeta.useAccent ? colors.primaryForeground : colors.primary,
+                  )}
+                  <Text
+                    style={[
+                      styles.chipLabel,
+                      {
+                        color: roleMeta.useAccent
+                          ? colors.primaryForeground
+                          : colors.primary,
+                      },
+                    ]}
+                  >
+                    {roleMeta.label}
+                  </Text>
+                </View>
+              ) : null}
+
+              {item.isHandRaised ? (
+                <View
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: `${colors.accent}1f`,
+                      borderColor: `${colors.accent}40`,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.chipLabel, { color: colors.accent }]}>
+                    ✋ Hand up
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        {/* Right-side actions: mic status + optional mod buttons */}
+        <View style={styles.rightActions}>
+          {/* Muted badge — only shown when muted */}
+          {!item.isMicOn ? (
+            <View
+              style={[
+                styles.micBadge,
+                {
+                  backgroundColor: `${colors.destructive}1a`,
+                  borderColor: `${colors.destructive}40`,
+                },
+              ]}
+            >
+              <MicOff size={13} color={colors.destructive} />
+            </View>
+          ) : null}
+
+          {/* Host-only compact mod buttons */}
+          {canModerate ? (
+            <>
+              <Pressable
+                onPress={() =>
+                  item.isMicOn ? onMute(item.id) : onUnmute(item.id)
+                }
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.modIcon,
+                  {
+                    backgroundColor: item.isMicOn
+                      ? `${colors.destructive}14`
+                      : `${colors.primary}14`,
+                    borderColor: item.isMicOn
+                      ? `${colors.destructive}40`
+                      : `${colors.primary}40`,
+                    opacity: pressed ? 0.65 : 1,
+                  },
+                ]}
+              >
+                {item.isMicOn ? (
+                  <MicOff size={14} color={colors.destructive} />
+                ) : (
+                  <Mic size={14} color={colors.primary} />
+                )}
+              </Pressable>
+
+              <Pressable
+                onPress={() => onRemove(item.id)}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.modIcon,
+                  {
+                    backgroundColor: `${colors.destructive}14`,
+                    borderColor: `${colors.destructive}40`,
+                    opacity: pressed ? 0.65 : 1,
+                  },
+                ]}
+              >
+                <UserMinus size={14} color={colors.destructive} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ── Main sheet ────────────────────────────────────────────────────────────────
 
 export function RoomParticipantsSheet({
   visible,
@@ -111,12 +314,6 @@ export function RoomParticipantsSheet({
 }: RoomParticipantsSheetProps) {
   const { colors } = useColorScheme();
   const router = useRouter();
-  const sheetRef = useRef<BottomSheet>(null);
-
-  // Single snap at 72% — gives enough vertical room to see the hero
-  // header + 6-8 rows without scrolling, and leaves a tasteful strip
-  // of the room underneath so the user remembers where they are.
-  const snapPoints = useMemo(() => ["72%"], []);
 
   const sortedParticipants = useMemo(
     () =>
@@ -124,40 +321,12 @@ export function RoomParticipantsSheet({
         const aOrder = ROLE_ORDER[a.role] ?? 99;
         const bOrder = ROLE_ORDER[b.role] ?? 99;
         if (aOrder !== bOrder) return aOrder - bOrder;
-        if (!!a.isHandRaised !== !!b.isHandRaised) {
-          return a.isHandRaised ? -1 : 1;
-        }
+        if (!!a.isHandRaised !== !!b.isHandRaised) return a.isHandRaised ? -1 : 1;
         if (a.id === localUserId) return -1;
         if (b.id === localUserId) return 1;
-        return getSneakyUserLabel(a.user).localeCompare(
-          getSneakyUserLabel(b.user),
-        );
+        return getSneakyUserLabel(a.user).localeCompare(getSneakyUserLabel(b.user));
       }),
     [participants, localUserId],
-  );
-
-  // Drive the sheet from `visible` via the ref — index={visible ? 0 : -1}
-  // on first paint, and explicit snap/close calls on subsequent changes
-  // so re-opens animate correctly.
-  useEffect(() => {
-    if (visible) {
-      sheetRef.current?.snapToIndex(0);
-    } else {
-      sheetRef.current?.close();
-    }
-  }, [visible]);
-
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.6}
-        pressBehavior="close"
-      />
-    ),
-    [],
   );
 
   const handleProfilePress = useCallback(
@@ -169,349 +338,186 @@ export function RoomParticipantsSheet({
     [onDismiss, router],
   );
 
+  const keyExtractor = useCallback((item: VideoParticipant) => item.id, []);
+
   const renderItem = useCallback(
-    ({ item }: { item: VideoParticipant }) => {
-      const isSelf = item.id === localUserId;
-      const isAnon = item.user.isAnonymous;
-      const displayLabel = isAnon ? "Anonymous" : getSneakyUserLabel(item.user);
-      const roleMeta = getRoleMeta(item.role);
-      const canModerate = isHost && !isSelf && item.role !== "host";
-
-      // Tappable avatar navigates to the user's profile — but ONLY
-      // when not anonymous. Anonymous users are deliberately
-      // unreachable from the roster.
-      const avatar = isAnon ? (
-        <View
-          style={[
-            styles.avatarAnon,
-            {
-              backgroundColor: `${colors.mutedForeground}14`,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <EyeOff size={20} color={colors.mutedForeground} />
-        </View>
-      ) : (
-        <Avatar
-          uri={item.user.avatar}
-          username={item.user.username}
-          size={44}
-          variant="roundedSquare"
-        />
-      );
-
-      return (
-        <View
-          style={[
-            styles.row,
-            {
-              backgroundColor: `${colors.foreground}06`,
-              borderColor: colors.border,
-            },
-          ]}
-        >
-          <View style={styles.rowMain}>
-            {isAnon ? (
-              <View style={styles.avatarSlot}>{avatar}</View>
-            ) : (
-              <Pressable
-                onPress={() => handleProfilePress(item.user.username)}
-                hitSlop={6}
-                style={({ pressed }) => [
-                  styles.avatarSlot,
-                  { opacity: pressed ? 0.7 : 1 },
-                ]}
-              >
-                {avatar}
-              </Pressable>
-            )}
-
-            <View style={styles.info}>
-              <View style={styles.nameRow}>
-                <Text
-                  style={[
-                    styles.username,
-                    {
-                      color: colors.foreground,
-                      fontStyle: isAnon ? "italic" : "normal",
-                    },
-                  ]}
-                  numberOfLines={1}
-                >
-                  {displayLabel}
-                  {isSelf ? (
-                    <Text style={{ color: colors.mutedForeground }}>
-                      {"  (You)"}
-                    </Text>
-                  ) : null}
-                </Text>
-              </View>
-
-              <View style={styles.chipsRow}>
-                {roleMeta ? (
-                  <View
-                    style={[
-                      styles.chip,
-                      roleMeta.useAccent
-                        ? {
-                            backgroundColor: colors.primary,
-                            borderColor: colors.primary,
-                          }
-                        : {
-                            backgroundColor: `${colors.primary}1f`,
-                            borderColor: `${colors.primary}40`,
-                          },
-                    ]}
-                  >
-                    {roleMeta.icon(
-                      roleMeta.useAccent
-                        ? colors.primaryForeground
-                        : colors.primary,
-                    )}
-                    <Text
-                      style={[
-                        styles.chipLabel,
-                        {
-                          color: roleMeta.useAccent
-                            ? colors.primaryForeground
-                            : colors.primary,
-                        },
-                      ]}
-                    >
-                      {roleMeta.label}
-                    </Text>
-                  </View>
-                ) : null}
-
-                {/* Hand-raised pill — only when raised. Accent pink so
-                    it pulls attention in a long list. */}
-                {item.isHandRaised ? (
-                  <View
-                    style={[
-                      styles.chip,
-                      {
-                        backgroundColor: `${colors.accent}1f`,
-                        borderColor: `${colors.accent}40`,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[styles.chipLabel, { color: colors.accent }]}
-                    >
-                      ✋ Hand up
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-
-            {/* Mic status: Zoom pattern — absence = on. Only render the
-                indicator when the mic is MUTED. Red chip draws the eye. */}
-            {!item.isMicOn ? (
-              <View
-                style={[
-                  styles.micChip,
-                  {
-                    backgroundColor: `${colors.destructive}1a`,
-                    borderColor: `${colors.destructive}40`,
-                  },
-                ]}
-              >
-                <MicOff size={13} color={colors.destructive} />
-              </View>
-            ) : null}
-          </View>
-
-          {/* Moderation row — host-only, non-self, non-host-target. */}
-          {canModerate ? (
-            <View style={styles.modRow}>
-              <Pressable
-                onPress={() =>
-                  item.isMicOn ? onMute(item.id) : onUnmute(item.id)
-                }
-                style={({ pressed }) => [
-                  styles.modBtn,
-                  {
-                    backgroundColor: item.isMicOn
-                      ? `${colors.destructive}14`
-                      : `${colors.primary}14`,
-                    borderColor: item.isMicOn
-                      ? `${colors.destructive}40`
-                      : `${colors.primary}40`,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                {item.isMicOn ? (
-                  <MicOff size={13} color={colors.destructive} />
-                ) : (
-                  <Mic size={13} color={colors.primary} />
-                )}
-                <Text
-                  style={[
-                    styles.modBtnLabel,
-                    {
-                      color: item.isMicOn
-                        ? colors.destructive
-                        : colors.primary,
-                    },
-                  ]}
-                >
-                  {item.isMicOn ? "Mute" : "Unmute"}
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={() => onRemove(item.id)}
-                style={({ pressed }) => [
-                  styles.modBtn,
-                  {
-                    backgroundColor: `${colors.destructive}14`,
-                    borderColor: `${colors.destructive}40`,
-                    opacity: pressed ? 0.7 : 1,
-                  },
-                ]}
-              >
-                <UserMinus size={13} color={colors.destructive} />
-                <Text
-                  style={[
-                    styles.modBtnLabel,
-                    { color: colors.destructive },
-                  ]}
-                >
-                  Remove
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
-        </View>
-      );
-    },
+    ({ item, index }: { item: VideoParticipant; index: number }) => (
+      <ParticipantRow
+        item={item}
+        index={index}
+        localUserId={localUserId}
+        isHost={isHost}
+        colors={colors}
+        onProfilePress={handleProfilePress}
+        onMute={onMute}
+        onUnmute={onUnmute}
+        onRemove={onRemove}
+      />
+    ),
     [colors, handleProfilePress, isHost, localUserId, onMute, onRemove, onUnmute],
   );
 
-  const keyExtractor = useCallback((item: VideoParticipant) => item.id, []);
+  if (!visible) return null;
 
   return (
-    <BottomSheet
-      ref={sheetRef}
-      index={visible ? 0 : -1}
-      snapPoints={snapPoints}
-      enablePanDownToClose
-      enableOverDrag={false}
-      onChange={(idx) => {
-        // Parent owns `visible`. When the user drags down or taps the
-        // backdrop, fire onDismiss so the parent clears its state.
-        if (idx === -1) onDismiss();
-      }}
-      backdropComponent={renderBackdrop}
-      backgroundStyle={{
-        backgroundColor: colors.secondary,
-        borderTopLeftRadius: 22,
-        borderTopRightRadius: 22,
-      }}
-      handleIndicatorStyle={{
-        backgroundColor: `${colors.foreground}30`,
-        width: 44,
-      }}
-      style={{ zIndex: 9999, elevation: 9999 }}
-    >
-      {/* Hero header — count is the moment. Close X sits INSIDE the
-          header row so it can never render outside the sheet. */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          <Text
+    <View style={styles.overlay} pointerEvents="auto">
+      <Pressable style={styles.backdrop} onPress={onDismiss} />
+      <View
+        style={[
+          styles.sheet,
+          { backgroundColor: colors.secondary, borderColor: colors.border },
+        ]}
+      >
+        {/* Hero header */}
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[
+                styles.heroCount,
+                { color: colors.primary, fontVariant: ["tabular-nums"] },
+              ]}
+            >
+              {participants.length}
+            </Text>
+            <View style={styles.heroLabelRow}>
+              <Text
+                style={[styles.heroLabel, { color: colors.mutedForeground }]}
+              >
+                {participants.length === 1 ? "person" : "people"} in the room
+              </Text>
+              {isHost ? (
+                <Text
+                  style={[styles.hostHint, { color: colors.mutedForeground }]}
+                >
+                  · tap icons to mute or remove
+                </Text>
+              ) : null}
+            </View>
+          </View>
+          <Pressable
+            onPress={onDismiss}
+            hitSlop={12}
             style={[
-              styles.heroCount,
+              styles.closeBtn,
               {
-                color: colors.primary,
-                fontVariant: ["tabular-nums"],
+                backgroundColor: `${colors.foreground}10`,
+                borderColor: colors.border,
               },
             ]}
           >
-            {participants.length}{" "}
-            <Text
-              style={[styles.heroCountSuffix, { color: colors.foreground }]}
-            >
-              in the room
-            </Text>
-          </Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            {isHost
-              ? "Tap an avatar to view a profile. Mute or remove from here."
-              : "Tap an avatar to view a profile."}
-          </Text>
+            <X size={18} color={colors.foreground} />
+          </Pressable>
         </View>
-        <Pressable onPress={onDismiss} hitSlop={12}>
-          <DVNTLiquidGlassIconButton size={36}>
-            <X size={16} color="#fff" />
-          </DVNTLiquidGlassIconButton>
-        </Pressable>
-      </View>
 
-      <BottomSheetFlatList
-        data={sortedParticipants}
-        keyExtractor={keyExtractor}
-        renderItem={renderItem}
-        contentContainerStyle={{
-          paddingHorizontal: 16,
-          paddingBottom: 28,
-          paddingTop: 4,
-        }}
-        showsVerticalScrollIndicator={false}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Users size={26} color={colors.mutedForeground} />
-            <Text
-              style={[styles.emptyText, { color: colors.mutedForeground }]}
+        {/* Participant list */}
+        {participants.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <View
+              style={[styles.emptyRing, { borderColor: `${colors.primary}66` }]}
             >
-              No one here yet.
+              <View
+                style={[
+                  styles.emptyRingInner,
+                  { borderColor: `${colors.accent}55` },
+                ]}
+              />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+              No one here yet
+            </Text>
+            <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
+              Participants will show up as they join.
             </Text>
           </View>
-        }
-      />
-    </BottomSheet>
+        ) : (
+          <LegendList
+            data={sortedParticipants}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            estimatedItemSize={64}
+            recycleItems
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingBottom: 32,
+              paddingTop: 4,
+            }}
+            showsVerticalScrollIndicator={false}
+          />
+        )}
+      </View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 9999,
+    elevation: 9999,
+    justifyContent: "flex-end",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.62)",
+  },
+  sheet: {
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    maxHeight: "78%",
+    minHeight: 340,
+  },
+
   // Header
   header: {
     flexDirection: "row",
     alignItems: "flex-start",
     paddingHorizontal: 20,
-    paddingTop: 10,
+    paddingTop: 18,
     paddingBottom: 14,
-    gap: 12,
   },
   heroCount: {
-    fontSize: 22,
+    fontSize: 52,
     fontWeight: "800",
-    letterSpacing: -0.5,
+    letterSpacing: -2,
+    lineHeight: 56,
   },
-  heroCountSuffix: {
-    fontSize: 14,
-    fontWeight: "600",
-    letterSpacing: 0.1,
+  heroLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 2,
   },
-  subtitle: {
-    fontSize: 12,
+  heroLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  hostHint: {
+    fontSize: 11,
     fontWeight: "500",
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
     marginTop: 4,
   },
+
   // Row
   row: {
-    borderRadius: 16,
-    borderWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 12,
-    paddingVertical: 12,
-    marginBottom: 10,
-  },
-  rowMain: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
   },
   avatarSlot: {
     width: 44,
@@ -529,14 +535,11 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 0,
     gap: 4,
-  },
-  nameRow: {
-    flexDirection: "row",
-    alignItems: "center",
+    justifyContent: "center",
   },
   username: {
     fontSize: 15,
-    fontWeight: "700",
+    fontWeight: "600",
     letterSpacing: 0.1,
   },
   chipsRow: {
@@ -549,58 +552,74 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
-    paddingHorizontal: 8,
+    paddingHorizontal: 7,
     paddingVertical: 3,
     borderRadius: 100,
     borderWidth: StyleSheet.hairlineWidth,
   },
   chipLabel: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "700",
     letterSpacing: 0.4,
     textTransform: "uppercase",
   },
-  micChip: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
+
+  // Right-side actions
+  rightActions: {
+    flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
+    gap: 6,
     flexShrink: 0,
   },
-
-  // Moderation row
-  modRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 12,
-  },
-  modBtn: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 12,
+  micBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
     borderWidth: StyleSheet.hairlineWidth,
-  },
-  modBtnLabel: {
-    fontSize: 13,
-    fontWeight: "700",
-    letterSpacing: 0.2,
-  },
-
-  // Empty
-  empty: {
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: 50,
-    gap: 12,
   },
-  emptyText: {
+  modIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Empty state
+  emptyWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 32,
+    paddingBottom: 56,
+    gap: 8,
+  },
+  emptyRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  emptyRingInner: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 2,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 0.1,
+  },
+  emptyBody: {
     fontSize: 13,
     fontWeight: "500",
+    textAlign: "center",
+    paddingHorizontal: 32,
   },
 });

@@ -1206,50 +1206,6 @@ function CreateScreenContent() {
           </View>
         )}
 
-        {!isTextPost && selectedMedia.length === 0 && (
-          <View
-            style={{
-              alignItems: "center",
-              justifyContent: "center",
-              paddingVertical: 60,
-              paddingHorizontal: 32,
-            }}
-          >
-            <View
-              style={{
-                width: 80,
-                height: 80,
-                borderRadius: 40,
-                backgroundColor: "#111",
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: 16,
-              }}
-            >
-              <ImageIcon size={36} color="#666" />
-            </View>
-            <Text
-              style={{
-                color: "#fff",
-                fontSize: 18,
-                fontWeight: "600",
-                marginBottom: 8,
-              }}
-            >
-              Add Photos
-            </Text>
-            <Text
-              style={{
-                color: "#666",
-                fontSize: 14,
-                textAlign: "center",
-                lineHeight: 20,
-              }}
-            >
-              Select up to {MAX_PHOTOS} photos
-            </Text>
-          </View>
-        )}
 
         {/* Caption — below media for media posts */}
         {!isTextPost && (

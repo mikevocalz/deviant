@@ -35,6 +35,7 @@ const FORCE_OTA_IN_DEV =
 // SINGLETON: Module-level flags to prevent multiple hook instances from racing
 let globalIsInitialized = false;
 let globalIsChecking = false;
+let globalIsDownloading = false;
 
 // Dynamically import expo-updates to handle Expo Go where native module isn't available
 let Updates: typeof import("expo-updates") | null = null;
@@ -210,8 +211,8 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       return;
     }
 
-    if (globalIsChecking) return;
-    globalIsChecking = true;
+    if (globalIsDownloading) return;
+    globalIsDownloading = true;
 
     const isEnabled = safeGet(() => {
       if (typeof Updates?.isEnabled === "undefined") return false;
@@ -220,7 +221,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
 
     if (!isEnabled) {
       console.log("[Updates] Skip download: expo-updates not enabled");
-      globalIsChecking = false;
+      globalIsDownloading = false;
       return;
     }
 
@@ -273,7 +274,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           error instanceof Error ? error.message : "Failed to download update",
       }));
     } finally {
-      globalIsChecking = false;
+      globalIsDownloading = false;
     }
   }, []);
 
@@ -349,6 +350,9 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           isChecking: false,
           isUpdateAvailable: true,
         }));
+        // Reset globalIsChecking BEFORE calling downloadAndApplyUpdate — otherwise
+        // downloadAndApplyUpdate sees globalIsChecking=true and immediately bails.
+        globalIsChecking = false;
         downloadAndApplyUpdate();
       } else {
         setStatus((prev) => ({

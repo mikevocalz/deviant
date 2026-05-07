@@ -107,6 +107,7 @@ interface UIFields {
   lineupInput: string;
   perksInput: string;
   ticketTierName: string;
+  simpleMaxPerUser: number;
   coOrganizerSearch: string;
   coOrganizerResults: {
     id: string;
@@ -161,6 +162,7 @@ interface CreateEventActions {
   setLineupInput: (v: string) => void;
   setPerksInput: (v: string) => void;
   setTicketTierName: (v: string) => void;
+  setSimpleMaxPerUser: (v: number) => void;
   setAgreementAccepted: (v: boolean) => void;
 
   // Helpers
@@ -226,6 +228,7 @@ const UI_DEFAULTS: UIFields = {
   lineupInput: "",
   perksInput: "",
   ticketTierName: "",
+  simpleMaxPerUser: 4,
   coOrganizerSearch: "",
   coOrganizerResults: [],
   currentStep: 0,
@@ -285,6 +288,7 @@ export const useCreateEventStore = create<CreateEventState>()(
       setLineupInput: (v) => set({ lineupInput: v }),
       setPerksInput: (v) => set({ perksInput: v }),
       setTicketTierName: (v) => set({ ticketTierName: v }),
+      setSimpleMaxPerUser: (v) => set({ simpleMaxPerUser: v }),
       setAgreementAccepted: (v) => set({ agreementAccepted: v }),
 
       // Helpers

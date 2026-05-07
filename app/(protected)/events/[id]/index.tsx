@@ -721,6 +721,7 @@ function EventDetailScreenContent() {
         // Free ticket — issued server-side, store locally
         if (result.free && result.tickets?.length) {
           const t = result.tickets[0];
+          const qty = result.tickets.length;
           setTicket(eventId, {
             id: t.id,
             eventId,
@@ -740,20 +741,20 @@ function EventDetailScreenContent() {
           queryClient.invalidateQueries({ queryKey: ticketKeys.myTickets() });
           toggleRsvp(eventId);
           queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
-            old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
+            old ? { ...old, attendees: (old.attendees || 0) + qty } : old,
           );
           queryClient.setQueriesData({ queryKey: eventKeys.all }, (old: any) => {
             if (!Array.isArray(old)) return old;
             return old.map((e: any) =>
               String(e.id) === String(eventId)
-                ? { ...e, attendees: (e.attendees || 0) + 1, totalAttendees: (e.totalAttendees || 0) + 1 }
+                ? { ...e, attendees: (e.attendees || 0) + qty, totalAttendees: (e.totalAttendees || 0) + qty }
                 : e,
             );
           });
           queryClient.invalidateQueries({ queryKey: eventKeys.all });
           showToast(
             "success",
-            "Confirmed",
+            qty > 1 ? `${qty} Tickets Confirmed` : "Confirmed",
             `You're going to ${eventData.title}!`,
           );
           return;
@@ -1370,8 +1371,8 @@ function EventDetailScreenContent() {
                 </View>
               )}
 
-              {/* Quantity selector */}
-              {selectedTier && selectedTier.price > 0 && (
+              {/* Quantity selector — shown for both free and paid tiers */}
+              {selectedTier && !hasTicket && (selectedTier.maxPerOrder || 4) > 1 && (
                 <View
                   style={{
                     flexDirection: "row",

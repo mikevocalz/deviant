@@ -198,6 +198,8 @@ function CreateEventScreenContent() {
   const setTicketingEnabled = useCreateEventStore((s) => s.setTicketingEnabled);
   const ticketTierName = useCreateEventStore((s) => s.ticketTierName);
   const setTicketTierName = useCreateEventStore((s) => s.setTicketTierName);
+  const simpleMaxPerUser = useCreateEventStore((s) => s.simpleMaxPerUser);
+  const setSimpleMaxPerUser = useCreateEventStore((s) => s.setSimpleMaxPerUser);
   const showDatePicker = useCreateEventStore((s) => s.showDatePicker);
   const setShowDatePicker = useCreateEventStore((s) => s.setShowDatePicker);
   const showTimePicker = useCreateEventStore((s) => s.showTimePicker);
@@ -620,7 +622,7 @@ function CreateEventScreenContent() {
                 name: tierName,
                 priceCents,
                 quantityTotal: qty,
-                maxPerUser: 4,
+                maxPerUser: simpleMaxPerUser || 4,
               });
               console.log("[CreateEvent] Default ticket type created");
             }
@@ -1795,18 +1797,37 @@ function CreateEventScreenContent() {
 
               {ticketingEnabled && (
                 <>
-                  {/* Default single tier name (used if no multi-tiers added) */}
+                  {/* Default single tier name + max per person (used if no multi-tiers added) */}
                   {ticketTiers.length === 0 && (
-                    <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
-                      <Ticket size={18} color={colors.mutedForeground} />
-                      <TextInput
-                        className="flex-1 ml-3 py-4 text-base text-foreground"
-                        placeholder="Ticket tier name (e.g. General Admission)"
-                        placeholderTextColor={colors.mutedForeground}
-                        value={ticketTierName}
-                        onChangeText={setTicketTierName}
-                      />
-                    </View>
+                    <>
+                      <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
+                        <Ticket size={18} color={colors.mutedForeground} />
+                        <TextInput
+                          className="flex-1 ml-3 py-4 text-base text-foreground"
+                          placeholder="Ticket tier name (e.g. General Admission)"
+                          placeholderTextColor={colors.mutedForeground}
+                          value={ticketTierName}
+                          onChangeText={setTicketTierName}
+                        />
+                      </View>
+                      <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
+                        <Users size={18} color={colors.mutedForeground} />
+                        <Text className="ml-3 text-base text-foreground flex-1">
+                          Max tickets per person
+                        </Text>
+                        <TextInput
+                          className="text-base text-foreground text-right w-16"
+                          placeholder="4"
+                          placeholderTextColor={colors.mutedForeground}
+                          value={simpleMaxPerUser > 0 ? String(simpleMaxPerUser) : ""}
+                          onChangeText={(v) =>
+                            setSimpleMaxPerUser(v ? Math.max(1, parseInt(v, 10) || 1) : 4)
+                          }
+                          keyboardType="number-pad"
+                          maxLength={2}
+                        />
+                      </View>
+                    </>
                   )}
 
                   {/* Multi-tier ticket list */}
