@@ -453,6 +453,9 @@ Deno.serve(async (req: Request) => {
             throw upgradeError;
           }
 
+          // Void old wallet pass — tier has changed, the old pass shows stale tier info
+          await voidWalletPass(supabase, ticketId);
+
           // Decrement quantity_sold on the OLD tier
           if (oldTicketTypeId && oldTicketTypeId !== newTicketTypeId) {
             const { data: oldTt } = await supabase

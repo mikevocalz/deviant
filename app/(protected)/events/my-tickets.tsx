@@ -46,6 +46,11 @@ const STATUS_COLORS: Record<
     text: "#8A40CF",
     label: "Transfer Pending",
   },
+  payment_pending: {
+    bg: "rgba(234, 179, 8, 0.15)",
+    text: "#EAB308",
+    label: "Payment Pending",
+  },
 };
 
 function TicketCardSkeleton({ index }: { index: number }) {

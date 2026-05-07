@@ -85,6 +85,9 @@ export function useMyTickets() {
     },
     staleTime: 0, // Tickets change in real-time (scanned, transferred, refunded)
     gcTime: GC_TIMES.standard,
+    // Poll every 5s while screen is active to catch webhook-delayed ticket activation
+    refetchInterval: 5000,
+    refetchIntervalInBackground: false,
   });
 }
 
@@ -104,6 +107,9 @@ export function useMyTicketForEvent(eventId: string) {
     placeholderData: storeTicket
       ? storeTicketToRecord(storeTicket)
       : cachedTicket,
+    // Poll every 3s until ticket data arrives (catches payment_pending webhook delay)
+    refetchInterval: (query) => (!query.state.data ? 3000 : false),
+    refetchIntervalInBackground: false,
   });
 }
 
