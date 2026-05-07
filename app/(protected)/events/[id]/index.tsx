@@ -1371,8 +1371,9 @@ function EventDetailScreenContent() {
                 </View>
               )}
 
-              {/* Quantity selector — shown for both free and paid tiers */}
-              {selectedTier && !hasTicket && (selectedTier.maxPerOrder || 4) > 1 && (
+              {/* Quantity selector — shown for all real DB tiers (free and paid).
+                  Excluded for the synthetic "free" id which uses the legacy RSVP path. */}
+              {selectedTier && !hasTicket && selectedTier.id !== "free" && (selectedTier.maxPerOrder || 4) > 1 && (
                 <View
                   style={{
                     flexDirection: "row",
