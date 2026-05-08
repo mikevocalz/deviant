@@ -68,25 +68,24 @@ export default function HomeScreen() {
 
   return (
     <View className="flex-1 bg-background max-w-3xl w-full self-center">
-      {/* Spicy toggle — right-aligned, matches events header style */}
+      {/* Header row — spicy toggle right-aligned, matches events header style */}
       <View
         style={{
-          position: "absolute",
-          top: 8,
-          right: 12,
-          zIndex: 10,
-          pointerEvents: "box-none",
+          flexDirection: "row",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          paddingHorizontal: 12,
+          paddingTop: 8,
+          paddingBottom: 4,
         }}
       >
         <FeedModeToggle />
       </View>
       {/* Sibling of the feed swap — stays mounted across feed-mode toggles
           and the content filter (which only rerenders the feed body). */}
-      <View style={{ paddingTop: 40 }}>
-        <ErrorBoundary screenName="StoriesBar">
-          <MemoStoriesBar />
-        </ErrorBoundary>
-      </View>
+      <ErrorBoundary screenName="StoriesBar">
+        <MemoStoriesBar />
+      </ErrorBoundary>
       <Main className="flex-1">
         <ErrorBoundary screenName="Feed">
           {feedMode === "masonry" ? <MasonryFeed /> : <Feed />}

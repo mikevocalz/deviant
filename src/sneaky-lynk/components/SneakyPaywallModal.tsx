@@ -72,19 +72,42 @@ export function SneakyPaywallModal({
               : undefined,
         });
 
-        // After browser closes, check if access was granted
-        if (result.type === "cancel" || result.type === "dismiss") {
-          // Check if webhook already processed
-          const { data: access } = await supabase
-            .from("sneaky_access")
-            .select("session_id")
-            .eq("session_id", sessionId)
-            .eq("user_id", authUser.id)
-            .single();
+        // After browser closes (dismiss, cancel, or deep-link redirect),
+        // poll for the sneaky_access record — webhook may arrive after browser closes.
+        if (
+          result.type === "cancel" ||
+          result.type === "dismiss" ||
+          result.type === "opened"
+        ) {
+          const MAX_ATTEMPTS = 6;
+          const POLL_INTERVAL_MS = 2000;
 
-          if (access) {
-            onAccessGranted();
+          for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+            const { data: access } = await supabase
+              .from("sneaky_access")
+              .select("session_id")
+              .eq("session_id", sessionId)
+              .eq("user_id", authUser.id)
+              .single();
+
+            if (access) {
+              onAccessGranted();
+              return;
+            }
+
+            if (attempt < MAX_ATTEMPTS - 1) {
+              await new Promise((resolve) =>
+                setTimeout(resolve, POLL_INTERVAL_MS),
+              );
+            }
           }
+
+          // Payment may still be processing — inform the user
+          showToast(
+            "info",
+            "Payment Processing",
+            "If payment succeeded, access will activate within a moment. Try rejoining.",
+          );
         }
       }
     } catch (err: any) {

@@ -69,6 +69,7 @@ import {
   DVNTLiquidGlassIconButton,
 } from "@/components/media/DVNTLiquidGlass";
 import { DVNTMediaRenderer } from "@/components/media/DVNTMediaRenderer";
+import { Galeria } from "@nandorojo/galeria";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { TextPostBadgeLogo } from "@/components/post/TextPostBadgeLogo";
@@ -951,25 +952,34 @@ function FeedPostComponent({
                   </ScrollView>
                 </View>
               </>
-            ) : (
-              <Pressable
-                onPress={handlePostPress}
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                style={{ width: "100%", height: PORTRAIT_HEIGHT }}
-              >
-                {media[0]?.url &&
-                (media[0].url.startsWith("http://") ||
-                  media[0].url.startsWith("https://")) ? (
-                  <DVNTMediaRenderer
-                    item={media[0]}
-                    width="100%"
-                    height={PORTRAIT_HEIGHT}
-                    contentFit="cover"
-                    showBadge={false}
-                    isPlaying={isActivePost && isFocused}
-                  />
-                ) : (
+            ) : (() => {
+              const singleUrl = media[0]?.url;
+              const isValidSingleUrl =
+                singleUrl &&
+                (singleUrl.startsWith("http://") ||
+                  singleUrl.startsWith("https://"));
+              return isValidSingleUrl ? (
+                <Galeria urls={[singleUrl]}>
+                  <Galeria.Image index={0}>
+                    <View style={{ width: "100%", height: PORTRAIT_HEIGHT }}>
+                      <DVNTMediaRenderer
+                        item={media[0]}
+                        width="100%"
+                        height={PORTRAIT_HEIGHT}
+                        contentFit="cover"
+                        showBadge={false}
+                        isPlaying={isActivePost && isFocused}
+                      />
+                    </View>
+                  </Galeria.Image>
+                </Galeria>
+              ) : (
+                <Pressable
+                  onPress={handlePostPress}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  style={{ width: "100%", height: PORTRAIT_HEIGHT }}
+                >
                   <View
                     style={{ width: "100%", height: PORTRAIT_HEIGHT }}
                     className="bg-muted items-center justify-center"
@@ -978,9 +988,9 @@ function FeedPostComponent({
                       No image
                     </Text>
                   </View>
-                )}
-              </Pressable>
-            )}
+                </Pressable>
+              );
+            })()}
 
             {/* ── Tag overlay ── */}
             {!isVideo && postTags.length > 0 && (

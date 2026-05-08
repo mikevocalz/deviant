@@ -1013,66 +1013,51 @@ function CreateScreenContent() {
           </View>
         )}
 
-        {!isTextPost && (
-          <>
-            <View
+        {!isTextPost && selectedMedia.length === 0 && (
+          <View
+            style={{
+              flexDirection: "row",
+              paddingHorizontal: 16,
+              gap: 8,
+              marginBottom: 20,
+            }}
+          >
+            <Pressable
+              onPress={handlePickLibrary}
               style={{
+                flex: 1,
                 flexDirection: "row",
-                paddingHorizontal: 16,
+                alignItems: "center",
+                justifyContent: "center",
                 gap: 8,
-                marginBottom: 20,
+                backgroundColor: "#3EA4E5",
+                paddingVertical: 14,
+                borderRadius: 12,
               }}
             >
-              <Pressable
-                onPress={handlePickLibrary}
-                disabled={!canAddMore && selectedMedia.length > 0}
-                style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  backgroundColor:
-                    canAddMore || selectedMedia.length === 0
-                      ? "#3EA4E5"
-                      : "#1a1a1a",
-                  paddingVertical: 14,
-                  borderRadius: 12,
-                  opacity: canAddMore || selectedMedia.length === 0 ? 1 : 0.5,
-                }}
-              >
-                <ImageIcon size={20} color="#fff" />
-                <Text style={{ color: "#fff", fontWeight: "600" }}>
-                  Add Photos
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={handleOpenCamera}
-                disabled={selectedMedia.length >= MAX_PHOTOS}
-                style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  backgroundColor: "#1a1a1a",
-                  paddingVertical: 14,
-                  borderRadius: 12,
-                  opacity: selectedMedia.length < MAX_PHOTOS ? 1 : 0.5,
-                }}
-              >
-                <Camera size={20} color="#fff" />
-                <Text style={{ color: "#fff", fontWeight: "600" }}>Camera</Text>
-              </Pressable>
-            </View>
-
-            <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
-              <Text style={{ color: "#666", fontSize: 13 }}>
-                {`Photos ${selectedMedia.length}/${MAX_PHOTOS}`}
+              <ImageIcon size={20} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "600" }}>
+                Add Photos
               </Text>
-            </View>
-          </>
+            </Pressable>
+
+            <Pressable
+              onPress={handleOpenCamera}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                backgroundColor: "#1a1a1a",
+                paddingVertical: 14,
+                borderRadius: 12,
+              }}
+            >
+              <Camera size={20} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "600" }}>Camera</Text>
+            </Pressable>
+          </View>
         )}
 
         {!isTextPost && selectedMedia.length > 0 && (
