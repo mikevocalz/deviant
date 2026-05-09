@@ -434,33 +434,32 @@ export default function RootLayout() {
   const showAnimatedSplash = !splashAnimationFinished;
 
   if (showAnimatedSplash) {
+    // No Reanimated wrapper here — worklets runtime races with first Fabric commit on OTA
     return (
-      <LayoutAnimationConfig skipEntering skipExiting>
-        <ErrorBoundary
-          screenName="Splash"
-          fallback={
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: "#000",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
+      <ErrorBoundary
+        screenName="Splash"
+        fallback={
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "#000",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Pressable
+              onPress={() => onAnimationFinish(false)}
+              style={{ padding: 24 }}
             >
-              <Pressable
-                onPress={() => onAnimationFinish(false)}
-                style={{ padding: 24 }}
-              >
-                <Text style={{ color: "#fff", fontSize: 16 }}>
-                  Tap to continue
-                </Text>
-              </Pressable>
-            </View>
-          }
-        >
-          <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />
-        </ErrorBoundary>
-      </LayoutAnimationConfig>
+              <Text style={{ color: "#fff", fontSize: 16 }}>
+                Tap to continue
+              </Text>
+            </Pressable>
+          </View>
+        }
+      >
+        <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />
+      </ErrorBoundary>
     );
   }
 

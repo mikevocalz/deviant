@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   View,
   StyleSheet,
   Text,
@@ -8,22 +10,15 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withTiming,
-  withSequence,
-  withDelay,
-  Easing,
-  interpolate,
-  Extrapolation,
-} from "react-native-reanimated";
-// import {
-//   RiveView,
-//   useRiveFile,
-//   Fit,
-//   type RiveError,
-// } from "@rive-app/react-native";
+// NOTE: Intentionally uses react-native built-in Animated (NOT react-native-reanimated).
+// Reanimated 4 Animated.View is a custom Fabric component backed by the worklets C++
+// runtime. On iOS 26 + Expo SDK 55, when expo-updates loads an OTA bundle as the initial
+// bundle, the worklets runtime re-initializes concurrently with React's first shadow tree
+// commit, leaving the ReanimatedView ComponentDescriptor with unimplemented pure virtual
+// slots → __cxa_pure_virtual in ShadowTree::tryCommit → SIGABRT crash.
+// React Native's built-in Animated uses NativeAnimatedModule (always initialized at app
+// startup, no worklets dependency) and is safe in the first render frame.
+
 // Supabase URL for health checks
 const _rawSplashUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_URL =
@@ -49,14 +44,10 @@ export default function AnimatedSplashScreen({
   const [isRetrying, setIsRetrying] = useState(false);
   const [apiStatus, setApiStatus] = useState<string>("checking...");
 
-  // Polished icon animation
-  const opacity = useSharedValue(0);
-  const scale = useSharedValue(0.85);
-  const glowOpacity = useSharedValue(0);
-
-  // const { riveFile, error: riveError } = useRiveFile(
-  //   require("../assets/deviant.riv"),
-  // );
+  // RN built-in Animated values — safe in first Fabric commit (no worklets dependency)
+  const opacity = useRef(new Animated.Value(0)).current;
+  const scale = useRef(new Animated.Value(0.85)).current;
+  const glowOpacity = useRef(new Animated.Value(0)).current;
 
   // Check Supabase health
   const checkApiHealth = async (): Promise<boolean> => {
@@ -82,24 +73,19 @@ export default function AnimatedSplashScreen({
     }
   };
 
-  // Handle retry
   const handleRetry = async () => {
     console.log("[Splash] Retry button pressed");
     setIsRetrying(true);
     setBootTimedOut(false);
-
     const healthy = await checkApiHealth();
     if (healthy) {
-      // API is healthy, finish splash
       finishSplash();
     } else {
-      // Still failing, show timeout UI again
       setBootTimedOut(true);
     }
     setIsRetrying(false);
   };
 
-  // Finish splash helper - instant exit
   const finishSplash = () => {
     if (!animationFinished.current && !hasCalledFinish) {
       animationFinished.current = true;
@@ -109,112 +95,90 @@ export default function AnimatedSplashScreen({
     }
   };
 
-  // Fast animation sequence
+  // Fast animation sequence using RN built-in Animated (no Reanimated/worklets)
   useEffect(() => {
-    // Instant fade + scale
-    opacity.value = withTiming(1, {
+    Animated.timing(opacity, {
+      toValue: 1,
       duration: 100,
       easing: Easing.out(Easing.quad),
-    });
+      useNativeDriver: true,
+    }).start();
 
-    scale.value = withSequence(
-      withTiming(1.05, {
+    Animated.sequence([
+      Animated.timing(scale, {
+        toValue: 1.05,
         duration: 100,
         easing: Easing.out(Easing.back(1.2)),
+        useNativeDriver: true,
       }),
-      withTiming(1, {
+      Animated.timing(scale, {
+        toValue: 1,
         duration: 100,
         easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
       }),
-    );
+    ]).start();
 
-    // Quick glow
-    glowOpacity.value = withDelay(
-      100,
-      withSequence(
-        withTiming(0.3, { duration: 200 }),
-        withTiming(0.15, { duration: 350 }),
-      ),
-    );
+    Animated.sequence([
+      Animated.delay(100),
+      Animated.timing(glowOpacity, {
+        toValue: 0.3,
+        duration: 200,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+      Animated.timing(glowOpacity, {
+        toValue: 0.15,
+        duration: 350,
+        easing: Easing.linear,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
-
-  // useEffect(() => {
-  //   if (riveError) {
-  //     console.error("[Splash] Rive file load error:", riveError);
-  //   }
-  // }, [riveError]);
 
   // Boot timeout - ensures app never gets stuck
   useEffect(() => {
     if (hasCalledFinish) return;
-
     const bootTimer = setTimeout(() => {
       if (!animationFinished.current && !hasCalledFinish) {
-        console.warn(
-          "[Splash] Boot timeout reached after",
-          BOOT_TIMEOUT_MS,
-          "ms",
-        );
+        console.warn("[Splash] Boot timeout reached after", BOOT_TIMEOUT_MS, "ms");
         checkApiHealth().then((healthy) => {
           if (!healthy) {
             setBootTimedOut(true);
           } else {
-            // API is healthy but animation didn't finish - force finish
             finishSplash();
           }
         });
       }
     }, BOOT_TIMEOUT_MS);
-
     return () => clearTimeout(bootTimer);
   }, []);
 
   // Start timer immediately - fast boot
   useEffect(() => {
-    // Guard: If already finished (from previous mount), don't start timer
     if (hasCalledFinish) {
-      console.log(
-        "[Splash] Already finished in previous mount, calling finish immediately",
-      );
+      console.log("[Splash] Already finished in previous mount, calling finish immediately");
       onAnimationFinish?.(false);
       return;
     }
-
-    // Check API health in parallel (non-blocking)
     checkApiHealth().then((healthy) => {
       if (!healthy) {
         console.warn("[Splash] API check failed, but continuing boot");
       }
     });
-
     console.log("[Splash] Starting fast icon splash timer");
     const timer = setTimeout(() => {
       finishSplash();
     }, ANIMATION_DURATION_MS);
-
     return () => clearTimeout(timer);
   }, [onAnimationFinish]);
 
-  const iconStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-    transform: [{ scale: scale.value }],
-  }));
+  const glowScale = glowOpacity.interpolate({
+    inputRange: [0, 0.4],
+    outputRange: [0.8, 1.2],
+    extrapolate: "clamp",
+  });
 
-  const glowStyle = useAnimatedStyle(() => ({
-    opacity: glowOpacity.value,
-    transform: [
-      {
-        scale: interpolate(
-          glowOpacity.value,
-          [0, 0.4],
-          [0.8, 1.2],
-          Extrapolation.CLAMP,
-        ),
-      },
-    ],
-  }));
-
-  // Show timeout/retry UI
   if (bootTimedOut) {
     return (
       <View style={styles.container}>
@@ -240,14 +204,15 @@ export default function AnimatedSplashScreen({
     );
   }
 
-  // const handleRiveError = (err: RiveError) => {
-  //   console.error("[Splash] Rive error:", err.message, "type:", err.type);
-  // };
-
   return (
     <View style={styles.container}>
-      {/* Subtle radial glow */}
-      <Animated.View style={[styles.glowContainer, glowStyle]}>
+      {/* Subtle radial glow — RN built-in Animated.View, not Reanimated */}
+      <Animated.View
+        style={[
+          styles.glowContainer,
+          { opacity: glowOpacity, transform: [{ scale: glowScale }] },
+        ]}
+      >
         <LinearGradient
           colors={[
             "rgba(62, 164, 229, 0.15)",
@@ -260,8 +225,13 @@ export default function AnimatedSplashScreen({
         />
       </Animated.View>
 
-      {/* App icon */}
-      <Animated.View style={[styles.iconContainer, iconStyle]}>
+      {/* App icon — RN built-in Animated.View, not Reanimated */}
+      <Animated.View
+        style={[
+          styles.iconContainer,
+          { opacity, transform: [{ scale }] },
+        ]}
+      >
         <Image
           source={require("../assets/images/icon.png")}
           style={styles.icon}
@@ -271,25 +241,6 @@ export default function AnimatedSplashScreen({
       </Animated.View>
     </View>
   );
-
-  // RIVE SPLASH (preserved for rollback):
-  // return (
-  //   <View style={styles.container}>
-  //     <View style={styles.riveContainer}>
-  //       {riveFile ? (
-  //         <RiveView
-  //           file={riveFile}
-  //           style={styles.rive}
-  //           fit={Fit.Contain}
-  //           autoPlay={true}
-  //           onError={handleRiveError}
-  //         />
-  //       ) : (
-  //         <View style={styles.placeholder} />
-  //       )}
-  //     </View>
-  //   </View>
-  // );
 }
 
 const styles = StyleSheet.create({
@@ -323,20 +274,6 @@ const styles = StyleSheet.create({
     height: "100%",
     borderRadius: 175,
   },
-  // riveContainer: {
-  //   backgroundColor: "#000",
-  //   width: 300,
-  //   height: 300,
-  // },
-  // rive: {
-  //   width: "100%",
-  //   height: "100%",
-  // },
-  // placeholder: {
-  //   width: "100%",
-  //   height: "100%",
-  //   backgroundColor: "#000",
-  // },
   errorContainer: {
     alignItems: "center",
     padding: 32,
