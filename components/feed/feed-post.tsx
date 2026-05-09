@@ -69,7 +69,6 @@ import {
   DVNTLiquidGlassIconButton,
 } from "@/components/media/DVNTLiquidGlass";
 import { DVNTMediaRenderer } from "@/components/media/DVNTMediaRenderer";
-import { Galeria } from "@nandorojo/galeria";
 import { useFeedPostUIStore } from "@/lib/stores/feed-post-store";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { TextPostBadgeLogo } from "@/components/post/TextPostBadgeLogo";
@@ -958,36 +957,32 @@ function FeedPostComponent({
                 singleUrl &&
                 (singleUrl.startsWith("http://") ||
                   singleUrl.startsWith("https://"));
-              return isValidSingleUrl ? (
-                <Galeria urls={[singleUrl]}>
-                  <Galeria.Image index={0}>
-                    <View style={{ width: "100%", height: PORTRAIT_HEIGHT }}>
-                      <DVNTMediaRenderer
-                        item={media[0]}
-                        width="100%"
-                        height={PORTRAIT_HEIGHT}
-                        contentFit="cover"
-                        showBadge={false}
-                        isPlaying={isActivePost && isFocused}
-                      />
-                    </View>
-                  </Galeria.Image>
-                </Galeria>
-              ) : (
+              return (
                 <Pressable
                   onPress={handlePostPress}
                   onPressIn={handlePressIn}
                   onPressOut={handlePressOut}
                   style={{ width: "100%", height: PORTRAIT_HEIGHT }}
                 >
-                  <View
-                    style={{ width: "100%", height: PORTRAIT_HEIGHT }}
-                    className="bg-muted items-center justify-center"
-                  >
-                    <Text className="text-muted-foreground text-xs">
-                      No image
-                    </Text>
-                  </View>
+                  {isValidSingleUrl ? (
+                    <DVNTMediaRenderer
+                      item={media[0]}
+                      width="100%"
+                      height={PORTRAIT_HEIGHT}
+                      contentFit="cover"
+                      showBadge={false}
+                      isPlaying={isActivePost && isFocused}
+                    />
+                  ) : (
+                    <View
+                      style={{ width: "100%", height: PORTRAIT_HEIGHT }}
+                      className="bg-muted items-center justify-center"
+                    >
+                      <Text className="text-muted-foreground text-xs">
+                        No image
+                      </Text>
+                    </View>
+                  )}
                 </Pressable>
               );
             })()}

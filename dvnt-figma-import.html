@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DVNT Mobile UI</title>
+  <style>
+    /* Design tokens */
+    :root {
+      --color-primary: #4f46e5;
+      --color-secondary: #ec4899;
+      --color-background: #f8fafc;
+      --color-surface: #ffffff;
+      --color-surface-strong: #f1f5f9;
+      --color-border: #e2e8f0;
+      --color-text: #0f172a;
+      --color-muted: #64748b;
+      --color-error: #ef4444;
+      --color-success: #16a34a;
+      --color-shadow-low: 0 6px 12px rgba(15, 23, 42, 0.08);
+      --color-shadow-medium: 0 12px 24px rgba(15, 23, 42, 0.12);
+      --color-shadow-high: 0 20px 40px rgba(15, 23, 42, 0.16);
+
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-7: 32px;
+
+      --radius-sm: 12px;
+      --radius-md: 18px;
+      --radius-lg: 28px;
+      --radius-full: 999px;
+
+      --font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-weight-regular: 400;
+      --font-weight-medium: 500;
+      --font-weight-bold: 700;
+
+      --font-size-h1: clamp(2rem, 2.25vw, 2.4rem);
+      --font-size-h2: clamp(1.6rem, 1.9vw, 1.8rem);
+      --font-size-h3: 1.15rem;
+      --font-size-h4: 1rem;
+      --font-size-body: 0.95rem;
+      --font-size-caption: 0.8rem;
+      --font-size-button: 0.95rem;
+      --line-height-tight: 1.2;
+      --line-height-normal: 1.5;
+      --line-height-relaxed: 1.7;
+
+      --transition-fast: 150ms ease;
+      --transition-medium: 220ms ease;
+      --transition-smooth: 300ms ease;
+    }
+
+    [data-theme="dark"] {
+      --color-background: #0f172a;
+      --color-surface: #14213d;
+      --color-surface-strong: #1e293b;
+      --color-border: #334155;
+      --color-text: #e2e8f0;
+      --color-muted: #94a3b8;
+      --color-shadow-low: 0 10px 20px rgba(0, 0, 0, 0.35);
+      --color-shadow-medium: 0 18px 32px rgba(0, 0, 0, 0.4);
+      --color-shadow-high: 0 26px 48px rgba(0, 0, 0, 0.45);
+    }
+
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--color-background);
+      color: var(--color-text);
+      font-family: var(--font-family);
+      line-height: var(--line-height-normal);
+    }
+
+    img {
+      display: block;
+      max-width: 100%;
+      border-radius: inherit;
+    }
+
+    button {
+      font: inherit;
+      color: inherit;
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .app-shell {
+      width: min(100%, 428px);
+      margin: 0 auto;
+      padding: var(--space-5) var(--space-4) var(--space-6);
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+    }
+
+    /* layer: top-app-bar */
+    .top-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      box-shadow: var(--color-shadow-low);
+      border: 1px solid var(--color-border);
+    }
+
+    .top-bar__brand {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .top-bar__title {
+      font-size: var(--font-size-h4);
+      font-weight: var(--font-weight-bold);
+      letter-spacing: -0.02em;
+    }
+
+    .top-bar__subtitle {
+      font-size: var(--font-size-caption);
+      color: var(--color-muted);
+    }
+
+    .top-bar__actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .top-bar__icon-button {
+      width: 44px;
+      height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-full);
+      background: var(--color-surface-strong);
+      transition: transform var(--transition-fast), background var(--transition-fast);
+    }
+
+    .top-bar__icon-button:hover {
+      transform: translateY(-1px);
+      background: var(--color-primary);
+      color: white;
+    }
+
+    .top-bar__avatar {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-full);
+      background: linear-gradient(135deg, #8b5cf6, #ec4899);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: var(--font-weight-bold);
+      letter-spacing: 0.04em;
+    }
+
+    .theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-full);
+      background: var(--color-surface-strong);
+      transition: transform var(--transition-fast), background var(--transition-fast);
+    }
+
+    .theme-toggle:hover {
+      transform: scale(1.04);
+      background: var(--color-primary);
+      color: white;
+    }
+
+    /* layer: story-ribbon */
+    .story-ribbon {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .story-ribbon__header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-4);
+    }
+
+    .story-ribbon__title {
+      font-size: var(--font-size-h4);
+      font-weight: var(--font-weight-bold);
+    }
+
+    .story-ribbon__action {
+      font-size: var(--font-size-caption);
+      color: var(--color-muted);
+    }
+
+    .story-list {
+      display: flex;
+      gap: var(--space-3);
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .story-list::-webkit-scrollbar {
+      display: none;
+    }
+
+    .story-card {
+      min-width: 88px;
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      align-items: center;
+      padding: var(--space-3);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--color-shadow-low);
+      text-align: center;
+    }
+
+    .story-card__avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .story-card__avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .story-card__label {
+      font-size: var(--font-size-caption);
+      color: var(--color-text);
+      font-weight: var(--font-weight-medium);
+    }
+
+    .story-card--add {
+      justify-content: center;
+      background: linear-gradient(135deg, rgba(79, 70, 229, 0.1), rgba(236, 72, 153, 0.12));
+      border-color: rgba(79, 70, 229, 0.2);
+    }
+
+    .story-card--add svg {
+      width: 28px;
+      height: 28px;
+      color: var(--color-primary);
+    }
+
+    /* layer: composer-card */
+    .composer-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      border-radius: var(--radius-2xl, 28px);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--color-shadow-low);
+    }
+
+    .composer-card__top {
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
+    }
+
+    .composer-card__avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .composer-card__avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .composer-card__input {
+      flex: 1;
+      min-height: 44px;
+      padding: var(--space-3) var(--space-4);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      background: var(--color-surface-strong);
+      color: var(--color-text);
+      font-size: var(--font-size-body);
+    }
+
+    .composer-card__input:focus {
+      outline: 2px solid rgba(79, 70, 229, 0.35);
+      outline-offset: 2px;
+    }
+
+    .composer-card__footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+    }
+
+    .composer-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .composer-actions__button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: var(--radius-lg);
+      background: var(--color-surface-strong);
+      color: var(--color-muted);
+      font-size: var(--font-size-caption);
+      transition: background var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .composer-actions__button:hover {
+      transform: translateY(-1px);
+      background: var(--color-primary);
+      color: white;
+    }
+
+    .composer-button {
+      padding: 12px 18px;
+      border-radius: var(--radius-lg);
+      background: var(--color-primary);
+      color: white;
+      font-size: var(--font-size-button);
+      font-weight: var(--font-weight-medium);
+      box-shadow: var(--color-shadow-low);
+      transition: transform var(--transition-fast), background var(--transition-fast);
+    }
+
+    .composer-button:hover {
+      transform: translateY(-1px);
+      background: #4338ca;
+    }
+
+    /* layer: feed */
+    .feed {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .post-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--color-shadow-low);
+    }
+
+    .post-card__header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: var(--space-3);
+    }
+
+    .post-card__meta {
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
+    }
+
+    .post-card__avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .post-card__avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .post-card__user {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .post-card__name {
+      font-size: var(--font-size-body);
+      font-weight: var(--font-weight-bold);
+    }
+
+    .post-card__time {
+      font-size: var(--font-size-caption);
+      color: var(--color-muted);
+    }
+
+    .post-card__options {
+      width: 36px;
+      height: 36px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-full);
+      color: var(--color-muted);
+      transition: background var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .post-card__options:hover {
+      background: var(--color-surface-strong);
+      transform: translateY(-1px);
+      color: var(--color-text);
+    }
+
+    .post-card__content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+      color: var(--color-text);
+    }
+
+    .post-card__text {
+      font-size: var(--font-size-body);
+      line-height: var(--line-height-relaxed);
+    }
+
+    .post-card__image {
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      min-height: 180px;
+      background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+    }
+
+    .post-card__image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .post-card__reactions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+    }
+
+    .reaction-button {
+      flex: 1 1 40%;
+      min-width: 120px;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+      padding: 12px;
+      border-radius: var(--radius-lg);
+      background: var(--color-surface-strong);
+      color: var(--color-muted);
+      font-size: var(--font-size-caption);
+      transition: background var(--transition-fast), transform var(--transition-fast);
+    }
+
+    .reaction-button:hover {
+      transform: translateY(-1px);
+      background: var(--color-border);
+    }
+
+    .reaction-button--active {
+      color: var(--color-primary);
+      background: rgba(79, 70, 229, 0.1);
+    }
+
+    .reaction-button svg {
+      width: 18px;
+      height: 18px;
+    }
+
+    .comment-preview {
+      display: flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-3);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface-strong);
+      color: var(--color-muted);
+      font-size: var(--font-size-caption);
+    }
+
+    .comment-preview__avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .comment-preview__avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .comment-preview__text {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .comment-preview__user {
+      font-weight: var(--font-weight-medium);
+      color: var(--color-text);
+    }
+
+    .comment-preview__snippet {
+      color: var(--color-muted);
+    }
+
+    /* layer: fab-spot */
+    .fab-spot {
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .fab-button {
+      width: 56px;
+      height: 56px;
+      border-radius: var(--radius-full);
+      display: grid;
+      place-items: center;
+      background: var(--color-secondary);
+      color: white;
+      box-shadow: var(--color-shadow-medium);
+      transition: transform var(--transition-fast), background var(--transition-fast);
+    }
+
+    .fab-button:hover {
+      transform: translateY(-2px);
+      background: #db2777;
+    }
+
+    /* layer: bottom-navigation */
+    .bottom-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-2);
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--color-shadow-low);
+    }
+
+    .bottom-nav__item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      color: var(--color-muted);
+      font-size: var(--font-size-caption);
+      min-width: 56px;
+    }
+
+    .bottom-nav__item--active {
+      color: var(--color-primary);
+    }
+
+    .bottom-nav__item svg {
+      width: 22px;
+      height: 22px;
+    }
+
+    @media (max-width: 440px) {
+      .app-shell {
+        padding-left: var(--space-3);
+        padding-right: var(--space-3);
+      }
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="app-shell">
+    <!-- Layer: Top App Bar -->
+    <header class="top-bar">
+      <div class="top-bar__brand">
+        <div class="top-bar__title">DVNT</div>
+        <div class="top-bar__subtitle">Community for short stories</div>
+      </div>
+      <div class="top-bar__actions">
+        <button class="theme-toggle" aria-label="Toggle theme" id="themeToggle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z"/>
+          </svg>
+        </button>
+        <button class="top-bar__icon-button" aria-label="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+        </button>
+        <div class="top-bar__avatar">MV</div>
+      </div>
+    </header>
+
+    <!-- Layer: Story Row -->
+    <section class="story-ribbon">
+      <div class="story-ribbon__header">
+        <div class="story-ribbon__title">Stories</div>
+        <div class="story-ribbon__action">View all</div>
+      </div>
+      <div class="story-list" aria-label="Stories">
+        <div class="story-card story-card--add">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14"/>
+          </svg>
+          <span class="story-card__label">+ Story</span>
+        </div>
+        <div class="story-card">
+          <div class="story-card__avatar">
+            <img src="https://picsum.photos/seed/story1/120" alt="Story by Alex" />
+          </div>
+          <span class="story-card__label">Alex</span>
+        </div>
+        <div class="story-card">
+          <div class="story-card__avatar">
+            <img src="https://picsum.photos/seed/story2/120" alt="Story by Luna" />
+          </div>
+          <span class="story-card__label">Luna</span>
+        </div>
+        <div class="story-card">
+          <div class="story-card__avatar">
+            <img src="https://picsum.photos/seed/story3/120" alt="Story by Jaden" />
+          </div>
+          <span class="story-card__label">Jaden</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Layer: Post Composer -->
+    <section class="composer-card">
+      <div class="composer-card__top">
+        <div class="composer-card__avatar">
+          <img src="https://picsum.photos/seed/me/100" alt="User avatar" />
+        </div>
+        <div class="composer-card__input" contenteditable="true" aria-label="What’s on your mind?">What’s on your mind?</div>
+      </div>
+      <div class="composer-card__footer">
+        <div class="composer-actions">
+          <button class="composer-actions__button" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 12h16"/>
+              <path d="M12 4v16"/>
+            </svg>
+            Media
+          </button>
+          <button class="composer-actions__button" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 7h16M4 12h10M4 17h7"/>
+            </svg>
+            Feeling
+          </button>
+        </div>
+        <button class="composer-button" type="button">Post</button>
+      </div>
+    </section>
+
+    <!-- Layer: Feed -->
+    <main class="feed" id="feedContainer"></main>
+
+    <!-- Layer: FAB -->
+    <div class="fab-spot">
+      <button class="fab-button" aria-label="Create new post">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- Layer: Bottom Navigation Bar -->
+    <nav class="bottom-nav" aria-label="Bottom navigation">
+      <button class="bottom-nav__item bottom-nav__item--active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M3 12l9-9 9 9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
+          <path d="M9 21V9h6v12"/>
+        </svg>
+        Home
+      </button>
+      <button class="bottom-nav__item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="11" cy="11" r="8"/>
+          <path d="M21 21l-4.35-4.35"/>
+        </svg>
+        Search
+      </button>
+      <button class="bottom-nav__item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        Post
+      </button>
+      <button class="bottom-nav__item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        Alerts
+      </button>
+      <button class="bottom-nav__item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+        Profile
+      </button>
+    </nav>
+  </div>
+
+  <script>
+    const posts = [
+      {
+        id: "post1",
+        user: "Maya",
+        avatar: "https://picsum.photos/seed/maya/100",
+        timestamp: "2h ago",
+        text: "Just captured the last light of sunset on downtown skies. Loving the energy of the city tonight.",
+        image: "https://picsum.photos/seed/post1/600/380",
+        likes: 28,
+        comments: 6,
+        shares: 3,
+        topComment: { user: "Aria", text: "That color palette is fire! 🔥" }
+      },
+      {
+        id: "post2",
+        user: "Noah",
+        avatar: "https://picsum.photos/seed/noah/100",
+        timestamp: "5h ago",
+        text: "Woke up with a new idea for a micro-story series. Feels good to create with friends around the world.",
+        image: "https://picsum.photos/seed/post2/600/380",
+        likes: 54,
+        comments: 12,
+        shares: 7,
+        topComment: { user: "Rae", text: "Can’t wait to read it! ✨" }
+      }
+    ];
+
+    const feedContainer = document.getElementById("feedContainer");
+
+    function createPostCard(post) {
+      const likesId = `likes-${post.id}`;
+      const template = document.createElement("article");
+      template.className = "post-card";
+      template.innerHTML = `
+        <div class="post-card__header">
+          <div class="post-card__meta">
+            <div class="post-card__avatar">
+              <img src="${post.avatar}" alt="${post.user} avatar" />
+            </div>
+            <div class="post-card__user">
+              <span class="post-card__name">${post.user}</span>
+              <span class="post-card__time">${post.timestamp}</span>
+            </div>
+          </div>
+          <button class="post-card__options" aria-label="Post options">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="19" cy="12" r="1" />
+              <circle cx="5" cy="12" r="1" />
+            </svg>
+          </button>
+        </div>
+        <div class="post-card__content">
+          <p class="post-card__text">${post.text}</p>
+          <div class="post-card__image">
+            <img src="${post.image}" alt="Post image" />
+          </div>
+          <div class="post-card__reactions">
+            <button class="reaction-button reaction-button--like" type="button" data-post-id="${post.id}">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" />
+              </svg>
+              <span id="${likesId}">${post.likes}</span>
+            </button>
+            <button class="reaction-button" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2z" />
+              </svg>
+              ${post.comments} Comments
+            </button>
+            <button class="reaction-button" type="button">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M4 13v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7" />
+                <path d="M8 10l4-4 4 4" />
+                <path d="M12 16V2" />
+              </svg>
+              ${post.shares} Share
+            </button>
+          </div>
+          <div class="comment-preview">
+            <div class="comment-preview__avatar">
+              <img src="https://picsum.photos/seed/comment-${post.id}/100" alt="${post.topComment.user}" />
+            </div>
+            <div class="comment-preview__text">
+              <span class="comment-preview__user">${post.topComment.user}</span>
+              <span class="comment-preview__snippet">${post.topComment.text}</span>
+            </div>
+          </div>
+        </div>
+      `;
+      return template;
+    }
+
+    function renderFeed() {
+      posts.forEach((post) => {
+        const postCard = createPostCard(post);
+        feedContainer.appendChild(postCard);
+      });
+    }
+
+    function attachLikeHandlers() {
+      feedContainer.addEventListener("click", (event) => {
+        const button = event.target.closest(".reaction-button--like");
+        if (!button) return;
+        const postId = button.dataset.postId;
+        const post = posts.find((item) => item.id === postId);
+        if (!post) return;
+        post.likes += 1;
+        const likesCount = document.getElementById(`likes-${post.id}`);
+        if (likesCount) likesCount.textContent = post.likes;
+        button.classList.add("reaction-button--active");
+      });
+    }
+
+    function initThemeToggle() {
+      const toggle = document.getElementById("themeToggle");
+      toggle.addEventListener("click", () => {
+        const root = document.body;
+        const isDark = root.getAttribute("data-theme") === "dark";
+        root.setAttribute("data-theme", isDark ? "light" : "dark");
+      });
+    }
+
+    renderFeed();
+    attachLikeHandlers();
+    initThemeToggle();
+  </script>
+  <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+</body>
+</html>
