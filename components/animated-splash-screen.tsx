@@ -1,7 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  Animated,
-  Easing,
   View,
   StyleSheet,
   Text,
@@ -10,14 +8,27 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-// NOTE: Intentionally uses react-native built-in Animated (NOT react-native-reanimated).
-// Reanimated 4 Animated.View is a custom Fabric component backed by the worklets C++
-// runtime. On iOS 26 + Expo SDK 55, when expo-updates loads an OTA bundle as the initial
-// bundle, the worklets runtime re-initializes concurrently with React's first shadow tree
-// commit, leaving the ReanimatedView ComponentDescriptor with unimplemented pure virtual
-// slots → __cxa_pure_virtual in ShadowTree::tryCommit → SIGABRT crash.
-// React Native's built-in Animated uses NativeAnimatedModule (always initialized at app
-// startup, no worklets dependency) and is safe in the first render frame.
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withSequence,
+  withDelay,
+  Easing,
+  interpolate,
+  Extrapolation,
+} from "react-native-reanimated";
+// CRASH FIX (iOS 26 + OTA): Reanimated 4 Animated.View is a custom Fabric component
+// backed by the worklets C++ runtime. When expo-updates loads an OTA bundle, the
+// worklets runtime re-initializes concurrently with React's FIRST shadow tree commit,
+// leaving the ComponentDescriptor vtable partially unset → __cxa_pure_virtual →
+// ShadowTree::tryCommit → SIGABRT. The embedded binary never races because worklets
+// initializes before React starts.
+//
+// Fix: `reanimatedReady` state ensures Animated.View is absent from frame 1's render
+// output entirely. useEffect fires after frame 1 (worklets is now initialized), sets
+// reanimatedReady=true, and starts the animation values. From frame 2 onward, the
+// Animated.View renders safely. No visible difference — opacity starts at 0 anyway.
 
 // Supabase URL for health checks
 const _rawSplashUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -43,11 +54,14 @@ export default function AnimatedSplashScreen({
   const [bootTimedOut, setBootTimedOut] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
   const [apiStatus, setApiStatus] = useState<string>("checking...");
+  // Deferred flag: Animated.View must NOT appear in frame 1's Fabric commit.
+  // Set to true in useEffect (after frame 1) so worklets is fully ready.
+  const [reanimatedReady, setReanimatedReady] = useState(false);
 
-  // RN built-in Animated values — safe in first Fabric commit (no worklets dependency)
-  const opacity = useRef(new Animated.Value(0)).current;
-  const scale = useRef(new Animated.Value(0.85)).current;
-  const glowOpacity = useRef(new Animated.Value(0)).current;
+  // Polished icon animation
+  const opacity = useSharedValue(0);
+  const scale = useSharedValue(0.85);
+  const glowOpacity = useSharedValue(0);
 
   // Check Supabase health
   const checkApiHealth = async (): Promise<boolean> => {
@@ -73,6 +87,7 @@ export default function AnimatedSplashScreen({
     }
   };
 
+  // Handle retry
   const handleRetry = async () => {
     console.log("[Splash] Retry button pressed");
     setIsRetrying(true);
@@ -86,6 +101,7 @@ export default function AnimatedSplashScreen({
     setIsRetrying(false);
   };
 
+  // Finish splash helper - instant exit
   const finishSplash = () => {
     if (!animationFinished.current && !hasCalledFinish) {
       animationFinished.current = true;
@@ -95,45 +111,33 @@ export default function AnimatedSplashScreen({
     }
   };
 
-  // Fast animation sequence using RN built-in Animated (no Reanimated/worklets)
+  // Frame 2+: worklets runtime is initialized — safe to start Reanimated animations
   useEffect(() => {
-    Animated.timing(opacity, {
-      toValue: 1,
+    setReanimatedReady(true);
+
+    opacity.value = withTiming(1, {
       duration: 100,
       easing: Easing.out(Easing.quad),
-      useNativeDriver: true,
-    }).start();
+    });
 
-    Animated.sequence([
-      Animated.timing(scale, {
-        toValue: 1.05,
+    scale.value = withSequence(
+      withTiming(1.05, {
         duration: 100,
         easing: Easing.out(Easing.back(1.2)),
-        useNativeDriver: true,
       }),
-      Animated.timing(scale, {
-        toValue: 1,
+      withTiming(1, {
         duration: 100,
         easing: Easing.out(Easing.quad),
-        useNativeDriver: true,
       }),
-    ]).start();
+    );
 
-    Animated.sequence([
-      Animated.delay(100),
-      Animated.timing(glowOpacity, {
-        toValue: 0.3,
-        duration: 200,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-      Animated.timing(glowOpacity, {
-        toValue: 0.15,
-        duration: 350,
-        easing: Easing.linear,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    glowOpacity.value = withDelay(
+      100,
+      withSequence(
+        withTiming(0.3, { duration: 200 }),
+        withTiming(0.15, { duration: 350 }),
+      ),
+    );
   }, []);
 
   // Boot timeout - ensures app never gets stuck
@@ -173,12 +177,26 @@ export default function AnimatedSplashScreen({
     return () => clearTimeout(timer);
   }, [onAnimationFinish]);
 
-  const glowScale = glowOpacity.interpolate({
-    inputRange: [0, 0.4],
-    outputRange: [0.8, 1.2],
-    extrapolate: "clamp",
-  });
+  const iconStyle = useAnimatedStyle(() => ({
+    opacity: opacity.value,
+    transform: [{ scale: scale.value }],
+  }));
 
+  const glowStyle = useAnimatedStyle(() => ({
+    opacity: glowOpacity.value,
+    transform: [
+      {
+        scale: interpolate(
+          glowOpacity.value,
+          [0, 0.4],
+          [0.8, 1.2],
+          Extrapolation.CLAMP,
+        ),
+      },
+    ],
+  }));
+
+  // Show timeout/retry UI
   if (bootTimedOut) {
     return (
       <View style={styles.container}>
@@ -204,15 +222,17 @@ export default function AnimatedSplashScreen({
     );
   }
 
+  // Frame 1: plain View only — no Reanimated Fabric components in first Fabric commit.
+  // Worklets C++ runtime hasn't finished initializing yet on OTA bundle loads.
+  if (!reanimatedReady) {
+    return <View style={styles.container} />;
+  }
+
+  // Frame 2+: worklets initialized, Animated.View is safe
   return (
     <View style={styles.container}>
-      {/* Subtle radial glow — RN built-in Animated.View, not Reanimated */}
-      <Animated.View
-        style={[
-          styles.glowContainer,
-          { opacity: glowOpacity, transform: [{ scale: glowScale }] },
-        ]}
-      >
+      {/* Subtle radial glow */}
+      <Animated.View style={[styles.glowContainer, glowStyle]}>
         <LinearGradient
           colors={[
             "rgba(62, 164, 229, 0.15)",
@@ -225,13 +245,8 @@ export default function AnimatedSplashScreen({
         />
       </Animated.View>
 
-      {/* App icon — RN built-in Animated.View, not Reanimated */}
-      <Animated.View
-        style={[
-          styles.iconContainer,
-          { opacity, transform: [{ scale }] },
-        ]}
-      >
+      {/* App icon */}
+      <Animated.View style={[styles.iconContainer, iconStyle]}>
         <Image
           source={require("../assets/images/icon.png")}
           style={styles.icon}
