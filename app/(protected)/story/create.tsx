@@ -1195,7 +1195,7 @@ function CreateStoryScreenContent() {
                   fontWeight: "700",
                 }}
               >
-                {visibility === "public" ? "Friends" : "Close Friends"}
+                {visibility === "public" ? "Everyone" : "Close Friends"}
               </Text>
             </Pressable>
           </View>
