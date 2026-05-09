@@ -47,7 +47,7 @@ export default {
     updates: {
       url: "https://u.expo.dev/5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
       fallbackToCacheTimeout: 0, // Launch immediately with cached bundle — JS hook handles update check
-      checkAutomatically: "ON_ERROR_RECOVERY",
+      checkAutomatically: "ALWAYS", // Changed from ON_ERROR_RECOVERY: reloadAsync() crashes iOS 26 (Fabric vtable); ALWAYS applies cached OTA on cold start without hot-restart
       enableBsdiffPatchSupport: true,
       waitBeforeLaunchMs: 0, // Do not block launch waiting for OTA — avoids ErrorRecovery crash loop
       // Enhanced crash hardening

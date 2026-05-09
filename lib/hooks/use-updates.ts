@@ -109,13 +109,22 @@ function showUpdateToast(updateId?: string | null) {
 
   const handleApply = () => {
     store.apply(); // clears MMKV dismissed key, sets phase "applying"
-    // SAFETY: write pending marker BEFORE reloadAsync so next-launch
-    // crash detection can identify this update as the cause.
-    markUpdatePending(currentId);
-    safeGet(
-      () => Updates?.reloadAsync().catch((e) => console.warn("[Updates] reloadAsync failed:", e)),
-      undefined,
-    );
+    // IMPORTANT: Do NOT call reloadAsync() here.
+    // On iOS 26.0.1 (and possibly other New Architecture builds), reloadAsync()
+    // triggers a __cxa_pure_virtual abort in ShadowTree::tryCommit because the
+    // old Fabric C++ vtable objects are still alive when the new bundle's first
+    // frame render fires. Cold starts apply the cached OTA cleanly — so we
+    // instruct the user to close and reopen instead.
+    console.log("[Updates] User tapped install — showing manual close/reopen instructions (reloadAsync disabled: iOS 26 Fabric vtable bug)");
+    try {
+      Alert.alert(
+        "Restart to Install",
+        "Swipe up to close the app, then reopen it. The update will install automatically on relaunch.",
+        [{ text: "OK", style: "default" }],
+      );
+    } catch (alertErr) {
+      console.warn("[Updates] Alert failed:", alertErr);
+    }
   };
 
   console.log("[Updates] Showing update toast for ID:", currentId);
@@ -129,7 +138,7 @@ function showUpdateToast(updateId?: string | null) {
         onClick: handleDismiss,
       },
       action: {
-        label: "Restart App Now",
+        label: "How to Install",
         onClick: handleApply,
       },
     });
