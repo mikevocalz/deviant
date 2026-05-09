@@ -92,7 +92,7 @@ function safeGet<T>(fn: () => T, fallback: T): T {
       // readLogEntriesAsync not available in all builds — non-fatal
     });
 
-    console.log("[OTA-BOOT] ================================");
+    console.log("[OTA-BOOT] ================================"); // canary-285
   } catch (e) {
     // Swallow all — this logger must never crash the app
     console.warn("[OTA-BOOT] Bootstrap log error (non-fatal):", e);
