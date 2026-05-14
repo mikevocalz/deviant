@@ -226,7 +226,7 @@ function SingleVideoThumb({ media }: { media: MediaAttachment }) {
       />
       <View
         style={{
-          ...StyleSheet.absoluteFillObject,
+          ...StyleSheet.absoluteFill,
           justifyContent: "center",
           alignItems: "center",
           backgroundColor: "rgba(0,0,0,0.3)",
@@ -318,7 +318,7 @@ function MediaMessage({ mediaList, onPress }: MediaMessageProps) {
           {inner}
           <View
             style={{
-              ...StyleSheet.absoluteFillObject,
+              ...StyleSheet.absoluteFill,
               borderRadius: 6,
               backgroundColor: "rgba(0,0,0,0.55)",
               justifyContent: "center",

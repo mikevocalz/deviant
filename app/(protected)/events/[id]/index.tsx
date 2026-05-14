@@ -2040,7 +2040,7 @@ const s = StyleSheet.create({
     zIndex: 50,
   },
   headerBg: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.95)",
     borderBottomWidth: 1,
     borderBottomColor: "rgba(255,255,255,0.06)",
@@ -2084,14 +2084,14 @@ const s = StyleSheet.create({
     overflow: "hidden",
   },
   heroImageContainer: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   heroImage: {
     width: "100%",
     height: "120%",
   },
   heroGradient: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
   },
   heroChips: {
     position: "absolute",

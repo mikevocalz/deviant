@@ -29,7 +29,7 @@ export const AnimatedGifStickerLayer: React.FC<AnimatedGifStickerLayerProps> =
     if (gifElements.length === 0) return null;
 
     return (
-      <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+      <View pointerEvents="none" style={StyleSheet.absoluteFill}>
         {gifElements.map((element) => (
           <AnimatedGifStickerItem
             key={element.id}

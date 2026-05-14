@@ -273,7 +273,7 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "center",
     alignItems: "center",
   },

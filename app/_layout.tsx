@@ -509,7 +509,8 @@ export default function RootLayout() {
                         {/* CRITICAL: Stack is ALWAYS mounted — never conditionally unmount
                     the navigation tree. Unmounting destroys the NavigationContainer
                     and causes stale header references after OTA reload.
-                    Stack.Protected gates handle auth routing internally. */}
+                    Auth gating is enforced inside (auth)/_layout and (protected)/_layout
+                    via redirects on the unauthenticated/authenticated state. */}
                         <Stack
                           screenOptions={{
                             headerShown: false,
