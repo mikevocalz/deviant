@@ -5,7 +5,7 @@
  * Prevents duplicate route patterns and ensures consistent param handling.
  */
 
-import { Router } from "expo-router";
+import type { ImperativeRouter } from "expo-router";
 
 export interface ChatRouteParams {
   /** Canonical numeric conversation ID */
@@ -30,7 +30,7 @@ export interface ChatRouteParams {
  *   peerName: conversation.user.name,
  * });
  */
-export function navigateToChat(router: Router, params: ChatRouteParams): void {
+export function navigateToChat(router: ImperativeRouter, params: ChatRouteParams): void {
   const { conversationId, peerAvatar, peerUsername, peerName } = params;
 
   if (!conversationId) {

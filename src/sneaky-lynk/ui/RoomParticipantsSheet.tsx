@@ -451,13 +451,13 @@ export function RoomParticipantsSheet({
 
 const styles = StyleSheet.create({
   overlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     zIndex: 9999,
     elevation: 9999,
     justifyContent: "flex-end",
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.62)",
   },
   sheet: {

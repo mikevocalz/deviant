@@ -111,7 +111,7 @@ export const GoingAccordion = memo(function GoingAccordion({
               {a.avatar ? (
                 <Image
                   source={{ uri: a.avatar }}
-                  style={[StyleSheet.absoluteFillObject, { borderRadius: AVATAR_RADIUS, opacity: 0.3 }]}
+                  style={[StyleSheet.absoluteFill, { borderRadius: AVATAR_RADIUS, opacity: 0.3 }]}
                   contentFit="cover"
                 />
               ) : null}

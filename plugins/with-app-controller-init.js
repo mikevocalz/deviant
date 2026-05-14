@@ -61,6 +61,18 @@ function withAppControllerInit(config) {
         modified = true;
       }
 
+      const embeddedBundleReturn = `#else
+    return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+#endif`;
+      const updatesBundleReturn = `#else
+    return AppController.sharedInstance.launchAssetUrl() ?? Bundle.main.url(forResource: "main", withExtension: "jsbundle")
+#endif`;
+
+      if (content.includes(embeddedBundleReturn)) {
+        content = content.replace(embeddedBundleReturn, updatesBundleReturn);
+        modified = true;
+      }
+
       if (modified) {
         fs.writeFileSync(appDelegatePath, content);
       }

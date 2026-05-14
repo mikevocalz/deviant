@@ -119,7 +119,7 @@ function MapLoadingOverlay({ color }: { color: string }) {
   return (
     <View
       style={{
-        ...StyleSheet.absoluteFillObject,
+        ...StyleSheet.absoluteFill,
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: "rgba(12,12,16,0.6)",

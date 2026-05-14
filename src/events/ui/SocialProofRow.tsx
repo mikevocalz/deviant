@@ -87,7 +87,7 @@ const AttendeeListModal = memo(function AttendeeListModal({
       statusBarTranslucent
     >
       <View style={styles.modalOverlay}>
-        <Pressable style={StyleSheet.absoluteFillObject} onPress={onClose} />
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
         <View style={styles.modalSheet}>
           <View style={styles.modalHandle} />
           <View style={styles.modalHeader}>
@@ -176,7 +176,7 @@ export const SocialProofRow = memo(function SocialProofRow({
                 {attendee.avatar ? (
                   <Image
                     source={{ uri: attendee.avatar }}
-                    style={[StyleSheet.absoluteFillObject, { borderRadius: AVATAR_RADIUS, opacity: 0.35 }]}
+                    style={[StyleSheet.absoluteFill, { borderRadius: AVATAR_RADIUS, opacity: 0.35 }]}
                     contentFit="cover"
                     blurRadius={Platform.OS === "android" ? 8 : 0}
                   />

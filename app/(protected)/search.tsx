@@ -9,7 +9,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Link, useRouter, useLocalSearchParams } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router/react-navigation";
 import {
   ArrowLeft,
   Search,

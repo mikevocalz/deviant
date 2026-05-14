@@ -1722,9 +1722,11 @@ function StoryViewerScreenContent() {
                   style={{ width: "100%", height: "100%" }}
                   contentFit="cover"
                   nativeControls={false}
-                  fullscreenOptions={{ enable: false }}
+                  allowsFullscreen={false}
                   allowsPictureInPicture={false}
-                  onFirstFrameRender={() => setShowVideoPoster(false)}
+                  // SDK 56: onFirstFrameRender removed from VideoView. The
+                  // showVideoPoster state is cleared by a timeStatusUpdate
+                  // listener on `player` elsewhere in the file.
                 />
                 {showVideoPoster && currentItem?.thumbnail ? (
                   <Image

@@ -4,7 +4,7 @@ import type {
   NativeStackNavigationOptions,
 } from "@react-navigation/native-stack";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
-import type { ParamListBase, StackNavigationState } from "@react-navigation/native";
+import type { ParamListBase, StackNavigationState } from "expo-router/react-navigation";
 
 const NativeTransitionStack = createNativeStackNavigator();
 

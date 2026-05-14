@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { KeyboardAwareScrollView } from "react-native-keyboard-controller";
 import { useRouter } from "expo-router";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation } from "expo-router/react-navigation";
 import { useSafeHeader } from "@/lib/hooks/use-safe-header";
 import { ErrorBoundary } from "@/components/error-boundary";
 import {

@@ -181,7 +181,7 @@ export function TranslateButton({
         <BlurView
           intensity={12}
           tint={tint}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
 
         {/* Content */}

@@ -13,7 +13,7 @@ import "@/lib/ota-bootstrap-log";
 //     plugins/with-uncaught-exception-handler.js (requires native
 //     rebuild — the file just won't exist on OTA-only builds)
 import "@/lib/native-exception-log";
-import { Stack, router } from "expo-router";
+import { Stack, router, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient, onlineManager } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
@@ -34,7 +34,7 @@ import * as SplashScreen from "expo-splash-screen";
 import AnimatedSplashScreen from "@/components/animated-splash-screen";
 import { Motion } from "@legendapp/motion";
 import { PortalHost } from "@rn-primitives/portal";
-import { ThemeProvider } from "@react-navigation/native";
+import { ThemeProvider } from "expo-router/react-navigation";
 import { Toaster } from "sonner-native";
 import { NAV_THEME } from "@/theme";
 import { useColorScheme } from "@/lib/hooks";
@@ -372,6 +372,22 @@ export default function RootLayout() {
     }
   }, [openedFromShareIntent, splashAnimationFinished, onAnimationFinish]);
 
+  // ── Auth-group routing guard ──────────────────────────────────────────
+  // SDK 56's expo-router (4.0.22) doesn't expose Stack.Protected. If an
+  // unauthenticated user lands on a (protected) route — including via deep
+  // link — bounce to login. If an authenticated user lands on (auth), forward
+  // to the tabs root. (public) is intentionally accessible in both states.
+  const segments = useSegments();
+  useEffect(() => {
+    if (!authSettled) return;
+    const top = segments[0] as string | undefined;
+    if (!isAuthenticated && top === "(protected)") {
+      router.replace("/(auth)/login");
+    } else if (isAuthenticated && top === "(auth)") {
+      router.replace("/(protected)/(tabs)");
+    }
+  }, [isAuthenticated, authSettled, segments]);
+
   // ── Execute queued notification route ─────────────────────────────────
   // After splash is done + auth settled + authenticated, navigate to the
   // route that was queued from a cold-start notification tap.
@@ -519,37 +535,31 @@ export default function RootLayout() {
                             contentStyle: { backgroundColor: "#000" },
                           }}
                         >
-                          <Stack.Protected guard={!isAuthenticated}>
-                            <Stack.Screen
-                              name="(auth)"
-                              options={{ animation: "none" }}
-                            />
-                          </Stack.Protected>
-                          <Stack.Protected
-                            guard={!isAuthenticated && hasSeenOnboarding}
-                          >
-                            <Stack.Screen
-                              name="(public)"
-                              options={{ animation: "none" }}
-                            />
-                          </Stack.Protected>
-                          <Stack.Protected guard={isAuthenticated}>
-                            <Stack.Screen
-                              name="(protected)"
-                              options={{ animation: "none" }}
-                            />
-                            <Stack.Screen
-                              name="settings"
-                              options={{
-                                headerShown: false,
-                                presentation: "fullScreenModal",
-                                animation: "slide_from_bottom",
-                                animationDuration: 300,
-                                gestureEnabled: true,
-                                gestureDirection: "vertical",
-                              }}
-                            />
-                          </Stack.Protected>
+                          {/* SDK 56's expo-router (4.0.22) doesn't expose Stack.Protected.
+                              Auth gating happens in the useSegments-redirect effect above. */}
+                          <Stack.Screen
+                            name="(auth)"
+                            options={{ animation: "none" }}
+                          />
+                          <Stack.Screen
+                            name="(public)"
+                            options={{ animation: "none" }}
+                          />
+                          <Stack.Screen
+                            name="(protected)"
+                            options={{ animation: "none" }}
+                          />
+                          <Stack.Screen
+                            name="settings"
+                            options={{
+                              headerShown: false,
+                              presentation: "fullScreenModal",
+                              animation: "slide_from_bottom",
+                              animationDuration: 300,
+                              gestureEnabled: true,
+                              gestureDirection: "vertical",
+                            }}
+                          />
                         </Stack>
                         {/* Share intent — deferred 4s after main app (expo-share-intent SDK 55/RN 0.84 crash workaround) */}
                         {shareIntentReady && (

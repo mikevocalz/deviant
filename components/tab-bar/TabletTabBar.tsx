@@ -22,7 +22,7 @@
 import React, { useCallback, useMemo } from "react";
 import { View, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
 import { useColorScheme } from "@/lib/hooks";
 import { CenterButton } from "@/components/center-button";
