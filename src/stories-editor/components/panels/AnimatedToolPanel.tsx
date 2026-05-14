@@ -126,12 +126,12 @@ export const AnimatedToolPanel: React.FC<AnimatedToolPanelProps> = React.memo(
             <LiquidGlassView
               effect="regular"
               interactive
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             >
               <View
                 pointerEvents="none"
                 style={[
-                  StyleSheet.absoluteFillObject,
+                  StyleSheet.absoluteFill,
                   createGlassScrimStyle("sheet"),
                 ]}
               />
@@ -140,12 +140,12 @@ export const AnimatedToolPanel: React.FC<AnimatedToolPanelProps> = React.memo(
             <BlurView
               intensity={34}
               tint="dark"
-              style={StyleSheet.absoluteFillObject}
+              style={StyleSheet.absoluteFill}
             >
               <View
                 pointerEvents="none"
                 style={[
-                  StyleSheet.absoluteFillObject,
+                  StyleSheet.absoluteFill,
                   createGlassScrimStyle("sheet", true),
                 ]}
               />
@@ -154,7 +154,7 @@ export const AnimatedToolPanel: React.FC<AnimatedToolPanelProps> = React.memo(
             <View
               pointerEvents="none"
               style={[
-                StyleSheet.absoluteFillObject,
+                StyleSheet.absoluteFill,
                 { backgroundColor: GLASS_SURFACE.androidSurface },
               ]}
             />

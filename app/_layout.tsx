@@ -1,6 +1,6 @@
 import "../global.css";
 import "@/lib/query-focus-manager";
-import { Stack, router } from "expo-router";
+import { Stack, router, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { QueryClient } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
@@ -298,6 +298,22 @@ export default function RootLayout() {
     }
   }, [openedFromShareIntent, splashAnimationFinished, onAnimationFinish]);
 
+  // ── Auth-group routing guard ──────────────────────────────────────────
+  // Replaces the old <Stack.Protected guard={...}> wrappers (expo-router 5+ API
+  // not available on this branch). If an unauthenticated user lands on a
+  // (protected) route — including via deep link — bounce to login. If an
+  // authenticated user lands on (auth), forward to the tabs root.
+  const segments = useSegments();
+  useEffect(() => {
+    if (!authSettled) return;
+    const top = segments[0] as string | undefined;
+    if (!isAuthenticated && top === "(protected)") {
+      router.replace("/(auth)/login");
+    } else if (isAuthenticated && top === "(auth)") {
+      router.replace("/(protected)/(tabs)");
+    }
+  }, [isAuthenticated, authSettled, segments]);
+
   // ── Execute queued notification route ─────────────────────────────────
   // After splash is done + auth settled + authenticated, navigate to the
   // route that was queued from a cold-start notification tap.
@@ -420,7 +436,8 @@ export default function RootLayout() {
                         {/* CRITICAL: Stack is ALWAYS mounted — never conditionally unmount
                     the navigation tree. Unmounting destroys the NavigationContainer
                     and causes stale header references after OTA reload.
-                    Stack.Protected gates handle auth routing internally. */}
+                    Auth gating is enforced inside (auth)/_layout and (protected)/_layout
+                    via redirects on the unauthenticated/authenticated state. */}
                         <Stack
                           screenOptions={{
                             headerShown: false,
@@ -429,29 +446,25 @@ export default function RootLayout() {
                             contentStyle: { backgroundColor: "#000" },
                           }}
                         >
-                          <Stack.Protected guard={!isAuthenticated}>
-                            <Stack.Screen
-                              name="(auth)"
-                              options={{ animation: "none" }}
-                            />
-                          </Stack.Protected>
-                          <Stack.Protected guard={isAuthenticated}>
-                            <Stack.Screen
-                              name="(protected)"
-                              options={{ animation: "none" }}
-                            />
-                            <Stack.Screen
-                              name="settings"
-                              options={{
-                                headerShown: true,
-                                presentation: "fullScreenModal",
-                                animation: "slide_from_bottom",
-                                animationDuration: 300,
-                                gestureEnabled: true,
-                                gestureDirection: "vertical",
-                              }}
-                            />
-                          </Stack.Protected>
+                          <Stack.Screen
+                            name="(auth)"
+                            options={{ animation: "none" }}
+                          />
+                          <Stack.Screen
+                            name="(protected)"
+                            options={{ animation: "none" }}
+                          />
+                          <Stack.Screen
+                            name="settings"
+                            options={{
+                              headerShown: true,
+                              presentation: "fullScreenModal",
+                              animation: "slide_from_bottom",
+                              animationDuration: 300,
+                              gestureEnabled: true,
+                              gestureDirection: "vertical",
+                            }}
+                          />
                         </Stack>
                         {/* Share intent — deferred 4s after main app (expo-share-intent SDK 55/RN 0.84 crash workaround) */}
                         {shareIntentReady && (
