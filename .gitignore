@@ -17,6 +17,8 @@ android/
 !modules/**/*.swift
 !modules/**/*.kt
 !modules/**/build.gradle
+# Re-ignore nested node_modules under local Expo modules (cancels !modules/**/ above)
+modules/**/node_modules/
 *.orig.*
 *.aab
 *.apks
