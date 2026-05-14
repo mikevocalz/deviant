@@ -48,10 +48,10 @@ function ViewerRow({
         size={44}
         variant="roundedSquare"
       />
-      <View style={styles.viewerInfo}>
-        <Text style={styles.viewerUsername}>{viewer.username}</Text>
-        <Text style={styles.viewerTime}>{formatViewedAt(viewer.viewedAt)}</Text>
-      </View>
+      <Text style={styles.viewerUsername} numberOfLines={1}>
+        {viewer.username}
+      </Text>
+      <Text style={styles.viewerTime}>{formatViewedAt(viewer.viewedAt)}</Text>
     </Pressable>
   );
 }
@@ -176,10 +176,8 @@ const styles = StyleSheet.create({
     gap: 12,
     paddingVertical: 10,
   },
-  viewerInfo: {
-    flex: 1,
-  },
   viewerUsername: {
+    flex: 1,
     fontSize: 15,
     fontWeight: "600",
     color: "#fff",
@@ -187,7 +185,6 @@ const styles = StyleSheet.create({
   viewerTime: {
     fontSize: 12,
     color: "rgba(255,255,255,0.5)",
-    marginTop: 2,
   },
   centered: {
     alignItems: "center",
