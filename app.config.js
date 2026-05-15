@@ -167,7 +167,10 @@ export default {
       [
         "@stripe/stripe-react-native",
         {
-          merchantIdentifier: "merchant.com.dvnt.app",
+          // TEMP: Apple Pay disabled until the Apple Pay capability is enabled
+          // for App ID com.dvnt.app and Merchant ID merchant.com.dvnt.app is
+          // created in the Apple Developer Portal. Re-add `merchantIdentifier`
+          // and the with-stripe-merchant-entitlement plugin before production.
           enableGooglePay: true,
         },
       ],
