@@ -1,5 +1,5 @@
 import { Platform } from "react-native";
-import type { NativeStackNavigationOptions } from "@react-navigation/native-stack";
+import type { NativeStackNavigationOptions } from "expo-router/build/react-navigation/native-stack";
 import type { MotionTier } from "@/lib/navigation/use-motion-tier";
 
 function buildPushTransition(): NativeStackNavigationOptions {
