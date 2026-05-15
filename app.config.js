@@ -161,8 +161,8 @@ export default {
       "expo-asset",
       "expo-audio",
       "expo-font",
-      "expo-image",
-      "expo-web-browser",
+      // SDK 56: expo-image, expo-web-browser no longer ship a config plugin
+      // (auto-linked). Listing them as plugin strings causes prebuild to fail.
       "@config-plugins/react-native-webrtc",
       [
         "@stripe/stripe-react-native",
@@ -256,7 +256,7 @@ export default {
       "./plugins/with-live-activity",
       ["./plugins/with-development-team", { teamId: "436WA3W63V" }],
       "expo-secure-store",
-      "expo-sharing",
+      // SDK 56: expo-sharing no longer ships a config plugin (auto-linked).
       [
         "./plugins/with-share-intent-fixed",
         {

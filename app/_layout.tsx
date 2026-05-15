@@ -517,11 +517,7 @@ export default function RootLayout() {
                             Platform.OS === "android" ? insets.bottom : 0,
                         }}
                       >
-                        <StatusBar
-                          backgroundColor="#000"
-                          style="light"
-                          animated
-                        />
+                        <StatusBar style="light" animated />
                         {/* CRITICAL: Stack is ALWAYS mounted — never conditionally unmount
                     the navigation tree. Unmounting destroys the NavigationContainer
                     and causes stale header references after OTA reload.
