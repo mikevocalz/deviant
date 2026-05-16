@@ -43,6 +43,18 @@ const SOURCE_PATCHES = [
 
 // ── Podfile post_install snippet ────────────────────────────────────
 const POST_INSTALL_SNIPPET = `
+    # ── Enforce minimum iOS deployment target 17.0 across all pods ──
+    # Prevents pods with lower minimums (e.g. react-native at 15.1) from
+    # downgrading the effective deployment target and causing build failures.
+    installer.pods_project.targets.each do |target|
+      target.build_configurations.each do |config|
+        current = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f
+        if current < 17.0
+          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '17.0'
+        end
+      end
+    end
+
     # ── Swift 5.9 compat: disable strict concurrency for Expo pods ──
     # ExpoModulesCore podspec patched to swift_version='5.9'.
     # SWIFT_STRICT_CONCURRENCY=minimal is respected in Swift 5.9 mode
