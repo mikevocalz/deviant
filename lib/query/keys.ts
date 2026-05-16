@@ -88,6 +88,18 @@ export const qk = {
   tickets: {
     mine: () => ["tickets", "mine"] as const,
     forEvent: (eventId: string) => ["tickets", "event", eventId] as const,
+    byEventAndCategory: (eventId: string, category: string) =>
+      ["tickets", "event", eventId, "category", category] as const,
+  },
+
+  // ── Cart ──────────────────────────────────────────────────────
+  cart: {
+    detail: (viewerId: string, cartId: string) =>
+      ["cart", viewerId, cartId] as const,
+    lineItems: (viewerId: string, cartId: string) =>
+      ["cart", viewerId, cartId, "line-items"] as const,
+    status: (viewerId: string, cartId: string) =>
+      ["cart", viewerId, cartId, "status"] as const,
   },
 
   // ── Follow ────────────────────────────────────────────────────

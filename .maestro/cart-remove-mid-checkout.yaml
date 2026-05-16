@@ -1,0 +1,27 @@
+appId: com.dvnt.app
+name: Cart remove coat-check before payment
+---
+- launchApp:
+    clearState: false
+- assertVisible: "DVNT"
+- tapOn: "${EVENTS_TAB_TEXT:-Events}"
+- tapOn: "${MAESTRO_EVENT_TITLE:-Mixed Cart Test Event}"
+- tapOn: "${MAESTRO_ADMISSION_TIER:-General Admission}"
+- tapOn: "${MAESTRO_COAT_CHECK_TIER:-Coat Check}"
+- tapOn: "Review Cart"
+- assertVisible: "Review Cart"
+- assertVisible: "Admission"
+- assertVisible: "Coat Check"
+- tapOn: "Remove Coat Check"
+- assertNotVisible: "Coat Check"
+- assertVisible: "Admission"
+- tapOn: "Continue to Payment"
+- extendedWaitUntil:
+    visible: "Apple Pay"
+    timeout: 15000
+- tapOn: "Apple Pay"
+- extendedWaitUntil:
+    visible: "Tickets Ready"
+    timeout: 30000
+- assertVisible: "Admission ticket"
+- assertNotVisible: "Claim pass"

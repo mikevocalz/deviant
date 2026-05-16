@@ -85,7 +85,9 @@ export async function submitPasswordReset(newPassword: string) {
 
 export async function resendVerificationEmail(email: string) {
   if (!recoveryClient.sendVerificationEmail) {
-    throw new Error("Email verification resend is not available in this client build");
+    throw new Error(
+      "Email verification resend is not available in this client build",
+    );
   }
 
   return recoveryClient.sendVerificationEmail({ email });
@@ -140,6 +142,7 @@ export function clearAllCachedData() {
       usePostStore,
     } = require("@/lib/stores/post-store");
     const { useBookmarkStore } = require("@/lib/stores/bookmark-store");
+    const { useCartStore } = require("@/lib/stores/cart");
 
     useProfileStore.setState({
       activeTab: "posts",
@@ -171,6 +174,7 @@ export function clearAllCachedData() {
       commentLikeCounts: {},
     });
     useBookmarkStore.setState({ bookmarkedPosts: [] });
+    useCartStore.getState().reset();
 
     console.log("[Auth] === ALL USER DATA CLEARED ===");
   } catch (error) {

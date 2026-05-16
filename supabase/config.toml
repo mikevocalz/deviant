@@ -97,6 +97,24 @@ verify_jwt = false
 [functions.ticket_wallet_google]
 verify_jwt = false
 
+[functions.cart-create-hold]
+verify_jwt = false
+
+[functions.cart-release-hold]
+verify_jwt = false
+
+[functions.cart-checkout]
+verify_jwt = false
+
+[functions.get-cart-status]
+verify_jwt = false
+
+[functions.cart-line-refund]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false
+
 [functions.wallet_web_service]
 verify_jwt = false
 

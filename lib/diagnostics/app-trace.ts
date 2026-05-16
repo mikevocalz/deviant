@@ -8,6 +8,7 @@ export type AppTraceTag =
   | "VERIFICATION"
   | "POST"
   | "RECOVERY"
+  | "CART"
   | "PUBLIC_GATE"
   | "PERF"
   | "CRASH";
@@ -43,7 +44,9 @@ try {
 let globalContext: TraceContext = {};
 let buffer: AppTraceEvent[] = [];
 
-function normalizeValue(value: TracePrimitive): string | number | boolean | null {
+function normalizeValue(
+  value: TracePrimitive,
+): string | number | boolean | null {
   if (value === undefined) return null;
   if (value === null) return null;
   if (
@@ -136,7 +139,12 @@ function push(entry: AppTraceEvent): void {
 
 buffer = loadPersisted();
 
-function track(level: TraceLevel, tag: AppTraceTag, event: string, ctx?: TraceContext) {
+function track(
+  level: TraceLevel,
+  tag: AppTraceTag,
+  event: string,
+  ctx?: TraceContext,
+) {
   const entry: AppTraceEvent = {
     ts: Date.now(),
     level,

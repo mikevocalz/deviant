@@ -1,0 +1,26 @@
+appId: com.dvnt.app
+name: Cart admission-only checkout
+---
+- launchApp:
+    clearState: false
+- assertVisible: "DVNT"
+- tapOn: "${EVENTS_TAB_TEXT:-Events}"
+- tapOn: "${MAESTRO_EVENT_TITLE:-Mixed Cart Test Event}"
+- tapOn: "${MAESTRO_ADMISSION_TIER:-General Admission}"
+- tapOn: "Review Cart"
+- assertVisible: "Review Cart"
+- assertVisible: "Admission"
+- assertNotVisible: "Coat Check"
+- assertVisible: "Continue to Payment"
+- tapOn: "Continue to Payment"
+- extendedWaitUntil:
+    visible: "Apple Pay"
+    timeout: 15000
+- tapOn: "Apple Pay"
+- extendedWaitUntil:
+    visible: "Tickets Ready"
+    timeout: 30000
+- assertVisible: "Admission ticket"
+- assertVisible: "Add to Calendar"
+- tapOn: "View My Tickets"
+- assertVisible: "My Tickets"

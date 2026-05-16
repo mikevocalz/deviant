@@ -181,7 +181,13 @@ function ViewTicketScreenContent() {
     } finally {
       setCancelingTransfer(false);
     }
-  }, [outgoingTransfer?.id, cancelingTransfer, showToast, queryClient, eventId]);
+  }, [
+    outgoingTransfer?.id,
+    cancelingTransfer,
+    showToast,
+    queryClient,
+    eventId,
+  ]);
 
   // Only show refund if event starts MORE than 24 hours from now
   const refundEligible = React.useMemo(() => {
@@ -193,16 +199,23 @@ function ViewTicketScreenContent() {
   const handleRefund = React.useCallback(async () => {
     if (!dbTicket?.id || refundStep === "loading") return;
     setRefundStep("loading");
-    const res = await ticketsApi.requestRefund(dbTicket.id);
-    if (res.error) {
+    const res =
+      dbTicket.cart_id && dbTicket.cart_line_item_id
+        ? await ticketsApi.requestLineRefund({
+            cartId: dbTicket.cart_id,
+            lineItemId: dbTicket.cart_line_item_id,
+          })
+        : await ticketsApi.requestRefund(dbTicket.id);
+    if ("error" in res && res.error) {
       setRefundStep("confirm");
       showToast("error", "Refund failed", res.error);
       return;
     }
+    const refundMessage = "message" in res ? res.message : undefined;
     showToast(
       "success",
       "Ticket cancelled",
-      res.message || "Refund processed successfully",
+      refundMessage || "Refund processed successfully",
     );
     await queryClient.invalidateQueries({
       queryKey: ticketKeys.myTicketForEvent(eventId),
@@ -211,7 +224,16 @@ function ViewTicketScreenContent() {
       queryKey: ticketKeys.myTickets(),
     });
     router.back();
-  }, [dbTicket?.id, refundStep, showToast, queryClient, eventId, router]);
+  }, [
+    dbTicket?.cart_id,
+    dbTicket?.cart_line_item_id,
+    dbTicket?.id,
+    refundStep,
+    showToast,
+    queryClient,
+    eventId,
+    router,
+  ]);
 
   // ── Wallet pass refresh detection ──
   // Detect if ticket was upgraded after wallet pass was created
@@ -354,10 +376,7 @@ function ViewTicketScreenContent() {
             >
               <Shield size={16} color="#8A40CF" />
               <Text
-                style={[
-                  styles.statusBannerText,
-                  { color: "#8A40CF", flex: 1 },
-                ]}
+                style={[styles.statusBannerText, { color: "#8A40CF", flex: 1 }]}
               >
                 Transfer pending — waiting for recipient to accept
               </Text>
@@ -484,9 +503,13 @@ function ViewTicketScreenContent() {
               </View>
               <View style={styles.upgradeBannerText}>
                 <Text style={styles.upgradeBannerTitle}>
-                  Upgrade to {upgradeTiers.length === 1
+                  Upgrade to{" "}
+                  {upgradeTiers.length === 1
                     ? upgradeTiers[0].name
-                    : upgradeTiers.slice(0, 2).map((t: any) => t.name).join(" or ")}
+                    : upgradeTiers
+                        .slice(0, 2)
+                        .map((t: any) => t.name)
+                        .join(" or ")}
                 </Text>
                 <Text style={styles.upgradeBannerSub}>
                   Pay only the difference · Wallet pass updates instantly
@@ -525,9 +548,11 @@ function ViewTicketScreenContent() {
                     Cancel this ticket?
                   </Text>
                   <Text style={styles.refundConfirmSub}>
-                    {(dbTicket.purchase_amount_cents ?? 0) > 0
-                      ? "A refund will be issued to your original payment method. Funds typically appear within 5–10 business days."
-                      : "Your free ticket will be cancelled. This cannot be undone."}
+                    {dbTicket.cart_id && dbTicket.cart_line_item_id
+                      ? "This cancels every ticket or pass from this cart line. Other items from the same checkout stay active."
+                      : (dbTicket.purchase_amount_cents ?? 0) > 0
+                        ? "A refund will be issued to your original payment method. Funds typically appear within 5–10 business days."
+                        : "Your free ticket will be cancelled. This cannot be undone."}
                   </Text>
                   <View style={styles.refundConfirmActions}>
                     <Pressable
@@ -631,7 +656,6 @@ function ViewTicketScreenContent() {
           </Pressable>
         )}
       </View>
-
     </View>
   );
 }

@@ -2,6 +2,11 @@ import { supabase } from "../supabase/client";
 import { getCurrentUserAuthId } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 import { invokeEdge } from "./invoke-edge";
+import {
+  CartLineRefundResponseDTO,
+  parseDTO,
+  type CartLineRefundResponse,
+} from "@/lib/contracts/dto";
 
 export interface TicketRecord {
   id: string;
@@ -13,6 +18,9 @@ export interface TicketRecord {
   checked_in_at: string | null;
   checked_in_by: string | null;
   purchase_amount_cents: number | null;
+  category?: "admission" | "coat_check" | "product" | "service";
+  cart_id?: string | null;
+  cart_line_item_id?: string | null;
   created_at: string;
   updated_at?: string;
   wallet_pass_updated_at?: string | null;
@@ -456,6 +464,34 @@ export const ticketsApi = {
     } catch (error: any) {
       console.error("[Tickets] requestRefund error:", error);
       return { error: error.message || "Refund request failed" };
+    }
+  },
+
+  /**
+   * Buyer-initiated mixed-cart line refund.
+   * Cancels only the selected cart line item; sibling line items remain active.
+   */
+  async requestLineRefund(params: {
+    cartId: string;
+    lineItemId: string;
+  }): Promise<
+    (CartLineRefundResponse & { error?: undefined }) | { error: string }
+  > {
+    try {
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke(
+        "cart-line-refund",
+        {
+          body: params,
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (error) throw error;
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      return parseDTO(CartLineRefundResponseDTO, result);
+    } catch (error: any) {
+      console.error("[Tickets] requestLineRefund error:", error);
+      return { error: error.message || "Line-item refund request failed" };
     }
   },
 
