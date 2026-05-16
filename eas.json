@@ -34,7 +34,12 @@
       "distribution": "internal",
       "channel": "preview",
       "ios": {
-        "image": "latest"
+        "image": "latest",
+        "buildArtifactPaths": [
+          "ios/build/Build/Products/Release-iphoneos/*.app.dSYM",
+          "ios/build/Build/Products/Release-iphoneos/**/*.dSYM",
+          "ios/build/**/*.xcarchive/dSYMs/*.dSYM"
+        ]
       },
       "android": {
         "buildType": "apk"
