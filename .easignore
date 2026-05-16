@@ -9,8 +9,14 @@ web-build/
 expo-env.d.ts
 
 # Native builds
-ios/
-android/
+/ios/
+/android/
+!modules/
+!modules/**/
+!modules/**/ios/
+!modules/**/ios/**
+!modules/**/android/
+!modules/**/android/**
 *.orig.*
 *.aab
 *.apks

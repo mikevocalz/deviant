@@ -2,7 +2,7 @@ import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import { partitionConversationsByFollowState } from "@/lib/messages/conversation-buckets";
 import {
-  getCurrentUserIdInt,
+  getCurrentUserIdSync,
   getCurrentUserAuthId,
   resolveUserIdInt,
 } from "./auth-helper";
@@ -17,7 +17,7 @@ import { useAuthStore } from "../stores/auth-store";
  * Prevents silent null returns that break all message queries.
  */
 async function resolveVisitorIdInt(): Promise<number | null> {
-  const syncId = getCurrentUserIdInt();
+  const syncId = getCurrentUserIdSync();
   if (syncId) return syncId;
   // Sync failed (non-numeric user.id) — resolve via DB lookup
   const asyncId = await getCurrentUserIdAsync();

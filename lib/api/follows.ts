@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserIdInt, resolveUserIdInt } from "./auth-helper";
+import { getCurrentUserIdSync, resolveUserIdInt } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 interface ToggleFollowResponseData {
@@ -117,7 +117,7 @@ export const followsApi = {
    */
   async isFollowing(targetUserId: string): Promise<boolean> {
     try {
-      const currentUserId = getCurrentUserIdInt();
+      const currentUserId = getCurrentUserIdSync();
       if (!currentUserId) return false;
 
       const { data, error } = await supabase

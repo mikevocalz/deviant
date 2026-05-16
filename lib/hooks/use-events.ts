@@ -9,7 +9,7 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { eventsApi as eventsApiClient } from "@/lib/api/events";
-import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { getCurrentUserIdSync } from "@/lib/api/auth-helper";
 import { STALE_TIMES } from "@/lib/perf/stale-time-config";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { activityKeys } from "@/lib/hooks/use-activities-query";
@@ -396,7 +396,7 @@ export function useDeleteEvent() {
 
 // Fetch events liked/saved by the current user
 export function useLikedEvents() {
-  const userId = getCurrentUserIdInt();
+  const userId = getCurrentUserIdSync();
   return useQuery({
     queryKey: eventKeys.liked(userId || 0),
     queryFn: () => eventsApiClient.getLikedEvents(userId!),
@@ -524,7 +524,7 @@ export function useToggleEventLike() {
       );
 
       // Refresh liked events list and event detail
-      const uid = getCurrentUserIdInt();
+      const uid = getCurrentUserIdSync();
       if (uid) {
         queryClient.invalidateQueries({ queryKey: eventKeys.liked(uid) });
       }

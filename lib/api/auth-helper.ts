@@ -1,6 +1,8 @@
 import { useAuthStore } from "../stores/auth-store";
 import { getCurrentUserRow, getCachedUserIdInt } from "../auth/identity";
 
+export { getCurrentUserIdSync } from "../auth/identity";
+
 /**
  * Get current user ID from Better Auth store
  * Returns the users table integer ID (as string), not the Better Auth UUID

@@ -1,7 +1,7 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import type { Post } from "@/lib/types";
-import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
+import { getCurrentUserId, getCurrentUserIdSync } from "./auth-helper";
 import { hasAuthenticatedUser, requireBetterAuthToken } from "../auth/identity";
 import { likesApi } from "./likes";
 import {

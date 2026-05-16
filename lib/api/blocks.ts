@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserIdInt, resolveUserIdInt } from "./auth-helper";
+import { getCurrentUserIdSync, resolveUserIdInt } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 export const blocksApi = {
@@ -9,7 +9,7 @@ export const blocksApi = {
    */
   async getBlockedUsers() {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) return [];
 
       // Note: This assumes a 'blocks' table exists in the schema

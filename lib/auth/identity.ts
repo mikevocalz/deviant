@@ -259,12 +259,13 @@ export async function getCurrentUserId(): Promise<number | null> {
  */
 export function getCurrentUserIdSync(): number | null {
   const user = useAuthStore.getState().user;
-  if (!user) return null;
+  if (!user) return getCachedUserIdInt();
 
   const isNumeric = /^\d+$/.test(user.id);
   if (!isNumeric) {
-    // Don't warn - this is expected when auth store has auth_id
-    return null;
+    // Don't warn - this is expected when auth store has auth_id.
+    // Fall back to the cache populated by getCurrentUserRow during boot.
+    return getCachedUserIdInt();
   }
 
   return parseInt(user.id);

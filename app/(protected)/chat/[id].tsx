@@ -64,7 +64,7 @@ import { messagesApiClient } from "@/lib/api/messages";
 import { useConversationResolution } from "@/lib/hooks/use-conversation-resolution";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 import { messageKeys, useRefreshMessageCounts } from "@/lib/hooks/use-messages";
-import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { getCurrentUserIdSync } from "@/lib/api/auth-helper";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import {
@@ -639,7 +639,7 @@ function ChatScreenContent() {
 
     // Cancellation guard: prevents stale callbacks from executing after cleanup
     let cancelled = false;
-    const userIntId = getCurrentUserIdInt();
+    const userIntId = getCurrentUserIdSync();
 
     // Unique channel ID prevents collisions on rapid navigation
     const channelId = `chat-${convId}-${Date.now()}`;

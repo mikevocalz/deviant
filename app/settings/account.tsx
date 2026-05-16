@@ -4,8 +4,8 @@ import {
   ScrollView,
   Pressable,
   TextInput,
-  Alert,
   ActivityIndicator,
+  Modal,
 } from "react-native";
 import { Main } from "@expo/html-elements";
 import { useRouter, useNavigation } from "expo-router";
@@ -28,6 +28,8 @@ export default function AccountScreen() {
   const [name, setName] = useState(user?.name || "");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const handleSave = useCallback(async () => {
     if (!name.trim()) {
@@ -52,58 +54,36 @@ export default function AccountScreen() {
   }, [name, user, setUser]);
 
   const handleDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account",
-      "Are you sure you want to permanently delete your account? This action cannot be undone and all your data will be lost.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Yes, I'm sure",
-          style: "destructive",
-          onPress: () => {
-            Alert.prompt(
-              "Final Confirmation",
-              "Type DELETE to permanently delete your account. This cannot be undone.",
-              [
-                { text: "Cancel", style: "cancel" },
-                {
-                  text: "Delete My Account",
-                  style: "destructive",
-                  onPress: async (text?: string) => {
-                    if (text?.trim() !== "DELETE") {
-                      toast.error("Account deletion cancelled", {
-                        description: "You must type DELETE to confirm",
-                      });
-                      return;
-                    }
-                    setIsDeleting(true);
-                    try {
-                      await deleteAccountPrivileged();
-                      toast.success("Account deleted", {
-                        description:
-                          "Your account and all associated data have been permanently deleted.",
-                        duration: 6000,
-                      });
-                      logout();
-                      router.replace("/login");
-                    } catch (err: any) {
-                      toast.error("Failed to delete account", {
-                        description: err?.message || "Something went wrong",
-                      });
-                    } finally {
-                      setIsDeleting(false);
-                    }
-                  },
-                },
-              ],
-              "plain-text",
-              "",
-              "DELETE",
-            );
-          },
-        },
-      ],
-    );
+    setDeleteConfirmText("");
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDeleteAccount = async () => {
+    if (deleteConfirmText.trim() !== "DELETE") {
+      toast.error("Account deletion cancelled", {
+        description: "You must type DELETE to confirm",
+      });
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      await deleteAccountPrivileged();
+      toast.success("Account deleted", {
+        description:
+          "Your account and all associated data have been permanently deleted.",
+        duration: 6000,
+      });
+      setShowDeleteConfirm(false);
+      logout();
+      router.replace("/login");
+    } catch (err: any) {
+      toast.error("Failed to delete account", {
+        description: err?.message || "Something went wrong",
+      });
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   useLayoutEffect(() => {
@@ -230,6 +210,58 @@ export default function AccountScreen() {
           </Text>
         </ScrollView>
       </Main>
+
+      <Modal
+        visible={showDeleteConfirm}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!isDeleting) setShowDeleteConfirm(false);
+        }}
+      >
+        <View className="flex-1 justify-center bg-black/70 px-5">
+          <View className="rounded-xl border border-destructive/30 bg-card p-5">
+            <Text className="text-xl font-semibold text-foreground">
+              Delete Account
+            </Text>
+            <Text className="mt-3 text-sm leading-5 text-muted-foreground">
+              This permanently deletes your DVNT account, ends active Lynk rooms
+              you host, deregisters push tokens, and removes or anonymizes
+              associated data required for bookkeeping.
+            </Text>
+            <Text className="mt-5 text-sm font-medium text-foreground">
+              Type DELETE to confirm
+            </Text>
+            <TextInput
+              value={deleteConfirmText}
+              onChangeText={setDeleteConfirmText}
+              placeholder="DELETE"
+              placeholderTextColor={colors.mutedForeground}
+              autoCapitalize="characters"
+              editable={!isDeleting}
+              className="mt-2 rounded-lg border border-border bg-secondary/30 px-4 py-3 text-foreground"
+            />
+            <View className="mt-5 flex-row gap-3">
+              <Pressable
+                disabled={isDeleting}
+                onPress={() => setShowDeleteConfirm(false)}
+                className="flex-1 items-center rounded-lg border border-border py-3 active:bg-secondary/40"
+              >
+                <Text className="font-semibold text-foreground">Cancel</Text>
+              </Pressable>
+              <Pressable
+                disabled={isDeleting || deleteConfirmText.trim() !== "DELETE"}
+                onPress={handleConfirmDeleteAccount}
+                className="flex-1 items-center rounded-lg bg-destructive py-3 disabled:opacity-50"
+              >
+                <Text className="font-semibold text-destructive-foreground">
+                  {isDeleting ? "Deleting..." : "Delete"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

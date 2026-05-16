@@ -6,7 +6,7 @@ import {
 } from "../auth/identity";
 import {
   getCurrentUserId,
-  getCurrentUserIdInt,
+  getCurrentUserIdSync,
   getCurrentUserAuthId,
 } from "./auth-helper";
 
@@ -177,7 +177,7 @@ export const eventsApi = {
     try {
       console.log("[Events] getEvents (batch RPC)");
 
-      const viewerId = getCurrentUserIdInt() ?? (await getIntUserIdAsync());
+      const viewerId = getCurrentUserIdSync() ?? (await getIntUserIdAsync());
 
       const { data, error } = await supabase.rpc("get_events_home", {
         p_limit: limit,
@@ -246,7 +246,7 @@ export const eventsApi = {
    */
   async getForYouEvents(limit: number = 20) {
     try {
-      const viewerId = getCurrentUserIdInt() ?? (await getIntUserIdAsync());
+      const viewerId = getCurrentUserIdSync() ?? (await getIntUserIdAsync());
       if (!viewerId) return this.getEvents(limit);
 
       const { data, error } = await supabase.rpc("get_events_for_you", {
@@ -437,7 +437,7 @@ export const eventsApi = {
   async getEventById(id: string) {
     try {
       console.log("[Events] getEventById (batch RPC)");
-      const viewerId = getCurrentUserIdInt() ?? (await getIntUserIdAsync());
+      const viewerId = getCurrentUserIdSync() ?? (await getIntUserIdAsync());
 
       const { data, error } = await supabase.rpc("get_event_detail", {
         p_event_id: parseInt(id),
@@ -771,7 +771,7 @@ export const eventsApi = {
 
       // Resolve all possible user identifiers for ownership check
       const authId = await getCurrentUserAuthId();
-      const userIdInt = getCurrentUserIdInt();
+      const userIdInt = getCurrentUserIdSync();
       const userId = getCurrentUserId();
       console.log(
         "[Events] deleteEvent identifiers — authId:",
@@ -1044,7 +1044,7 @@ export const eventsApi = {
    */
   async isEventLiked(eventId: string): Promise<boolean> {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) return false;
 
       const { data, error } = await supabase
@@ -1184,7 +1184,7 @@ export const eventsApi = {
    */
   async addEventComment(eventId: string, commentContent: string) {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
@@ -1263,7 +1263,7 @@ export const eventsApi = {
    */
   async addEventReview(eventId: string, rating: number, content: string) {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) throw new Error("Not authenticated");
 
       // Upsert: one review per user per event

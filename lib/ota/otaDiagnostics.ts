@@ -120,7 +120,7 @@ export function captureOtaDiagnostics(): OtaDiagnosticsSnapshot {
       () => require("react-native/package.json").version ?? "unknown",
       "unknown"
     ),
-    jsEngine: safeGet(() => (global as any).HermesInternal ? "Hermes" : "JSC", "unknown"),
+    jsEngine: safeGet(() => (globalThis as any).HermesInternal ? "Hermes" : "JSC", "unknown"),
     platform: Platform.OS,
     osVersion: safeGet(() => String(Platform.Version), "unknown"),
     deviceModel: safeGet(() => Constants.deviceName ?? "unknown", "unknown"),

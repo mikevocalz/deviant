@@ -1,6 +1,6 @@
 # Skipped Migrations Audit (REL-02)
 
-21 `.sql.skip` files in `supabase/migrations/`. These were skipped because they were either applied manually via SQL editor, superseded by later migrations, or represent unshipped features.
+27 `.sql.skip` files in `supabase/migrations/`. These were skipped because they were either applied manually via SQL editor, superseded by later migrations, or represent unshipped features.
 
 ## Safe to Delete (superseded by active migrations)
 
@@ -28,6 +28,13 @@
 | `20260218_full_stack_audit.sql.skip` | Mixed hardening — applied piecemeal. |
 | `20260220_kv_cache_and_live_surface.sql.skip` | `kv_cache` table and live-surface grants exist. |
 | `20260314_fix_events_category_enum_cast.sql.skip` | Enum cast fix applied via `20260313_catchup_all.sql`. |
+| `20260321_posts_location_columns.sql.skip` | Structured post location columns were applied in production before this audit; retained as historical reference. |
+| `20260326100000_cleanup_duplicate_posts.sql.skip` | One-time duplicate-post cleanup already ran against production; retained as historical reference only. |
+| `20260324_likes_count_trigger.sql.skip` | Applied to production during the 2026-05-16 backend deploy; retired locally to resolve Supabase date-only migration history drift. |
+| `20260325_liked_activity_history.sql.skip` | Applied to production during the 2026-05-16 backend deploy; retired locally to resolve Supabase date-only migration history drift. |
+| `20260413_fix_ticket_tiers_in_event_detail.sql.skip` | Applied to production during the 2026-05-16 backend deploy; retired locally to resolve Supabase date-only migration history drift. |
+| `20260429_event_visibility_detail_and_spotlight.sql.skip` | Applied to production during the 2026-05-16 backend deploy; retired locally to resolve Supabase date-only migration history drift. |
+| `20260501_event_search_host_name_and_nsfw_filter.sql.skip` | Applied to production during the 2026-05-16 backend deploy; retired locally to resolve Supabase date-only migration history drift. |
 
 ## Unshipped Features (keep as reference or delete)
 

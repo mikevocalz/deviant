@@ -85,7 +85,7 @@ export function DebugOTAStatus() {
         </Text>
       </Pressable>
       <Text style={{ color: '#ff0', fontSize: 8, marginTop: 4 }}>
-        Expected: 678b2753-fe88-4464-8a09-ed9569b1cf17
+        Expected: bundled update ID from the production manifest
       </Text>
     </View>
   );

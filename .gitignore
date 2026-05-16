@@ -9,14 +9,18 @@ web-build/
 expo-env.d.ts
 
 # Native builds
-ios/
-android/
+/ios/
+/android/
 # Un-ignore local Expo module native source files
 !modules/
 !modules/**/
 !modules/**/*.swift
 !modules/**/*.kt
 !modules/**/build.gradle
+!modules/**/ios/
+!modules/**/ios/**
+!modules/**/android/
+!modules/**/android/**
 # Re-ignore nested node_modules under local Expo modules (cancels !modules/**/ above)
 modules/**/node_modules/
 *.orig.*

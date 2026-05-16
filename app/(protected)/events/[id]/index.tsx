@@ -17,7 +17,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import { eventKeys, useToggleEventLike } from "@/lib/hooks/use-events";
 import {
-  getCurrentUserIdInt,
+  getCurrentUserIdSync,
   getCurrentUserAuthId,
 } from "@/lib/api/auth-helper";
 import { Image } from "expo-image";
@@ -597,7 +597,7 @@ function EventDetailScreenContent() {
 
   const handleAttendeePress = useCallback(
     (attendee: EventAttendee) => {
-      const viewerId = String(getCurrentUserIdInt() ?? "");
+      const viewerId = String(getCurrentUserIdSync() ?? "");
       routeToProfile({
         targetUserId: attendee.id,
         targetUsername: attendee.username,
@@ -964,7 +964,7 @@ function EventDetailScreenContent() {
     const hostId = String(eventData.host.id);
     // Compare against all possible user ID formats
     if (String(user.id) === hostId) return true;
-    const intId = getCurrentUserIdInt();
+    const intId = getCurrentUserIdSync();
     if (intId != null && String(intId) === hostId) return true;
     // Also check auth_id (host_id in DB is auth_id text)
     const authId = (user as any)?.authId || (user as any)?.auth_id;

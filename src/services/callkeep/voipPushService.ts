@@ -113,9 +113,9 @@ export async function saveVoipTokenToBackend(
 ): Promise<boolean> {
   try {
     const { supabase } = await import("@/lib/supabase/client");
-    const { getCurrentUserIdInt } = await import("@/lib/api/auth-helper");
+    const { getCurrentUserIdSync } = await import("@/lib/api/auth-helper");
 
-    const intId = getCurrentUserIdInt();
+    const intId = getCurrentUserIdSync();
     if (!intId) {
       console.error("[VoipPush] No authenticated user (no integer userId)");
       return false;

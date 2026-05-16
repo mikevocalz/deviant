@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
+import { getCurrentUserId, getCurrentUserIdSync } from "./auth-helper";
 import { updateProfilePrivileged } from "../supabase/privileged";
 import { requireBetterAuthToken, getCurrentUserRow } from "../auth/identity";
 
@@ -33,7 +33,7 @@ function normalizeUserLinks(value: unknown): string[] {
 }
 
 async function getViewerIdForRelationshipChecks(): Promise<number | null> {
-  const viewerId = getCurrentUserIdInt();
+  const viewerId = getCurrentUserIdSync();
   if (viewerId) return viewerId;
 
   const viewerRow = await getCurrentUserRow();
@@ -871,7 +871,7 @@ export const usersApi = {
    */
   async getCurrentUser() {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) return null;
 
       const { data, error } = await supabase
