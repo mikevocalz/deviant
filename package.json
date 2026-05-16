@@ -67,7 +67,7 @@
     "buffer": "^6.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "expo": "^56.0.0-preview.11",
+    "expo": "^56.0.0-preview.12",
     "expo-asset": "~56.0.0",
     "expo-audio": "~56.0.0",
     "expo-battery": "~56.0.0",
