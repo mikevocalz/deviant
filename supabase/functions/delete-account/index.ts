@@ -116,6 +116,13 @@ Deno.serve(async (req: Request) => {
     const deletedAt = new Date().toISOString();
     const anonymizedId = `deleted_${userId.slice(0, 8)}`;
 
+    const { data: appUserRow } = await supabase
+      .from("users")
+      .select("id")
+      .eq("auth_id", userId)
+      .maybeSingle();
+    const appUserId = appUserRow?.id ?? null;
+
     // ── 1. Cancel active Stripe subscriptions ─────────────────
     if (STRIPE_SECRET_KEY) {
       try {
@@ -343,6 +350,32 @@ Deno.serve(async (req: Request) => {
     // Delete room tokens
     await supabase.from("video_room_tokens").delete().eq("user_id", userId);
 
+    const { data: hostedRooms } = await supabase
+      .from("video_rooms")
+      .select("id")
+      .eq("created_by", userId);
+    const hostedRoomIds = (hostedRooms || []).map((room) => room.id);
+
+    // End any rooms hosted by the deleting user so participants are not
+    // stranded in an ownerless private video session.
+    await supabase
+      .from("video_rooms")
+      .update({
+        status: "ended",
+        ended_at: deletedAt,
+        updated_at: deletedAt,
+      })
+      .eq("created_by", userId)
+      .eq("status", "open");
+
+    if (hostedRoomIds.length > 0) {
+      await supabase
+        .from("video_room_members")
+        .update({ status: "left", left_at: deletedAt })
+        .in("room_id", hostedRoomIds)
+        .eq("status", "active");
+    }
+
     // ── 7. Delete organizer data ──────────────────────────────
     // Cancel active promotion campaigns
     await supabase
@@ -397,6 +430,12 @@ Deno.serve(async (req: Request) => {
     // ── 12. Delete call signals ───────────────────────────────
     await supabase.from("call_signals").delete().eq("caller_id", userId);
     await supabase.from("call_signals").delete().eq("callee_id", userId);
+
+    // Deregister standard and VoIP push tokens. push_tokens.user_id is the
+    // integer users.id, not the Better Auth auth_id used by most app rows.
+    if (appUserId !== null) {
+      await supabase.from("push_tokens").delete().eq("user_id", appUserId);
+    }
 
     // ── 13. Revoke Apple Sign In token (required by App Store) ─
     try {

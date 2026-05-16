@@ -5,6 +5,7 @@
  */
 
 import { z } from "zod";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 export type RouteAuth = "public" | "auth-required";
 
@@ -245,18 +246,18 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     label: "Organizer Setup",
   },
 
-  // ── Sneaky Lynk Stripe Return ───────────────────────────────────────
+  // ── Private Room Stripe Return ─────────────────────────────────────
   {
     urlPattern: "/sneaky/success",
     routerPath: "/(protected)/sneaky-lynk",
     auth: "auth-required",
-    label: "Sneaky Access Success",
+    label: `${getLynkDisplayName()} Access Success`,
   },
   {
     urlPattern: "/sneaky/cancel",
     routerPath: "/(protected)/sneaky-lynk",
     auth: "auth-required",
-    label: "Sneaky Access Cancelled",
+    label: `${getLynkDisplayName()} Access Cancelled`,
   },
 
   // ── Video / Calls ──────────────────────────────────────────────────
@@ -278,30 +279,30 @@ export const ROUTE_REGISTRY: RouteEntry[] = [
     urlPattern: "/rooms",
     routerPath: "/(video)/rooms",
     auth: "auth-required",
-    label: "Video Rooms",
+    label: getLynkDisplayName(),
   },
 
-  // ── Sneaky Lynk ───────────────────────────────────────────────────
+  // ── Lynk Private Rooms ────────────────────────────────────────────
   {
     urlPattern: "/sneaky-lynk/room/:id",
     routerPath: "/(protected)/sneaky-lynk/room/:id",
     auth: "auth-required",
     paramsSchema: idSchema,
-    label: "Sneaky Lynk Room",
+    label: getLynkDisplayName(),
   },
   {
     urlPattern: "/sl/:id",
     routerPath: "/(protected)/sneaky-lynk/room/:id",
     auth: "auth-required",
     paramsSchema: idSchema,
-    label: "Sneaky Lynk Room (short link)",
+    label: `${getLynkDisplayName()} (short link)`,
   },
   {
     urlPattern: "/sneaky/:id",
     routerPath: "/(protected)/sneaky-lynk/room/:id",
     auth: "auth-required",
     paramsSchema: idSchema,
-    label: "Sneaky Lynk Room (alias)",
+    label: `${getLynkDisplayName()} (alias)`,
   },
 
   // ── DM / Direct Message ────────────────────────────────────────────

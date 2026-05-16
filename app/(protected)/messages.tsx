@@ -62,6 +62,7 @@ import { useChatStore } from "@/lib/stores/chat-store";
 import { supabase } from "@/lib/supabase/client";
 import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 interface ConversationItem {
   id: string;
@@ -470,7 +471,7 @@ function ConversationList({
   );
 }
 
-// Sneaky Lynk tab content
+// Lynk tab content
 function SneakyLynkContent({
   router,
   isActive,
@@ -1367,7 +1368,7 @@ function MessagesScreenContent() {
           )}
         </Pressable>
 
-        {/* Sneaky Lynk Tab */}
+        {/* Lynk Tab */}
         <Pressable
           onPress={() => handleTabPress(2)}
           className={`flex-1 flex-row items-center justify-center gap-1.5 py-3 ${
@@ -1382,7 +1383,7 @@ function MessagesScreenContent() {
             }`}
             style={activeTab === 2 ? { color: "#FC253A" } : undefined}
           >
-            Sneaky Lynk
+            {getLynkDisplayName()}
           </Text>
         </Pressable>
       </View>

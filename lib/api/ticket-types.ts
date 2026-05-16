@@ -7,10 +7,22 @@
 
 import { supabase } from "../supabase/client";
 
+export type TicketTypeCategory = "admission" | "product" | "service";
+
+export const TICKET_TYPE_CATEGORIES: Array<{
+  value: TicketTypeCategory;
+  label: string;
+}> = [
+  { value: "admission", label: "Admission" },
+  { value: "product", label: "Product" },
+  { value: "service", label: "Service" },
+];
+
 export interface TicketTypeRecord {
   id: string;
   event_id: number;
   name: string;
+  category: TicketTypeCategory;
   description: string | null;
   price_cents: number;
   currency: string;
@@ -26,6 +38,7 @@ export interface TicketTypeRecord {
 export interface CreateTicketTypeParams {
   eventId: string;
   name: string;
+  category?: TicketTypeCategory;
   description?: string;
   priceCents: number;
   currency?: string;
@@ -39,13 +52,16 @@ export const ticketTypesApi = {
   /**
    * Create a ticket type for an event
    */
-  async create(params: CreateTicketTypeParams): Promise<TicketTypeRecord | null> {
+  async create(
+    params: CreateTicketTypeParams,
+  ): Promise<TicketTypeRecord | null> {
     try {
       const { data, error } = await supabase
         .from("ticket_types")
         .insert({
           event_id: parseInt(params.eventId),
           name: params.name,
+          category: params.category || "admission",
           description: params.description || null,
           price_cents: params.priceCents,
           currency: params.currency || "usd",
@@ -93,7 +109,13 @@ export const ticketTypesApi = {
     updates: Partial<
       Pick<
         TicketTypeRecord,
-        "name" | "description" | "price_cents" | "quantity_total" | "max_per_user" | "is_active"
+        | "name"
+        | "category"
+        | "description"
+        | "price_cents"
+        | "quantity_total"
+        | "max_per_user"
+        | "is_active"
       >
     >,
   ): Promise<boolean> {
@@ -130,6 +152,7 @@ export const ticketTypesApi = {
     return ticketTypesApi.create({
       eventId,
       name: priceCents === 0 ? "Free" : "General Admission",
+      category: "admission",
       priceCents,
       quantityTotal: quantity,
       maxPerUser: 4,

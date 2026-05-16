@@ -167,6 +167,7 @@ function buildTicketTiers(event: EventDetail): TicketTier[] {
         name: "Free Entry",
         price: 0,
         perks: ["General admission", "Access to all areas"],
+        category: "admission",
         remaining,
         maxPerOrder: 4,
         isSoldOut: remaining === 0,
@@ -183,6 +184,7 @@ function buildTicketTiers(event: EventDetail): TicketTier[] {
       price,
       originalPrice: Math.round(price * 1.4),
       perks: ["Standard entry", "Access to main floor"],
+      category: "admission",
       remaining: Math.max(0, Math.floor(remaining * 0.6)),
       maxPerOrder: 6,
       isSoldOut: remaining === 0,
@@ -195,6 +197,7 @@ function buildTicketTiers(event: EventDetail): TicketTier[] {
       price: Math.round(price * 2.5),
       originalPrice: Math.round(price * 3.5),
       perks: ["Priority entry", "VIP lounge access", "Complimentary drink"],
+      category: "admission",
       remaining: Math.max(0, Math.floor(remaining * 0.25)),
       maxPerOrder: 4,
       isSoldOut: remaining === 0,
@@ -211,6 +214,7 @@ function buildTicketTiers(event: EventDetail): TicketTier[] {
         "Bottle service included",
         "Dedicated host",
       ],
+      category: "service",
       remaining: Math.max(0, Math.floor(remaining * 0.05)),
       maxPerOrder: 2,
       isSoldOut: remaining === 0,
@@ -332,9 +336,7 @@ function EventDetailScreenContent() {
   // re-render, which is why the screen felt laggy during checkout.
   const selectedTier = useEventDetailScreenStore((s) => s.selectedTier);
   const setSelectedTier = useEventDetailScreenStore((s) => s.setSelectedTier);
-  const showRatingModal = useEventDetailScreenStore(
-    (s) => s.showRatingModal,
-  );
+  const showRatingModal = useEventDetailScreenStore((s) => s.showRatingModal);
   const setShowRatingModal = useEventDetailScreenStore(
     (s) => s.setShowRatingModal,
   );
@@ -347,27 +349,45 @@ function EventDetailScreenContent() {
   );
 
   // ── Ticket upgrade state ──────────────────────────────────────────────
-  const upgradeSheetOption = useEventDetailScreenStore((s) => s.upgradeSheetOption);
-  const setUpgradeSheetOption = useEventDetailScreenStore((s) => s.setUpgradeSheetOption);
+  const upgradeSheetOption = useEventDetailScreenStore(
+    (s) => s.upgradeSheetOption,
+  );
+  const setUpgradeSheetOption = useEventDetailScreenStore(
+    (s) => s.setUpgradeSheetOption,
+  );
   const showShareSheet = useEventDetailScreenStore((s) => s.showShareSheet);
-  const setShowShareSheet = useEventDetailScreenStore((s) => s.setShowShareSheet);
+  const setShowShareSheet = useEventDetailScreenStore(
+    (s) => s.setShowShareSheet,
+  );
 
   const { data: myTicketData } = useMyTicketForEvent(eventId);
   const { data: liveTicketTypes = [] } = useTicketTypes(eventId);
   // upgradeOptions computed after upgradeSourceTiers is defined below
-  const { mutate: initiateUpgrade, isPending: isUpgradePending } = useInitiateUpgrade(eventId);
+  const { mutate: initiateUpgrade, isPending: isUpgradePending } =
+    useInitiateUpgrade(eventId);
 
-  const handleUpgradePress = useCallback((option: UpgradeTierOption) => {
-    setUpgradeSheetOption(option);
-  }, [setUpgradeSheetOption]);
+  const handleUpgradePress = useCallback(
+    (option: UpgradeTierOption) => {
+      setUpgradeSheetOption(option);
+    },
+    [setUpgradeSheetOption],
+  );
 
   const handleUpgradeConfirm = useCallback(() => {
     if (!upgradeSheetOption || !myTicketData) return;
     initiateUpgrade(
-      { ticketId: myTicketData.id, newTicketTypeId: upgradeSheetOption.tier.id },
+      {
+        ticketId: myTicketData.id,
+        newTicketTypeId: upgradeSheetOption.tier.id,
+      },
       { onSettled: () => setUpgradeSheetOption(null) },
     );
-  }, [upgradeSheetOption, myTicketData, initiateUpgrade, setUpgradeSheetOption]);
+  }, [
+    upgradeSheetOption,
+    myTicketData,
+    initiateUpgrade,
+    setUpgradeSheetOption,
+  ]);
 
   const scrollY = useSharedValue(0);
 
@@ -446,26 +466,31 @@ function EventDetailScreenContent() {
     : hasValidTicket(eventId) || isRsvped[eventId] || serverHasTicket;
 
   // Fall back to eventData.ticketTiers when the standalone ticket_types query returns empty
-  const upgradeSourceTiers = useMemo((): import("@/lib/api/ticket-types").TicketTypeRecord[] => {
-    if (liveTicketTypes.length > 0) return liveTicketTypes;
-    const raw: any[] = eventData?.ticketTiers || [];
-    return raw.map((t: any) => ({
-      id: t.id,
-      event_id: parseInt(String(eventId), 10),
-      name: t.name,
-      description: t.description || null,
-      price_cents: t.price_cents || 0,
-      currency: "usd",
-      quantity_total: t.quantity_total ?? 0,
-      quantity_sold: t.quantity_sold ?? 0,
-      max_per_user: t.max_per_user || 4,
-      sale_start: t.sale_start || null,
-      sale_end: t.sale_end || null,
-      is_active: t.is_active !== false,
-      created_at: t.created_at || "",
-    }));
-  }, [liveTicketTypes, eventData?.ticketTiers, eventId]);
-  const upgradeOptions = useTicketUpgradeOptions(upgradeSourceTiers, myTicketData ?? null);
+  const upgradeSourceTiers =
+    useMemo((): import("@/lib/api/ticket-types").TicketTypeRecord[] => {
+      if (liveTicketTypes.length > 0) return liveTicketTypes;
+      const raw: any[] = eventData?.ticketTiers || [];
+      return raw.map((t: any) => ({
+        id: t.id,
+        event_id: parseInt(String(eventId), 10),
+        name: t.name,
+        category: t.category || "admission",
+        description: t.description || null,
+        price_cents: t.price_cents || 0,
+        currency: "usd",
+        quantity_total: t.quantity_total ?? 0,
+        quantity_sold: t.quantity_sold ?? 0,
+        max_per_user: t.max_per_user || 4,
+        sale_start: t.sale_start || null,
+        sale_end: t.sale_end || null,
+        is_active: t.is_active !== false,
+        created_at: t.created_at || "",
+      }));
+    }, [liveTicketTypes, eventData?.ticketTiers, eventId]);
+  const upgradeOptions = useTicketUpgradeOptions(
+    upgradeSourceTiers,
+    myTicketData ?? null,
+  );
 
   // Sync isLiked from batch payload
   useEffect(() => {
@@ -492,7 +517,11 @@ function EventDetailScreenContent() {
           setIsLiked(wasLiked);
           const msg = err instanceof Error ? err.message : String(err || "");
           if (msg.includes("Not authenticated")) {
-            showToast("error", "Session expired", "Please log out and log back in");
+            showToast(
+              "error",
+              "Session expired",
+              "Please log out and log back in",
+            );
           } else {
             showToast("error", "Like failed", msg || "Failed to update like");
           }
@@ -539,6 +568,7 @@ function EventDetailScreenContent() {
             : undefined,
           description: t.description,
           perks: t.perks || [],
+          category: t.category || "admission",
           remaining,
           maxPerOrder: t.max_per_order || t.max_per_user || 4,
           isSoldOut,
@@ -649,14 +679,18 @@ function EventDetailScreenContent() {
         },
       },
     );
-  }, [eventId, isWaitlistBusy, leaveWaitlistMutation, showToast, waitlistTierId]);
+  }, [
+    eventId,
+    isWaitlistBusy,
+    leaveWaitlistMutation,
+    showToast,
+    waitlistTierId,
+  ]);
 
   // Selector-per-field — typing a promo code should NOT re-render the
   // whole event detail screen on every keystroke.
   const isCheckingOut = useEventDetailScreenStore((s) => s.isCheckingOut);
-  const setIsCheckingOut = useEventDetailScreenStore(
-    (s) => s.setIsCheckingOut,
-  );
+  const setIsCheckingOut = useEventDetailScreenStore((s) => s.setIsCheckingOut);
   const promoCode = useEventDetailScreenStore((s) => s.promoCode);
   const setPromoCode = useEventDetailScreenStore((s) => s.setPromoCode);
 
@@ -743,14 +777,21 @@ function EventDetailScreenContent() {
           queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
             old ? { ...old, attendees: (old.attendees || 0) + qty } : old,
           );
-          queryClient.setQueriesData({ queryKey: eventKeys.all }, (old: any) => {
-            if (!Array.isArray(old)) return old;
-            return old.map((e: any) =>
-              String(e.id) === String(eventId)
-                ? { ...e, attendees: (e.attendees || 0) + qty, totalAttendees: (e.totalAttendees || 0) + qty }
-                : e,
-            );
-          });
+          queryClient.setQueriesData(
+            { queryKey: eventKeys.all },
+            (old: any) => {
+              if (!Array.isArray(old)) return old;
+              return old.map((e: any) =>
+                String(e.id) === String(eventId)
+                  ? {
+                      ...e,
+                      attendees: (e.attendees || 0) + qty,
+                      totalAttendees: (e.totalAttendees || 0) + qty,
+                    }
+                  : e,
+              );
+            },
+          );
           queryClient.invalidateQueries({ queryKey: eventKeys.all });
           showToast(
             "success",
@@ -796,14 +837,21 @@ function EventDetailScreenContent() {
             queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
               old ? { ...old, attendees: (old.attendees || 0) + 1 } : old,
             );
-            queryClient.setQueriesData({ queryKey: eventKeys.all }, (old: any) => {
-              if (!Array.isArray(old)) return old;
-              return old.map((e: any) =>
-                String(e.id) === String(eventId)
-                  ? { ...e, attendees: (e.attendees || 0) + 1, totalAttendees: (e.totalAttendees || 0) + 1 }
-                  : e,
-              );
-            });
+            queryClient.setQueriesData(
+              { queryKey: eventKeys.all },
+              (old: any) => {
+                if (!Array.isArray(old)) return old;
+                return old.map((e: any) =>
+                  String(e.id) === String(eventId)
+                    ? {
+                        ...e,
+                        attendees: (e.attendees || 0) + 1,
+                        totalAttendees: (e.totalAttendees || 0) + 1,
+                      }
+                    : e,
+                );
+              },
+            );
             queryClient.invalidateQueries({ queryKey: eventKeys.all });
           }
           showToast(
@@ -840,7 +888,11 @@ function EventDetailScreenContent() {
       if (!Array.isArray(old)) return old;
       return old.map((e: any) =>
         String(e.id) === String(eventId)
-          ? { ...e, attendees: (e.attendees || 0) + 1, totalAttendees: (e.totalAttendees || 0) + 1 }
+          ? {
+              ...e,
+              attendees: (e.attendees || 0) + 1,
+              totalAttendees: (e.totalAttendees || 0) + 1,
+            }
           : e,
       );
     });
@@ -1068,11 +1120,7 @@ function EventDetailScreenContent() {
     isTranslated: isLineupTranslated,
     translate: translateLineupFn,
     showOriginal: showOriginalLineup,
-  } = useContentTranslation(
-    `event-${eventId}-lineup`,
-    lineupText,
-    _targetLang,
-  );
+  } = useContentTranslation(`event-${eventId}-lineup`, lineupText, _targetLang);
 
   // Dress code translation
   const {
@@ -1114,7 +1162,8 @@ function EventDetailScreenContent() {
     ];
     if (lineupText) jobs.push(translateLineupFn().catch(() => {}));
     if (safeEvent?.dressCode) jobs.push(translateDressCodeFn().catch(() => {}));
-    if (safeEvent?.doorPolicy) jobs.push(translateDoorPolicyFn().catch(() => {}));
+    if (safeEvent?.doorPolicy)
+      jobs.push(translateDoorPolicyFn().catch(() => {}));
     await Promise.all(jobs);
   }, [
     translateDescriptionFn,
@@ -1143,12 +1192,11 @@ function EventDetailScreenContent() {
 
   // Show translate button when native capability confirmed AND any authored field is foreign
   const showTranslateButton =
-    
-    (shouldShowTranslateButton(safeEvent?.description || "", _targetLang) ||
-      shouldShowTranslateButton(safeEvent?.title || "", _targetLang) ||
-      shouldShowTranslateButton(lineupText, _targetLang) ||
-      shouldShowTranslateButton(safeEvent?.dressCode || "", _targetLang) ||
-      shouldShowTranslateButton(safeEvent?.doorPolicy || "", _targetLang));
+    shouldShowTranslateButton(safeEvent?.description || "", _targetLang) ||
+    shouldShowTranslateButton(safeEvent?.title || "", _targetLang) ||
+    shouldShowTranslateButton(lineupText, _targetLang) ||
+    shouldShowTranslateButton(safeEvent?.dressCode || "", _targetLang) ||
+    shouldShowTranslateButton(safeEvent?.doorPolicy || "", _targetLang);
 
   const isPast = useMemo(() => {
     if (!eventData) return false;
@@ -1293,7 +1341,6 @@ function EventDetailScreenContent() {
 
         {/* ── 2. CORE INFO BLOCK ───────────────────────────────── */}
         <View style={s.content}>
-
           {/* ── TICKET TIERS — directly beneath hero ──────────── */}
           {ticketTiers.length > 0 && (
             <View style={s.section}>
@@ -1373,71 +1420,127 @@ function EventDetailScreenContent() {
 
               {/* Quantity selector — shown for all real DB tiers (free and paid).
                   Excluded for the synthetic "free" id which uses the legacy RSVP path. */}
-              {selectedTier && !hasTicket && selectedTier.id !== "free" && (selectedTier.maxPerOrder || 4) > 1 && (
-                <View
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    justifyContent: "space-between",
-                    marginTop: 12,
-                    paddingHorizontal: 4,
-                  }}
-                >
-                  <Text style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}>
-                    Quantity
-                  </Text>
-                  <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-                    <Pressable
-                      onPress={() => setTicketQty(ticketQty - 1)}
-                      disabled={ticketQty <= 1}
-                      style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        backgroundColor: ticketQty <= 1 ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)",
-                        alignItems: "center",
-                        justifyContent: "center",
-                      }}
+              {selectedTier &&
+                !hasTicket &&
+                selectedTier.id !== "free" &&
+                (selectedTier.maxPerOrder || 4) > 1 && (
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                      justifyContent: "space-between",
+                      marginTop: 12,
+                      paddingHorizontal: 4,
+                    }}
+                  >
+                    <Text
+                      style={{ color: "rgba(255,255,255,0.6)", fontSize: 14 }}
                     >
-                      <Text style={{ color: ticketQty <= 1 ? "#555" : "#fff", fontSize: 20, lineHeight: 22 }}>−</Text>
-                    </Pressable>
-                    <Text style={{ color: "#fff", fontSize: 18, fontWeight: "700", minWidth: 24, textAlign: "center" }}>
-                      {ticketQty}
+                      Quantity
                     </Text>
-                    <Pressable
-                      onPress={() => setTicketQty(ticketQty + 1)}
-                      disabled={ticketQty >= (selectedTier.maxPerOrder || 4)}
+                    <View
                       style={{
-                        width: 32,
-                        height: 32,
-                        borderRadius: 16,
-                        backgroundColor: ticketQty >= (selectedTier.maxPerOrder || 4) ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.12)",
+                        flexDirection: "row",
                         alignItems: "center",
-                        justifyContent: "center",
+                        gap: 16,
                       }}
                     >
-                      <Text style={{ color: ticketQty >= (selectedTier.maxPerOrder || 4) ? "#555" : "#fff", fontSize: 20, lineHeight: 22 }}>+</Text>
-                    </Pressable>
+                      <Pressable
+                        onPress={() => setTicketQty(ticketQty - 1)}
+                        disabled={ticketQty <= 1}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 16,
+                          backgroundColor:
+                            ticketQty <= 1
+                              ? "rgba(255,255,255,0.06)"
+                              : "rgba(255,255,255,0.12)",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color: ticketQty <= 1 ? "#555" : "#fff",
+                            fontSize: 20,
+                            lineHeight: 22,
+                          }}
+                        >
+                          −
+                        </Text>
+                      </Pressable>
+                      <Text
+                        style={{
+                          color: "#fff",
+                          fontSize: 18,
+                          fontWeight: "700",
+                          minWidth: 24,
+                          textAlign: "center",
+                        }}
+                      >
+                        {ticketQty}
+                      </Text>
+                      <Pressable
+                        onPress={() => setTicketQty(ticketQty + 1)}
+                        disabled={ticketQty >= (selectedTier.maxPerOrder || 4)}
+                        style={{
+                          width: 32,
+                          height: 32,
+                          borderRadius: 16,
+                          backgroundColor:
+                            ticketQty >= (selectedTier.maxPerOrder || 4)
+                              ? "rgba(255,255,255,0.06)"
+                              : "rgba(255,255,255,0.12)",
+                          alignItems: "center",
+                          justifyContent: "center",
+                        }}
+                      >
+                        <Text
+                          style={{
+                            color:
+                              ticketQty >= (selectedTier.maxPerOrder || 4)
+                                ? "#555"
+                                : "#fff",
+                            fontSize: 20,
+                            lineHeight: 22,
+                          }}
+                        >
+                          +
+                        </Text>
+                      </Pressable>
+                    </View>
                   </View>
-                </View>
-              )}
+                )}
             </View>
           )}
 
           {/* ── Upgrade options ────────────────────────────────── */}
-          {hasTicket && myTicketData && upgradeOptions.length > 0 && !isPast && (
-            <View style={s.section}>
-              <Text style={s.sectionTitle}>Upgrade Your Ticket</Text>
-              <Text style={[s.sectionSubtitle, { color: "#71717a", marginBottom: 12 }]}>
-                You have: {myTicketData.ticket_type_name || "General Admission"}
-              </Text>
-              {upgradeOptions.map((option) => (
-                <View key={option.tier.id} style={{ marginBottom: 10 }}>
-                  <UpgradeTierCard option={option} onPress={handleUpgradePress} />
-                </View>
-              ))}
-            </View>
-          )}
+          {hasTicket &&
+            myTicketData &&
+            upgradeOptions.length > 0 &&
+            !isPast && (
+              <View style={s.section}>
+                <Text style={s.sectionTitle}>Upgrade Your Ticket</Text>
+                <Text
+                  style={[
+                    s.sectionSubtitle,
+                    { color: "#71717a", marginBottom: 12 },
+                  ]}
+                >
+                  You have:{" "}
+                  {myTicketData.ticket_type_name || "General Admission"}
+                </Text>
+                {upgradeOptions.map((option) => (
+                  <View key={option.tier.id} style={{ marginBottom: 10 }}>
+                    <UpgradeTierCard
+                      option={option}
+                      onPress={handleUpgradePress}
+                    />
+                  </View>
+                ))}
+              </View>
+            )}
 
           <View>
             <Text style={s.eventTitle}>{translatedTitle || event.title}</Text>
@@ -1474,7 +1577,11 @@ function EventDetailScreenContent() {
           <View style={s.section}>
             <GoingAccordion
               attendees={realAttendees}
-              totalCount={typeof event.attendees === "number" ? event.attendees : (realAttendees.length || 0)}
+              totalCount={
+                typeof event.attendees === "number"
+                  ? event.attendees
+                  : realAttendees.length || 0
+              }
               isLoggedIn={true}
               onAttendeePress={handleAttendeePress}
             />
@@ -1521,7 +1628,12 @@ function EventDetailScreenContent() {
                 onPress={() =>
                   usePromotionStore
                     .getState()
-                    .openSheet(eventId, eventData?.title || "Event", eventData?.image, eventData?.flyerVideoUrl)
+                    .openSheet(
+                      eventId,
+                      eventData?.title || "Event",
+                      eventData?.image,
+                      eventData?.flyerVideoUrl,
+                    )
                 }
                 style={[
                   s.organizerButton,
@@ -1596,14 +1708,20 @@ function EventDetailScreenContent() {
               <CollapsibleRow
                 icon="👔"
                 title="Dress Code"
-                content={isLineupTranslated ? translatedDressCode : event.dressCode}
+                content={
+                  isLineupTranslated ? translatedDressCode : event.dressCode
+                }
               />
             ) : null}
             {event.doorPolicy ? (
               <CollapsibleRow
                 icon="🚪"
                 title="Door Policy"
-                content={isDoorPolicyTranslated ? translatedDoorPolicy : event.doorPolicy}
+                content={
+                  isDoorPolicyTranslated
+                    ? translatedDoorPolicy
+                    : event.doorPolicy
+                }
               />
             ) : null}
             {event.entryWindow ? (
@@ -1671,7 +1789,9 @@ function EventDetailScreenContent() {
             <View style={s.sectionHeader}>
               <View style={s.sectionHeaderLeft}>
                 <Star size={18} color="#FFD700" />
-                <Text style={[s.sectionTitle, { marginBottom: 0 }]}>Ratings & Reviews</Text>
+                <Text style={[s.sectionTitle, { marginBottom: 0 }]}>
+                  Ratings & Reviews
+                </Text>
               </View>
               {eventData?.averageRating != null &&
                 eventData.averageRating > 0 && (
@@ -1784,7 +1904,9 @@ function EventDetailScreenContent() {
             <View style={s.sectionHeader}>
               <View style={s.sectionHeaderLeft}>
                 <MessageCircle size={18} color="#34A2DF" />
-                <Text style={[s.sectionTitle, { marginBottom: 0 }]}>Comments</Text>
+                <Text style={[s.sectionTitle, { marginBottom: 0 }]}>
+                  Comments
+                </Text>
                 {comments.length > 0 && (
                   <Text style={s.commentCount}>({comments.length})</Text>
                 )}
@@ -1972,7 +2094,9 @@ function EventDetailScreenContent() {
         ticketQty={ticketQty}
         onGetTickets={handleGetTickets}
         onViewTicket={handleViewTicket}
-        onBuyMore={selectedTier && selectedTier.price > 0 ? handleGetTickets : undefined}
+        onBuyMore={
+          selectedTier && selectedTier.price > 0 ? handleGetTickets : undefined
+        }
         waitlistJoined={waitlistJoined}
         onJoinWaitlist={handleJoinWaitlist}
         onLeaveWaitlist={handleLeaveWaitlist}

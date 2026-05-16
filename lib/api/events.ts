@@ -1,6 +1,9 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { requireBetterAuthToken, getCurrentUserId as getIntUserIdAsync } from "../auth/identity";
+import {
+  requireBetterAuthToken,
+  getCurrentUserId as getIntUserIdAsync,
+} from "../auth/identity";
 import {
   getCurrentUserId,
   getCurrentUserIdInt,
@@ -36,6 +39,16 @@ function resolveEventImage(event: any): string {
 function resolveFlyerVideoUrl(event: any): string | undefined {
   const flyerUrl = event[DB.events.flyerImageUrl];
   return flyerUrl && isVideoUrl(flyerUrl) ? flyerUrl : undefined;
+}
+
+function normalizeVisibility(
+  value: unknown,
+): "public" | "private" | "link_only" {
+  if (value === "private" || value === "link_only" || value === "public") {
+    return value;
+  }
+  if (value === "unlisted") return "link_only";
+  return "public";
 }
 
 /** Format a raw ISO date into the fields the EventCard UI expects */
@@ -164,7 +177,7 @@ export const eventsApi = {
     try {
       console.log("[Events] getEvents (batch RPC)");
 
-      const viewerId = getCurrentUserIdInt() ?? await getIntUserIdAsync();
+      const viewerId = getCurrentUserIdInt() ?? (await getIntUserIdAsync());
 
       const { data, error } = await supabase.rpc("get_events_home", {
         p_limit: limit,
@@ -207,10 +220,13 @@ export const eventsApi = {
           attendees: avatars.length > 0 ? avatars : totalCount,
           totalAttendees: totalCount,
           category: event.category || undefined,
-          locationLat: event.location_lat != null ? Number(event.location_lat) : undefined,
-          locationLng: event.location_lng != null ? Number(event.location_lng) : undefined,
+          locationLat:
+            event.location_lat != null ? Number(event.location_lat) : undefined,
+          locationLng:
+            event.location_lng != null ? Number(event.location_lng) : undefined,
           locationName: event.location_name || undefined,
-          locationAddress: event.location_address || event.location || undefined,
+          locationAddress:
+            event.location_address || event.location || undefined,
           host: {
             username: event.host_username || "unknown",
             avatar: event.host_avatar || "",
@@ -230,7 +246,7 @@ export const eventsApi = {
    */
   async getForYouEvents(limit: number = 20) {
     try {
-      const viewerId = getCurrentUserIdInt() ?? await getIntUserIdAsync();
+      const viewerId = getCurrentUserIdInt() ?? (await getIntUserIdAsync());
       if (!viewerId) return this.getEvents(limit);
 
       const { data, error } = await supabase.rpc("get_events_for_you", {
@@ -421,7 +437,7 @@ export const eventsApi = {
   async getEventById(id: string) {
     try {
       console.log("[Events] getEventById (batch RPC)");
-      const viewerId = getCurrentUserIdInt() ?? await getIntUserIdAsync();
+      const viewerId = getCurrentUserIdInt() ?? (await getIntUserIdAsync());
 
       const { data, error } = await supabase.rpc("get_event_detail", {
         p_event_id: parseInt(id),
@@ -615,7 +631,7 @@ export const eventsApi = {
         insertPayload.location_address = eventData.locationAddress;
       if (eventData.locationType)
         insertPayload.location_type = eventData.locationType;
-      if (eventData.visibility) insertPayload.visibility = eventData.visibility;
+      insertPayload.visibility = normalizeVisibility(eventData.visibility);
       if (eventData.eventCategory)
         insertPayload.category = eventData.eventCategory;
       if (eventData.ageRestriction)
@@ -704,7 +720,7 @@ export const eventsApi = {
       if (updates.category !== undefined)
         updateData.category = updates.category || null;
       if (updates.visibility !== undefined)
-        updateData.visibility = updates.visibility;
+        updateData.visibility = normalizeVisibility(updates.visibility);
       if (updates.ageRestriction !== undefined)
         updateData.age_restriction = updates.ageRestriction || null;
       if (updates.dressCode !== undefined)
@@ -929,7 +945,11 @@ export const eventsApi = {
       const { data, error } = await supabase.functions.invoke(
         "invite-co-organizer",
         {
-          body: { event_id: parseInt(eventId), invitee_auth_id: coOrganizerUserId, role },
+          body: {
+            event_id: parseInt(eventId),
+            invitee_auth_id: coOrganizerUserId,
+            role,
+          },
           headers: { "x-auth-token": token },
         },
       );

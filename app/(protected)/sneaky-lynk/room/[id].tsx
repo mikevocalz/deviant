@@ -92,6 +92,7 @@ import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneak
 import { SneakySubscriptionModal } from "@/src/sneaky-lynk/components/SneakySubscriptionModal";
 import { SneakyPaywallModal } from "@/src/sneaky-lynk/components/SneakyPaywallModal";
 import { isFeatureEnabled } from "@/lib/feature-flags";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 // ── Error Boundary (per-route) — surfaces real crash message ────────
 
@@ -259,7 +260,7 @@ function ClosedRoomScreen({
             className="text-foreground font-semibold text-center"
             numberOfLines={1}
           >
-            {roomTitle || "Private Room"}
+            {roomTitle || getLynkDisplayName()}
           </Text>
         </View>
         <View className="w-6" />
@@ -325,11 +326,22 @@ function PreJoinScreen({
         </View>
 
         <Text className="text-2xl font-bold text-foreground text-center mb-2">
-          {roomTitle || "Private Room"}
+          {roomTitle || getLynkDisplayName()}
         </Text>
         <Text className="text-muted-foreground text-center mb-10">
           Choose how you want to appear in this room
         </Text>
+
+        <View className="w-full rounded-2xl bg-secondary px-5 py-4 mb-4">
+          <Text className="text-foreground font-semibold mb-2">
+            Room Safety
+          </Text>
+          <Text className="text-xs text-muted-foreground leading-5">
+            By joining, you agree to DVNT community guidelines. Recording is
+            prohibited, screenshots may notify the room, and participants can
+            report unsafe behavior.
+          </Text>
+        </View>
 
         {/* Anonymous Toggle */}
         <View className="w-full bg-secondary rounded-2xl px-5 py-4 mb-8">
@@ -460,7 +472,7 @@ function SneakyLynkRoomScreenContent() {
   ) {
     return (
       <ClosedRoomScreen
-        roomTitle={roomLookup.room?.title || paramTitle || "Private Room"}
+        roomTitle={roomLookup.room?.title || paramTitle || getLynkDisplayName()}
         message={
           roomLookup.room
             ? "This Lynk has ended and can't be reopened."
@@ -475,7 +487,7 @@ function SneakyLynkRoomScreenContent() {
   if (isServerRoom && !hasJoined) {
     return (
       <PreJoinScreen
-        roomTitle={roomLookup.room?.title || paramTitle || "Private Room"}
+        roomTitle={roomLookup.room?.title || paramTitle || getLynkDisplayName()}
         onJoin={handleJoin}
         onBack={() => router.back()}
       />
@@ -652,7 +664,7 @@ function LocalRoom({
     }
   }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
 
-  const roomTitle = paramTitle || "Private Room";
+  const roomTitle = paramTitle || getLynkDisplayName();
 
   const handleLeave = useCallback(async () => {
     // Local rooms are always hosted by the creator — end in DB too
@@ -1253,7 +1265,8 @@ function ServerRoom({
           setRoomSnapshot((prev) => ({
             id: prev?.id || room.uuid || id,
             createdBy: prev?.createdBy || room.created_by || "",
-            title: room.title || prev?.title || paramTitle || "Private Room",
+            title:
+              room.title || prev?.title || paramTitle || getLynkDisplayName(),
             topic: room.topic || prev?.topic || "",
             description: room.description || prev?.description || "",
             sweetSpicyMode:
@@ -2006,7 +2019,7 @@ function ServerRoom({
   if (closedReason) {
     return (
       <ClosedRoomScreen
-        roomTitle={roomSnapshot?.title || paramTitle || "Private Room"}
+        roomTitle={roomSnapshot?.title || paramTitle || getLynkDisplayName()}
         message={closedReason}
         onBack={() => router.back()}
       />

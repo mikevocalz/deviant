@@ -34,6 +34,7 @@ import { useColorScheme } from "@/lib/hooks";
 import { requireBetterAuthToken } from "@/lib/auth/identity";
 import { SneakySubscriptionModal } from "@/src/sneaky-lynk/components/SneakySubscriptionModal";
 import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureProtection";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 interface Subscription {
   plan_id: string;
@@ -207,7 +208,7 @@ function BillingScreenContent() {
           <ChevronLeft size={20} color={colors.foreground} />
         </Pressable>
         <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Private Rooms Billing
+          {getLynkDisplayName()} Billing
         </Text>
         <Pressable onPress={loadSubscription} hitSlop={12}>
           <RefreshCw size={18} color={colors.mutedForeground} />

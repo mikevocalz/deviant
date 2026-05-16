@@ -63,7 +63,11 @@ import {
   isRemoteMediaUri,
   persistLocalMediaSelection,
 } from "@/lib/media/persist-local-selection";
-import { ticketTypesApi } from "@/lib/api/ticket-types";
+import {
+  ticketTypesApi,
+  TICKET_TYPE_CATEGORIES,
+  type TicketTypeCategory,
+} from "@/lib/api/ticket-types";
 
 const TIER_LEVELS = ["free", "ga", "vip", "table"] as const;
 type TierLevel = (typeof TIER_LEVELS)[number];
@@ -71,6 +75,7 @@ type TierLevel = (typeof TIER_LEVELS)[number];
 interface LocalTicketTier {
   id?: string; // undefined = new (not yet saved)
   name: string;
+  category: TicketTypeCategory;
   priceDollars: string; // user types dollars, we convert to cents
   quantity: string;
   maxPerOrder: string;
@@ -113,9 +118,13 @@ function EditEventScreenContent() {
   const [youtubeVideoUrl, setYoutubeVideoUrl] = useState("");
   const [ticketingEnabled, setTicketingEnabled] = useState(false);
   const [ticketTiers, setTicketTiers] = useState<LocalTicketTier[]>([]);
-  const [originalTierIds, setOriginalTierIds] = useState<Set<string>>(new Set());
+  const [originalTierIds, setOriginalTierIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [flyerImage, setFlyerImage] = useState<string | null>(null);
-  const [flyerMediaType, setFlyerMediaType] = useState<"image" | "video">("image");
+  const [flyerMediaType, setFlyerMediaType] = useState<"image" | "video">(
+    "image",
+  );
 
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
@@ -229,19 +238,28 @@ function EditEventScreenContent() {
         const existingFlyerUrl = (ev as any).flyerImageUrl || null;
         if (existingFlyerUrl) {
           setFlyerImage(existingFlyerUrl);
-          setFlyerMediaType(/\.(mp4|mov|webm|m4v)(\?|$)/i.test(existingFlyerUrl) ? "video" : "image");
+          setFlyerMediaType(
+            /\.(mp4|mov|webm|m4v)(\?|$)/i.test(existingFlyerUrl)
+              ? "video"
+              : "image",
+          );
         }
 
         // Load ticket tiers
         const dbTiers = await ticketTypesApi.getByEvent(id);
-        const activeTiers = dbTiers.filter((t: any) => t.active !== false && t.is_active !== false);
+        const activeTiers = dbTiers.filter(
+          (t: any) => t.active !== false && t.is_active !== false,
+        );
         setOriginalTierIds(new Set(activeTiers.map((t: any) => t.id)));
         setTicketTiers(
           activeTiers.map((t: any) => ({
             id: t.id,
             name: t.name || "",
-            priceDollars: t.price_cents != null ? String(t.price_cents / 100) : "0",
-            quantity: t.quantity_total != null ? String(t.quantity_total) : "100",
+            category: t.category || "admission",
+            priceDollars:
+              t.price_cents != null ? String(t.price_cents / 100) : "0",
+            quantity:
+              t.quantity_total != null ? String(t.quantity_total) : "100",
             maxPerOrder: t.max_per_user != null ? String(t.max_per_user) : "4",
             tier: (t.tier || "ga") as TierLevel,
             description: t.description || "",
@@ -452,8 +470,12 @@ function EditEventScreenContent() {
       );
       setEventImages(normalizedImages);
 
-      const localImages = normalizedImages.filter((uri) => !isRemoteMediaUri(uri));
-      const remoteImages = normalizedImages.filter((uri) => isRemoteMediaUri(uri));
+      const localImages = normalizedImages.filter(
+        (uri) => !isRemoteMediaUri(uri),
+      );
+      const remoteImages = normalizedImages.filter((uri) =>
+        isRemoteMediaUri(uri),
+      );
 
       if (localImages.length > 0) {
         // Convert string URIs to MediaFile format
@@ -483,16 +505,24 @@ function EditEventScreenContent() {
         } else if (isRemoteMediaUri(flyerImage)) {
           flyerImageUrl = flyerImage;
         } else {
-          const normalizedFlyerUri = await persistLocalMediaSelection(flyerImage, {
-            scope: "event-drafts/flyers",
-          });
+          const normalizedFlyerUri = await persistLocalMediaSelection(
+            flyerImage,
+            {
+              scope: "event-drafts/flyers",
+            },
+          );
           if (isRemoteMediaUri(normalizedFlyerUri)) {
             flyerImageUrl = normalizedFlyerUri;
           } else {
             const flyerResults = await uploadMultiple([
-              { uri: normalizedFlyerUri, type: flyerMediaType as "image" | "video" },
+              {
+                uri: normalizedFlyerUri,
+                type: flyerMediaType as "image" | "video",
+              },
             ]);
-            flyerImageUrl = flyerResults[0]?.success ? flyerResults[0].url : originalFlyerUrl;
+            flyerImageUrl = flyerResults[0]?.success
+              ? flyerResults[0].url
+              : originalFlyerUrl;
           }
         }
       }
@@ -591,7 +621,9 @@ function EditEventScreenContent() {
 
       // ── Background: persist ticket tiers ──
       const tierPromises = ticketTiers.map(async (tier) => {
-        const priceCents = Math.round(parseFloat(tier.priceDollars || "0") * 100);
+        const priceCents = Math.round(
+          parseFloat(tier.priceDollars || "0") * 100,
+        );
         const qty = parseInt(tier.quantity || "100");
         const maxPerUser = parseInt(tier.maxPerOrder || "4");
 
@@ -600,6 +632,7 @@ function EditEventScreenContent() {
           await ticketTypesApi.create({
             eventId: id,
             name: tier.name || "General Admission",
+            category: tier.category || "admission",
             description: tier.description || undefined,
             priceCents,
             quantityTotal: qty,
@@ -609,6 +642,7 @@ function EditEventScreenContent() {
           // Existing tier — update it
           await ticketTypesApi.update(tier.id, {
             name: tier.name,
+            category: tier.category || "admission",
             description: tier.description || null,
             price_cents: priceCents,
             quantity_total: qty,
@@ -618,9 +652,15 @@ function EditEventScreenContent() {
       });
 
       // Deactivate removed tiers
-      const currentIds = new Set(ticketTiers.filter((t) => t.id).map((t) => t.id!));
-      const removedIds = [...originalTierIds].filter((id) => !currentIds.has(id));
-      const deactivatePromises = removedIds.map((tid) => ticketTypesApi.deactivate(tid));
+      const currentIds = new Set(
+        ticketTiers.filter((t) => t.id).map((t) => t.id!),
+      );
+      const removedIds = [...originalTierIds].filter(
+        (id) => !currentIds.has(id),
+      );
+      const deactivatePromises = removedIds.map((tid) =>
+        ticketTypesApi.deactivate(tid),
+      );
 
       Promise.all([...tierPromises, ...deactivatePromises]).catch((err) =>
         console.error("[EditEvent] Tier sync error:", err),
@@ -838,14 +878,24 @@ function EditEventScreenContent() {
                 if (result && result.length > 0) {
                   try {
                     const picked = result[0];
-                    const isVideo = picked.mimeType?.startsWith("video/") || picked.type === "video";
-                    const [persistedUri] = await persistEventDraftAssets(result);
+                    const isVideo =
+                      picked.mimeType?.startsWith("video/") ||
+                      picked.type === "video";
+                    const [persistedUri] =
+                      await persistEventDraftAssets(result);
                     setFlyerImage(persistedUri);
                     setFlyerMediaType(isVideo ? "video" : "image");
                     setHasChanges(true);
                   } catch (error) {
-                    console.error("[EditEvent] Failed to persist flyer:", error);
-                    showToast("error", "Media Error", "Failed to add the flyer. Please try again.");
+                    console.error(
+                      "[EditEvent] Failed to persist flyer:",
+                      error,
+                    );
+                    showToast(
+                      "error",
+                      "Media Error",
+                      "Failed to add the flyer. Please try again.",
+                    );
                   }
                 }
               }}
@@ -1189,7 +1239,11 @@ function EditEventScreenContent() {
                 "unlisted" wasn't in that list and would fail to save. */}
             {(["public", "private", "link_only"] as const).map((v) => {
               const label =
-                v === "link_only" ? "Link Only" : v === "public" ? "Public" : "Private";
+                v === "link_only"
+                  ? "Link Only"
+                  : v === "public"
+                    ? "Public"
+                    : "Private";
               return (
                 <Pressable
                   key={v}
@@ -1239,8 +1293,8 @@ function EditEventScreenContent() {
                   >
                     Public ·{" "}
                   </Text>
-                  Appears in the Home feed, For You, and Search. Anyone can
-                  see and buy a ticket. Best for events you want to fill.
+                  Appears in the Home feed, For You, and Search. Anyone can see
+                  and buy a ticket. Best for events you want to fill.
                 </>
               )}
               {visibility === "link_only" && (
@@ -1251,9 +1305,9 @@ function EditEventScreenContent() {
                   >
                     Link Only ·{" "}
                   </Text>
-                  Hidden from the public feed and Search. Anyone with the
-                  share link can see and buy. Best for soft-launch events you
-                  promote on Instagram, group chats, or email.
+                  Hidden from the public feed and Search. Anyone with the share
+                  link can see and buy. Best for soft-launch events you promote
+                  on Instagram, group chats, or email.
                 </>
               )}
               {visibility === "private" && (
@@ -1264,8 +1318,8 @@ function EditEventScreenContent() {
                   >
                     Private ·{" "}
                   </Text>
-                  Hidden from the public feed and from people without the
-                  link. Intended for invite-only guest lists.
+                  Hidden from the public feed and from people without the link.
+                  Intended for invite-only guest lists.
                 </>
               )}
             </Text>
@@ -1297,7 +1351,14 @@ function EditEventScreenContent() {
         {/* Ticket Tiers */}
         {ticketingEnabled && (
           <View className="mb-4">
-            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: 12,
+              }}
+            >
               <Text className="text-sm font-medium text-foreground">
                 Ticket Tiers
               </Text>
@@ -1307,6 +1368,7 @@ function EditEventScreenContent() {
                     ...prev,
                     {
                       name: "General Admission",
+                      category: "admission",
                       priceDollars: "0",
                       quantity: "100",
                       maxPerOrder: "4",
@@ -1330,14 +1392,23 @@ function EditEventScreenContent() {
                 }}
               >
                 <Plus size={14} color="#8A40CF" />
-                <Text style={{ color: "#8A40CF", fontSize: 13, fontWeight: "600" }}>
+                <Text
+                  style={{ color: "#8A40CF", fontSize: 13, fontWeight: "600" }}
+                >
                   Add Tier
                 </Text>
               </Pressable>
             </View>
 
             {ticketTiers.length === 0 && (
-              <Text style={{ color: colors.mutedForeground, fontSize: 13, textAlign: "center", paddingVertical: 16 }}>
+              <Text
+                style={{
+                  color: colors.mutedForeground,
+                  fontSize: 13,
+                  textAlign: "center",
+                  paddingVertical: 16,
+                }}
+              >
                 No ticket tiers yet. Tap "Add Tier" to create one.
               </Text>
             )}
@@ -1352,14 +1423,19 @@ function EditEventScreenContent() {
                   marginBottom: 10,
                   borderWidth: 1,
                   borderColor:
-                    tier.tier === "vip" ? "rgba(138,64,207,0.3)"
-                    : tier.tier === "table" ? "rgba(255,91,252,0.3)"
-                    : tier.tier === "free" ? "rgba(63,220,255,0.3)"
-                    : "rgba(52,162,223,0.3)",
+                    tier.tier === "vip"
+                      ? "rgba(138,64,207,0.3)"
+                      : tier.tier === "table"
+                        ? "rgba(255,91,252,0.3)"
+                        : tier.tier === "free"
+                          ? "rgba(63,220,255,0.3)"
+                          : "rgba(52,162,223,0.3)",
                 }}
               >
                 {/* Tier level selector */}
-                <View style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}>
+                <View
+                  style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}
+                >
                   {TIER_LEVELS.map((lvl) => (
                     <Pressable
                       key={lvl}
@@ -1375,26 +1451,81 @@ function EditEventScreenContent() {
                         paddingVertical: 6,
                         borderRadius: 8,
                         alignItems: "center",
-                        backgroundColor: tier.tier === lvl
-                          ? lvl === "vip" ? "#8A40CF"
-                            : lvl === "table" ? "#FF5BFC"
-                            : lvl === "free" ? "#3FDCFF"
-                            : "#34A2DF"
-                          : "transparent",
+                        backgroundColor:
+                          tier.tier === lvl
+                            ? lvl === "vip"
+                              ? "#8A40CF"
+                              : lvl === "table"
+                                ? "#FF5BFC"
+                                : lvl === "free"
+                                  ? "#3FDCFF"
+                                  : "#34A2DF"
+                            : "transparent",
                         borderWidth: 1,
-                        borderColor: tier.tier === lvl ? "transparent" : colors.border,
+                        borderColor:
+                          tier.tier === lvl ? "transparent" : colors.border,
                       }}
                     >
-                      <Text style={{
-                        color: tier.tier === lvl ? "#fff" : colors.mutedForeground,
-                        fontSize: 11,
-                        fontWeight: "600",
-                        textTransform: "uppercase",
-                      }}>
+                      <Text
+                        style={{
+                          color:
+                            tier.tier === lvl ? "#fff" : colors.mutedForeground,
+                          fontSize: 11,
+                          fontWeight: "600",
+                          textTransform: "uppercase",
+                        }}
+                      >
                         {lvl}
                       </Text>
                     </Pressable>
                   ))}
+                </View>
+
+                <View
+                  style={{ flexDirection: "row", gap: 6, marginBottom: 12 }}
+                >
+                  {TICKET_TYPE_CATEGORIES.map((option) => {
+                    const selected =
+                      (tier.category || "admission") === option.value;
+                    return (
+                      <Pressable
+                        key={option.value}
+                        onPress={() => {
+                          const updated = [...ticketTiers];
+                          updated[idx] = {
+                            ...updated[idx],
+                            category: option.value,
+                          };
+                          setTicketTiers(updated);
+                          setHasChanges(true);
+                        }}
+                        style={{
+                          flex: 1,
+                          paddingVertical: 7,
+                          borderRadius: 8,
+                          alignItems: "center",
+                          backgroundColor: selected
+                            ? colors.primary
+                            : "transparent",
+                          borderWidth: 1,
+                          borderColor: selected ? "transparent" : colors.border,
+                        }}
+                      >
+                        <Text
+                          numberOfLines={1}
+                          style={{
+                            color: selected
+                              ? colors.primaryForeground
+                              : colors.mutedForeground,
+                            fontSize: 11,
+                            fontWeight: "700",
+                          }}
+                        >
+                          {option.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
                 </View>
 
                 {/* Name */}
@@ -1420,9 +1551,17 @@ function EditEventScreenContent() {
                 />
 
                 {/* Price + Quantity row */}
-                <View style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}>
+                <View
+                  style={{ flexDirection: "row", gap: 10, marginBottom: 10 }}
+                >
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.mutedForeground, fontSize: 11, marginBottom: 4 }}>
+                    <Text
+                      style={{
+                        color: colors.mutedForeground,
+                        fontSize: 11,
+                        marginBottom: 4,
+                      }}
+                    >
                       Price ($)
                     </Text>
                     <TextInput
@@ -1438,7 +1577,10 @@ function EditEventScreenContent() {
                       keyboardType="decimal-pad"
                       editable={tier.tier !== "free"}
                       style={{
-                        color: tier.tier === "free" ? colors.mutedForeground : colors.foreground,
+                        color:
+                          tier.tier === "free"
+                            ? colors.mutedForeground
+                            : colors.foreground,
                         fontSize: 15,
                         fontWeight: "600",
                         paddingVertical: 6,
@@ -1449,7 +1591,13 @@ function EditEventScreenContent() {
                     />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.mutedForeground, fontSize: 11, marginBottom: 4 }}>
+                    <Text
+                      style={{
+                        color: colors.mutedForeground,
+                        fontSize: 11,
+                        marginBottom: 4,
+                      }}
+                    >
                       Quantity
                     </Text>
                     <TextInput
@@ -1475,7 +1623,13 @@ function EditEventScreenContent() {
                     />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: colors.mutedForeground, fontSize: 11, marginBottom: 4 }}>
+                    <Text
+                      style={{
+                        color: colors.mutedForeground,
+                        fontSize: 11,
+                        marginBottom: 4,
+                      }}
+                    >
                       Max/Order
                     </Text>
                     <TextInput
@@ -1531,10 +1685,17 @@ function EditEventScreenContent() {
                     setTicketTiers((prev) => prev.filter((_, i) => i !== idx));
                     setHasChanges(true);
                   }}
-                  style={{ alignSelf: "flex-start", flexDirection: "row", alignItems: "center", gap: 4 }}
+                  style={{
+                    alignSelf: "flex-start",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
                 >
                   <X size={14} color="#ef4444" />
-                  <Text style={{ color: "#ef4444", fontSize: 12 }}>Remove tier</Text>
+                  <Text style={{ color: "#ef4444", fontSize: 12 }}>
+                    Remove tier
+                  </Text>
                 </Pressable>
               </View>
             ))}

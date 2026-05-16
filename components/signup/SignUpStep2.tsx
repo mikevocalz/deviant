@@ -42,6 +42,7 @@ import {
   AGE_VERIFICATION_FAILED_MESSAGE,
 } from "@/lib/utils/age-verification";
 import { AppTrace, getErrorMessage } from "@/lib/diagnostics/app-trace";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 function withTimeout<T>(
   promise: Promise<T>,
@@ -798,7 +799,7 @@ export function SignUpStep2() {
             </Text>
             <Text className="mt-1 text-sm leading-5 text-zinc-400">
               Verified users can send DMs, comment, access spicy content, host
-              events, and join more intentional spaces like Sneaky Lynk.
+              events, and join intentional spaces like {getLynkDisplayName()}.
             </Text>
           </View>
         </View>

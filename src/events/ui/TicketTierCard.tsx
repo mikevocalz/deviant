@@ -11,10 +11,9 @@ interface TicketTierCardProps {
 }
 
 const TIER_CATEGORY: Record<string, string> = {
-  free: "Admission",
-  ga: "Admission",
-  vip: "Admission",
-  table: "Service",
+  admission: "Admission",
+  product: "Product",
+  service: "Service",
 };
 
 export const TicketTierCard = memo(function TicketTierCard({
@@ -30,7 +29,7 @@ export const TicketTierCard = memo(function TicketTierCard({
 
   const isVip = tier.tier === "vip" || tier.tier === "table";
   const borderColor = isSelected ? tier.glowColor : "rgba(255,255,255,0.08)";
-  const categoryLabel = TIER_CATEGORY[tier.tier] ?? "Admission";
+  const categoryLabel = TIER_CATEGORY[tier.category] ?? "Admission";
   const bgColor = isSelected ? `${tier.glowColor}15` : "rgba(255,255,255,0.04)";
 
   return (

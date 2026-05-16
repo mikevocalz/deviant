@@ -73,13 +73,13 @@ export function classifySneakyLynkError(
   // Prefer the structured `detail.reason === "room_full"` signal from
   // newer backends; fall back to message-text matching for older builds
   // that haven't been redeployed yet.
-  const detailReason = typeof detail?.reason === "string" ? detail.reason : null;
+  const detailReason =
+    typeof detail?.reason === "string" ? detail.reason : null;
   if (
     detailReason === "room_full" ||
     (code === "conflict" && ROOM_FULL_MATCHERS.some((re) => re.test(raw)))
   ) {
-    const current =
-      typeof detail?.current === "number" ? detail.current : 0;
+    const current = typeof detail?.current === "number" ? detail.current : 0;
     const max = typeof detail?.max === "number" ? detail.max : 0;
     const isHost = detail?.isHost === true;
 
@@ -95,10 +95,7 @@ export function classifySneakyLynkError(
     };
   }
 
-  if (
-    code === "not_found" ||
-    ROOM_ENDED_MATCHERS.some((re) => re.test(raw))
-  ) {
+  if (code === "not_found" || ROOM_ENDED_MATCHERS.some((re) => re.test(raw))) {
     return {
       reason: "room_ended",
       title: "This room has ended",
@@ -132,7 +129,7 @@ export function classifySneakyLynkError(
     return {
       reason: "unauthorized",
       title: "Sign in to join",
-      body: "You need to be signed in to join a Sneaky Lynk room.",
+      body: "You need to be signed in to join this Lynk.",
       ctaLabel: "Sign in",
       rawMessage: raw,
     };

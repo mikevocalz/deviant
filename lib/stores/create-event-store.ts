@@ -11,6 +11,7 @@ import { mmkvStorage } from "@/lib/mmkv-zustand";
 
 type VisibilityOption = "public" | "private" | "link_only";
 type AgeRestriction = "none" | "18+" | "21+";
+export type TicketTypeCategory = "admission" | "product" | "service";
 export type EventType =
   | "virtual_session"
   | "party"
@@ -57,6 +58,7 @@ interface CoOrganizer {
 interface TicketTier {
   id: string;
   name: string;
+  category: TicketTypeCategory;
   priceCents: number;
   quantity: number;
   maxPerUser: number;
@@ -174,7 +176,13 @@ interface CreateEventActions {
   removeCoOrganizer: (userId: string) => void;
   setCoOrganizerSearch: (v: string) => void;
   setCoOrganizerResults: (
-    v: { id: string; authId?: string; username: string; avatar: string; name: string }[],
+    v: {
+      id: string;
+      authId?: string;
+      username: string;
+      avatar: string;
+      name: string;
+    }[],
   ) => void;
   removeLineupItem: (index: number) => void;
   removePerk: (index: number) => void;

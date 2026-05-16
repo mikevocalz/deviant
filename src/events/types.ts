@@ -60,6 +60,7 @@ export interface TicketTier {
   originalPrice?: number;
   description?: string;
   perks: string[];
+  category: "admission" | "product" | "service";
   remaining: number;
   maxPerOrder: number;
   isSoldOut: boolean;

@@ -36,6 +36,7 @@ import { Platform } from "react-native";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
 import { messagesApi } from "@/lib/api/messages-impl";
+import { getLynkRoomLowercaseName } from "@/lib/branding/lynk-branding";
 import {
   useSneakyLynkCaptureStore,
   type CaptureEvent,
@@ -132,8 +133,7 @@ export function useSneakyLynkCaptureBroadcast({
       if (payload.actorId === localUserId) return;
 
       const kind: CaptureEvent["kind"] =
-        payload.kind === "recording_start" ||
-        payload.kind === "recording_stop"
+        payload.kind === "recording_start" || payload.kind === "recording_stop"
           ? payload.kind
           : "screenshot";
 
@@ -262,14 +262,13 @@ async function _notifyHostViaChat({
     // `getOrCreateConversation` returns the conversation id directly
     // as a string (not an object). Empty string means the edge
     // function didn't find/create one — bail quietly.
-    const conversationId = await messagesApi.getOrCreateConversation(
-      hostUserId,
-    );
+    const conversationId =
+      await messagesApi.getOrCreateConversation(hostUserId);
     if (!conversationId) return;
 
     const roomLabel = roomTitle
-      ? `your Sneaky Lynk room "${roomTitle}"`
-      : "your Sneaky Lynk room";
+      ? `your ${getLynkRoomLowercaseName()} "${roomTitle}"`
+      : `your ${getLynkRoomLowercaseName()}`;
     // Only append the anon-label clause when the identity was hidden —
     // i.e. the broadcast used a different name than the real username.
     const content =

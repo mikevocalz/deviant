@@ -15,6 +15,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
 import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureProtection";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 function CreateLynkScreenContent() {
   // Protect room config from capture even before joining
@@ -144,7 +145,7 @@ function CreateLynkScreenContent() {
           }}
         >
           <Text className="text-base font-bold text-foreground mb-1">
-            Private Room
+            {getLynkDisplayName()}
           </Text>
           <Text className="text-sm text-muted-foreground leading-5">
             Host a private video room for your crew. Rooms with fewer than 5
