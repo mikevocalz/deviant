@@ -369,7 +369,6 @@ export default {
       "./plugins/with-live-activity",
       ["./plugins/with-development-team", { teamId: "436WA3W63V" }],
       "expo-secure-store",
-      "expo-apple-authentication",
       "react-native-compressor",
       [
         "expo-calendar",

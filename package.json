@@ -69,7 +69,6 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "expo": "^56.0.0-preview.12",
-    "expo-apple-authentication": "~56.0.3",
     "expo-asset": "~56.0.10",
     "expo-audio": "~56.0.7",
     "expo-battery": "~56.0.0",
