@@ -61,15 +61,21 @@ export default function AccountScreen() {
           text: "Yes, I'm sure",
           style: "destructive",
           onPress: () => {
-            Alert.alert(
+            Alert.prompt(
               "Final Confirmation",
-              "This is your last chance. Your account and all associated data will be permanently deleted.",
+              "Type DELETE to permanently delete your account. This cannot be undone.",
               [
                 { text: "Cancel", style: "cancel" },
                 {
                   text: "Delete My Account",
                   style: "destructive",
-                  onPress: async () => {
+                  onPress: async (text?: string) => {
+                    if (text?.trim() !== "DELETE") {
+                      toast.error("Account deletion cancelled", {
+                        description: "You must type DELETE to confirm",
+                      });
+                      return;
+                    }
                     setIsDeleting(true);
                     try {
                       await deleteAccountPrivileged();
@@ -86,6 +92,9 @@ export default function AccountScreen() {
                   },
                 },
               ],
+              "plain-text",
+              "",
+              "DELETE",
             );
           },
         },

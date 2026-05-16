@@ -1,6 +1,6 @@
 /**
  * Live Room Card Component
- * Gradient card displaying a Sneaky Lynk room (live or ended)
+ * Gradient card displaying a private video room (live or ended)
  */
 
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";

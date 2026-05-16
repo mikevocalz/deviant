@@ -1,5 +1,5 @@
 /**
- * Sneaky Lynk Room Screen
+ * Private Video Room
  * Live audio/video room with speakers, listeners, and controls
  * Uses Fishjam for real audio/video — no mock data
  *
@@ -258,7 +258,7 @@ function ClosedRoomScreen({
             className="text-foreground font-semibold text-center"
             numberOfLines={1}
           >
-            {roomTitle || "Sneaky Lynk"}
+            {roomTitle || "Private Room"}
           </Text>
         </View>
         <View className="w-6" />
@@ -324,7 +324,7 @@ function PreJoinScreen({
         </View>
 
         <Text className="text-2xl font-bold text-foreground text-center mb-2">
-          {roomTitle || "Sneaky Lynk"}
+          {roomTitle || "Private Room"}
         </Text>
         <Text className="text-muted-foreground text-center mb-10">
           Choose how you want to appear in this room
