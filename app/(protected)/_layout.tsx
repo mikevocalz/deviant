@@ -19,6 +19,7 @@ import {
 } from "@/src/services/callkeep/voipPushService";
 import { useBootPrefetch } from "@/lib/hooks/use-boot-prefetch";
 import { useAppResume } from "@/lib/hooks/use-app-resume";
+import { applySystemLocaleAfterBoot } from "@/lib/i18n";
 import { useCartPaymentRecovery } from "@/lib/hooks/use-cart-payment-recovery";
 import { useBootLocation } from "@/lib/hooks/use-boot-location";
 import { useEventsLocationStore } from "@/lib/stores/events-location-store";
@@ -138,6 +139,12 @@ export default function ProtectedLayout() {
   useCartPaymentRecovery();
   // Silently resolve device location → nearest city on boot (if already permitted)
   useBootLocation();
+  // Detect system locale AFTER Hermes boot — getLocales() during initial
+  // module-load crashes the JS bridge on iOS 26 (ExpoModulesJSI createArray).
+  // Run once after the protected layout mounts so it's well past boot.
+  useEffect(() => {
+    applySystemLocaleAfterBoot();
+  }, []);
   // Track Events tab focus → drives WeatherGPUEngine visibility + audio fade
   useEventsTabVisibility();
 
