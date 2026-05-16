@@ -36,6 +36,7 @@ import { Motion } from "@legendapp/motion";
 import { PortalHost } from "@rn-primitives/portal";
 import { ThemeProvider } from "expo-router/react-navigation";
 import { Toaster } from "sonner-native";
+import { ReportSheet } from "@/components/reports/report-sheet";
 import { NAV_THEME } from "@/theme";
 import { useColorScheme } from "@/lib/hooks";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -613,6 +614,10 @@ export default function RootLayout() {
                           )}
                       </View>
                       <PortalHost />
+                      {/* Global UGC report sheet — driven by useReportSheetStore.
+                          Mounted at root so any screen can call openReportSheet
+                          without per-screen modal plumbing. Apple Guideline 1.2. */}
+                      <ReportSheet />
                       {/* CRITICAL: pointerEvents box-none ensures toasts never block
                   touches on the navigation header underneath. Position bottom
                   to avoid header area entirely. */}

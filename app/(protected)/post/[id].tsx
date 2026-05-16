@@ -61,6 +61,7 @@ import {
 } from "@/components/media/DVNTLiquidGlass";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostActionSheet } from "@/components/post-action-sheet";
+import { useReportSheetStore } from "@/lib/stores/report-sheet-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
@@ -2020,6 +2021,17 @@ function PostDetailScreenContent() {
         onTranslate={handleTranslateCaption}
         isTranslated={isCaptionTranslated}
         isTranslationCapable={showTranslateButton}
+        onReport={() => {
+          // Apple Guideline 1.2 — opens the global ReportSheet for the
+          // current post detail. Non-owners only (sheet hides Report for owners).
+          useReportSheetStore.getState().openReportSheet({
+            entityType: "post",
+            entityId: postIdString,
+            label: post?.author?.username
+              ? `@${post.author.username}`
+              : undefined,
+          });
+        }}
       />
     </SafeAreaView>
   );

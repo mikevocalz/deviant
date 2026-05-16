@@ -49,6 +49,7 @@ import {
   fireLikesTap,
 } from "@/src/features/likes/LikesSheetController";
 import { PostActionSheet } from "@/components/post-action-sheet";
+import { useReportSheetStore } from "@/lib/stores/report-sheet-store";
 import { ShareToInboxSheet } from "@/components/share-to-inbox-sheet";
 import { resolveTextPostPresentation } from "@/lib/posts/text-post";
 import { useRouter } from "expo-router";
@@ -733,6 +734,18 @@ export function Feed({
           onDelete={handleActionDelete}
           onShareToStory={handleActionShareToStory}
           onShare={handleActionShare}
+          onReport={() => {
+            // App Store Guideline 1.2 — surfaces the global ReportSheet
+            // when a non-owner taps Report Post in the action sheet.
+            if (!actionSheetPostId) return;
+            useReportSheetStore.getState().openReportSheet({
+              entityType: "post",
+              entityId: String(actionSheetPostId),
+              label: actionPost?.author?.username
+                ? `@${actionPost.author.username}`
+                : undefined,
+            });
+          }}
         />
       )}
 
