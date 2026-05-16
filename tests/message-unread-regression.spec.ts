@@ -167,12 +167,17 @@ describe("Messages unread source invariants", () => {
     const messagesScreen = read("app/(protected)/messages.tsx");
     const chatScreen = read("app/(protected)/chat/[id].tsx");
 
-    expect(messagesScreen).toContain("const currentUserIntId = getCurrentUserIdInt()");
+    // The screens were migrated from getCurrentUserIdInt → getCurrentUserIdSync.
+    // The compat shim in lib/api/auth-helper.ts still exports getCurrentUserIdInt
+    // so older builds keep working, but live screens must use the new name.
+    expect(messagesScreen).toContain(
+      "const currentUserIntId = getCurrentUserIdSync()",
+    );
     expect(messagesScreen).not.toContain(
       'String(newMsg.sender_id) === String(currentUser.id)',
     );
 
-    expect(chatScreen).toContain("const userIntId = getCurrentUserIdInt()");
+    expect(chatScreen).toContain("const userIntId = getCurrentUserIdSync()");
     expect(chatScreen).not.toContain(
       'String(newMsg.sender_id) === String(userId)',
     );
