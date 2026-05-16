@@ -207,7 +207,7 @@ function BillingScreenContent() {
           <ChevronLeft size={20} color={colors.foreground} />
         </Pressable>
         <Text className="text-lg font-sans-bold text-foreground flex-1">
-          Sneaky Lynk Billing
+          Private Rooms Billing
         </Text>
         <Pressable onPress={loadSubscription} hitSlop={12}>
           <RefreshCw size={18} color={colors.mutedForeground} />
@@ -385,11 +385,13 @@ function BillingScreenContent() {
               <View className="flex-row items-center gap-1">
                 <Shield size={11} color="#666" />
                 <Text className="text-[11px] text-muted-foreground text-center">
-                  Cancel anytime. Membership automatically renews the 1st of each month.
+                  Cancel anytime. Membership automatically renews the 1st of
+                  each month.
                 </Text>
               </View>
               <Text className="text-[10px] text-muted-foreground/60 text-center mt-1">
-                Starting mid-month results in a startup charge, then monthly on the 1st.
+                Starting mid-month results in a startup charge, then monthly on
+                the 1st.
               </Text>
             </View>
           )}

@@ -80,6 +80,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
 import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
+import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { audioSession } from "@/src/services/calls/audioSession";
 import { shareUrl } from "@/lib/deep-linking/share-link";
 import {
@@ -459,7 +460,7 @@ function SneakyLynkRoomScreenContent() {
   ) {
     return (
       <ClosedRoomScreen
-        roomTitle={roomLookup.room?.title || paramTitle || "Sneaky Lynk"}
+        roomTitle={roomLookup.room?.title || paramTitle || "Private Room"}
         message={
           roomLookup.room
             ? "This Lynk has ended and can't be reopened."
@@ -474,7 +475,7 @@ function SneakyLynkRoomScreenContent() {
   if (isServerRoom && !hasJoined) {
     return (
       <PreJoinScreen
-        roomTitle={roomLookup.room?.title || paramTitle || "Sneaky Lynk"}
+        roomTitle={roomLookup.room?.title || paramTitle || "Private Room"}
         onJoin={handleJoin}
         onBack={() => router.back()}
       />
@@ -651,7 +652,7 @@ function LocalRoom({
     }
   }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
 
-  const roomTitle = paramTitle || "Sneaky Lynk";
+  const roomTitle = paramTitle || "Private Room";
 
   const handleLeave = useCallback(async () => {
     // Local rooms are always hosted by the creator — end in DB too
@@ -695,9 +696,7 @@ function LocalRoom({
       .eq("host_id", authUser.id)
       .maybeSingle()
       .then(({ data }) => {
-        setIsPaidHost(
-          data?.status === "active" && data?.plan_id !== "free",
-        );
+        setIsPaidHost(data?.status === "active" && data?.plan_id !== "free");
       });
   }, [authUser?.id]);
 
@@ -1001,6 +1000,7 @@ function ServerRoom({
   const desiredVideoEnabledRef = useRef(roomHasVideo);
   const handToggleInFlightRef = useRef(false);
   const shareInFlightRef = useRef(false);
+  const reportInFlightRef = useRef(false);
   const markRoomClosed = useCallback(
     (room?: SneakyRoom | null, reason?: string) => {
       if (room) setRoomSnapshot(room);
@@ -1117,8 +1117,12 @@ function ServerRoom({
   const appStateRef = useRef(AppState.currentState);
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
-  const hostDisconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hostBackgroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hostDisconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const hostBackgroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const reconcileDesiredMedia = useCallback(
     async (reason: "join" | "reconnect" | "foreground") => {
@@ -1249,7 +1253,7 @@ function ServerRoom({
           setRoomSnapshot((prev) => ({
             id: prev?.id || room.uuid || id,
             createdBy: prev?.createdBy || room.created_by || "",
-            title: room.title || prev?.title || paramTitle || "Sneaky Lynk",
+            title: room.title || prev?.title || paramTitle || "Private Room",
             topic: room.topic || prev?.topic || "",
             description: room.description || prev?.description || "",
             sweetSpicyMode:
@@ -1413,7 +1417,11 @@ function ServerRoom({
     if (videoRoom.isMicOn || videoRoom.microphone.isMicrophoneOn) return;
 
     const timer = setTimeout(async () => {
-      if (videoRoomRef.current.isMicOn || videoRoomRef.current.microphone.isMicrophoneOn) return;
+      if (
+        videoRoomRef.current.isMicOn ||
+        videoRoomRef.current.microphone.isMicrophoneOn
+      )
+        return;
       console.warn(
         "[SneakyLynk:Server] MIC_SAFETY: remote peers present but mic is still off, force-starting",
       );
@@ -1449,11 +1457,15 @@ function ServerRoom({
 
     if (connectionState === "disconnected") {
       if (!hostDisconnectTimerRef.current) {
-        console.log("[SneakyLynk:Host] Disconnected — starting 30s grace period");
+        console.log(
+          "[SneakyLynk:Host] Disconnected — starting 30s grace period",
+        );
         hostDisconnectTimerRef.current = setTimeout(() => {
           hostDisconnectTimerRef.current = null;
           if (!isHostRef.current) return;
-          console.log("[SneakyLynk:Host] Grace period expired — auto-ending room");
+          console.log(
+            "[SneakyLynk:Host] Grace period expired — auto-ending room",
+          );
           void sneakyLynkApi.endRoom(id);
           reset();
           router.back();
@@ -1461,7 +1473,9 @@ function ServerRoom({
       }
     } else {
       if (hostDisconnectTimerRef.current) {
-        console.log("[SneakyLynk:Host] Connection restored — cancelling grace timer");
+        console.log(
+          "[SneakyLynk:Host] Connection restored — cancelling grace timer",
+        );
         clearTimeout(hostDisconnectTimerRef.current);
         hostDisconnectTimerRef.current = null;
       }
@@ -1478,38 +1492,35 @@ function ServerRoom({
   // Host background guard: if the host backgrounds the app for >120s, auto-end
   // the room. Participants shouldn't be stranded in a hostless room.
   useEffect(() => {
-    const subscription = AppState.addEventListener(
-      "change",
-      (nextAppState) => {
-        if (!isHostRef.current) return;
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (!isHostRef.current) return;
 
-        if (nextAppState === "background" || nextAppState === "inactive") {
-          if (!hostBackgroundTimerRef.current) {
-            console.log(
-              "[SneakyLynk:Host] App backgrounded — starting 120s grace period",
-            );
-            hostBackgroundTimerRef.current = setTimeout(() => {
-              hostBackgroundTimerRef.current = null;
-              if (!isHostRef.current) return;
-              console.log(
-                "[SneakyLynk:Host] Background grace expired — auto-ending room",
-              );
-              void sneakyLynkApi.endRoom(id);
-              reset();
-              router.back();
-            }, 120_000);
-          }
-        } else if (nextAppState === "active") {
-          if (hostBackgroundTimerRef.current) {
-            console.log(
-              "[SneakyLynk:Host] App foregrounded — cancelling background timer",
-            );
-            clearTimeout(hostBackgroundTimerRef.current);
+      if (nextAppState === "background" || nextAppState === "inactive") {
+        if (!hostBackgroundTimerRef.current) {
+          console.log(
+            "[SneakyLynk:Host] App backgrounded — starting 120s grace period",
+          );
+          hostBackgroundTimerRef.current = setTimeout(() => {
             hostBackgroundTimerRef.current = null;
-          }
+            if (!isHostRef.current) return;
+            console.log(
+              "[SneakyLynk:Host] Background grace expired — auto-ending room",
+            );
+            void sneakyLynkApi.endRoom(id);
+            reset();
+            router.back();
+          }, 120_000);
         }
-      },
-    );
+      } else if (nextAppState === "active") {
+        if (hostBackgroundTimerRef.current) {
+          console.log(
+            "[SneakyLynk:Host] App foregrounded — cancelling background timer",
+          );
+          clearTimeout(hostBackgroundTimerRef.current);
+          hostBackgroundTimerRef.current = null;
+        }
+      }
+    });
 
     return () => {
       subscription.remove();
@@ -1653,9 +1664,7 @@ function ServerRoom({
       .eq("host_id", authUser.id)
       .maybeSingle()
       .then(({ data }) => {
-        setIsPaidHost(
-          data?.status === "active" && data?.plan_id !== "free",
-        );
+        setIsPaidHost(data?.status === "active" && data?.plan_id !== "free");
       });
   }, [isHost, authUser?.id]);
 
@@ -1780,7 +1789,57 @@ function ServerRoom({
     } finally {
       shareInFlightRef.current = false;
     }
-  }, [closedReason, id, roomSnapshot?.status, roomTitle, showToast, videoRoom.room?.status]);
+  }, [
+    closedReason,
+    id,
+    roomSnapshot?.status,
+    roomTitle,
+    showToast,
+    videoRoom.room?.status,
+  ]);
+
+  const handleReportRoom = useCallback(async () => {
+    if (reportInFlightRef.current) {
+      return;
+    }
+
+    reportInFlightRef.current = true;
+
+    try {
+      const reporterId = await getCurrentUserAuthId();
+      if (!reporterId) {
+        showToast("error", "Sign In Required", "Sign in to report this room.");
+        return;
+      }
+
+      const { error } = await supabase.from("reports_video_rooms").insert({
+        room_id: id,
+        reporter_id: reporterId,
+        reason: "in_room_report",
+        details: `Reported from active Lynk room: ${roomTitle}`,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      showToast(
+        "success",
+        "Report Submitted",
+        "Thanks. Our safety team will review this room.",
+      );
+    } catch (error: any) {
+      console.error("[SneakyLynk:Server] Report room failed:", error);
+      showToast(
+        "error",
+        "Report Failed",
+        error?.message || "We couldn't submit this report right now.",
+      );
+    } finally {
+      reportInFlightRef.current = false;
+    }
+  }, [id, roomTitle, showToast]);
+
   const handleEjectDismiss = useCallback(() => {
     hideEject();
     router.back();
@@ -1947,7 +2006,7 @@ function ServerRoom({
   if (closedReason) {
     return (
       <ClosedRoomScreen
-        roomTitle={roomSnapshot?.title || paramTitle || "Sneaky Lynk"}
+        roomTitle={roomSnapshot?.title || paramTitle || "Private Room"}
         message={closedReason}
         onBack={() => router.back()}
       />
@@ -1978,25 +2037,19 @@ function ServerRoom({
     // Fishjam peer.metadata. If the peer is the known host of THIS
     // room, prefer the room snapshot's host info over a generic Guest.
     const snapshotHost =
-      p.role === "host" ? roomSnapshot?.host ?? null : null;
+      p.role === "host" ? (roomSnapshot?.host ?? null) : null;
     const hostFallback = snapshotHost
       ? snapshotHost.displayName || snapshotHost.username || null
       : null;
     const name =
-      anonLabel ||
-      p.username ||
-      p.displayName ||
-      hostFallback ||
-      "Guest";
+      anonLabel || p.username || p.displayName || hostFallback || "Guest";
     return {
       id: p.userId || p.oderId || p.odId,
       username: name,
       displayName: name,
       avatar: isAnon
         ? ""
-        : p.avatar ||
-          (snapshotHost ? snapshotHost.avatar || "" : "") ||
-          "",
+        : p.avatar || (snapshotHost ? snapshotHost.avatar || "" : "") || "",
       isVerified: false,
       isAnonymous: isAnon,
       anonLabel: isAnon ? anonLabel : null,
@@ -2093,6 +2146,7 @@ function ServerRoom({
             ? handleShare
             : undefined
         }
+        onReport={handleReportRoom}
         localRole={isHost ? "host" : videoRoom.localUser?.role || "participant"}
         // Everyone can open the participant list — seeing who's in the
         // room is a core social feature, not a host moderation tool.
@@ -2143,112 +2197,112 @@ function ServerRoom({
         }}
       >
         <HandQueueSheet
-        visible={isHandQueueOpen && isHost}
-        participants={allParticipants}
-        raisedHandOrder={raisedHandOrder}
-        onDismiss={closeHandQueue}
-        onInviteToSpeak={(userId) => {
-          closeHandQueue();
-          void handleInviteToSpeak(userId);
-        }}
-        onLowerHand={handleLowerHand}
-        onLowerAll={handleLowerAll}
-      />
+          visible={isHandQueueOpen && isHost}
+          participants={allParticipants}
+          raisedHandOrder={raisedHandOrder}
+          onDismiss={closeHandQueue}
+          onInviteToSpeak={(userId) => {
+            closeHandQueue();
+            void handleInviteToSpeak(userId);
+          }}
+          onLowerHand={handleLowerHand}
+          onLowerAll={handleLowerAll}
+        />
 
-      <RoomParticipantsSheet
-        visible={showParticipantsSheet}
-        participants={allParticipants}
-        localUserId={localUser.id}
-        isHost={isHost}
-        onDismiss={() => setShowParticipantsSheet(false)}
-        onMute={handleMutePeer}
-        onUnmute={handleUnmutePeer}
-        onRemove={handleRemoveUser}
-      />
+        <RoomParticipantsSheet
+          visible={showParticipantsSheet}
+          participants={allParticipants}
+          localUserId={localUser.id}
+          isHost={isHost}
+          onDismiss={() => setShowParticipantsSheet(false)}
+          onMute={handleMutePeer}
+          onUnmute={handleUnmutePeer}
+          onRemove={handleRemoveUser}
+        />
 
-      {/* Capacity flow — host upgrade vs viewer waitlist. Branched off
+        {/* Capacity flow — host upgrade vs viewer waitlist. Branched off
           the generic error sheet because the UX is fundamentally
           different (upsell for host, live-watch for viewer). */}
-      <RoomFullSheet
-        visible={joinError?.reason === "room_full"}
-        capacity={joinError?.capacity ?? null}
-        roomId={id}
-        phase={capacityPhase}
-        onClose={() => {
-          setJoinError(null);
-          setCapacityPhase("idle");
-          handleLeave();
-        }}
-        onStartWaiting={() => setCapacityPhase("waiting")}
-        onSeatOpen={() => {
-          // Seat detected. Two possible UX paths:
-          //   a) Auto-join immediately — cleanest, zero friction.
-          //   b) Flip to "seat-open" and let the user tap to confirm.
-          // Going with (a) — the user already opted in with "Notify me",
-          // making them tap again would feel like friction theater.
-          setJoinError(null);
-          setCapacityPhase("idle");
-          // useVideoRoom joins automatically on roomId prop; nothing
-          // else to do — the polling hook's final probe IS effectively
-          // the retry since it hits the real join endpoint.
-        }}
-        onUpgrade={() => {
-          // Hand off to the app's upgrade surface. The room's in-room
-          // paywall modal targets a different feature (Sneaky Link
-          // chat, not Sneaky Lynk rooms). Room-plan upgrades live on
-          // the account settings path — route there for now. When a
-          // dedicated "room cap" upgrade sheet ships, swap this to it.
-          setJoinError(null);
-          setCapacityPhase("idle");
-          router.push("/settings/order" as any);
-        }}
-        onPayToJoin={
-          isFeatureEnabled("sneaky_paywall_enabled") &&
-          !joinError?.capacity?.isHost
-            ? () => {
-                setJoinError(null);
-                setCapacityPhase("idle");
-                setShowViewerPaywall(true);
-              }
-            : undefined
-        }
-      />
+        <RoomFullSheet
+          visible={joinError?.reason === "room_full"}
+          capacity={joinError?.capacity ?? null}
+          roomId={id}
+          phase={capacityPhase}
+          onClose={() => {
+            setJoinError(null);
+            setCapacityPhase("idle");
+            handleLeave();
+          }}
+          onStartWaiting={() => setCapacityPhase("waiting")}
+          onSeatOpen={() => {
+            // Seat detected. Two possible UX paths:
+            //   a) Auto-join immediately — cleanest, zero friction.
+            //   b) Flip to "seat-open" and let the user tap to confirm.
+            // Going with (a) — the user already opted in with "Notify me",
+            // making them tap again would feel like friction theater.
+            setJoinError(null);
+            setCapacityPhase("idle");
+            // useVideoRoom joins automatically on roomId prop; nothing
+            // else to do — the polling hook's final probe IS effectively
+            // the retry since it hits the real join endpoint.
+          }}
+          onUpgrade={() => {
+            // Hand off to the app's upgrade surface. The room's in-room
+            // paywall modal targets a different feature (Sneaky Link
+            // chat, not Sneaky Lynk rooms). Room-plan upgrades live on
+            // the account settings path — route there for now. When a
+            // dedicated "room cap" upgrade sheet ships, swap this to it.
+            setJoinError(null);
+            setCapacityPhase("idle");
+            router.push("/settings/order" as any);
+          }}
+          onPayToJoin={
+            isFeatureEnabled("sneaky_paywall_enabled") &&
+            !joinError?.capacity?.isHost
+              ? () => {
+                  setJoinError(null);
+                  setCapacityPhase("idle");
+                  setShowViewerPaywall(true);
+                }
+              : undefined
+          }
+        />
 
-      {/* Non-capacity join errors — room ended, rate-limited, forbidden,
+        {/* Non-capacity join errors — room ended, rate-limited, forbidden,
           unauthorized, unknown. Simpler single-CTA surface. */}
-      <RoomJoinErrorSheet
-        error={joinError?.reason === "room_full" ? null : joinError}
-        onDismiss={() => setJoinError(null)}
-        onRetry={() => {
-          setJoinError(null);
-          handleLeave();
-        }}
-        onSignIn={() => {
-          setJoinError(null);
-          router.replace("/(auth)/login" as any);
-        }}
-      />
+        <RoomJoinErrorSheet
+          error={joinError?.reason === "room_full" ? null : joinError}
+          onDismiss={() => setJoinError(null)}
+          onRetry={() => {
+            setJoinError(null);
+            handleLeave();
+          }}
+          onSignIn={() => {
+            setJoinError(null);
+            router.replace("/(auth)/login" as any);
+          }}
+        />
 
-      {/* Host action sheet — mute / co-host / remove */}
-      <ParticipantActions
-        visible={!!actionTarget}
-        participant={
-          actionTarget
-            ? {
-                userId: actionTarget.id,
-                user: actionTarget.user,
-                role: actionTarget.role,
-                isMicOn: actionTarget.isMicOn,
-              }
-            : null
-        }
-        onMute={handleMutePeer}
-        onUnmute={handleUnmutePeer}
-        onMakeCoHost={handleMakeCoHost}
-        onDemote={handleDemote}
-        onRemove={handleRemoveUser}
-        onClose={() => setActionTarget(null)}
-      />
+        {/* Host action sheet — mute / co-host / remove */}
+        <ParticipantActions
+          visible={!!actionTarget}
+          participant={
+            actionTarget
+              ? {
+                  userId: actionTarget.id,
+                  user: actionTarget.user,
+                  role: actionTarget.role,
+                  isMicOn: actionTarget.isMicOn,
+                }
+              : null
+          }
+          onMute={handleMutePeer}
+          onUnmute={handleUnmutePeer}
+          onMakeCoHost={handleMakeCoHost}
+          onDemote={handleDemote}
+          onRemove={handleRemoveUser}
+          onClose={() => setActionTarget(null)}
+        />
       </View>
     </View>
   );
@@ -2284,6 +2338,7 @@ function RoomLayout({
   onCloseChat,
   onEjectDismiss,
   onShare,
+  onReport,
   onParticipantPress,
   onMuteAll,
   allMuted,
@@ -2329,6 +2384,7 @@ function RoomLayout({
   onCloseChat: () => void;
   onEjectDismiss: () => void;
   onShare?: () => void;
+  onReport?: () => void;
   onParticipantPress?: (p: VideoParticipant) => void;
   onMuteAll?: () => void;
   allMuted?: boolean;
@@ -2623,7 +2679,8 @@ function RoomLayout({
           className="flex-1"
           style={{ paddingBottom: controlsClearance }}
           onLayout={(e) => {
-            const h = Math.round(e.nativeEvent.layout.height) - controlsClearance;
+            const h =
+              Math.round(e.nativeEvent.layout.height) - controlsClearance;
             setStageContentHeight((prev) => (prev === h ? prev : h));
           }}
         >
@@ -2661,6 +2718,7 @@ function RoomLayout({
           onShare={onShare}
           onSwitchCamera={onSwitchCamera}
           onSendReaction={sendReaction}
+          onReport={onReport}
         />
 
         {/* Mount unconditionally so the sheet can run its close

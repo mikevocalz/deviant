@@ -234,7 +234,7 @@ export default {
             deploymentTarget: "17.0",
           },
           // Disable experimental RN/Hermes flags in production to reduce SIGTRAP crash risk
-          buildReactNativeFromSource: false,
+          buildReactNativeFromSource: !isProd,
           // useHermesV1: !isProd, // Disabled due to version conflicts
         },
       ],

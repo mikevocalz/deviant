@@ -79,7 +79,11 @@ export default function AccountScreen() {
                     setIsDeleting(true);
                     try {
                       await deleteAccountPrivileged();
-                      toast.success("Account deleted");
+                      toast.success("Account deleted", {
+                        description:
+                          "Your account and all associated data have been permanently deleted.",
+                        duration: 6000,
+                      });
                       logout();
                       router.replace("/login");
                     } catch (err: any) {

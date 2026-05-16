@@ -45,6 +45,20 @@ async function stripePost(
   return res.json();
 }
 
+async function stripeRefund(
+  body: Record<string, string>,
+): Promise<{ id?: string; status?: string; error?: any }> {
+  const res = await fetch("https://api.stripe.com/v1/refunds", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams(body).toString(),
+  });
+  return res.json();
+}
+
 async function stripeGet(endpoint: string): Promise<any> {
   const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
     headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` },
@@ -192,11 +206,87 @@ Deno.serve(async (req: Request) => {
       .eq("to_user_id", userId)
       .eq("status", "pending");
 
-    // Void all tickets
+    // Refund paid tickets via Stripe before voiding. A payment intent can back
+    // multiple tickets, so refund each PI once and then update all matching
+    // ticket rows for this account.
+    if (STRIPE_SECRET_KEY) {
+      try {
+        const { data: activeTickets } = await supabase
+          .from("tickets")
+          .select("id, stripe_payment_intent_id, purchase_amount_cents")
+          .eq("user_id", userId)
+          .eq("status", "active")
+          .not("stripe_payment_intent_id", "is", null)
+          .gt("purchase_amount_cents", 0);
+
+        const paymentIntents = [
+          ...new Set(
+            (activeTickets || [])
+              .map((ticket) => ticket.stripe_payment_intent_id)
+              .filter(Boolean),
+          ),
+        ];
+
+        for (const paymentIntentId of paymentIntents) {
+          const ticketIds = (activeTickets || [])
+            .filter(
+              (ticket) => ticket.stripe_payment_intent_id === paymentIntentId,
+            )
+            .map((ticket) => String(ticket.id));
+
+          try {
+            const refund = await stripeRefund({
+              payment_intent: paymentIntentId,
+              refund_application_fee: "true",
+              reverse_transfer: "true",
+              reason: "requested_by_customer",
+              "metadata[triggered_by]": "account_deletion",
+              "metadata[triggered_by_auth_id]": userId,
+              "metadata[ticket_ids]": ticketIds.join(","),
+            });
+
+            if (refund.error) {
+              console.error(
+                "[delete-account] Stripe ticket refund error:",
+                refund.error,
+              );
+              continue;
+            }
+
+            if (refund.id) {
+              const { error: ticketUpdateErr } = await supabase
+                .from("tickets")
+                .update({ status: "refunded", user_id: anonymizedId })
+                .eq("user_id", userId)
+                .eq("stripe_payment_intent_id", paymentIntentId);
+              if (ticketUpdateErr) {
+                console.error(
+                  "[delete-account] Failed to mark refunded tickets:",
+                  ticketUpdateErr,
+                );
+              }
+              console.log(
+                `[delete-account] Refunded tickets ${ticketIds.join(",")} via ${refund.id}`,
+              );
+            }
+          } catch (refundErr) {
+            console.error(
+              `[delete-account] Failed to refund payment_intent ${paymentIntentId}:`,
+              refundErr,
+            );
+          }
+        }
+      } catch (err) {
+        console.error("[delete-account] Ticket refund loop error:", err);
+      }
+    }
+
+    // Void all remaining (non-refunded) tickets
     await supabase
       .from("tickets")
       .update({ status: "void", user_id: anonymizedId })
-      .eq("user_id", userId);
+      .eq("user_id", userId)
+      .neq("status", "refunded");
 
     // Expire active holds
     await supabase
