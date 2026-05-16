@@ -169,6 +169,11 @@ async function getAuth() {
               apple: {
                 clientId: APPLE_CLIENT_ID,
                 clientSecret: APPLE_CLIENT_SECRET,
+                // Native iOS Sign in with Apple sends an identityToken whose
+                // `aud` claim is the iOS app's bundle identifier, not the
+                // web Services ID. Better Auth needs both audiences to be
+                // accepted so signIn.social({ idToken }) works from native.
+                appBundleIdentifier: "com.dvnt.app",
               },
             }
           : undefined,

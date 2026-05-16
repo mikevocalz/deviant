@@ -357,23 +357,7 @@ export default {
       "./plugins/with-live-activity",
       ["./plugins/with-development-team", { teamId: "436WA3W63V" }],
       "expo-secure-store",
-      // SDK 56: expo-sharing no longer ships a config plugin (auto-linked).
-      [
-        "./plugins/with-share-intent-fixed",
-        {
-          iosActivationRules: {
-            NSExtensionActivationSupportsWebURLWithMaxCount: 1,
-            NSExtensionActivationSupportsWebPageWithMaxCount: 1,
-            NSExtensionActivationSupportsText: true,
-            NSExtensionActivationSupportsImageWithMaxCount: 1,
-            NSExtensionActivationSupportsMovieWithMaxCount: 1,
-          },
-          androidIntentFilters: ["text/*", "image/*"],
-          androidMainActivityAttributes: {
-            "android:launchMode": "singleTask",
-          },
-        },
-      ],
+      "expo-apple-authentication",
       "react-native-compressor",
       [
         "expo-calendar",
