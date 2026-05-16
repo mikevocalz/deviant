@@ -176,6 +176,18 @@ export default {
           "DVNT saves media to your photo library when you choose to download photos or videos.",
         NSLocationWhenInUseUsageDescription:
           "DVNT uses your location to show nearby events and suggest relevant venues while you are using the app. Your location is never stored or shared without your permission.",
+        // FaceID / TouchID is offered as an optional second factor on
+        // sensitive actions (account deletion, payment confirmation).
+        // iOS crashes any process that calls LocalAuthentication on a
+        // FaceID-capable device without this string in Info.plist.
+        NSFaceIDUsageDescription:
+          "DVNT uses Face ID or Touch ID to confirm your identity before sensitive actions like deleting your account or confirming a payment.",
+        // iOS 17 split calendar permissions into a write-only key and a
+        // full-access key. DVNT calls Calendar.getCalendarsAsync (read)
+        // and Calendar.createEventAsync (write) when a user adds an
+        // event to their calendar, so we need full access.
+        NSCalendarsFullAccessUsageDescription:
+          "DVNT adds event reminders to your calendar when you choose to save an event, and reads your existing calendars so you can pick which one to save into.",
       },
     },
     android: {
