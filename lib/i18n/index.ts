@@ -20,49 +20,38 @@ const resources = {
   zh: { translation: zh },
 };
 
-// Boot-time language MUST be derivable WITHOUT calling expo-localization.
-// On iOS 26 the synchronous ExpoModulesJSI bridge for `getLocales()` crashes
-// inside JavaScriptRuntime.createArray during early Hermes init — confirmed
-// via 9+ on-device crashes on iPhone 14 Pro. The detected system locale is
-// applied LATER from applySystemLocaleAfterBoot() once the JS bridge is
-// settled (call it from a useEffect at the root of the protected layout).
+// Hermes-only Intl detector. NO expo-localization bridge call — that
+// crashes ExpoModulesJSI on iOS 26 in both boot and useEffect paths.
+// Intl.DateTimeFormat resolves to whatever locale Hermes was init'd
+// with, which is the device locale, and it's a pure-JS call that never
+// touches the JSI bridge.
+function detectSystemLanguage(): string {
+  try {
+    const tag = new Intl.DateTimeFormat().resolvedOptions().locale ?? "";
+    const code = tag.toLowerCase().split(/[-_]/)[0];
+    return code || "en";
+  } catch {
+    return "en";
+  }
+}
+
 const getBootLanguage = (): string => {
   const stored = mmkv.getString(LANGUAGE_STORAGE_KEY);
   if (stored && resources[stored as keyof typeof resources]) {
     return stored;
   }
-  // No stored preference yet — use English at boot. The post-boot async
-  // detector will swap to the system locale on the next tick if it's
-  // supported. Users who change language explicitly hit changeLanguage()
-  // which persists, so this default only ever shows on first launch.
+  const sys = detectSystemLanguage();
+  if (resources[sys as keyof typeof resources]) return sys;
   return "en";
 };
 
 /**
- * Asynchronously detect the system locale and update i18n if it differs
- * from the current language and there is no stored user preference yet.
- *
- * Safe to call from a useEffect at the root layout. Uses a dynamic import
- * of expo-localization so the module isn't loaded during initial Hermes
- * boot — that's what triggered the iOS 26 createArray SIGSEGV.
+ * No-op kept for backwards-compatibility with callers that imported the
+ * old async detector. Locale is now resolved synchronously at boot from
+ * `Intl`, so there's nothing left to do post-mount.
  */
 export async function applySystemLocaleAfterBoot(): Promise<void> {
-  if (mmkv.getString(LANGUAGE_STORAGE_KEY)) return;
-  try {
-    const { getLocales } = await import("expo-localization");
-    const locales = getLocales();
-    const systemLang = locales?.[0]?.languageCode ?? "en";
-    if (
-      systemLang &&
-      systemLang !== i18n.language &&
-      resources[systemLang as keyof typeof resources]
-    ) {
-      await i18n.changeLanguage(systemLang);
-    }
-  } catch (err) {
-    // Non-fatal — keep the boot default if locale detection fails.
-    console.warn("[i18n] applySystemLocaleAfterBoot failed:", err);
-  }
+  // intentionally empty
 }
 
 export const supportedLanguages = [
