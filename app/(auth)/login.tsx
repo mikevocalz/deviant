@@ -14,6 +14,7 @@ import { replayPendingLink } from "@/lib/deep-linking/link-engine";
 import { useDeepLinkStore } from "@/lib/stores/deep-link-store";
 import Logo from "@/components/logo";
 import { VideoView, useVideoPlayer } from "expo-video";
+import { AppleButton } from "@/components/auth/apple-button";
 import { LinearGradient } from "expo-linear-gradient";
 import { useVideoLifecycle, logVideoHealth } from "@/lib/video-lifecycle";
 
@@ -256,6 +257,24 @@ export default function LoginScreen() {
             >
               {isSubmitting ? "Signing in..." : "Sign in"}
             </Button>
+
+            {/* Sign in with Apple */}
+            <AppleButton
+              onSuccess={(user) => {
+                setUser(user);
+                const pending = useDeepLinkStore.getState().pendingLink;
+                if (pending) {
+                  replayPendingLink();
+                } else {
+                  router.replace("/(protected)/(tabs)" as any);
+                }
+              }}
+              onError={(error) => {
+                toast.error("Apple Sign In Failed", {
+                  description: error.message || "Please try again",
+                });
+              }}
+            />
           </View>
 
           <View className="items-center gap-2">
