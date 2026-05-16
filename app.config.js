@@ -63,6 +63,7 @@ export default {
       bundleIdentifier: "com.dvnt.app",
       icon: "./assets/images/ios-icon.png",
       associatedDomains: ["applinks:dvntlive.app", "applinks:www.dvntlive.app"],
+      deploymentTarget: "17.0",
       privacyManifests: {
         NSPrivacyCollectedDataTypes: [
           {
