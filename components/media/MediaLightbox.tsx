@@ -98,6 +98,10 @@ function LightboxProvider({ urls, media, children }: LightboxProps) {
   const [openIndex, setOpenIndex] = useState(0);
 
   const screenWidth = Dimensions.get("window").width;
+  // ScrollView page height must be explicit pixels — using "100%" collapses
+  // to 0 because horizontal ScrollView doesn't propagate percentage heights
+  // from a flex-1 parent through to its content children.
+  const screenHeight = Dimensions.get("window").height;
 
   const open = useCallback(
     (index: number) => {
@@ -175,23 +179,31 @@ function LightboxProvider({ urls, media, children }: LightboxProps) {
             horizontal
             pagingEnabled
             showsHorizontalScrollIndicator={false}
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
           >
             {items.map((item, i) => (
               <View
                 key={`${item.url}-${i}`}
-                style={[styles.page, { width: screenWidth }]}
+                style={[
+                  styles.page,
+                  { width: screenWidth, height: screenHeight },
+                ]}
               >
                 {item.type === "gif" ? (
                   <DVNTGifView
                     uri={item.url}
-                    width="100%"
-                    height="100%"
+                    width={screenWidth}
+                    height={screenHeight}
                     contentFit="contain"
                   />
                 ) : (
                   <Image
                     source={{ uri: item.url }}
-                    style={styles.image}
+                    style={{
+                      width: screenWidth,
+                      height: screenHeight,
+                    }}
                     contentFit="contain"
                     cachePolicy="memory-disk"
                   />
@@ -248,6 +260,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  page: { height: "100%", alignItems: "center", justifyContent: "center" },
-  image: { width: "100%", height: "100%" },
+  scrollView: { flex: 1 },
+  scrollContent: { alignItems: "center" },
+  page: { alignItems: "center", justifyContent: "center" },
 });
