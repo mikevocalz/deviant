@@ -26,8 +26,17 @@ export interface VideoCompressionInput {
 // Hard size limits per kind (in bytes)
 const SIZE_LIMITS: Record<VideoKind, number> = {
   "message-video": 12 * 1024 * 1024,  // 12 MB
-  "story-video": 18 * 1024 * 1024,    // 18 MB
-  "post-video": 25 * 1024 * 1024,     // 25 MB
+  "story-video": 28 * 1024 * 1024,    // 28 MB — allows 1080p output
+  "post-video": 32 * 1024 * 1024,     // 32 MB — allows 1080p output
+};
+
+// Max output resolution per kind. Stories and posts play full-screen on
+// 1080p+ devices; 720p source was visibly soft after upscale (story-video
+// blur incident, May 2026). Messages stay at 720 since they preview inline.
+const MAX_SIZE_BY_KIND: Record<VideoKind, number> = {
+  "message-video": 720,
+  "story-video": 1080,
+  "post-video": 1080,
 };
 
 const MAX_DURATION_SEC = 60;
@@ -107,7 +116,7 @@ export async function compressVideoIfNeeded(
   try {
     const compressedUri = await Video.compress(uri, {
       compressionMethod: "auto",
-      maxSize: 720, // 720p target
+      maxSize: MAX_SIZE_BY_KIND[kind],
       minimumFileSizeForCompress: 0, // Always compress if we get here
     });
 

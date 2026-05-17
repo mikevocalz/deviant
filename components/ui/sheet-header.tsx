@@ -1,6 +1,8 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { ChevronLeft, X } from "lucide-react-native";
 
+const DVNT_FUCHSIA = "rgb(255, 109, 193)";
+
 interface SheetHeaderProps {
   title: string;
   onClose: () => void;
@@ -19,7 +21,7 @@ export function SheetHeader({ title, onClose, onBack }: SheetHeaderProps) {
         <Text style={styles.title}>{title}</Text>
       </View>
       <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
-        <X size={22} color="#fff" />
+        <X size={22} color={DVNT_FUCHSIA} />
       </Pressable>
     </View>
   );

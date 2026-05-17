@@ -155,13 +155,15 @@ function ViewerRow({
             variant="roundedSquare"
           />
         </View>
-        <Text
-          style={[styles.username, { color: colors.foreground }]}
-          numberOfLines={1}
-          ellipsizeMode="tail"
-        >
-          {viewer.username}
-        </Text>
+        <View style={styles.usernameSlot}>
+          <Text
+            style={[styles.username, { color: colors.foreground }]}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
+            {viewer.username}
+          </Text>
+        </View>
         <Text
           style={[styles.time, { color: colors.mutedForeground }]}
           numberOfLines={1}
@@ -494,11 +496,15 @@ const styles = StyleSheet.create({
   },
   avatarSlot: {
     width: 44,
+    height: 44,
     flexShrink: 0,
   },
-  username: {
+  usernameSlot: {
     flex: 1,
     minWidth: 0,
+    flexShrink: 1,
+  },
+  username: {
     fontSize: 15,
     fontWeight: "600",
     letterSpacing: 0.1,
