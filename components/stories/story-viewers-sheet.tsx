@@ -147,15 +147,15 @@ function ViewerRow({
           pressed && { backgroundColor: "rgba(255,255,255,0.04)" },
         ]}
       >
-        <View style={styles.avatarSlot}>
-          <Avatar
-            uri={viewer.avatar}
-            username={viewer.username}
-            size={44}
-            variant="roundedSquare"
-          />
-        </View>
-        <View style={styles.usernameSlot}>
+        <View style={styles.rowLeft}>
+          <View style={styles.avatarSlot}>
+            <Avatar
+              uri={viewer.avatar}
+              username={viewer.username}
+              size={44}
+              variant="roundedSquare"
+            />
+          </View>
           <Text
             style={[styles.username, { color: colors.foreground }]}
             numberOfLines={1}
@@ -164,17 +164,19 @@ function ViewerRow({
             {viewer.username}
           </Text>
         </View>
-        <Text
-          style={[styles.time, { color: colors.mutedForeground }]}
-          numberOfLines={1}
-        >
-          {formatRelative(viewer.viewedAt)}
-        </Text>
-        {recent ? (
-          <View
-            style={[styles.recentDot, { backgroundColor: colors.primary }]}
-          />
-        ) : null}
+        <View style={styles.rowRight}>
+          <Text
+            style={[styles.time, { color: colors.mutedForeground }]}
+            numberOfLines={1}
+          >
+            {formatRelative(viewer.viewedAt)}
+          </Text>
+          {recent ? (
+            <View
+              style={[styles.recentDot, { backgroundColor: colors.primary }]}
+            />
+          ) : null}
+        </View>
       </Pressable>
     </Animated.View>
   );
@@ -485,26 +487,37 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // Row
+  // Row — explicit two-group layout: [avatar + username] | [time + dot]
   row: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "space-between",
     paddingVertical: 10,
     borderRadius: 12,
     paddingHorizontal: 4,
+  },
+  rowLeft: {
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  rowRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingLeft: 12,
+    flexShrink: 0,
   },
   avatarSlot: {
     width: 44,
     height: 44,
     flexShrink: 0,
   },
-  usernameSlot: {
+  username: {
     flex: 1,
     minWidth: 0,
-    flexShrink: 1,
-  },
-  username: {
     fontSize: 15,
     fontWeight: "600",
     letterSpacing: 0.1,
@@ -512,9 +525,7 @@ const styles = StyleSheet.create({
   time: {
     fontSize: 12,
     fontWeight: "500",
-    marginLeft: "auto",
     textAlign: "right",
-    paddingRight: 4,
   },
   recentDot: {
     width: 7,
