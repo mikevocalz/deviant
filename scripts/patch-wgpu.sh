@@ -15,7 +15,7 @@
 set -euo pipefail
 
 WGPU_DIR="${WGPU_DIR:-node_modules/react-native-wgpu}"
-PATCH_MARKER=".wgpu-patched-v4"
+PATCH_MARKER=".wgpu-patched-v3"
 
 if [ ! -d "$WGPU_DIR/cpp" ]; then
   echo "[patch-wgpu] WARNING: $WGPU_DIR/cpp not found, skipping"
@@ -263,68 +263,7 @@ for root, dirs, files in os.walk(cpp_dir):
 print(f"[patch-wgpu] Patched {count} files")
 PYEOF
 
-# ── Step 3b: Convert "jsi/X.h" qualified includes to relative paths ──
-# Problem: React-jsi has DEFINES_MODULE=YES which auto-generates a "jsi" module
-# umbrella. Newer Clang (Xcode 26+) intercepts #include "jsi/X.h" and routes it
-# through the React_jsi module. Headers that aren't in that module (like wgpu's
-# EnumMapper.h, NativeObject.h, etc.) fail with "file not found" even though they
-# exist on disk. Fix: use explicit relative paths (../jsi/X.h) which bypass module
-# lookup entirely. Clang only does module lookup for plain "dir/file.h" forms.
-python3 - "$WGPU_DIR" <<'PYEOF'
-import os, sys
-
-wgpu = sys.argv[1]
-cpp_dir = os.path.join(wgpu, "cpp")
-jsi_dir = os.path.join(cpp_dir, "jsi")
-
-# Headers that live in wgpu's cpp/jsi/ directory
-WGPU_JSI_HEADERS = {
-    "EnumMapper.h",
-    "NativeObject.h",
-    "Promise.h",
-    "RuntimeAwareCache.h",
-    "RuntimeLifecycleMonitor.h",
-    "WGPUJSIConverter.h",
-}
-
-count = 0
-
-for root, dirs, files in os.walk(cpp_dir):
-    # Skip the jsi/ directory itself — files there use "./" relative includes
-    rel_root = os.path.relpath(root, cpp_dir)
-    if rel_root == "jsi" or rel_root.startswith("jsi" + os.sep):
-        continue
-
-    for fname in files:
-        if not (fname.endswith(".h") or fname.endswith(".cpp")):
-            continue
-        fpath = os.path.join(root, fname)
-        with open(fpath, "r", encoding="utf-8") as f:
-            content = f.read()
-        original = content
-
-        for header in WGPU_JSI_HEADERS:
-            qualified = f'"jsi/{header}"'
-            if qualified not in content:
-                continue
-            # Compute relative path from this file's directory to cpp/jsi/header
-            rel = os.path.relpath(os.path.join(jsi_dir, header), root)
-            # Normalise to forward-slash
-            rel = rel.replace(os.sep, "/")
-            # Only replace if the relative form actually traverses up (safety check)
-            # to confirm the computed path does not start with jsi/ (would re-introduce issue)
-            if not rel.startswith("jsi/"):
-                content = content.replace(f'#include {qualified}', f'#include "{rel}"')
-
-        if content != original:
-            with open(fpath, "w", encoding="utf-8") as f:
-                f.write(content)
-            count += 1
-
-print(f"[patch-wgpu] Repathed {count} files to relative jsi includes")
-PYEOF
-
 # ── Step 4: Write marker file ──
-rm -f "$WGPU_DIR/.wgpu-headers-patched" "$WGPU_DIR/.wgpu-patched-v2" "$WGPU_DIR/.wgpu-patched-v3"
+rm -f "$WGPU_DIR/.wgpu-headers-patched" "$WGPU_DIR/.wgpu-patched-v2"
 touch "$WGPU_DIR/$PATCH_MARKER"
 echo "[patch-wgpu] Done"

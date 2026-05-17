@@ -22,7 +22,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useNavigation } from "expo-router/react-navigation";
+import { useNavigation } from "@react-navigation/native";
 import { SettingsCloseButton } from "@/components/settings-back-button";
 import { WebView } from "react-native-webview";
 import Animated, { FadeIn } from "react-native-reanimated";

@@ -34,7 +34,7 @@ import * as SplashScreen from "expo-splash-screen";
 import AnimatedSplashScreen from "@/components/animated-splash-screen";
 import { Motion } from "@legendapp/motion";
 import { PortalHost } from "@rn-primitives/portal";
-import { ThemeProvider } from "expo-router/react-navigation";
+import { ThemeProvider } from "@react-navigation/native";
 import { Toaster } from "sonner-native";
 import { ReportSheet } from "@/components/reports/report-sheet";
 import { NAV_THEME } from "@/theme";

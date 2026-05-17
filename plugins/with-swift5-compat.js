@@ -43,18 +43,6 @@ const SOURCE_PATCHES = [
 
 // ── Podfile post_install snippet ────────────────────────────────────
 const POST_INSTALL_SNIPPET = `
-    # ── Enforce minimum iOS deployment target 17.0 across all pods ──
-    # Prevents pods with lower minimums (e.g. react-native at 15.1) from
-    # downgrading the effective deployment target and causing build failures.
-    installer.pods_project.targets.each do |target|
-      target.build_configurations.each do |config|
-        current = config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'].to_f
-        if current < 17.0
-          config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '17.0'
-        end
-      end
-    end
-
     # ── Swift 5.9 compat: disable strict concurrency for Expo pods ──
     # ExpoModulesCore podspec patched to swift_version='5.9'.
     # SWIFT_STRICT_CONCURRENCY=minimal is respected in Swift 5.9 mode
@@ -218,87 +206,6 @@ function injectPodfileHook(podfilePath) {
   console.log("[with-swift5-compat] Injected Podfile post_install hook");
 }
 
-function patchEXReactRootViewFactory(projectRoot) {
-  // The expo package (preview.11/12) has two bugs in EXReactRootViewFactory.mm:
-  //
-  // Bug 1: @interface block has a method BODY (invalid Obj-C — @interface can only have declarations).
-  //   Fix: replace body in @interface with just a declaration (add ';').
-  //
-  // Bug 2: The same 5-param viewWithModuleName: method is declared a SECOND time outside
-  //   the #if TARGET_OS_IOS block, causing "duplicate declaration" error since the one
-  //   inside #if already covers it.
-  //   Fix: remove the second (trailing) duplicate implementation.
-  const candidates = [
-    path.join(
-      projectRoot,
-      "node_modules",
-      "expo",
-      "ios",
-      "AppDelegates",
-      "EXReactRootViewFactory.mm",
-    ),
-  ];
-  try {
-    const result = require("child_process")
-      .execSync(
-        `find "${projectRoot}/node_modules" -path "*/expo/ios/AppDelegates/EXReactRootViewFactory.mm" -maxdepth 6 2>/dev/null`,
-        { encoding: "utf8" },
-      )
-      .trim();
-    if (result) {
-      result.split("\n").forEach((p) => {
-        if (p && !candidates.includes(p)) candidates.push(p);
-      });
-    }
-  } catch (e) {
-    /* ignore */
-  }
-
-  for (const filePath of candidates) {
-    if (!fs.existsSync(filePath)) continue;
-    let content = fs.readFileSync(filePath, "utf8");
-    let patched = false;
-
-    // Bug 1: method body inside @interface block
-    // Pattern: the patched comment + method signature + body appears before @end + @implementation EXReactRootViewFactory
-    const interfaceBodyPattern =
-      /(\/\/ patched for RN 0\.84[^\n]*\n- \(UIView \*\)viewWithModuleName:[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\s*\{[\s\S]*?\}\s*\n+@end\s*\n+@implementation EXReactRootViewFactory)/;
-    if (interfaceBodyPattern.test(content)) {
-      content = content.replace(
-        interfaceBodyPattern,
-        `// patched for RN 0.84: 5-param override so Expo handler chain (dev launcher) is invoked\n- (UIView *)viewWithModuleName:(NSString *)moduleName\n             initialProperties:(nullable NSDictionary *)initialProperties\n                 launchOptions:(nullable NSDictionary *)launchOptions\n           bundleConfiguration:(RCTBundleConfiguration *)bundleConfiguration\n          devMenuConfiguration:(RCTDevMenuConfiguration *)devMenuConfiguration;\n\n@end\n\n@implementation EXReactRootViewFactory`,
-      );
-      patched = true;
-      console.log(
-        `[with-swift5-compat] Patched EXReactRootViewFactory.mm Bug 1: removed method body from @interface block`,
-      );
-    }
-
-    // Bug 2: duplicate viewWithModuleName: implementation outside #if block
-    // Pattern: after #endif and bundleURL, there's another patched comment + full method body + trailing @end
-    const trailingDupPattern =
-      /(\n\/\/ patched for RN 0\.84[^\n]*\n- \(UIView \*\)viewWithModuleName:[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\n[^\n]*\s*\{[\s\S]*?\}\s*\n+\n+@end\s*\n)/;
-    if (trailingDupPattern.test(content)) {
-      content = content.replace(trailingDupPattern, "\n\n@end\n");
-      patched = true;
-      console.log(
-        `[with-swift5-compat] Patched EXReactRootViewFactory.mm Bug 2: removed trailing duplicate method implementation`,
-      );
-    }
-
-    if (patched) {
-      fs.writeFileSync(filePath, content, "utf8");
-      console.log(
-        `[with-swift5-compat] EXReactRootViewFactory.mm fix applied: ${filePath}`,
-      );
-    } else {
-      console.log(
-        `[with-swift5-compat] EXReactRootViewFactory.mm: already correct or pattern not found (${filePath})`,
-      );
-    }
-  }
-}
-
 function withSwift5Compat(config) {
   return withDangerousMod(config, [
     "ios",
@@ -318,10 +225,7 @@ function withSwift5Compat(config) {
         );
       }
 
-      // 4. Patch EXReactRootViewFactory.mm (expo preview.11/12 bug)
-      patchEXReactRootViewFactory(projectRoot);
-
-      // 5. Inject Podfile hook
+      // 4. Inject Podfile hook
       const podfilePath = path.join(
         config.modRequest.platformProjectRoot,
         "Podfile",

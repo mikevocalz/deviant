@@ -9,7 +9,8 @@
 import React, { useCallback, useMemo } from "react";
 import { View, Pressable, StyleSheet } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { type BottomTabBarProps, BottomTabBarHeightCallbackContext } from "expo-router/build/react-navigation/bottom-tabs";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { BottomTabBarHeightCallbackContext } from "@react-navigation/bottom-tabs";
 import * as Haptics from "expo-haptics";
 import { useColorScheme } from "@/lib/hooks";
 import { isTabVisible, isSpecialTab, PHONE_TAB_BAR_HEIGHT } from "./constants";

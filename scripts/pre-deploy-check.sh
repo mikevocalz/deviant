@@ -2,6 +2,8 @@
 # Pre-deployment safety checks
 # Run this before every `git push` or `eas update`
 
+set -e
+
 echo "🔍 Running pre-deployment safety checks..."
 echo ""
 
@@ -15,18 +17,10 @@ FAILED=0
 
 # 1. TypeScript type check
 echo "📘 Checking TypeScript types..."
-TSC_OUTPUT=$(npx tsc --noEmit --skipLibCheck 2>&1)
-TSC_EXIT=$?
-# Filter out node_modules errors (only check project source files)
-PROJECT_ERRORS=$(echo "$TSC_OUTPUT" | grep -v "node_modules" | grep -E "error TS|error:\s*" || true)
-if [ -z "$PROJECT_ERRORS" ] && [ $TSC_EXIT -ne 0 ]; then
-    echo -e "${YELLOW}⚠️  TypeScript errors only in node_modules (third-party library)${NC}"
-    echo -e "${GREEN}✅ Project source files pass type check${NC}"
-elif [ -z "$PROJECT_ERRORS" ]; then
+if npx tsc --noEmit; then
     echo -e "${GREEN}✅ TypeScript check passed${NC}"
 else
-    echo -e "${RED}❌ TypeScript errors found in project source:${NC}"
-    echo "$PROJECT_ERRORS"
+    echo -e "${RED}❌ TypeScript errors found${NC}"
     FAILED=1
 fi
 echo ""

@@ -16,7 +16,7 @@
  * - Navigation crashes
  */
 
-import type { ImperativeRouter } from "expo-router";
+import type { Router } from "expo-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { isValidPostId } from "@/lib/validation/post-params";
 import { screenPrefetch } from "@/lib/prefetch";
@@ -74,7 +74,7 @@ export function getPostDetailCommentsRoute(
  * ```
  */
 export function navigateToPost(
-  router: ImperativeRouter,
+  router: Router,
   queryClient: QueryClient,
   postId: string,
 ): boolean {

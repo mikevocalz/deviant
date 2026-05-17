@@ -61,13 +61,13 @@
     },
     "apk": {
       "distribution": "internal",
-      "channel": "preview",
+      "channel": "production",
       "android": {
         "buildType": "apk"
       },
       "env": {
         "STRICT_PATCHES": "1",
-        "APP_ENV": "preview",
+        "APP_ENV": "production",
         "DATABASE_URL": "${DATABASE_URL}",
         "EXPO_PUBLIC_API_URL": "${API_URL}",
         "EXPO_PUBLIC_AUTH_URL": "https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/auth",
@@ -112,8 +112,7 @@
         "RESEND_FROM_EMAIL": "${RESEND_FROM_EMAIL}",
         "EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY": "${EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY}",
         "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "${EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}",
-        "EXPO_PUBLIC_GOOGLE_PLACES_API_KEY": "${EXPO_PUBLIC_GOOGLE_PLACES_API_KEY}",
-        "EXPO_PUBLIC_FF_SNEAKY_PAYWALL_ENABLED": "true"
+        "EXPO_PUBLIC_GOOGLE_PLACES_API_KEY": "${EXPO_PUBLIC_GOOGLE_PLACES_API_KEY}"
       }
     }
   },

@@ -3,8 +3,8 @@
  */
 
 import { Platform } from "react-native";
-import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs";
-import type { Route } from "expo-router/react-navigation";
+import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import type { Route } from "@react-navigation/native";
 
 /** The route name of the special "create" action button. */
 export const SPECIAL_TAB_NAME = "create";

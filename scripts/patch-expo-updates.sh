@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # patch-expo-updates.sh
 #
-# expo-updates@55.0.21 stock code is correct — no patches needed.
+# expo-updates@55.0.20 stock code is correct — no patches needed.
 #
 # History of patches that were removed:
 #
@@ -19,4 +19,4 @@
 #   is only used by DisabledAppController (OTA disabled). Production builds use
 #   EnabledAppController with AppLauncherWithDatabase — this code path is never hit.
 
-echo "[patch-expo-updates] No patches needed for expo-updates@55.0.21 — skipping"
+echo "[patch-expo-updates] No patches needed for expo-updates@55.0.20 — skipping"

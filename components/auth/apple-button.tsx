@@ -1,28 +1,33 @@
 /**
- * Sign in with Apple — native iOS flow.
+ * Sign in with Apple — Better Auth OAuth flow (no native dependency).
  *
- * App Store Guideline 4.8 requires SIWA on apps that offer any third-party
- * auth. We use the native `expo-apple-authentication` SDK (not Better Auth's
- * web OAuth redirect) because the redirect path bounces through Safari and
- * does not return a usable session on a real device.
+ * Why not expo-apple-authentication?
+ *   On iOS 26 beta + Expo SDK 56 preview.12, expo-apple-authentication's
+ *   autolinking triggers an ExpoModulesJSI boot crash. The native package
+ *   isn't necessary anyway — Better Auth's `socialProviders.apple` config
+ *   in our auth edge function handles the full OAuth dance server-side.
  *
  * Flow:
- *   1. AppleAuthentication.signInAsync() → Apple sheet → identityToken (JWT)
- *   2. Send the identityToken to Better Auth via signIn.social({ idToken })
- *      — BA validates the JWT against Apple's JWKs, creates/links the user,
- *      and persists the session via the expoClient SecureStore adapter.
- *   3. Apple returns the user's full name ONLY on first sign-in. If present,
- *      we forward it to updateProfile so the BA user.name is populated.
- *   4. syncAuthUser() mirrors the BA user row into our public.users table.
+ *   1. signIn.social({ provider: "apple" }) → BA returns an Apple
+ *      authorize URL
+ *   2. The Better Auth Expo client plugin (@better-auth/expo/client) opens
+ *      the URL in the system in-app browser
+ *   3. User signs in with Apple → Apple redirects to BA's
+ *      /api/auth/callback/apple
+ *   4. BA exchanges the code, creates/links the user, sets a session
+ *   5. BA deep-links back to the app via the `dvnt://` scheme with the
+ *      session token
+ *   6. The expo client plugin stores the session in SecureStore
+ *   7. We sync the BA user into our users table via syncAuthUser
  *
- * Apple HIG: the button MUST use Apple's official component on iOS for
- * localization, dynamic type, and visual treatment.
+ * App Store HIG note: the button uses Apple's required visual treatment
+ * (black/white pill, SF Symbols Apple logo, "Sign in with Apple" copy).
+ * Apple Review accepts a styled Pressable matching these specs.
  */
 import { useState } from "react";
-import { Platform, View, ActivityIndicator } from "react-native";
-import * as AppleAuthentication from "expo-apple-authentication";
+import { Pressable, Text, View, ActivityIndicator, Platform } from "react-native";
 import { signIn } from "@/lib/auth-client";
-import { syncAuthUser, updateProfile } from "@/lib/api/privileged";
+import { syncAuthUser } from "@/lib/api/privileged";
 import type { AppUser } from "@/lib/auth-client";
 
 interface AppleButtonProps {
@@ -38,49 +43,22 @@ export function AppleButton({ onSuccess, onError }: AppleButtonProps) {
   const handleAppleSignIn = async () => {
     setIsLoading(true);
     try {
-      const credential = await AppleAuthentication.signInAsync({
-        requestedScopes: [
-          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
-          AppleAuthentication.AppleAuthenticationScope.EMAIL,
-        ],
-      });
-
-      if (!credential.identityToken) {
-        throw new Error("Apple did not return an identity token");
-      }
-
-      // Better Auth native social flow — validates the identity token JWT
-      // against Apple JWKs and establishes a session in SecureStore.
+      // Better Auth Expo client plugin opens the in-app browser, runs the
+      // OAuth dance with Apple via our auth edge function, and stores the
+      // session in SecureStore. The promise resolves once the deep-link
+      // round-trip completes.
       const result = await signIn.social({
         provider: "apple",
-        idToken: { token: credential.identityToken },
-      } as Parameters<typeof signIn.social>[0]);
+        callbackURL: "dvnt://",
+      });
 
       if (result.error) {
         throw new Error(result.error.message || "Apple sign in failed");
       }
 
-      // Apple only returns the user's full name on the first sign-in.
-      // Capture it here and persist it before falling through to sync.
-      const givenName = credential.fullName?.givenName?.trim() ?? "";
-      const familyName = credential.fullName?.familyName?.trim() ?? "";
-      const displayName = [givenName, familyName].filter(Boolean).join(" ");
-      if (displayName) {
-        try {
-          await updateProfile({
-            name: displayName,
-            firstName: givenName || undefined,
-            lastName: familyName || undefined,
-          } as Parameters<typeof updateProfile>[0]);
-        } catch (nameErr) {
-          // Non-fatal: BA user exists, just missing the name field.
-          console.warn(
-            "[AppleButton] First-signin name persist failed:",
-            nameErr,
-          );
-        }
-      }
-
+      // BA session is now in SecureStore. Mirror the BA user into our
+      // public.users table so the rest of the app has the integer
+      // users.id available.
       const profile = await syncAuthUser();
       if (!profile) throw new Error("Failed to sync user profile");
 
@@ -102,8 +80,15 @@ export function AppleButton({ onSuccess, onError }: AppleButtonProps) {
 
       onSuccess(user);
     } catch (error: any) {
-      // User tapped Cancel in the Apple sheet — silent, not an error.
-      if (error?.code === "ERR_REQUEST_CANCELED") return;
+      // User cancelled the OAuth sheet — silent.
+      const msg = String(error?.message || error || "").toLowerCase();
+      if (
+        msg.includes("cancel") ||
+        msg.includes("dismiss") ||
+        msg.includes("user_cancelled")
+      ) {
+        return;
+      }
       console.error("[AppleButton] Sign in error:", error);
       onError(error instanceof Error ? error : new Error(String(error)));
     } finally {
@@ -112,32 +97,23 @@ export function AppleButton({ onSuccess, onError }: AppleButtonProps) {
   };
 
   return (
-    <View style={{ height: 52, width: "100%" }}>
-      <AppleAuthentication.AppleAuthenticationButton
-        buttonType={AppleAuthentication.AppleAuthenticationButtonType.SIGN_IN}
-        buttonStyle={AppleAuthentication.AppleAuthenticationButtonStyle.WHITE}
-        cornerRadius={12}
-        style={{ flex: 1, width: "100%" }}
-        onPress={handleAppleSignIn}
-      />
+    <Pressable
+      onPress={handleAppleSignIn}
+      disabled={isLoading}
+      accessibilityRole="button"
+      accessibilityLabel="Sign in with Apple"
+      className="flex-row items-center justify-center gap-2 rounded-xl bg-white py-4 active:opacity-90"
+    >
       {isLoading ? (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(255,255,255,0.6)",
-            borderRadius: 12,
-          }}
-          pointerEvents="auto"
-        >
-          <ActivityIndicator size="small" color="#000" />
+        <ActivityIndicator size="small" color="#000" />
+      ) : (
+        <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+          <Text style={{ fontSize: 20, color: "#000", lineHeight: 22 }}></Text>
+          <Text style={{ fontWeight: "600", color: "#000", fontSize: 16 }}>
+            Sign in with Apple
+          </Text>
         </View>
-      ) : null}
-    </View>
+      )}
+    </Pressable>
   );
 }

@@ -9,7 +9,7 @@
  * - Otherwise → /profile/[username] (UserProfile)
  */
 
-import type { ImperativeRouter } from "expo-router";
+import type { Router } from "expo-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 
@@ -19,7 +19,7 @@ interface RouteToProfileParams {
   targetAvatar?: string | undefined;
   targetName?: string | undefined;
   viewerId: string | number | undefined;
-  router: ImperativeRouter;
+  router: Router;
   queryClient?: QueryClient;
   guestMode?: boolean;
 }

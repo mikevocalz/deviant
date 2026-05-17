@@ -17,16 +17,12 @@ if [ -n "$ENV_STAGED" ]; then
   exit 1
 fi
 
-# Get staged files (only .ts, .tsx, .js, .jsx — skip node_modules, supabase/functions,
-# scripts/check-secrets, and tests/. Test files legitimately assert on edge function
-# source code as string literals, e.g. expect(fn).toContain("SUPABASE_SERVICE_ROLE_KEY"),
-# which is structural verification, not a leaked secret.)
+# Get staged files (only .ts, .tsx, .js, .jsx — skip node_modules, supabase/functions, scripts/check-secrets)
 STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | \
   grep -E '\.(ts|tsx|js|jsx)$' | \
   grep -v 'node_modules' | \
   grep -v 'supabase/functions/' | \
-  grep -v 'scripts/check-secrets' | \
-  grep -v '^tests/')
+  grep -v 'scripts/check-secrets')
 
 if [ -z "$STAGED_FILES" ]; then
   exit 0

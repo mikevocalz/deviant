@@ -2,9 +2,9 @@ import { withLayoutContext } from "expo-router";
 import type {
   NativeStackNavigationEventMap,
   NativeStackNavigationOptions,
-} from "expo-router/build/react-navigation/native-stack";
-import { createNativeStackNavigator } from "expo-router/build/react-navigation/native-stack";
-import type { ParamListBase, StackNavigationState } from "expo-router/react-navigation";
+} from "@react-navigation/native-stack";
+import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import type { ParamListBase, StackNavigationState } from "@react-navigation/native";
 
 const NativeTransitionStack = createNativeStackNavigator();
 

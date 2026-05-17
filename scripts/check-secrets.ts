@@ -1,5 +1,4 @@
 #!/usr/bin/env npx ts-node
-/// <reference types="node" />
 
 /**
  * Security & Architecture Guardrails
@@ -37,18 +36,6 @@ const SENSITIVE_TABLES = [
   "comments",
   "blocks",
 ];
-
-const SENSITIVE_DB_KEYS: Record<string, string> = {
-  users: "users",
-  posts: "posts",
-  stories: "stories",
-  events: "events",
-  messages: "messages",
-  conversations: "conversations",
-  follows: "follows",
-  likes: "likes",
-  comments: "comments",
-};
 
 // Patterns that should NEVER appear in client code
 const FORBIDDEN_PATTERNS = [
@@ -130,7 +117,6 @@ interface Violation {
   line: number;
   pattern: string;
   message: string;
-  severity: "critical" | "error" | "warning";
 }
 
 function shouldSkip(filePath: string): boolean {
@@ -155,17 +141,16 @@ function scanFile(filePath: string): Violation[] {
     const lines = content.split("\n");
 
     // Check forbidden patterns
-    for (const { pattern, message, allowedPaths, severity } of FORBIDDEN_PATTERNS) {
+    for (const { pattern, message, allowedPaths } of FORBIDDEN_PATTERNS) {
       if (isAllowedPath(filePath, allowedPaths)) continue;
 
-      lines.forEach((line: string, index: number) => {
+      lines.forEach((line, index) => {
         if (pattern.test(line)) {
           violations.push({
             file: filePath,
             line: index + 1,
             pattern: pattern.source,
             message,
-            severity: severity as "critical" | "error" | "warning",
           });
         }
         // Reset regex lastIndex for global patterns
@@ -180,7 +165,6 @@ function scanFile(filePath: string): Violation[] {
       !filePath.includes("/scripts/")
     ) {
       for (const table of SENSITIVE_TABLES) {
-        const dbKey = SENSITIVE_DB_KEYS[table];
         const writePatterns = [
           new RegExp(
             `\\.from\\s*\\(\\s*["'\`]${table}["'\`]\\s*\\)\\s*\\.\\s*insert`,
@@ -194,25 +178,21 @@ function scanFile(filePath: string): Violation[] {
             `\\.from\\s*\\(\\s*["'\`]${table}["'\`]\\s*\\)\\s*\\.\\s*delete`,
             "g",
           ),
-          ...(dbKey
-            ? [
-                new RegExp(
-                  `\\.from\\s*\\(\\s*DB\\.${dbKey}\\.table\\s*\\)\\s*\\.\\s*insert`,
-                  "g",
-                ),
-                new RegExp(
-                  `\\.from\\s*\\(\\s*DB\\.${dbKey}\\.table\\s*\\)\\s*\\.\\s*update`,
-                  "g",
-                ),
-                new RegExp(
-                  `\\.from\\s*\\(\\s*DB\\.${dbKey}\\.table\\s*\\)\\s*\\.\\s*delete`,
-                  "g",
-                ),
-              ]
-            : []),
+          new RegExp(
+            `\\.from\\s*\\(\\s*DB\\.\\w+\\.table\\s*\\)\\s*\\.\\s*insert`,
+            "g",
+          ),
+          new RegExp(
+            `\\.from\\s*\\(\\s*DB\\.\\w+\\.table\\s*\\)\\s*\\.\\s*update`,
+            "g",
+          ),
+          new RegExp(
+            `\\.from\\s*\\(\\s*DB\\.\\w+\\.table\\s*\\)\\s*\\.\\s*delete`,
+            "g",
+          ),
         ];
 
-        lines.forEach((line: string, index: number) => {
+        lines.forEach((line, index) => {
           for (const writePattern of writePatterns) {
             if (writePattern.test(line)) {
               violations.push({
@@ -220,7 +200,6 @@ function scanFile(filePath: string): Violation[] {
                 line: index + 1,
                 pattern: `direct write to ${table}`,
                 message: `Direct write to "${table}" table detected. Use Edge Function wrappers from lib/api/privileged/index.ts instead.`,
-                severity: "error",
               });
             }
             writePattern.lastIndex = 0;
@@ -292,34 +271,21 @@ function main(): void {
     process.exit(0);
   }
 
-  const blockingViolations = allViolations.filter(
-    (violation) => violation.severity !== "warning",
-  );
-
   console.log(
-    `${blockingViolations.length > 0 ? RED : YELLOW}${
-      blockingViolations.length > 0 ? "❌" : "⚠️"
-    } Found ${blockingViolations.length} blocking violation(s), ${
-      allViolations.length - blockingViolations.length
-    } warning(s):${RESET}\n`,
+    `${RED}❌ Found ${allViolations.length} security violation(s):${RESET}\n`,
   );
 
   for (const violation of allViolations) {
-    const color = violation.severity === "warning" ? YELLOW : RED;
-    console.log(
-      `${color}${violation.severity.toUpperCase()}:${RESET} ${violation.file}:${violation.line}`,
-    );
+    console.log(`${RED}VIOLATION:${RESET} ${violation.file}:${violation.line}`);
     console.log(`  Pattern: ${violation.pattern}`);
     console.log(`  ${violation.message}\n`);
   }
 
-  if (blockingViolations.length === 0) {
-    console.log(`${GREEN}✅ No blocking security violations found.${RESET}`);
-    process.exit(0);
-  }
-
   console.log(`${YELLOW}Fix these issues before committing.${RESET}`);
-  console.log("Service role key must ONLY be used in Supabase Edge Functions.\n");
+  console.log(
+    "Service role key must ONLY be used in Supabase Edge Functions.\n",
+  );
+
   process.exit(1);
 }
 

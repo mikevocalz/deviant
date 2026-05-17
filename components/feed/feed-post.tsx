@@ -51,7 +51,7 @@ import {
   useState,
   type ElementRef,
 } from "react";
-import { useIsFocused } from "expo-router/react-navigation";
+import { useIsFocused } from "@react-navigation/native";
 import {
   useVideoLifecycle,
   safePlay,
