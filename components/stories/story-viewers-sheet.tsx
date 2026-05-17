@@ -382,12 +382,12 @@ export function StoryViewersSheet({
             style={[
               styles.closeBtn,
               {
-                backgroundColor: `${colors.foreground}10`,
+                backgroundColor: "rgba(0,0,0,0.45)",
                 borderColor: colors.border,
               },
             ]}
           >
-            <X size={18} color={colors.foreground} />
+            <X size={18} color="rgb(255, 109, 193)" />
           </Pressable>
         </View>
 

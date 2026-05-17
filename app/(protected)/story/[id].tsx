@@ -1923,13 +1923,13 @@ function StoryViewerScreenContent() {
                   width: 34,
                   height: 34,
                   borderRadius: 8,
-                  backgroundColor: "rgba(30,30,30,0.55)",
+                  backgroundColor: "rgba(0,0,0,0.55)",
                   alignItems: "center",
                   justifyContent: "center",
                 }}
                 hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
               >
-                <X size={18} color="#fff" strokeWidth={2.5} />
+                <X size={18} color="rgb(255, 109, 193)" strokeWidth={2.5} />
               </Pressable>
             </View>
 
