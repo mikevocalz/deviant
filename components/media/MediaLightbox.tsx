@@ -250,7 +250,7 @@ const styles = StyleSheet.create({
   sheetContent: { flex: 1, backgroundColor: "#000" },
   closeBtn: {
     position: "absolute",
-    top: 16,
+    top: 36,
     right: 16,
     zIndex: 100,
     width: 40,

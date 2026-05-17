@@ -50,6 +50,7 @@ export function AppleButton({ onSuccess, onError }: AppleButtonProps) {
       const result = await signIn.social({
         provider: "apple",
         callbackURL: "dvnt://",
+        errorCallbackURL: "dvnt://?error=apple",
       });
 
       if (result.error) {
