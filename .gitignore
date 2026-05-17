@@ -107,6 +107,8 @@ logs/
 .claude/commands-local/
 .claude/cache/
 .claude/history/
+.claude/scheduled_tasks.lock
+.claude/worktrees/
 .codebuddy/
 .commandcode/
 .continue/
