@@ -506,6 +506,9 @@ const styles = StyleSheet.create({
   time: {
     fontSize: 12,
     fontWeight: "500",
+    marginLeft: "auto",
+    textAlign: "right",
+    paddingRight: 4,
   },
   recentDot: {
     width: 7,

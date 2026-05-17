@@ -1783,20 +1783,6 @@ function StoryViewerScreenContent() {
             )}
 
             <StoryOverlayLayer overlays={storyOverlays} />
-
-            {/* Subtle top vignette for readability */}
-            <View
-              pointerEvents="none"
-              style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                height: isImage ? 112 : 180,
-                opacity: isImage ? 0.14 : 0.3,
-                backgroundColor: "rgba(0,0,0,0.3)",
-              }}
-            />
           </View>
 
           {/* ── TOP OVERLAY: progress bars + header ───────────────────────── */}
