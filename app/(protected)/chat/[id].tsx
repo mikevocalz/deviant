@@ -89,7 +89,9 @@ import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
 import { StoryReplyBubble } from "@/components/chat/story-reply-bubble";
 import { SharedPostBubble } from "@/components/chat/shared-post-bubble";
 import { EventShareBubble } from "@/components/chat/event-share-bubble";
-import { Galeria } from "@nandorojo/galeria";
+// Galeria temporarily swapped for the MediaLightbox drop-in (iOS 26
+// gestureRecognizer regression). Same API — revert when upstream fixes.
+import { MediaLightbox as Galeria } from "@/components/media/MediaLightbox";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { supabase } from "@/lib/supabase/client";
