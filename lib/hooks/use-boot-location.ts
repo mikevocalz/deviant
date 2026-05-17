@@ -83,38 +83,12 @@ export function useBootLocation() {
           return;
         }
 
-        // Reverse geocode to get actual city name from coords
-        try {
-          const [geo] = await Location.reverseGeocodeAsync({
-            latitude,
-            longitude,
-          });
-          if (geo?.city) {
-            console.log("[BootLocation] Reverse geocoded city:", geo.city);
-            // Check if a DB city matches the geocoded name
-            const dbMatch = cities.find(
-              (c) => c.name.toLowerCase() === geo.city!.toLowerCase(),
-            );
-            if (dbMatch) {
-              setActiveCity(dbMatch);
-            } else {
-              // Create a synthetic city from geocode result
-              setActiveCity({
-                id: -1,
-                name: geo.city,
-                state: geo.region ?? null,
-                country: geo.country ?? "US",
-                lat: latitude,
-                lng: longitude,
-                timezone: null,
-                slug: geo.city.toLowerCase().replace(/\s+/g, "-"),
-              });
-            }
-            return;
-          }
-        } catch (geoErr) {
-          console.warn("[BootLocation] Reverse geocode failed:", geoErr);
-        }
+        // Reverse-geocode DISABLED on iOS 26 — Location.reverseGeocodeAsync()
+        // returns a Swift array via the ExpoModulesJSI bridge, which crashes
+        // inside JavaScriptRuntime.createArray(length:) with a pointer-auth
+        // failure (matches the createArray crash signature seen 11+ times on
+        // mike14pro). The DB-cities fallback below is the only path now until
+        // upstream Expo ships an iOS 26 fix for the array-bridge code path.
 
         // Last resort: use nearest DB city regardless of distance
         if (nearest) {
