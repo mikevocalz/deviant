@@ -9,7 +9,8 @@ import {
   Alert,
   TextInput,
 } from "react-native";
-import { Galeria } from "@nandorojo/galeria";
+// Galeria → MediaLightbox temporary swap (iOS 26 gesture issue, no native dep)
+import { MediaLightbox as Galeria } from "@/components/media/MediaLightbox";
 import { LegendList } from "@/components/list";
 import React, { useEffect, useCallback, useMemo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";

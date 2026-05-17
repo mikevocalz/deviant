@@ -79,7 +79,11 @@ import { screenPrefetch } from "@/lib/prefetch";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
 import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
-import { Galeria } from "@nandorojo/galeria";
+// Galeria's native gestureRecognizer doesn't fire on iOS 26 — the
+// MediaLightbox drop-in matches Galeria's API (urls + .Image namespace)
+// using @gorhom/bottom-sheet, no native dependency. Revert when upstream
+// @nandorojo/galeria ships an iOS 26 fix.
+import { MediaLightbox as Galeria } from "@/components/media/MediaLightbox";
 import { usePostTags } from "@/lib/hooks/use-post-tags";
 import { usePostTagsUIStore } from "@/lib/stores/post-tags-store";
 import { TextPostSurface } from "@/components/post/TextPostSurface";
