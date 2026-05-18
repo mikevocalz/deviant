@@ -11,6 +11,7 @@
  */
 
 import { useCallback } from "react";
+import { initStripe } from "@stripe/stripe-react-native";
 import { useStripeSafe as useStripe } from "@/lib/safe-native-modules";
 import { supabase } from "@/lib/supabase/client";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -88,6 +89,25 @@ export function useTicketCheckout() {
 
         if (!paymentIntent || !ephemeralKey || !customer) {
           throw new Error("Missing PaymentSheet parameters from server");
+        }
+
+        // Re-initialize Stripe with the publishable key returned by the
+        // server. The bundle-time EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY can
+        // be stale (e.g. an OTA published before the EAS env was set), so
+        // we always trust the server's response which reads from the
+        // edge-function secret store at request time.
+        if (publishableKey) {
+          try {
+            await initStripe({
+              publishableKey,
+              merchantIdentifier: "merchant.com.dvnt.app",
+            });
+          } catch (e) {
+            console.warn(
+              "[useTicketCheckout] initStripe re-init failed (continuing):",
+              e,
+            );
+          }
         }
 
         const { error: initError } = await initPaymentSheet({
