@@ -131,9 +131,22 @@ export function useTicketCheckout() {
           if (presentError.code === "Canceled") {
             return { success: false, error: "Payment cancelled" };
           }
+          // Split log into individual key=value lines so iOS syslog can't
+          // truncate the message (each console.error is its own line).
+          console.error("[useTicketCheckout] presentPaymentSheet failed");
+          console.error("  code:", presentError.code);
+          console.error("  message:", presentError.message);
           console.error(
-            "[useTicketCheckout] presentPaymentSheet error:",
-            presentError,
+            "  localizedMessage:",
+            (presentError as any).localizedMessage,
+          );
+          console.error(
+            "  declineCode:",
+            (presentError as any).declineCode,
+          );
+          console.error(
+            "  stripeErrorCode:",
+            (presentError as any).stripeErrorCode,
           );
           throw new Error(presentError.message || "Payment failed");
         }
