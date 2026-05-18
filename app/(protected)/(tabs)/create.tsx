@@ -793,20 +793,12 @@ function CreateScreenContent() {
           />
         )}
 
-        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-          <LocationAutocompleteInstagram
-            value={location}
-            placeholder="Add location"
-            onLocationSelect={(data: LocationData) => setLocationData(data)}
-            onClear={() => setLocationData(null)}
-            onTextChange={(text) => {
-              // Clear location data if text is cleared
-              if (!text) {
-                setLocationData(null);
-              }
-            }}
-          />
-        </View>
+        {/*
+          Tag People + Location + photos sections render BELOW the primary
+          content area so the order matches the text-mode layout (content
+          → metadata). The Tag People button still gates on selected media
+          since photo-tagging requires photos.
+        */}
 
         {/* Tag People Button */}
         {!isTextPost && selectedMedia.length > 0 && (
@@ -1191,6 +1183,21 @@ function CreateScreenContent() {
           </View>
         )}
 
+        {/* Location — always rendered, sits below the content section so
+            it lives in the same vertical slot on text + media modes. */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+          <LocationAutocompleteInstagram
+            value={location}
+            placeholder="Add location"
+            onLocationSelect={(data: LocationData) => setLocationData(data)}
+            onClear={() => setLocationData(null)}
+            onTextChange={(text) => {
+              if (!text) {
+                setLocationData(null);
+              }
+            }}
+          />
+        </View>
 
         {/* Caption — below media for media posts */}
         {!isTextPost && (
