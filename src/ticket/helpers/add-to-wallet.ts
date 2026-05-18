@@ -108,13 +108,6 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
       return { success: false, error: "not_authenticated" };
     }
 
-    // Skip the WebBrowser handoff entirely — it briefly flashed the
-    // Supabase function URL on a Safari/SFSafariView screen before iOS
-    // recognized the .pkpass response and forwarded to the Wallet sheet.
-    // The direct fetch + write-temp-file + Linking.openURL path below
-    // produces the same Wallet 'Add Pass' sheet without exposing the
-    // backend URL to the user.
-
     // Call edge function — returns binary .pkpass
     const supabaseUrl = getSupabaseUrl();
     const response = await fetch(
@@ -172,20 +165,29 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
       return { success: false, error: "wallet_pass_unavailable" };
     }
 
-    // Open the .pkpass file directly. iOS recognizes the UTI from the
-    // file extension and routes to PKAddPassesViewController — the
-    // native 'Add Pass' sheet — without ever surfacing a URL or the
-    // iOS Share sheet picker.
+    // Hand off the .pkpass to Apple Wallet. Two reliable paths on iOS:
     //
-    // We do NOT call Linking.canOpenURL first. It returns false for
-    // file:// URLs by default (no scheme is whitelisted) even though
-    // openURL itself works fine for .pkpass on iOS. The Sharing fallback
-    // is a last resort — only fires if openURL throws.
+    //  1. WebBrowser.openBrowserAsync(httpsUrl) — Safari View Controller
+    //     loads the URL, sees the application/vnd.apple.pkpass response
+    //     Content-Type, and routes straight to the native Wallet 'Add
+    //     Pass' sheet. The Supabase URL briefly flashes in the SFView
+    //     chrome during the parse step; this is the best we can do
+    //     without a native PKAddPassesViewController module.
+    //
+    //  2. Sharing.shareAsync(fileUri, UTI: com.apple.pkpass) — shows
+    //     the iOS share sheet. Wallet shows up under 'More' but it's
+    //     two extra taps for the user. Use only as a last resort.
+    const httpsPassUrl = buildAppleWalletUrl(ticket, token);
     try {
-      await Linking.openURL(fileUri);
+      await WebBrowser.openBrowserAsync(httpsPassUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+        dismissButtonStyle: "close",
+        controlsColor: "#000000",
+        toolbarColor: "#000000",
+      });
     } catch (openError) {
       console.warn(
-        "[addToAppleWallet] Linking.openURL on pkpass failed, falling back to Share:",
+        "[addToAppleWallet] WebBrowser handoff failed, falling back to Share:",
         openError,
       );
       const canShare = await Sharing.isAvailableAsync();
