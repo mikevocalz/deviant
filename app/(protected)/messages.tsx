@@ -8,7 +8,6 @@ import {
   StyleSheet,
   FlatList,
   Alert,
-  Dimensions,
   type ViewStyle,
   type TextStyle,
 } from "react-native";
@@ -958,12 +957,6 @@ function MessagesScreenContent() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((s) => s.user);
-  console.log(
-    "[MessagesScreen] render — currentUser=",
-    currentUser?.id,
-    "tab=",
-    tab,
-  );
   const setMessagesUnread = useUnreadCountsStore((s) => s.setMessagesUnread);
   const setSpamUnread = useUnreadCountsStore((s) => s.setSpamUnread);
   const queryClient = useQueryClient();
@@ -1295,22 +1288,9 @@ function MessagesScreenContent() {
 
   return (
     <View
-      style={{
-        // Force explicit dimensions instead of flex:1 in case the parent
-        // Stack screen container isn't giving us height.
-        width: Dimensions.get("window").width,
-        height: Dimensions.get("window").height,
-        backgroundColor: "#000",
-        paddingTop: insets.top,
-      }}
+      className="flex-1 bg-background max-w-3xl w-full self-center"
+      style={{ paddingTop: insets.top }}
     >
-      {/* DEBUG SENTINEL — remove once blank-screen diagnosed */}
-      <View
-        style={{
-          height: 12,
-          backgroundColor: "rgb(255, 109, 193)",
-        }}
-      />
       {/* Header */}
       <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()} hitSlop={12}>
@@ -1460,34 +1440,9 @@ function MessagesScreenContent() {
 
 export default function MessagesScreen() {
   const router = useRouter();
-  // DIAG — bypass content + ErrorBoundary entirely. If you see RED with
-  // 'MESSAGES TEST' the Stack route renders fine and the regression is
-  // in MessagesScreenContent. If still black, the Stack/navigation
-  // layer is the culprit.
   return (
-    <View
-      style={{
-        flex: 1,
-        backgroundColor: "#ef4444",
-        alignItems: "center",
-        justifyContent: "center",
-      }}
-    >
-      <Text style={{ color: "#fff", fontSize: 32, fontWeight: "800" }}>
-        MESSAGES TEST
-      </Text>
-      <Pressable
-        onPress={() => router.back()}
-        style={{
-          marginTop: 20,
-          paddingHorizontal: 20,
-          paddingVertical: 12,
-          backgroundColor: "#000",
-          borderRadius: 12,
-        }}
-      >
-        <Text style={{ color: "#fff", fontWeight: "700" }}>Back</Text>
-      </Pressable>
-    </View>
+    <ErrorBoundary screenName="Messages" onGoBack={() => router.back()}>
+      <MessagesScreenContent />
+    </ErrorBoundary>
   );
 }
