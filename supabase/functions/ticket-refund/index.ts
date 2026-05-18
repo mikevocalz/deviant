@@ -24,6 +24,12 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
+if (!STRIPE_SECRET_KEY) {
+  console.error(
+    "[ticket-refund] FATAL: STRIPE_SECRET_KEY env var is not set.",
+  );
+}
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -55,6 +61,16 @@ Deno.serve(async (req: Request) => {
   }
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405, headers: cors });
+  }
+
+  if (!STRIPE_SECRET_KEY) {
+    return json(
+      {
+        error:
+          "Stripe is not configured for this environment. Contact support.",
+      },
+      503,
+    );
   }
 
   try {

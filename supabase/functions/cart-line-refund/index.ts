@@ -22,6 +22,12 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
+if (!STRIPE_SECRET_KEY) {
+  console.error(
+    "[cart-line-refund] FATAL: STRIPE_SECRET_KEY env var is not set.",
+  );
+}
+
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -132,6 +138,13 @@ async function notifyReleasedInventory(
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return optionsResponse();
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
+
+  if (!STRIPE_SECRET_KEY) {
+    return errorResponse(
+      "Stripe is not configured for this environment. Contact support.",
+      503,
+    );
+  }
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {

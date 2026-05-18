@@ -15,6 +15,12 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const RESEND_FROM =
   Deno.env.get("RESEND_FROM_EMAIL") || "DVNT <noreply@dvntapp.live>";
 
+if (!STRIPE_SECRET_KEY) {
+  console.error(
+    "[payouts-release] FATAL: STRIPE_SECRET_KEY env var is not set. Cron will refuse to run.",
+  );
+}
+
 async function stripeRequest(
   endpoint: string,
   body: Record<string, string>,
@@ -56,6 +62,18 @@ Deno.serve(async (req: Request) => {
       status: 500,
       headers: { "Content-Type": "application/json" },
     });
+  }
+
+  if (!STRIPE_SECRET_KEY) {
+    return new Response(
+      JSON.stringify({
+        error: "Stripe is not configured. Payouts cannot be released.",
+      }),
+      {
+        status: 503,
+        headers: { "Content-Type": "application/json" },
+      },
+    );
   }
 
   const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {

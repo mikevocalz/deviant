@@ -30,6 +30,12 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const APPLE_CLIENT_ID = Deno.env.get("APPLE_CLIENT_ID") || "com.dvnt.app";
 
+if (!STRIPE_SECRET_KEY) {
+  console.error(
+    "[delete-account] FATAL: STRIPE_SECRET_KEY env var is not set. Account deletion will refuse to proceed (orphan Stripe customer risk).",
+  );
+}
+
 async function stripePost(
   endpoint: string,
   body: Record<string, string>,
@@ -94,6 +100,13 @@ async function revokeAppleToken(
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return optionsResponse();
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
+
+  if (!STRIPE_SECRET_KEY) {
+    return errorResponse(
+      "Account deletion is temporarily unavailable. Contact support.",
+      503,
+    );
+  }
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
