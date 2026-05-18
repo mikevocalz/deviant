@@ -18,6 +18,7 @@ import {
   errorResponse,
   optionsResponse,
 } from "../_shared/verify-session.ts";
+import { resolveOrProvisionUser } from "../_shared/resolve-user.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -39,6 +40,12 @@ Deno.serve(async (req) => {
     const authId = await verifySession(supabase, req);
     if (!authId) return errorResponse("Unauthorized", 401);
 
+    // Resolve integer user_id — bookmarks are stored with the integer users.id,
+    // not the Better Auth auth string. Using authId directly returns 0 rows.
+    const userData = await resolveOrProvisionUser(supabase, authId, "id");
+    if (!userData) return errorResponse("User not found", 404);
+    const userId = userData.id;
+
     let body: { withPosts?: boolean } = {};
     try {
       const text = await req.text();
@@ -51,7 +58,7 @@ Deno.serve(async (req) => {
     const { data, error } = await supabase
       .from("bookmarks")
       .select("post_id, created_at")
-      .eq("user_id", authId)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     if (error) {

@@ -33,8 +33,7 @@ export default function PublicTabsLayout() {
         <NativeTabs.Trigger
           name="create"
           listeners={{
-            tabPress: (e: any) => {
-              e.preventDefault();
+            tabPress: () => {
               openGate("create");
             },
           }}
@@ -46,8 +45,7 @@ export default function PublicTabsLayout() {
         <NativeTabs.Trigger
           name="activity"
           listeners={{
-            tabPress: (e: any) => {
-              e.preventDefault();
+            tabPress: () => {
               openGate("activity");
             },
           }}
@@ -62,8 +60,7 @@ export default function PublicTabsLayout() {
         <NativeTabs.Trigger
           name="profile"
           listeners={{
-            tabPress: (e: any) => {
-              e.preventDefault();
+            tabPress: () => {
               openGate("profile");
             },
           }}

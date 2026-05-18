@@ -1,6 +1,6 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserIdInt } from "./auth-helper";
+import { getCurrentUserIdSync } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 
 // Type exports for activity-store compatibility
@@ -124,7 +124,7 @@ async function getLikedActivityDirect(limit: number): Promise<{
   docs: LikedActivityRecord[];
   totalDocs: number;
 }> {
-  const userId = getCurrentUserIdInt();
+  const userId = getCurrentUserIdSync();
   if (!userId) return { docs: [], totalDocs: 0 };
 
   const [
@@ -407,7 +407,7 @@ export const notificationsApi = {
    */
   async getNotifications(limit: number = 50) {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) return { docs: [], totalDocs: 0 };
 
       const { data, error, count } = await supabase
@@ -729,7 +729,7 @@ export const notificationsApi = {
    */
   async markAllAsRead() {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) throw new Error("Not authenticated");
 
       const { error } = await supabase
@@ -758,7 +758,7 @@ export const notificationsApi = {
    */
   async getBadges() {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) return { unread: 0, total: 0 };
 
       const { count: unread } = await supabase

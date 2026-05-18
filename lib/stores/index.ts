@@ -1,6 +1,7 @@
 export { useAppStore } from "./app-store";
 export { useAuthStore } from "./auth-store";
 export { useBookmarkStore } from "./bookmark-store";
+export { useCartStore } from "./cart";
 export { useChatStore } from "./chat-store";
 export { useCommentsStore } from "./comments-store";
 export { useCreatePostStore } from "./create-post-store";

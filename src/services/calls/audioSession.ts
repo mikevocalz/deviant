@@ -32,7 +32,7 @@
  * ╚══════════════════════════════════════════════════════════════════════╝
  */
 
-import { Platform } from "react-native";
+import { NativeEventEmitter, NativeModules, Platform } from "react-native";
 import InCallManager from "react-native-incall-manager";
 import { RTCAudioSession } from "@fishjam-cloud/react-native-webrtc";
 import { CT } from "@/src/services/calls/callTrace";
@@ -47,6 +47,157 @@ let _pendingSpeakerOn: boolean | null = null;
 
 // CRITICAL FIX: Callback to start mic AFTER CallKit activation on iOS
 let _pendingMicStartCallback: (() => Promise<void>) | null = null;
+
+// ── Route-change handling (full fix for headphone / BT mid-session) ────────
+//
+// The user's speaker PREFERENCE is tracked separately from the actual
+// current route. Plugged wired headphones and connected Bluetooth
+// ALWAYS win over the user's speaker preference — matches iOS /
+// FaceTime / Zoom behavior: a plugged device takes priority.
+//
+//   _userWantsSpeaker — sticky preference set by the UI toggle. Only
+//     honored when no external audio device is connected.
+//   _hasExternalRoute — live state derived from the platform's
+//     route-change events (see subscriptions below). When true, we
+//     never force-speaker even if _userWantsSpeaker is true.
+//
+// On EVERY route-change event from the platform we re-evaluate and
+// call `_reapplyRoute()`. This is the piece the previous fix was
+// missing — it only checked at session start, not during.
+let _userWantsSpeaker = false;
+let _hasExternalRoute = false;
+let _wiredSubscription: { remove: () => void } | null = null;
+let _deviceSubscription: { remove: () => void } | null = null;
+let _routeSubscribed = false;
+
+function parseAndroidDeviceList(raw: unknown): string[] {
+  // Android's onAudioDeviceChanged payload stringifies the list:
+  // `"[\"SPEAKER_PHONE\",\"BLUETOOTH\",\"WIRED_HEADSET\",\"EARPIECE\"]"`
+  if (typeof raw !== "string") return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === "string") : [];
+  } catch {
+    return [];
+  }
+}
+
+function _reapplyRoute() {
+  // Wired / BT present → never force speaker; let the platform route
+  // naturally (iOS: AVAudioSession picks the plugged device over
+  // built-in speaker; Android: our last chooseAudioRoute() below).
+  try {
+    if (_hasExternalRoute) {
+      InCallManager.setForceSpeakerphoneOn(false);
+      _isSpeakerOn = false;
+      CT.trace("AUDIO", "audioSession_route_external", {});
+      return;
+    }
+    InCallManager.setForceSpeakerphoneOn(_userWantsSpeaker);
+    _isSpeakerOn = _userWantsSpeaker;
+    CT.trace("AUDIO", "audioSession_route_internal", {
+      speaker: _userWantsSpeaker,
+    });
+  } catch (e: any) {
+    CT.error("AUDIO", "audioSession_reapply_route_failed", {
+      error: e?.message,
+    });
+  }
+}
+
+function _subscribeToRouteChanges() {
+  if (_routeSubscribed) return;
+
+  // `NativeEventEmitter` bound to the InCallManager native module. Both
+  // iOS (RNInCallManager.m:810+) and Android (InCallManagerModule.java:289
+  // + 1847) emit named events on the module's event emitter.
+  const nativeModule = (NativeModules as any)?.InCallManager;
+  if (!nativeModule) {
+    CT.trace("AUDIO", "audioSession_route_listener_missing_module", {});
+    return;
+  }
+  const emitter = new NativeEventEmitter(nativeModule);
+
+  _wiredSubscription = emitter.addListener("WiredHeadset", (event: any) => {
+    // Event shape (from the lib): { isPlugged, hasMic, deviceName }
+    const pluggedIn = !!event?.isPlugged;
+    if (pluggedIn) {
+      _hasExternalRoute = true;
+    } else if (Platform.OS === "ios") {
+      // On iOS, if the wired cable is gone we can't know from this
+      // event alone whether BT is still connected. Use the sync probe
+      // before flipping off.
+      InCallManager.getIsWiredHeadsetPluggedIn()
+        .then((res: { isWiredHeadsetPluggedIn: boolean }) => {
+          if (!res.isWiredHeadsetPluggedIn) {
+            _hasExternalRoute = false;
+            _reapplyRoute();
+          }
+        })
+        .catch(() => {
+          _hasExternalRoute = false;
+          _reapplyRoute();
+        });
+      _reapplyRoute();
+      return;
+    } else {
+      _hasExternalRoute = false;
+    }
+    _reapplyRoute();
+  });
+
+  // Android-only — fires on BT / SCO / any audio device list change.
+  // Payload has `availableAudioDeviceList` (JSON string) and
+  // `selectedAudioDevice`. We treat WIRED_HEADSET or BLUETOOTH as
+  // external routes that take priority over the speaker toggle.
+  if (Platform.OS === "android") {
+    _deviceSubscription = emitter.addListener(
+      "onAudioDeviceChanged",
+      (event: any) => {
+        const list = parseAndroidDeviceList(event?.availableAudioDeviceList);
+        const hasBt = list.includes("BLUETOOTH");
+        const hasWired = list.includes("WIRED_HEADSET");
+        _hasExternalRoute = hasBt || hasWired;
+
+        // When an external device becomes available, ask InCallManager
+        // to route through it explicitly. Preferred: BT > wired > the
+        // speaker preference. When the only remaining routes are
+        // speaker + earpiece, honor the user's toggle.
+        try {
+          if (hasBt) {
+            InCallManager.chooseAudioRoute("BLUETOOTH");
+          } else if (hasWired) {
+            InCallManager.chooseAudioRoute("WIRED_HEADSET");
+          } else if (_userWantsSpeaker) {
+            InCallManager.chooseAudioRoute("SPEAKER_PHONE");
+          } else {
+            InCallManager.chooseAudioRoute("EARPIECE");
+          }
+        } catch (e: any) {
+          CT.error("AUDIO", "audioSession_chooseAudioRoute_failed", {
+            error: e?.message,
+          });
+        }
+        _reapplyRoute();
+      },
+    );
+  }
+
+  _routeSubscribed = true;
+  CT.trace("AUDIO", "audioSession_route_subscribed", {});
+}
+
+function _unsubscribeFromRouteChanges() {
+  try {
+    _wiredSubscription?.remove();
+  } catch {}
+  try {
+    _deviceSubscription?.remove();
+  } catch {}
+  _wiredSubscription = null;
+  _deviceSubscription = null;
+  _routeSubscribed = false;
+}
 
 // ── Public API ──────────────────────────────────────────────────────
 
@@ -97,11 +248,24 @@ export const audioSession = {
       InCallManager.start({ media: mediaType, auto: true });
 
       _isActive = true;
+      _userWantsSpeaker = speakerOn;
+
+      // Subscribe route-change listeners so plug / unplug / BT
+      // connect during the call re-applies the preference live.
+      _subscribeToRouteChanges();
+      InCallManager.getIsWiredHeadsetPluggedIn()
+        .then((res: { isWiredHeadsetPluggedIn: boolean }) => {
+          _hasExternalRoute = !!res.isWiredHeadsetPluggedIn;
+          _reapplyRoute();
+        })
+        .catch(() => {});
 
       if (Platform.OS === "android") {
         // Android: No CallKit, so apply speaker + mic state immediately.
-        InCallManager.setForceSpeakerphoneOn(speakerOn);
-        _isSpeakerOn = speakerOn;
+        // Route through _reapplyRoute so we honor any external device
+        // already plugged in at this moment.
+        _reapplyRoute();
+        _isSpeakerOn = _hasExternalRoute ? false : speakerOn;
         InCallManager.setMicrophoneMute(false);
         _isMicMuted = false;
         CT.trace("AUDIO", "audioSession_android_ready", { speakerOn });
@@ -142,9 +306,16 @@ export const audioSession = {
       _pendingMicStartCallback = null;
       _pendingSpeakerOn = null;
 
+      // Seed the user preference. From here on, _userWantsSpeaker is
+      // the "sticky" speaker toggle; external devices (wired / BT)
+      // override it at runtime via the route-change listeners below.
+      _userWantsSpeaker = speakerOn;
+
       // Sneaky Lynk rooms are audio-first even when video is enabled.
       // Keep the session in audio/voice-chat mode so remote audio reliably
-      // routes and starts, then explicitly push output to speaker.
+      // routes and starts. iOS will naturally route to wired headphones
+      // or Bluetooth when they're present; we only override with the
+      // built-in speaker if the caller explicitly requests speakerOn.
       InCallManager.start({ media: "audio", auto: true });
       _isActive = true;
 
@@ -154,8 +325,29 @@ export const audioSession = {
         _isCallKitActivated = true;
       }
 
-      InCallManager.setForceSpeakerphoneOn(speakerOn);
-      _isSpeakerOn = speakerOn;
+      // Subscribe to route-change events FIRST so any event that
+      // fires between now and the initial probe below is captured.
+      _subscribeToRouteChanges();
+
+      // Initial route probe — detect a wired headset NOW (BT on
+      // Android arrives via onAudioDeviceChanged; on iOS the
+      // AVAudioSession routes naturally to BT through category
+      // options, so we don't need an explicit check at start).
+      InCallManager.getIsWiredHeadsetPluggedIn()
+        .then((res: { isWiredHeadsetPluggedIn: boolean }) => {
+          _hasExternalRoute = !!res.isWiredHeadsetPluggedIn;
+          _reapplyRoute();
+        })
+        .catch(() => {
+          _hasExternalRoute = false;
+          _reapplyRoute();
+        });
+
+      // Apply the current preference immediately so the user sees a
+      // correct route even before the async probe resolves. The
+      // probe's callback above will re-apply with the real answer.
+      _reapplyRoute();
+
       InCallManager.setMicrophoneMute(false);
       _isMicMuted = false;
 
@@ -167,6 +359,52 @@ export const audioSession = {
       });
       console.error("[AudioSession] startForLynk failed:", e);
     }
+  },
+
+  /**
+   * Set the user's speaker preference. Call from UI toggles. This is a
+   * STICKY preference — the platform's route-change listener will honor
+   * it when no external audio device is connected, and defer to
+   * plugged wired / BT devices when they are.
+   *
+   * Prior version (`applySpeakerPreference`) only ran at room start
+   * and had no listener for mid-session route changes — plugging
+   * headphones in mid-room left audio on the built-in speaker.
+   */
+  setUserSpeakerPreference(speakerOn: boolean): void {
+    _userWantsSpeaker = speakerOn;
+    // Re-probe wired state synchronously via the async helper so we
+    // don't have to wait for an event to arrive before the preference
+    // takes effect.
+    InCallManager.getIsWiredHeadsetPluggedIn()
+      .then((res: { isWiredHeadsetPluggedIn: boolean }) => {
+        _hasExternalRoute = !!res.isWiredHeadsetPluggedIn || _hasExternalRoute;
+        _reapplyRoute();
+      })
+      .catch(() => {
+        _reapplyRoute();
+      });
+
+    // Android: explicitly route to the preferred speaker device when
+    // no external device is holding priority. InCallManager's Android
+    // audio device selector is the reliable lever here.
+    if (Platform.OS === "android" && !_hasExternalRoute) {
+      try {
+        InCallManager.chooseAudioRoute(
+          speakerOn ? "SPEAKER_PHONE" : "EARPIECE",
+        );
+      } catch {}
+    }
+    _reapplyRoute();
+    CT.trace("AUDIO", "audioSession_set_speaker_preference", { speakerOn });
+  },
+
+  /**
+   * Back-compat alias. Old call sites use this name; keep it wired to
+   * the new preference-based path so no caller has to change.
+   */
+  async applySpeakerPreference(speakerOn: boolean): Promise<void> {
+    this.setUserSpeakerPreference(speakerOn);
   },
 
   /**
@@ -273,6 +511,10 @@ export const audioSession = {
     CT.trace("AUDIO", "audioSession_stopping");
 
     try {
+      // Tear down route-change listeners FIRST so nothing re-applies
+      // a route after we've stopped the session.
+      _unsubscribeFromRouteChanges();
+
       InCallManager.stop();
 
       if (Platform.OS === "ios") {
@@ -285,6 +527,8 @@ export const audioSession = {
       _isMicMuted = false;
       _pendingSpeakerOn = null;
       _pendingMicStartCallback = null;
+      _userWantsSpeaker = false;
+      _hasExternalRoute = false;
 
       CT.trace("AUDIO", "audioSession_stopped");
       console.log("[AudioSession] Stopped");

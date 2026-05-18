@@ -16,8 +16,10 @@ interface StickyCTAProps {
   selectedTier: TicketTier | null;
   hasTicket: boolean;
   isPast?: boolean;
+  ticketQty?: number;
   onGetTickets: () => void;
   onViewTicket: () => void;
+  onBuyMore?: () => void;
   /** Whether the current user is on the waitlist for the selected tier. */
   waitlistJoined?: boolean;
   onJoinWaitlist?: () => void;
@@ -29,8 +31,10 @@ export const StickyCTA = memo(function StickyCTA({
   selectedTier,
   hasTicket,
   isPast,
+  ticketQty = 1,
   onGetTickets,
   onViewTicket,
+  onBuyMore,
   waitlistJoined = false,
   onJoinWaitlist,
   onLeaveWaitlist,
@@ -65,6 +69,7 @@ export const StickyCTA = memo(function StickyCTA({
   const price = selectedTier?.price ?? 0;
   const tierName = selectedTier?.name ?? "General";
   const glowColor = selectedTier?.glowColor ?? "rgb(62, 164, 229)";
+  const totalPrice = price * ticketQty;
 
   if (isPast && !hasTicket) {
     return (
@@ -87,10 +92,19 @@ export const StickyCTA = memo(function StickyCTA({
     return (
       <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
         <View style={styles.inner}>
-          <Pressable onPress={onViewTicket} style={styles.ticketButton}>
-            <Ticket size={20} color="#fff" />
-            <Text style={styles.ticketButtonText}>View Your Ticket</Text>
+          <Pressable onPress={onViewTicket} style={[styles.ticketButton, onBuyMore ? { flex: 1 } : { flex: 1 }]}>
+            <Check size={18} color="#22c55e" />
+            <Text style={styles.ticketButtonText}>View Ticket</Text>
           </Pressable>
+          {onBuyMore && !isPast && (
+            <Pressable
+              onPress={onBuyMore}
+              style={[styles.ticketButton, { flex: 1, backgroundColor: "rgba(138,64,207,0.2)", borderColor: "rgba(138,64,207,0.4)" }]}
+            >
+              <Ticket size={18} color="#8A40CF" />
+              <Text style={[styles.ticketButtonText, { color: "#8A40CF" }]}>Buy More</Text>
+            </Pressable>
+          )}
         </View>
       </View>
     );
@@ -101,9 +115,11 @@ export const StickyCTA = memo(function StickyCTA({
       <View style={styles.inner}>
         {/* Price summary */}
         <View style={styles.priceColumn}>
-          <Text style={styles.priceLabel}>{tierName}</Text>
+          <Text style={styles.priceLabel}>
+            {tierName}{ticketQty > 1 ? ` × ${ticketQty}` : ""}
+          </Text>
           <Text style={[styles.priceValue, { color: glowColor }]}>
-            {price === 0 ? "FREE" : `$${price}`}
+            {price === 0 ? "FREE" : `$${totalPrice}`}
           </Text>
         </View>
 

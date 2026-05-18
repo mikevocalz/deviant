@@ -227,7 +227,7 @@ export default function PublicUserProfileScreen() {
         <View style={styles.avatarViewer}>
           <Pressable
             onPress={() => setIsAvatarViewerOpen(false)}
-            style={StyleSheet.absoluteFillObject}
+            style={StyleSheet.absoluteFill}
           />
           <View style={styles.avatarViewerImageWrap}>
             {profileAvatarUrl ? (

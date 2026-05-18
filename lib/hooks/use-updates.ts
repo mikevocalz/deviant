@@ -13,9 +13,11 @@
  *
  * To test OTA in development builds: set EXPO_PUBLIC_FORCE_OTA_CHECK=true.
  * Publish updates with: eas update --channel production
+ *
+ * STATE: All mutable state lives in useOtaUpdateStore (Zustand) — no useState.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect } from "react";
 import { Alert, AppState, type AppStateStatus, Platform } from "react-native";
 import { toast } from "sonner-native";
 import { mmkv } from "@/lib/mmkv-zustand";
@@ -23,6 +25,10 @@ import {
   useOtaUpdateStore,
   OTA_DISMISSED_STORAGE_KEY,
 } from "@/lib/stores/ota-update-store";
+import {
+  isKnownBadUpdate,
+  markUpdatePending,
+} from "@/lib/ota/updateSafety";
 
 const FORCE_OTA_IN_DEV =
   typeof process !== "undefined" &&
@@ -31,6 +37,7 @@ const FORCE_OTA_IN_DEV =
 // SINGLETON: Module-level flags to prevent multiple hook instances from racing
 let globalIsInitialized = false;
 let globalIsChecking = false;
+let globalIsDownloading = false;
 
 // Dynamically import expo-updates to handle Expo Go where native module isn't available
 let Updates: typeof import("expo-updates") | null = null;
@@ -102,10 +109,22 @@ function showUpdateToast(updateId?: string | null) {
 
   const handleApply = () => {
     store.apply(); // clears MMKV dismissed key, sets phase "applying"
-    safeGet(
-      () => Updates?.reloadAsync().catch((e) => console.warn("[Updates] reloadAsync failed:", e)),
-      undefined,
-    );
+    // IMPORTANT: Do NOT call reloadAsync() here.
+    // On iOS 26.0.1 (and possibly other New Architecture builds), reloadAsync()
+    // triggers a __cxa_pure_virtual abort in ShadowTree::tryCommit because the
+    // old Fabric C++ vtable objects are still alive when the new bundle's first
+    // frame render fires. Cold starts apply the cached OTA cleanly — so we
+    // instruct the user to close and reopen instead.
+    console.log("[Updates] User tapped install — showing manual close/reopen instructions (reloadAsync disabled: iOS 26 Fabric vtable bug)");
+    try {
+      Alert.alert(
+        "Restart to Install",
+        "Swipe up to close the app, then reopen it. The update will install automatically on relaunch.",
+        [{ text: "OK", style: "default" }],
+      );
+    } catch (alertErr) {
+      console.warn("[Updates] Alert failed:", alertErr);
+    }
   };
 
   console.log("[Updates] Showing update toast for ID:", currentId);
@@ -119,7 +138,7 @@ function showUpdateToast(updateId?: string | null) {
         onClick: handleDismiss,
       },
       action: {
-        label: "Restart App Now",
+        label: "How to Install",
         onClick: handleApply,
       },
     });
@@ -130,18 +149,10 @@ function showUpdateToast(updateId?: string | null) {
       "A new version has been downloaded and is ready to install.",
       [
         { text: "Update Later", style: "cancel", onPress: handleDismiss },
-        { text: "Restart App Now", style: "default", onPress: handleApply },
+        { text: "How to Install", style: "default", onPress: handleApply },
       ],
     );
   }
-}
-
-export interface UpdateStatus {
-  isChecking: boolean;
-  isDownloading: boolean;
-  isUpdateAvailable: boolean;
-  isUpdatePending: boolean;
-  error: string | null;
 }
 
 export interface UseUpdatesOptions {
@@ -152,13 +163,7 @@ export interface UseUpdatesOptions {
 export function useUpdates(options: UseUpdatesOptions = {}) {
   const { enabled = true } = options;
 
-  const [status, setStatus] = useState<UpdateStatus>({
-    isChecking: false,
-    isDownloading: false,
-    isUpdateAvailable: false,
-    isUpdatePending: false,
-    error: null,
-  });
+  const store = useOtaUpdateStore();
 
   useEffect(() => {
     console.log(
@@ -203,8 +208,8 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       return;
     }
 
-    if (globalIsChecking) return;
-    globalIsChecking = true;
+    if (globalIsDownloading) return;
+    globalIsDownloading = true;
 
     const isEnabled = safeGet(() => {
       if (typeof Updates?.isEnabled === "undefined") return false;
@@ -213,11 +218,11 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
 
     if (!isEnabled) {
       console.log("[Updates] Skip download: expo-updates not enabled");
-      globalIsChecking = false;
+      globalIsDownloading = false;
       return;
     }
 
-    setStatus((prev) => ({ ...prev, isDownloading: true }));
+    useOtaUpdateStore.getState().setDownloading(true);
 
     try {
       const result = await safeGet(
@@ -228,11 +233,8 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       );
 
       if (result && result.isNew) {
-        setStatus((prev) => ({
-          ...prev,
-          isDownloading: false,
-          isUpdatePending: true,
-        }));
+        useOtaUpdateStore.getState().setDownloading(false);
+        useOtaUpdateStore.getState().setUpdatePending(true);
         const newUpdateId = safeGet(
           () => (result as any)?.manifest?.id || (result as any)?.updateId,
           null,
@@ -241,24 +243,30 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
           "[Updates] Update fetched, isNew: true, updateId:",
           newUpdateId,
         );
+        // KILL-SWITCH: refuse to apply known-bad updates
+        if (isKnownBadUpdate(newUpdateId)) {
+          console.error(
+            `[Updates] Update ${newUpdateId} is blacklisted (known-bad) — skipping apply`,
+          );
+          useOtaUpdateStore.getState().setUpdatePending(false);
+          return;
+        }
         showUpdateToast(newUpdateId);
       } else {
         console.log(
           "[Updates] Fetch complete, isNew:",
           !!(result && result.isNew),
         );
-        setStatus((prev) => ({ ...prev, isDownloading: false }));
+        useOtaUpdateStore.getState().setDownloading(false);
       }
     } catch (error) {
       console.error("[Updates] Download failed (non-fatal):", error);
-      setStatus((prev) => ({
-        ...prev,
-        isDownloading: false,
-        error:
-          error instanceof Error ? error.message : "Failed to download update",
-      }));
+      useOtaUpdateStore.getState().setDownloading(false);
+      useOtaUpdateStore.getState().setCheckError(
+        error instanceof Error ? error.message : "Failed to download update",
+      );
     } finally {
-      globalIsChecking = false;
+      globalIsDownloading = false;
     }
   }, []);
 
@@ -295,7 +303,8 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       runtimeVersion,
     );
 
-    setStatus((prev) => ({ ...prev, isChecking: true, error: null }));
+    useOtaUpdateStore.getState().setChecking(true);
+    useOtaUpdateStore.getState().setCheckError(null);
 
     try {
       const update = await safeGet(
@@ -329,29 +338,24 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
       }
 
       if (update && update.isAvailable) {
-        setStatus((prev) => ({
-          ...prev,
-          isChecking: false,
-          isUpdateAvailable: true,
-        }));
+        useOtaUpdateStore.getState().setChecking(false);
+        useOtaUpdateStore.getState().setUpdateAvailable(true);
+        // Reset globalIsChecking BEFORE calling downloadAndApplyUpdate — otherwise
+        // downloadAndApplyUpdate sees globalIsChecking=true and immediately bails.
+        globalIsChecking = false;
         downloadAndApplyUpdate();
       } else {
-        setStatus((prev) => ({
-          ...prev,
-          isChecking: false,
-          isUpdateAvailable: false,
-        }));
+        useOtaUpdateStore.getState().setChecking(false);
+        useOtaUpdateStore.getState().setUpdateAvailable(false);
       }
     } catch (error) {
       console.warn("[Updates] Check failed (non-fatal):", error);
-      setStatus((prev) => ({
-        ...prev,
-        isChecking: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Failed to check for updates",
-      }));
+      useOtaUpdateStore.getState().setChecking(false);
+      useOtaUpdateStore.getState().setCheckError(
+        error instanceof Error
+          ? error.message
+          : "Failed to check for updates",
+      );
     } finally {
       globalIsChecking = false;
     }
@@ -462,10 +466,7 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
                 isUpdateAvailable === true
               ) {
                 console.log("[Updates] Update available event received");
-                setStatus((prev) => ({
-                  ...prev,
-                  isUpdateAvailable: true,
-                }));
+                useOtaUpdateStore.getState().setUpdateAvailable(true);
                 downloadAndApplyUpdate();
               }
             } catch (eventError) {
@@ -516,9 +517,14 @@ export function useUpdates(options: UseUpdatesOptions = {}) {
   }, null);
 
   return {
-    ...status,
+    isChecking: store.isChecking,
+    isDownloading: store.isDownloading,
+    isUpdateAvailable: store.isUpdateAvailable,
+    isUpdatePending: store.isUpdatePending,
+    error: store.checkError,
     checkForUpdates,
     downloadAndApplyUpdate,
     currentlyRunning,
+    reloadApp,
   };
 }

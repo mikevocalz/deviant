@@ -36,6 +36,12 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const APP_SCHEME = "dvnt";
 
+if (!STRIPE_SECRET_KEY) {
+  console.error(
+    "[ticket-checkout] FATAL: STRIPE_SECRET_KEY env var is not set. Configure via: npx supabase secrets set STRIPE_SECRET_KEY=sk_...",
+  );
+}
+
 async function stripeRequest(
   endpoint: string,
   body: Record<string, string>,
@@ -67,6 +73,21 @@ Deno.serve(async (req: Request) => {
 
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  if (!STRIPE_SECRET_KEY) {
+    return new Response(
+      JSON.stringify({
+        error: "Stripe is not configured for this environment. Contact support.",
+      }),
+      {
+        status: 503,
+        headers: {
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*",
+        },
+      },
+    );
   }
 
   try {
@@ -462,14 +483,14 @@ Deno.serve(async (req: Request) => {
       payment_intent_id: session.id,
     });
 
-    // ── Increment promo usage ──
-    if (promoResult) {
-      await incrementPromoUsage(supabase, promoResult.promo_code_id);
-    }
+    // NOTE: Promo usage is intentionally NOT incremented here.
+    // Incrementing at checkout creation would inflate counts for sessions that are never paid.
+    // stripe-webhook increments usage inside checkout.session.completed after payment is confirmed.
 
     // ── Create order row in payment_pending state (fee components stored) ──
     await supabase.from("orders").insert({
-      user_id,
+      user_id: isGuest ? null : user_id,
+      guest_email: isGuest ? trimmedGuestEmail : null,
       type: "event_ticket",
       status: "payment_pending",
       quantity,

@@ -42,8 +42,8 @@ if (Platform.OS !== "web") {
         // (should not occur from server, but guards against stale token edge cases)
         if (notificationType === "message") {
           try {
-            const { getCurrentUserIdInt } = require("@/lib/api/auth-helper");
-            const myIntId = getCurrentUserIdInt();
+            const { getCurrentUserIdSync } = require("@/lib/api/auth-helper");
+            const myIntId = getCurrentUserIdSync();
             const senderId = notification.request.content.data?.senderId;
             if (myIntId && senderId && String(senderId) === String(myIntId)) {
               return {
@@ -192,10 +192,10 @@ export async function savePushTokenToBackend(
   try {
     // Import supabase client dynamically to avoid circular dependencies
     const { supabase } = await import("@/lib/supabase/client");
-    const { getCurrentUserIdInt } = await import("@/lib/api/auth-helper");
+    const { getCurrentUserIdSync } = await import("@/lib/api/auth-helper");
 
     // push_tokens.user_id is INTEGER referencing users(id)
-    const intId = getCurrentUserIdInt();
+    const intId = getCurrentUserIdSync();
     if (!intId) {
       console.error(
         "[Notifications] No authenticated user (no integer userId)",

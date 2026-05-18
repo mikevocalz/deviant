@@ -23,6 +23,7 @@ import { shareProfile } from "@/lib/utils/sharing";
 import { Motion } from "@legendapp/motion";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ProfileActionSheet } from "@/components/profile-action-sheet";
+import { useReportSheetStore } from "@/lib/stores/report-sheet-store";
 import { Skeleton } from "@/components/ui/skeleton";
 
 import { useCallback, memo, useState, useMemo, useEffect, useRef } from "react";
@@ -804,8 +805,19 @@ function UserProfileScreenComponent() {
           );
         }}
         onReport={() => {
-          router.push("/(protected)/settings" as any);
-          showToast("info", "Report", "You can report this user from Settings");
+          // App Store Guideline 1.2 — every UGC surface needs a working
+          // report path. Opens the global ReportSheet via the shared store.
+          const reportId =
+            (user as any).authId || (user.id != null ? String(user.id) : "");
+          if (!reportId) {
+            showToast("error", "Report", "Couldn't load this user — try again.");
+            return;
+          }
+          useReportSheetStore.getState().openReportSheet({
+            entityType: "profile",
+            entityId: reportId,
+            label: `@${user.username}`,
+          });
         }}
         onBlock={() => {
           // Short, single-line confirmation — the user chose this

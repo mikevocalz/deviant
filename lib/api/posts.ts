@@ -1,7 +1,7 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import type { Post } from "@/lib/types";
-import { getCurrentUserId, getCurrentUserIdInt } from "./auth-helper";
+import { getCurrentUserId, getCurrentUserIdSync } from "./auth-helper";
 import { hasAuthenticatedUser, requireBetterAuthToken } from "../auth/identity";
 import { likesApi } from "./likes";
 import {
@@ -148,7 +148,7 @@ async function hydrateTextPostSlides<T extends Record<string, any>>(
  * DB schema is intentionally narrow (type: "image" | "video"); special kinds
  * are distinguished via mimeType or livePhotoVideoUrl.
  */
-function deriveMediaKind(
+export function deriveMediaKind(
   rawType: string | undefined,
   mimeType: string | undefined,
   livePhotoVideoUrl: string | undefined,

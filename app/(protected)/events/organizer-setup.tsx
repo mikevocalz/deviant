@@ -11,7 +11,6 @@ import {
   Text,
   Pressable,
   ActivityIndicator,
-  Platform,
 } from "react-native";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { useState, useCallback, useEffect } from "react";
@@ -59,50 +58,52 @@ function OrganizerSetupContent() {
     checkStatus();
   }, [checkStatus]);
 
+  const isFullyConnected =
+    status.connected && status.charges_enabled && status.payouts_enabled;
+
+  // Restricted = connected + details submitted but charges/payouts disabled.
+  // These accounts need account_onboarding to complete verification (account_update
+  // is only valid for fully-onboarded accounts — Stripe rejects it otherwise).
+  const isRestricted =
+    status.connected &&
+    status.details_submitted &&
+    (!status.charges_enabled || !status.payouts_enabled);
+
+  const openStripeUrl = useCallback(
+    async (url: string) => {
+      // openAuthSessionAsync monitors for the dvnt:// redirect that the
+      // edge function issues after Stripe completes, and closes the browser
+      // automatically. This avoids the raw-HTML display caused by Supabase's
+      // edge runtime forcing Content-Type: text/plain on GET responses.
+      await WebBrowser.openAuthSessionAsync(url, "dvnt://stripe/connect");
+      await checkStatus();
+    },
+    [checkStatus],
+  );
+
   const handleStartOnboarding = useCallback(async () => {
     setIsOnboarding(true);
     try {
-      console.log("[OrganizerSetup] Starting onboarding flow...");
-      const result = await organizerApi.startOnboarding();
+      // Restricted accounts need account_update link, not account_onboarding
+      const result = isRestricted
+        ? await organizerApi.resumeVerification()
+        : await organizerApi.startOnboarding();
 
       if (result.error) {
         showToast("error", "Error", result.error);
         return;
       }
-
       if (!result.url) {
-        showToast(
-          "error",
-          "Error",
-          "No onboarding URL returned. Please try again.",
-        );
+        showToast("error", "Error", "No URL returned. Please try again.");
         return;
       }
-
-      console.log(
-        "[OrganizerSetup] Opening URL:",
-        result.url.substring(0, 50) + "...",
-      );
-      await WebBrowser.openBrowserAsync(result.url, {
-        presentationStyle:
-          Platform.OS === "ios"
-            ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
-            : undefined,
-      });
-
-      // Re-check status after browser closes
-      console.log("[OrganizerSetup] Browser closed, re-checking status...");
-      await checkStatus();
+      await openStripeUrl(result.url);
     } catch (err: any) {
-      console.error("[OrganizerSetup] Unexpected error:", err);
-      showToast("error", "Error", err.message || "Failed to start onboarding");
+      showToast("error", "Error", err.message || "Failed to open Stripe");
     } finally {
       setIsOnboarding(false);
     }
-  }, [checkStatus, showToast]);
-
-  const isFullyConnected =
-    status.connected && status.charges_enabled && status.payouts_enabled;
+  }, [checkStatus, showToast, isRestricted, openStripeUrl]);
 
   return (
     <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
@@ -192,9 +193,11 @@ function OrganizerSetupContent() {
                   <>
                     <ExternalLink size={18} color="#000" />
                     <Text className="text-base font-sans-bold text-primary-foreground">
-                      {status.connected
-                        ? "Continue Setup"
-                        : "Connect with Stripe"}
+                      {isRestricted
+                        ? "Update Verification"
+                        : status.connected
+                          ? "Continue Setup"
+                          : "Connect with Stripe"}
                     </Text>
                   </>
                 )}

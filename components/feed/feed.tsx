@@ -49,13 +49,14 @@ import {
   fireLikesTap,
 } from "@/src/features/likes/LikesSheetController";
 import { PostActionSheet } from "@/components/post-action-sheet";
+import { useReportSheetStore } from "@/lib/stores/report-sheet-store";
 import { ShareToInboxSheet } from "@/components/share-to-inbox-sheet";
 import { resolveTextPostPresentation } from "@/lib/posts/text-post";
 import { useRouter } from "expo-router";
 import { Alert } from "react-native";
 import { useDeletePost } from "@/lib/hooks/use-posts";
 import { sharePost } from "@/lib/utils/sharing";
-import { useCreateStory, useStories } from "@/lib/hooks/use-stories";
+import { useCreateStory } from "@/lib/hooks/use-stories";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useFocusEffect } from "expo-router";
 import type { PublicGateReason } from "@/lib/access/public-gates";
@@ -281,11 +282,9 @@ export function Feed({
     enabled: bootstrapFeed.shouldEnableFeedQuery,
   });
 
-  const {
-    data: stories = [],
-    isFetched: storiesFetched,
-    isError: storiesErrored,
-  } = useStories();
+  // Stories live at the HomeScreen level — they do NOT gate the feed.
+  // Any stale stories state refreshes via queryClient.invalidateQueries
+  // on pull-to-refresh below (storyKeys.list()).
 
   // CRITICAL: Get queryClient and viewerId for seeding likeState cache
   const queryClient = useQueryClient();
@@ -660,18 +659,12 @@ export function Feed({
     setActionSheetPostId(null);
   }, [actionPost, createStoryMutation, showToast, setActionSheetPostId]);
 
-  // Simple loading state - show skeleton during initial load OR when no data yet
-  const storiesReady = guestMode || storiesFetched || storiesErrored;
-  const eventsReady = eventsFetched || eventsErrored;
+  // Show the feed skeleton only while the feed itself is loading. Stories
+  // and events live in their own lanes (StoriesBar at the HomeScreen level,
+  // events fetched on the events tab) — gating the whole feed on them was
+  // why the home tab felt like it was loading forever after cold start.
   const feedResolved = !isLoading;
-  const criticalImagesReady =
-    allPosts.length === 0 ? true : firstPageImagesPrefetched;
-  const isActuallyLoading =
-    !feedResolved ||
-    !nsfwLoaded ||
-    !storiesReady ||
-    !eventsReady ||
-    !criticalImagesReady;
+  const isActuallyLoading = !feedResolved || !nsfwLoaded;
 
   if (__DEV__) {
     useEffect(() => {
@@ -749,6 +742,18 @@ export function Feed({
           onDelete={handleActionDelete}
           onShareToStory={handleActionShareToStory}
           onShare={handleActionShare}
+          onReport={() => {
+            // App Store Guideline 1.2 — surfaces the global ReportSheet
+            // when a non-owner taps Report Post in the action sheet.
+            if (!actionSheetPostId) return;
+            useReportSheetStore.getState().openReportSheet({
+              entityType: "post",
+              entityId: String(actionSheetPostId),
+              label: actionPost?.author?.username
+                ? `@${actionPost.author.username}`
+                : undefined,
+            });
+          }}
         />
       )}
 

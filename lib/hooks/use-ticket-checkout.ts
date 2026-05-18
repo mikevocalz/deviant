@@ -6,13 +6,17 @@
  *
  * Falls back to Stripe Checkout (browser redirect) if PaymentSheet
  * initialization fails for any reason.
+ *
+ * STATE: isLoading lives in usePaymentsStore.checkoutLoading (no useState).
  */
 
-import { useState, useCallback } from "react";
+import { useCallback } from "react";
+import { initStripe } from "@stripe/stripe-react-native";
 import { useStripeSafe as useStripe } from "@/lib/safe-native-modules";
 import { supabase } from "@/lib/supabase/client";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { requireBetterAuthToken } from "@/lib/auth/identity";
+import { usePaymentsStore } from "@/lib/stores/payments-store";
 
 interface CheckoutParams {
   eventId: string;
@@ -33,12 +37,13 @@ interface CheckoutResult {
 export function useTicketCheckout() {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const showToast = useUIStore((s) => s.showToast);
-  const [isLoading, setIsLoading] = useState(false);
+  const setCheckoutLoading = usePaymentsStore((s) => s.setCheckoutLoading);
+  const checkoutLoading = usePaymentsStore((s) => s.checkoutLoading);
 
   const checkout = useCallback(
     async (params: CheckoutParams): Promise<CheckoutResult> => {
       const { eventId, ticketTypeId, quantity, promoCode } = params;
-      setIsLoading(true);
+      setCheckoutLoading(true);
 
       try {
         // Get Better Auth token for session verification
@@ -86,6 +91,31 @@ export function useTicketCheckout() {
           throw new Error("Missing PaymentSheet parameters from server");
         }
 
+        // Re-initialize Stripe with the publishable key returned by the
+        // server. The bundle-time EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY can
+        // be stale (e.g. an OTA published before the EAS env was set), so
+        // we always trust the server's response which reads from the
+        // edge-function secret store at request time.
+        //
+        // NOTE: we deliberately do NOT pass merchantIdentifier here.
+        // The Apple Pay processing certificate for merchant.com.dvnt.app
+        // is not yet registered with Stripe, and an unregistered merchant
+        // ID makes presentPaymentSheet bail out with STPGenericConnection
+        // Error ('There was an unexpected error -- try again in a few
+        // seconds'). Disabling Apple Pay surfaces clears the error so
+        // card-entry works. Re-enable once the Apple Pay processing
+        // certificate is generated + uploaded to Stripe.
+        if (publishableKey) {
+          try {
+            await initStripe({ publishableKey });
+          } catch (e) {
+            console.warn(
+              "[useTicketCheckout] initStripe re-init failed (continuing):",
+              e,
+            );
+          }
+        }
+
         const { error: initError } = await initPaymentSheet({
           merchantDisplayName: "DVNT",
           customerId: customer,
@@ -127,9 +157,22 @@ export function useTicketCheckout() {
           if (presentError.code === "Canceled") {
             return { success: false, error: "Payment cancelled" };
           }
+          // Split log into individual key=value lines so iOS syslog can't
+          // truncate the message (each console.error is its own line).
+          console.error("[useTicketCheckout] presentPaymentSheet failed");
+          console.error("  code:", presentError.code);
+          console.error("  message:", presentError.message);
           console.error(
-            "[useTicketCheckout] presentPaymentSheet error:",
-            presentError,
+            "  localizedMessage:",
+            (presentError as any).localizedMessage,
+          );
+          console.error(
+            "  declineCode:",
+            (presentError as any).declineCode,
+          );
+          console.error(
+            "  stripeErrorCode:",
+            (presentError as any).stripeErrorCode,
           );
           throw new Error(presentError.message || "Payment failed");
         }
@@ -143,11 +186,11 @@ export function useTicketCheckout() {
         console.error("[useTicketCheckout] Error:", err);
         return { success: false, error: err.message || "Checkout failed" };
       } finally {
-        setIsLoading(false);
+        setCheckoutLoading(false);
       }
     },
-    [initPaymentSheet, presentPaymentSheet],
+    [initPaymentSheet, presentPaymentSheet, setCheckoutLoading],
   );
 
-  return { checkout, isLoading };
+  return { checkout, isLoading: checkoutLoading };
 }

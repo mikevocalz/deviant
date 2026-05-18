@@ -1,12 +1,14 @@
 /**
  * Media Image Component
  *
- * Uses expo-image with loading placeholder for post/story/event media.
- * Dark theme, consistent styling with loading indicators.
+ * expo-image wrapper for post/story/event media. Image-first: snaps
+ * in from memory-disk cache, no fade transition, no loading spinner
+ * overlay. Shows a muted-bg fallback (with optional ImageOff icon)
+ * only when URI is missing or onError fires.
  */
 
 import { Image } from "expo-image";
-import { View, ActivityIndicator, Pressable } from "react-native";
+import { View, Pressable } from "react-native";
 import { useState } from "react";
 import { ImageOff } from "lucide-react-native";
 
@@ -21,8 +23,6 @@ interface MediaImageProps {
   showErrorPlaceholder?: boolean;
 }
 
-const blurhash = "L6PZfSi_.AyE_3t7t7R**0o#DgR4";
-
 export function MediaImage({
   uri,
   width,
@@ -33,7 +33,6 @@ export function MediaImage({
   onPress,
   showErrorPlaceholder = true,
 }: MediaImageProps) {
-  const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
   const showFallback = !uri || hasError;
@@ -65,31 +64,11 @@ export function MediaImage({
         source={{ uri: uri! }}
         style={{ width: "100%", height: "100%" }}
         contentFit={contentFit}
-        placeholder={{ blurhash }}
-        transition={200}
-        onLoadStart={() => setIsLoading(true)}
-        onLoadEnd={() => setIsLoading(false)}
-        onError={() => {
-          setHasError(true);
-          setIsLoading(false);
-        }}
+        transition={0}
+        cachePolicy="memory-disk"
+        recyclingKey={uri ?? undefined}
+        onError={() => setHasError(true)}
       />
-      {isLoading && (
-        <View
-          style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            alignItems: "center",
-            justifyContent: "center",
-            backgroundColor: "rgba(0,0,0,0.3)",
-          }}
-        >
-          <ActivityIndicator size="large" color="#fff" />
-        </View>
-      )}
     </View>
   );
 

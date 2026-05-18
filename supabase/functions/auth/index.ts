@@ -9,6 +9,8 @@
  *   BETTER_AUTH_SECRET    — Secret for signing sessions/tokens
  *   RESEND_API_KEY        — Resend API token (re_...)
  *   RESEND_FROM_EMAIL     — Verified sender (e.g. DVNT <noreply@dvnt.app>)
+ *   APPLE_CLIENT_ID       — Apple Services ID (e.g. com.dvnt.app)
+ *   APPLE_CLIENT_SECRET   — Apple JWT client secret
  */
 
 // ─── Env ────────────────────────────────────────────────────────────────────
@@ -21,6 +23,8 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY") || "";
 const AUTH_BASE_URL = SUPABASE_URL; // Just the origin — no path component!
 const APP_NAME = "DVNT";
+const APPLE_CLIENT_ID = Deno.env.get("APPLE_CLIENT_ID") || "";
+const APPLE_CLIENT_SECRET = Deno.env.get("APPLE_CLIENT_SECRET") || "";
 
 // Better Auth generates email URLs as SUPABASE_URL + basePath (e.g. /api/auth/reset-password/TOKEN).
 // But that path doesn't route through the edge function gateway (/functions/v1/auth/...).
@@ -116,9 +120,9 @@ async function getAuth() {
     console.log("[Auth] Initializing Better Auth...");
 
     // Import Better Auth + plugins
-    const { betterAuth } = await import("npm:better-auth@1.2.7");
-    const { expo } = await import("npm:@better-auth/expo@1.2.7");
-    const { username } = await import("npm:better-auth@1.2.7/plugins");
+    const { betterAuth } = await import("npm:better-auth@1.5.5");
+    const { expo } = await import("npm:@better-auth/expo@1.5.5");
+    const { username } = await import("npm:better-auth@1.5.5/plugins");
     // Import npm:pg — Deno supports Node built-ins (node:net, node:tls) needed by pg
     const pgModule = await import("npm:pg@8.13.1");
     const Pool = pgModule.Pool || pgModule.default?.Pool || pgModule.default;
@@ -159,6 +163,20 @@ async function getAuth() {
         AUTH_BASE_URL,
       ],
       plugins: [expo(), username()],
+      socialProviders:
+        APPLE_CLIENT_ID && APPLE_CLIENT_SECRET
+          ? {
+              apple: {
+                clientId: APPLE_CLIENT_ID,
+                clientSecret: APPLE_CLIENT_SECRET,
+                // Native iOS Sign in with Apple sends an identityToken whose
+                // `aud` claim is the iOS app's bundle identifier, not the
+                // web Services ID. Better Auth needs both audiences to be
+                // accepted so signIn.social({ idToken }) works from native.
+                appBundleIdentifier: "com.dvnt.app",
+              },
+            }
+          : undefined,
       emailAndPassword: {
         enabled: true,
         minPasswordLength: 8,

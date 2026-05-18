@@ -9,6 +9,7 @@ import {
 import { View, Text, Pressable, Animated, Easing } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
+  Flag,
   Hand,
   Heart,
   LogOut,
@@ -25,10 +26,7 @@ import {
   DVNTLiquidGlass,
   DVNTLiquidGlassIconButton,
 } from "@/components/media/DVNTLiquidGlass";
-import Reanimated, {
-  FadeInRight,
-  FadeOutRight,
-} from "react-native-reanimated";
+import Reanimated, { FadeInRight, FadeOutRight } from "react-native-reanimated";
 import type { RoomReaction } from "../hooks/useRoomReactions";
 
 const REACTION_EMOJIS = ["😂", "😢", "😊", "😈", "🥵", "💝"];
@@ -55,6 +53,7 @@ interface ControlsBarProps {
   onShare?: () => void;
   onSwitchCamera?: () => void;
   onSendReaction?: (emoji: string) => void;
+  onReport?: () => void;
 }
 
 function FloatingReaction({
@@ -299,10 +298,13 @@ export function ControlsBar({
   onShare,
   onSwitchCamera,
   onSendReaction,
+  onReport,
 }: ControlsBarProps) {
   const insets = useSafeAreaInsets();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const dockVisibility = useRef(new Animated.Value(overlayOpen ? 0 : 1)).current;
+  const dockVisibility = useRef(
+    new Animated.Value(overlayOpen ? 0 : 1),
+  ).current;
 
   useEffect(() => {
     if (overlayOpen) {
@@ -321,8 +323,7 @@ export function ControlsBar({
     inputRange: [0, 1],
     outputRange: [28, 0],
   });
-  const canRaiseHand =
-    localRole === "participant" || localRole === "listener";
+  const canRaiseHand = localRole === "participant" || localRole === "listener";
 
   const quickActions = useMemo(
     () =>
@@ -544,6 +545,18 @@ export function ControlsBar({
             icon={<MessageCircle size={21} color="#F8FAFC" />}
             showLabel={false}
           />
+
+          {onReport && (
+            <ControlButton
+              label="Report"
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                onReport();
+              }}
+              icon={<Flag size={21} color="rgba(255,255,255,0.72)" />}
+              showLabel={false}
+            />
+          )}
 
           <ControlButton
             label="Leave room"

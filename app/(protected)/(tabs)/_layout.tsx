@@ -71,8 +71,7 @@ export default function TabsLayout() {
         <NativeTabs.Trigger
           name="create"
           listeners={{
-            tabPress: (e: any) => {
-              e.preventDefault();
+            tabPress: () => {
               router.push("/(protected)/(tabs)/create");
             },
           }}

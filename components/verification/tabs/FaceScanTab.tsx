@@ -348,7 +348,7 @@ export default function FaceScanTab() {
       >
         <Camera
           ref={camRef}
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
           device={device}
           isActive
           outputs={[photoOutput]}

@@ -9,7 +9,7 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { eventsApi as eventsApiClient } from "@/lib/api/events";
-import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { getCurrentUserIdSync } from "@/lib/api/auth-helper";
 import { STALE_TIMES } from "@/lib/perf/stale-time-config";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { activityKeys } from "@/lib/hooks/use-activities-query";
@@ -35,6 +35,8 @@ export interface EventFilters {
   cityName?: string | null;
   cityLat?: number | null;
   cityLng?: number | null;
+  /** null = all, true = nsfw only, false = hide nsfw */
+  nsfw?: boolean | null;
 }
 
 // Event type for components
@@ -68,6 +70,7 @@ export interface Event {
   locationName?: string;
   locationAddress?: string;
   isPromoted?: boolean;
+  flyerVideoUrl?: string;
 }
 
 // Query keys
@@ -151,6 +154,7 @@ export function useEvents(filters?: EventFilters) {
         search: filters?.search,
         sort: filters?.sort,
         cityId: filters?.cityId,
+        nsfw: filters?.nsfw,
       });
 
       let filtered = results;
@@ -392,7 +396,7 @@ export function useDeleteEvent() {
 
 // Fetch events liked/saved by the current user
 export function useLikedEvents() {
-  const userId = getCurrentUserIdInt();
+  const userId = getCurrentUserIdSync();
   return useQuery({
     queryKey: eventKeys.liked(userId || 0),
     queryFn: () => eventsApiClient.getLikedEvents(userId!),
@@ -489,6 +493,7 @@ export function useToggleEventLike() {
       return { previousData, previousLikedActivity };
     },
     onError: (_err, _variables, context) => {
+      console.error("[useToggleEventLike] Like failed:", _err);
       // Rollback all event caches
       if (context?.previousData) {
         context.previousData.forEach(([queryKey, data]) => {
@@ -519,7 +524,7 @@ export function useToggleEventLike() {
       );
 
       // Refresh liked events list and event detail
-      const uid = getCurrentUserIdInt();
+      const uid = getCurrentUserIdSync();
       if (uid) {
         queryClient.invalidateQueries({ queryKey: eventKeys.liked(uid) });
       }

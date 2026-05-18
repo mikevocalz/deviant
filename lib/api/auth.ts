@@ -82,62 +82,13 @@ export const auth = {
     username: string,
     name?: string,
   ) {
-    console.log("[Supabase Auth] Signing up:", email, username);
-
-    // Check if username exists
-    const { data: existingUser } = await supabase
-      .from(DB.users.table)
-      .select(DB.users.username)
-      .eq(DB.users.username, username)
-      .single();
-
-    if (existingUser) {
-      throw new Error("Username already taken");
-    }
-
-    // Create auth user
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
-          name: name || username,
-        },
-      },
-    });
-
-    if (error) {
-      console.error("[Supabase Auth] Sign up error:", error);
-      throw error;
-    }
-
-    if (!data.user) {
-      throw new Error("Failed to create user");
-    }
-
-    // Create user profile in users table
-    const { error: profileError } = await supabase.from(DB.users.table).insert({
-      id: parseInt(data.user.id), // Assuming integer ID
-      [DB.users.email]: email,
-      [DB.users.username]: username,
-      [DB.users.firstName]: name || username,
-      [DB.users.followersCount]: 0,
-      [DB.users.followingCount]: 0,
-      [DB.users.postsCount]: 0,
-    });
-
-    if (profileError) {
-      console.error("[Supabase Auth] Profile creation error:", profileError);
-      // Try to clean up auth user if profile creation fails
-      await supabase.auth.admin.deleteUser(data.user.id);
-      throw profileError;
-    }
-
-    console.log("[Supabase Auth] Sign up successful, user ID:", data.user.id);
-    const profile = await this.getProfile(data.user.id);
-
-    return { user: data.user, session: data.session, profile };
+    void email;
+    void password;
+    void username;
+    void name;
+    throw new Error(
+      "Legacy Supabase signup is disabled. Use Better Auth signup and auth-sync.",
+    );
   },
 
   /**

@@ -84,6 +84,32 @@ export const organizerApi = {
   },
 
   /**
+   * Resume verification for a restricted Stripe account.
+   * Returns an account_update link — use this for accounts that are connected
+   * but have currently_due requirements (charges or payouts disabled).
+   */
+  async resumeVerification(): Promise<OnboardingResult> {
+    try {
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke(
+        "organizer-connect",
+        {
+          body: { action: "update" },
+          headers: { "x-auth-token": token },
+        },
+      );
+      if (error) return { error: error.message };
+      if (data?.error) return { error: data.error };
+      if (data?.url && !isValidHttpsUrl(data.url)) {
+        return { error: "Received invalid verification URL from server" };
+      }
+      return { url: data?.url, account_id: data?.account_id };
+    } catch (err: any) {
+      return { error: err.message || "Failed to get verification link" };
+    }
+  },
+
+  /**
    * Get current organizer account status
    */
   async getStatus(): Promise<OrganizerStatus> {

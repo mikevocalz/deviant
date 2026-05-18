@@ -30,7 +30,17 @@ type ErrorCode =
 interface ApiResponse<T = unknown> {
   ok: boolean;
   data?: T;
-  error?: { code: ErrorCode; message: string };
+  error?: {
+    code: ErrorCode;
+    message: string;
+    /**
+     * Structured detail payload — populated for error reasons where
+     * the client renders a rich surface (e.g. capacity). Never contains
+     * secrets; safe to display directly. Consumers should treat
+     * unknown keys as forward-compatible additions.
+     */
+    detail?: Record<string, unknown>;
+  };
 }
 
 function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
@@ -40,8 +50,15 @@ function jsonResponse<T>(data: ApiResponse<T>, status = 200): Response {
   });
 }
 
-function errorResponse(code: ErrorCode, message: string): Response {
-  return jsonResponse({ ok: false, error: { code, message } }, 200);
+function errorResponse(
+  code: ErrorCode,
+  message: string,
+  detail?: Record<string, unknown>,
+): Response {
+  return jsonResponse(
+    { ok: false, error: { code, message, ...(detail ? { detail } : {}) } },
+    200,
+  );
 }
 
 function generateJti(): string {
@@ -181,7 +198,18 @@ Deno.serve(async (req) => {
     );
 
     if (participantCount >= room.max_participants) {
-      return errorResponse("conflict", "Room is full");
+      // Include structured capacity data so the client can render a
+      // rich "room is full" surface with the real counts + host context
+      // rather than a bare message. Client treats this as the source
+      // of truth for the capacity flow.
+      return errorResponse("conflict", "Room is full", {
+        reason: "room_full",
+        current: participantCount,
+        max: room.max_participants,
+        // Was the user requesting this join the host? Lets the client
+        // show an upgrade CTA for hosts vs a wait-notify UX for viewers.
+        isHost: session.userId === room.host_id,
+      });
     }
 
     // Check existing membership
@@ -332,6 +360,51 @@ Deno.serve(async (req) => {
     const jti = generateJti();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
+    // Fetch the joiner's profile BEFORE peer creation so we can pass
+    // metadata (username, displayName, avatar, role, userId) to Fishjam.
+    // Without this metadata, other peers see empty strings for this
+    // joiner's name and fall back to "Guest" — which is what users
+    // reported for hosts in particular. Fetched once here, reused at
+    // the bottom of the function for the userPayload response.
+    let joinerProfile: {
+      username?: string | null;
+      displayName?: string | null;
+      avatar?: string | null;
+    } = {};
+    if (!(anonymous && anonLabel)) {
+      const { data: profile } = await supabase
+        .from("users")
+        .select("username, avatar:avatar_id(url)")
+        .eq("auth_id", userId)
+        .single();
+      joinerProfile = {
+        username: profile?.username ?? null,
+        displayName: profile?.username ?? null,
+        avatar: profile?.avatar?.url ?? null,
+      };
+    }
+
+    const peerMetadata =
+      anonymous && anonLabel
+        ? {
+            userId,
+            username: anonLabel,
+            displayName: anonLabel,
+            avatar: null,
+            role: memberRole,
+            isAnonymous: true,
+            anonLabel,
+          }
+        : {
+            userId,
+            username: joinerProfile.username,
+            displayName: joinerProfile.displayName,
+            avatar: joinerProfile.avatar,
+            role: memberRole,
+            isAnonymous: false,
+            anonLabel: null,
+          };
+
     const createFishjamPeer = (targetRoomId: string) =>
       fetch(`${fishjamBaseUrl}/room/${targetRoomId}/peer`, {
         method: "POST",
@@ -339,7 +412,9 @@ Deno.serve(async (req) => {
           Authorization: `Bearer ${fishjamApiKey}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ type: "webrtc" }),
+        // Passing `metadata` here makes the peer's username + role
+        // visible to every other peer in the room via peer.metadata.
+        body: JSON.stringify({ type: "webrtc", metadata: peerMetadata }),
       });
 
     let addPeerRes = await createFishjamPeer(fishjamRoomId);
@@ -414,7 +489,10 @@ Deno.serve(async (req) => {
       payload: { role: memberRole, peerId: peer.id },
     });
 
-    // Get user profile for display (skip if anonymous)
+    // Build user payload for the response. For the anon case we use the
+    // anon label; otherwise reuse the profile we already fetched before
+    // peer creation (we pass it as Fishjam metadata so remote peers
+    // resolve a real username instead of falling back to "Guest").
     let userPayload: Record<string, any>;
     if (anonymous && anonLabel) {
       userPayload = {
@@ -426,16 +504,11 @@ Deno.serve(async (req) => {
         anonLabel,
       };
     } else {
-      const { data: profile } = await supabase
-        .from("users")
-        .select("username, avatar:avatar_id(url)")
-        .eq("auth_id", userId)
-        .single();
       userPayload = {
         id: userId,
-        username: profile?.username,
-        displayName: profile?.username,
-        avatar: profile?.avatar?.url,
+        username: joinerProfile.username,
+        displayName: joinerProfile.displayName,
+        avatar: joinerProfile.avatar,
         isAnonymous: false,
         anonLabel: null,
       };

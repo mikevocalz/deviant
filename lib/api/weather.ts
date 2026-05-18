@@ -65,7 +65,7 @@ export async function getWeatherForecast(
   const url =
     `https://api.open-meteo.com/v1/forecast` +
     `?latitude=${lat.toFixed(4)}&longitude=${lng.toFixed(4)}` +
-    `&daily=weathercode,temperature_2m_max,temperature_2m_min,` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,` +
     `precipitation_probability_max,windspeed_10m_max,winddirection_10m_dominant` +
     `&temperature_unit=fahrenheit` +
     `&windspeed_unit=mph` +
@@ -79,14 +79,17 @@ export async function getWeatherForecast(
   const d = data.daily;
   if (!d?.time?.length) throw new Error("No forecast data");
 
+  // Support both the current field name (weather_code) and the legacy alias (weathercode)
+  const weatherCodes: number[] = d.weather_code ?? d.weathercode ?? [];
+
   return d.time.map((date: string, i: number) => {
-    const code: number = d.weathercode[i] ?? 1;
+    const code: number = weatherCodes[i] ?? 1;
     const label = wmoToLabel(code);
-    const tempHigh = Math.round(d.temperature_2m_max[i] ?? 70);
-    const tempLow = Math.round(d.temperature_2m_min[i] ?? 55);
-    const precip = d.precipitation_probability_max[i] ?? null;
-    const windSpd = Math.round(d.windspeed_10m_max[i] ?? 0);
-    const windDir = compassDirection(d.winddirection_10m_dominant[i] ?? 0);
+    const tempHigh = Math.round((d.temperature_2m_max ?? [])[i] ?? 70);
+    const tempLow = Math.round((d.temperature_2m_min ?? [])[i] ?? 55);
+    const precip = (d.precipitation_probability_max ?? [])[i] ?? null;
+    const windSpd = Math.round((d.windspeed_10m_max ?? [])[i] ?? 0);
+    const windDir = compassDirection((d.winddirection_10m_dominant ?? [])[i] ?? 0);
 
     return {
       number: i + 1,

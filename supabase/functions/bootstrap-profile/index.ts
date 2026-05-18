@@ -76,6 +76,27 @@ Deno.serve(async (req: Request) => {
     const viewerUserId = await resolveUserId(viewer_id);
     const isOwnProfile = !viewerUserId || viewerUserId === profileUserId;
 
+    // ── NSFW follow gate ──────────────────────────────────────────
+    // Viewer may only see spicy posts from a profile if they follow that
+    // profile's owner (or they ARE the owner). Force safe mode otherwise.
+    let effectiveIncludeNsfw = include_nsfw;
+    if (effectiveIncludeNsfw && !isOwnProfile) {
+      if (!viewerUserId) {
+        // Guest — never allow spicy
+        effectiveIncludeNsfw = false;
+      } else {
+        const { data: followRow } = await supabase
+          .from("follows")
+          .select("id")
+          .eq("follower_id", viewerUserId)
+          .eq("following_id", profileUserId)
+          .maybeSingle();
+        if (!followRow) {
+          effectiveIncludeNsfw = false;
+        }
+      }
+    }
+
     // ── Fire ALL queries in parallel ──────────────────────────────
 
     let profilePostsQuery = supabase
@@ -90,7 +111,7 @@ Deno.serve(async (req: Request) => {
       .eq("visibility", "public");
 
     // Strict spicy contract (mirror feed filter):
-    if (include_nsfw) {
+    if (effectiveIncludeNsfw) {
       profilePostsQuery = profilePostsQuery.eq("is_nsfw", true);
     } else {
       profilePostsQuery = profilePostsQuery.or(

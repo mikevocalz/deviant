@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useMemo } from "react";
+import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import {
   View,
   Text,
@@ -62,9 +63,13 @@ import {
   type LocationData,
 } from "@/components/ui/location-autocomplete-v3";
 import { useCreateEvent } from "@/lib/hooks/use-events";
+import { eventsApi } from "@/lib/api/events";
+import { organizerApi } from "@/lib/api/organizer";
 import {
   ticketTypesApi,
   type CreateTicketTypeParams,
+  TICKET_TYPE_CATEGORIES,
+  type TicketTypeCategory,
 } from "@/lib/api/ticket-types";
 import { YouTubeEmbed, extractVideoId } from "@/components/youtube-embed";
 import { usersApi } from "@/lib/api/users";
@@ -111,6 +116,7 @@ export const EVENT_TYPE_LABELS: Record<string, string> = {
 interface TicketTier {
   id: string;
   name: string;
+  category: TicketTypeCategory;
   priceCents: number;
   quantity: number;
   maxPerUser: number;
@@ -156,95 +162,115 @@ function CreateEventScreenContent() {
     cancelUpload: cancelMediaUpload,
   } = useMediaUpload({ folder: "events" });
 
-  // All form state from Zustand (MMKV-persisted draft)
-  const store = useCreateEventStore();
-  const {
-    title,
-    setTitle,
-    description,
-    setDescription,
-    location,
-    setLocation,
-    locationData,
-    setLocationData,
-    eventImages,
-    setEventImages,
-    tags,
-    toggleTag,
-    customTag,
-    setCustomTag,
-    addCustomTag,
-    eventDate: eventDateISO,
-    setEventDate: setEventDateISO,
-    endDate: endDateISO,
-    setEndDate: setEndDateISO,
-    ticketPrice,
-    setTicketPrice,
-    maxAttendees,
-    setMaxAttendees,
-    youtubeUrl,
-    setYoutubeUrl,
-    isSubmitting,
-    setIsSubmitting,
-    uploadProgress,
-    setUploadProgress,
-    ticketingEnabled,
-    setTicketingEnabled,
-    ticketTierName,
-    setTicketTierName,
-    showDatePicker,
-    setShowDatePicker,
-    showTimePicker,
-    setShowTimePicker,
-    showEndDatePicker,
-    setShowEndDatePicker,
-    showEndTimePicker,
-    setShowEndTimePicker,
-    visibility,
-    setVisibility,
-    ageRestriction,
-    setAgeRestriction,
-    isOnline,
-    setIsOnline,
-    dressCode,
-    setDressCode,
-    doorPolicy,
-    setDoorPolicy,
-    lineup,
-    setLineup,
-    lineupInput,
-    setLineupInput,
-    perks,
-    setPerks,
-    perksInput,
-    setPerksInput,
-    ticketTiers,
-    setTicketTiers,
-    addLineupItem,
-    addPerk,
-    coOrganizers,
-    addCoOrganizer,
-    removeCoOrganizer,
-    coOrganizerSearch,
-    setCoOrganizerSearch,
-    coOrganizerResults,
-    setCoOrganizerResults,
-    removeLineupItem,
-    removePerk,
-    currentStep,
-    setCurrentStep,
-    nextStep,
-    prevStep,
-    canProceed,
-    totalSteps,
-    resetDraft,
-    eventType,
-    setEventType,
-    disclaimers,
-    setDisclaimers,
-    agreementAccepted,
-    setAgreementAccepted,
-  } = store;
+  // All form state lives in Zustand (MMKV-persisted draft). Each field is
+  // selected INDIVIDUALLY — the previous whole-store destructure subscribed
+  // this 2000-line component to every field, so every keystroke in every
+  // input re-rendered the whole tree. That's why date/time pickers felt
+  // laggy, the scroll stuttered, and quantity inputs could drop characters
+  // (Zustand setters are stable so action selectors are free).
+  const title = useCreateEventStore((s) => s.title);
+  const setTitle = useCreateEventStore((s) => s.setTitle);
+  const description = useCreateEventStore((s) => s.description);
+  const setDescription = useCreateEventStore((s) => s.setDescription);
+  const location = useCreateEventStore((s) => s.location);
+  const setLocation = useCreateEventStore((s) => s.setLocation);
+  const locationData = useCreateEventStore((s) => s.locationData);
+  const setLocationData = useCreateEventStore((s) => s.setLocationData);
+  const eventImages = useCreateEventStore((s) => s.eventImages);
+  const setEventImages = useCreateEventStore((s) => s.setEventImages);
+  const tags = useCreateEventStore((s) => s.tags);
+  const toggleTag = useCreateEventStore((s) => s.toggleTag);
+  const customTag = useCreateEventStore((s) => s.customTag);
+  const setCustomTag = useCreateEventStore((s) => s.setCustomTag);
+  const addCustomTag = useCreateEventStore((s) => s.addCustomTag);
+  const eventDateISO = useCreateEventStore((s) => s.eventDate);
+  const setEventDateISO = useCreateEventStore((s) => s.setEventDate);
+  const endDateISO = useCreateEventStore((s) => s.endDate);
+  const setEndDateISO = useCreateEventStore((s) => s.setEndDate);
+  const ticketPrice = useCreateEventStore((s) => s.ticketPrice);
+  const setTicketPrice = useCreateEventStore((s) => s.setTicketPrice);
+  const maxAttendees = useCreateEventStore((s) => s.maxAttendees);
+  const setMaxAttendees = useCreateEventStore((s) => s.setMaxAttendees);
+  const youtubeUrl = useCreateEventStore((s) => s.youtubeUrl);
+  const setYoutubeUrl = useCreateEventStore((s) => s.setYoutubeUrl);
+  const isSubmitting = useCreateEventStore((s) => s.isSubmitting);
+  const setIsSubmitting = useCreateEventStore((s) => s.setIsSubmitting);
+  const uploadProgress = useCreateEventStore((s) => s.uploadProgress);
+  const setUploadProgress = useCreateEventStore((s) => s.setUploadProgress);
+  const ticketingEnabled = useCreateEventStore((s) => s.ticketingEnabled);
+  const setTicketingEnabled = useCreateEventStore((s) => s.setTicketingEnabled);
+  const ticketTierName = useCreateEventStore((s) => s.ticketTierName);
+  const setTicketTierName = useCreateEventStore((s) => s.setTicketTierName);
+  const simpleMaxPerUser = useCreateEventStore((s) => s.simpleMaxPerUser);
+  const setSimpleMaxPerUser = useCreateEventStore((s) => s.setSimpleMaxPerUser);
+  const showDatePicker = useCreateEventStore((s) => s.showDatePicker);
+  const setShowDatePicker = useCreateEventStore((s) => s.setShowDatePicker);
+  const showTimePicker = useCreateEventStore((s) => s.showTimePicker);
+  const setShowTimePicker = useCreateEventStore((s) => s.setShowTimePicker);
+  const showEndDatePicker = useCreateEventStore((s) => s.showEndDatePicker);
+  const setShowEndDatePicker = useCreateEventStore(
+    (s) => s.setShowEndDatePicker,
+  );
+  const showEndTimePicker = useCreateEventStore((s) => s.showEndTimePicker);
+  const setShowEndTimePicker = useCreateEventStore(
+    (s) => s.setShowEndTimePicker,
+  );
+  const visibility = useCreateEventStore((s) => s.visibility);
+  const setVisibility = useCreateEventStore((s) => s.setVisibility);
+  const ageRestriction = useCreateEventStore((s) => s.ageRestriction);
+  const setAgeRestriction = useCreateEventStore((s) => s.setAgeRestriction);
+  const isNsfw = useCreateEventStore((s) => s.isNsfw);
+  const setIsNsfw = useCreateEventStore((s) => s.setIsNsfw);
+  const isOnline = useCreateEventStore((s) => s.isOnline);
+  const setIsOnline = useCreateEventStore((s) => s.setIsOnline);
+  const dressCode = useCreateEventStore((s) => s.dressCode);
+  const setDressCode = useCreateEventStore((s) => s.setDressCode);
+  const doorPolicy = useCreateEventStore((s) => s.doorPolicy);
+  const setDoorPolicy = useCreateEventStore((s) => s.setDoorPolicy);
+  const lineup = useCreateEventStore((s) => s.lineup);
+  const setLineup = useCreateEventStore((s) => s.setLineup);
+  const lineupInput = useCreateEventStore((s) => s.lineupInput);
+  const setLineupInput = useCreateEventStore((s) => s.setLineupInput);
+  const perks = useCreateEventStore((s) => s.perks);
+  const setPerks = useCreateEventStore((s) => s.setPerks);
+  const perksInput = useCreateEventStore((s) => s.perksInput);
+  const setPerksInput = useCreateEventStore((s) => s.setPerksInput);
+  const ticketTiers = useCreateEventStore((s) => s.ticketTiers);
+  const setTicketTiers = useCreateEventStore((s) => s.setTicketTiers);
+  const addLineupItem = useCreateEventStore((s) => s.addLineupItem);
+  const addPerk = useCreateEventStore((s) => s.addPerk);
+  const coOrganizers = useCreateEventStore((s) => s.coOrganizers);
+  const addCoOrganizer = useCreateEventStore((s) => s.addCoOrganizer);
+  const removeCoOrganizer = useCreateEventStore((s) => s.removeCoOrganizer);
+  const coOrganizerSearch = useCreateEventStore((s) => s.coOrganizerSearch);
+  const setCoOrganizerSearch = useCreateEventStore(
+    (s) => s.setCoOrganizerSearch,
+  );
+  const coOrganizerResults = useCreateEventStore((s) => s.coOrganizerResults);
+  const setCoOrganizerResults = useCreateEventStore(
+    (s) => s.setCoOrganizerResults,
+  );
+  const removeLineupItem = useCreateEventStore((s) => s.removeLineupItem);
+  const removePerk = useCreateEventStore((s) => s.removePerk);
+  const currentStep = useCreateEventStore((s) => s.currentStep);
+  const setCurrentStep = useCreateEventStore((s) => s.setCurrentStep);
+  const nextStep = useCreateEventStore((s) => s.nextStep);
+  const prevStep = useCreateEventStore((s) => s.prevStep);
+  const canProceed = useCreateEventStore((s) => s.canProceed);
+  const totalSteps = useCreateEventStore((s) => s.totalSteps);
+  const resetDraft = useCreateEventStore((s) => s.resetDraft);
+  const eventType = useCreateEventStore((s) => s.eventType);
+  const setEventType = useCreateEventStore((s) => s.setEventType);
+  const disclaimers = useCreateEventStore((s) => s.disclaimers);
+  const setDisclaimers = useCreateEventStore((s) => s.setDisclaimers);
+  const agreementAccepted = useCreateEventStore((s) => s.agreementAccepted);
+  const setAgreementAccepted = useCreateEventStore(
+    (s) => s.setAgreementAccepted,
+  );
+  const flyerImage = useCreateEventStore((s) => s.flyerImage);
+  const setFlyerImage = useCreateEventStore((s) => s.setFlyerImage);
+  const flyerMediaType = useCreateEventStore((s) => s.flyerMediaType);
+  const setFlyerMediaType = useCreateEventStore((s) => s.setFlyerMediaType);
 
   // Convert ISO strings to Date objects for pickers
   const eventDate = useMemo(() => new Date(eventDateISO), [eventDateISO]);
@@ -291,6 +317,7 @@ function CreateEventScreenContent() {
           setCoOrganizerResults(
             docs.map((u: any) => ({
               id: u.id,
+              authId: u.authId,
               username: u.username,
               avatar: u.avatar,
               name: u.name,
@@ -322,7 +349,10 @@ function CreateEventScreenContent() {
         );
         setEventImages((prev) => [...prev, ...persistedUris].slice(0, 4));
       } catch (error) {
-        console.error("[CreateEvent] Failed to persist selected images:", error);
+        console.error(
+          "[CreateEvent] Failed to persist selected images:",
+          error,
+        );
         showToast(
           "error",
           "Media Error",
@@ -391,6 +421,48 @@ function CreateEventScreenContent() {
       return;
     }
 
+    // ── MANDATORY STRIPE CONNECT CHECK ───────────────────────────────
+    // If the organizer is enabling paid ticketing and has any tier
+    // priced > 0, they MUST have completed Stripe Connect onboarding
+    // (charges_enabled + payouts_enabled) before the event can go
+    // live. Previously buyers tapped "Get Tickets" and saw a generic
+    // "Organizer has not completed payment setup" error — by then the
+    // damage (embarrassment + lost sale) was done. We block at
+    // publish time and route the host to the onboarding screen.
+    const hasPaidTier =
+      ticketingEnabled &&
+      (ticketTiers.some((t) => t.priceCents > 0) ||
+        (ticketTiers.length === 0 &&
+          !!ticketPrice &&
+          parseFloat(ticketPrice) > 0));
+
+    if (hasPaidTier) {
+      try {
+        const status = await organizerApi.getStatus();
+        const ready =
+          status.connected &&
+          status.charges_enabled === true &&
+          status.payouts_enabled === true;
+        if (!ready) {
+          showToast(
+            "error",
+            "Connect your bank first",
+            "Paid events need a Stripe payout account so you can actually get paid. Let's finish that now.",
+          );
+          router.push("/(protected)/events/organizer-setup" as any);
+          return;
+        }
+      } catch (err) {
+        console.error("[CreateEvent] Stripe status check failed:", err);
+        showToast(
+          "error",
+          "Couldn't verify payout setup",
+          "We couldn't confirm your Stripe account status. Please try again.",
+        );
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setUploadProgress(0);
 
@@ -415,7 +487,9 @@ function CreateEventScreenContent() {
           }),
         );
 
-        const normalizedImageUris = normalizedImageEntries.map((entry) => entry.uri);
+        const normalizedImageUris = normalizedImageEntries.map(
+          (entry) => entry.uri,
+        );
         setEventImages(normalizedImageUris);
 
         const localMediaFiles = normalizedImageEntries
@@ -425,9 +499,14 @@ function CreateEventScreenContent() {
             type: "image" as const,
           }));
 
-        console.log("[CreateEvent] Uploading media files:", localMediaFiles.length);
+        console.log(
+          "[CreateEvent] Uploading media files:",
+          localMediaFiles.length,
+        );
         const uploadResults =
-          localMediaFiles.length > 0 ? await uploadMultiple(localMediaFiles) : [];
+          localMediaFiles.length > 0
+            ? await uploadMultiple(localMediaFiles)
+            : [];
         const failedUploads = uploadResults.filter((r) => !r.success);
 
         if (failedUploads.length > 0) {
@@ -466,25 +545,28 @@ function CreateEventScreenContent() {
         );
       }
 
-      // Upload flyer image if provided
+      // Upload flyer (image or video) if provided
       let flyerImageUrl = "";
-      if (store.flyerImage) {
-        console.log("[CreateEvent] Uploading flyer image");
+      if (flyerImage) {
+        console.log("[CreateEvent] Uploading flyer", flyerMediaType);
         const normalizedFlyerUri = await persistLocalMediaSelection(
-          store.flyerImage,
+          flyerImage,
           {
             scope: "event-drafts/flyers",
           },
         );
-        if (normalizedFlyerUri !== store.flyerImage) {
-          store.setFlyerImage(normalizedFlyerUri);
+        if (normalizedFlyerUri !== flyerImage) {
+          setFlyerImage(normalizedFlyerUri);
         }
 
         if (isRemoteMediaUri(normalizedFlyerUri)) {
           flyerImageUrl = normalizedFlyerUri;
         } else {
           const flyerResults = await uploadMultiple([
-            { uri: normalizedFlyerUri, type: "image" as const },
+            {
+              uri: normalizedFlyerUri,
+              type: flyerMediaType as "image" | "video",
+            },
           ]);
           if (flyerResults[0]?.success) {
             flyerImageUrl = flyerResults[0].url;
@@ -522,6 +604,7 @@ function CreateEventScreenContent() {
         doorPolicy: doorPolicy.trim() || undefined,
         lineup: lineup.length > 0 ? lineup : undefined,
         perks: perks.length > 0 ? perks : undefined,
+        nsfw: isNsfw || undefined,
       };
 
       console.log("[CreateEvent] Creating event with data:", eventData);
@@ -538,6 +621,7 @@ function CreateEventScreenContent() {
                 await ticketTypesApi.create({
                   eventId: String(data.id),
                   name: tier.name,
+                  category: tier.category || "admission",
                   description: tier.description || undefined,
                   priceCents: tier.priceCents,
                   quantityTotal: tier.quantity,
@@ -565,10 +649,34 @@ function CreateEventScreenContent() {
                 name: tierName,
                 priceCents,
                 quantityTotal: qty,
-                maxPerUser: 4,
+                maxPerUser: simpleMaxPerUser || 4,
               });
               console.log("[CreateEvent] Default ticket type created");
             }
+          }
+
+          // Invite co-organizers (best-effort, non-blocking)
+          if (coOrganizers.length > 0 && data?.id) {
+            for (const org of coOrganizers) {
+              try {
+                await eventsApi.addCoOrganizer(
+                  String(data.id),
+                  org.authId || org.id,
+                  "editor",
+                );
+              } catch (coOrgErr) {
+                console.error(
+                  "[CreateEvent] Failed to invite co-organizer:",
+                  org.username,
+                  coOrgErr,
+                );
+              }
+            }
+            console.log(
+              "[CreateEvent] Invited",
+              coOrganizers.length,
+              "co-organizer(s)",
+            );
           }
 
           setUploadProgress(100);
@@ -1059,6 +1167,36 @@ function CreateEventScreenContent() {
                 />
               </View>
 
+              {/* Spicy / NSFW toggle */}
+              <View className="flex-row items-center justify-between bg-card rounded-2xl p-4 mb-3">
+                <View className="flex-row items-center gap-3 flex-1 mr-3">
+                  <View
+                    className="w-10 h-10 rounded-xl items-center justify-center"
+                    style={{
+                      backgroundColor: isNsfw
+                        ? "rgba(153,27,27,0.25)"
+                        : "rgba(255,255,255,0.06)",
+                    }}
+                  >
+                    <Text style={{ fontSize: 20 }}>😈</Text>
+                  </View>
+                  <View>
+                    <Text className="text-sm font-semibold text-foreground">
+                      Spicy / 18+ Content
+                    </Text>
+                    <Text className="text-xs text-muted-foreground">
+                      Marks event for mature audiences only
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={isNsfw}
+                  onValueChange={setIsNsfw}
+                  trackColor={{ false: "#333", true: "#991b1b" }}
+                  thumbColor="#fff"
+                />
+              </View>
+
               {/* Visibility */}
               <View className="bg-card rounded-2xl p-4 mb-3">
                 <View className="flex-row items-center gap-3 mb-3">
@@ -1105,6 +1243,62 @@ function CreateEventScreenContent() {
                       </Pressable>
                     );
                   })}
+                </View>
+
+                {/* Explainer — what the selected option actually does,
+                    so the host doesn't have to guess Public vs Link Only
+                    vs Private. Copy is intentionally plainspoken. */}
+                <View
+                  className="mt-3 p-3 rounded-xl"
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.04)",
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.06)",
+                  }}
+                >
+                  <Text
+                    className="text-[12px] leading-[17px]"
+                    style={{ color: colors.mutedForeground }}
+                  >
+                    {visibility === "public" && (
+                      <>
+                        <Text
+                          className="font-bold"
+                          style={{ color: colors.foreground }}
+                        >
+                          Public ·{" "}
+                        </Text>
+                        Appears in the Home feed, For You, and Search. Anyone
+                        can see and buy a ticket. Best for events you want to
+                        fill.
+                      </>
+                    )}
+                    {visibility === "link_only" && (
+                      <>
+                        <Text
+                          className="font-bold"
+                          style={{ color: colors.foreground }}
+                        >
+                          Link Only ·{" "}
+                        </Text>
+                        Hidden from the public feed and Search. Anyone with the
+                        share link can see and buy. Best for soft-launch events
+                        you promote on Instagram, group chats, or email.
+                      </>
+                    )}
+                    {visibility === "private" && (
+                      <>
+                        <Text
+                          className="font-bold"
+                          style={{ color: colors.foreground }}
+                        >
+                          Private ·{" "}
+                        </Text>
+                        Hidden from the public feed and from people without the
+                        link. Intended for invite-only guest lists.
+                      </>
+                    )}
+                  </Text>
                 </View>
               </View>
 
@@ -1256,7 +1450,7 @@ function CreateEventScreenContent() {
               </View>
             </View>
 
-            {/* Flyer Image (Optional) — 3:5 aspect ratio for Spotlight */}
+            {/* Flyer (Optional) — image or video, 3:5 aspect ratio */}
             <View className="mb-6">
               <View className="flex-row justify-between items-center mb-3">
                 <View>
@@ -1264,30 +1458,44 @@ function CreateEventScreenContent() {
                     Flyer (Optional)
                   </Text>
                   <Text className="text-xs text-muted-foreground mt-0.5">
-                    3:5 portrait for Spotlight carousel
+                    Photo or video · 3:5 portrait · up to 60 sec
                   </Text>
                 </View>
               </View>
 
-              {store.flyerImage ? (
+              {flyerImage ? (
                 <View
                   className="relative rounded-2xl overflow-hidden self-start"
                   style={{ width: "60%", aspectRatio: 3 / 5 }}
                 >
-                  <Image
-                    source={{ uri: store.flyerImage }}
-                    style={{ width: "100%", height: "100%" }}
-                    contentFit="cover"
-                  />
+                  {flyerMediaType === "video" ? (
+                    <DVNTAnimatedVideoView
+                      uri={flyerImage}
+                      width="100%"
+                      height="100%"
+                      contentFit="cover"
+                      isPlaying
+                      muted={false}
+                    />
+                  ) : (
+                    <Image
+                      source={{ uri: flyerImage }}
+                      style={{ width: "100%", height: "100%" }}
+                      contentFit="cover"
+                    />
+                  )}
                   <Pressable
-                    onPress={() => store.setFlyerImage(null)}
+                    onPress={() => {
+                      setFlyerImage(null);
+                      setFlyerMediaType("image");
+                    }}
                     className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/60 items-center justify-center"
                   >
                     <X size={16} color="#fff" />
                   </Pressable>
                   <View className="absolute bottom-2 left-2 bg-amber-500/90 px-2 py-1 rounded-lg">
                     <Text className="text-xs font-medium text-white">
-                      Flyer
+                      {flyerMediaType === "video" ? "Video Flyer" : "Flyer"}
                     </Text>
                   </View>
                 </View>
@@ -1298,23 +1506,30 @@ function CreateEventScreenContent() {
                     const result = await pickFromLibrary({
                       allowsMultipleSelection: false,
                       maxSelection: 1,
+                      mediaTypes: ["images", "videos"],
                     });
                     if (result && result.length > 0) {
                       try {
-                        const [persistedFlyerUri] = await persistEventDraftAssets(
-                          result,
-                          "event-drafts/flyers",
-                        );
-                        store.setFlyerImage(persistedFlyerUri);
+                        const picked = result[0];
+                        const isVideo =
+                          picked.mimeType?.startsWith("video/") ||
+                          picked.type === "video";
+                        const [persistedFlyerUri] =
+                          await persistEventDraftAssets(
+                            result,
+                            "event-drafts/flyers",
+                          );
+                        setFlyerImage(persistedFlyerUri);
+                        setFlyerMediaType(isVideo ? "video" : "image");
                       } catch (error) {
                         console.error(
-                          "[CreateEvent] Failed to persist flyer image:",
+                          "[CreateEvent] Failed to persist flyer:",
                           error,
                         );
                         showToast(
                           "error",
                           "Media Error",
-                          "Failed to add the flyer image. Please try again.",
+                          "Failed to add the flyer. Please try again.",
                         );
                       }
                     }
@@ -1327,10 +1542,10 @@ function CreateEventScreenContent() {
                       <Plus size={24} color={colors.mutedForeground} />
                     </View>
                     <Text className="text-xs text-muted-foreground font-medium text-center px-4">
-                      Add Flyer Image
+                      Add Flyer
                     </Text>
                     <Text className="text-[10px] text-muted-foreground/60 text-center px-4">
-                      Used for Spotlight promotions
+                      Photo or video ad
                     </Text>
                   </View>
                 </Pressable>
@@ -1573,6 +1788,7 @@ function CreateEventScreenContent() {
                           onPress={() =>
                             addCoOrganizer({
                               id: user.id,
+                              authId: user.authId,
                               username: user.username,
                               avatar: user.avatar,
                             })
@@ -1626,18 +1842,41 @@ function CreateEventScreenContent() {
 
               {ticketingEnabled && (
                 <>
-                  {/* Default single tier name (used if no multi-tiers added) */}
+                  {/* Default single tier name + max per person (used if no multi-tiers added) */}
                   {ticketTiers.length === 0 && (
-                    <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
-                      <Ticket size={18} color={colors.mutedForeground} />
-                      <TextInput
-                        className="flex-1 ml-3 py-4 text-base text-foreground"
-                        placeholder="Ticket tier name (e.g. General Admission)"
-                        placeholderTextColor={colors.mutedForeground}
-                        value={ticketTierName}
-                        onChangeText={setTicketTierName}
-                      />
-                    </View>
+                    <>
+                      <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
+                        <Ticket size={18} color={colors.mutedForeground} />
+                        <TextInput
+                          className="flex-1 ml-3 py-4 text-base text-foreground"
+                          placeholder="Ticket tier name (e.g. General Admission)"
+                          placeholderTextColor={colors.mutedForeground}
+                          value={ticketTierName}
+                          onChangeText={setTicketTierName}
+                        />
+                      </View>
+                      <View className="flex-row items-center bg-card rounded-2xl px-4 mb-3">
+                        <Users size={18} color={colors.mutedForeground} />
+                        <Text className="ml-3 text-base text-foreground flex-1">
+                          Max tickets per person
+                        </Text>
+                        <TextInput
+                          className="text-base text-foreground text-right w-16"
+                          placeholder="4"
+                          placeholderTextColor={colors.mutedForeground}
+                          value={
+                            simpleMaxPerUser > 0 ? String(simpleMaxPerUser) : ""
+                          }
+                          onChangeText={(v) =>
+                            setSimpleMaxPerUser(
+                              v ? Math.max(1, parseInt(v, 10) || 1) : 4,
+                            )
+                          }
+                          keyboardType="number-pad"
+                          maxLength={2}
+                        />
+                      </View>
+                    </>
                   )}
 
                   {/* Multi-tier ticket list */}
@@ -1691,6 +1930,70 @@ function CreateEventScreenContent() {
                       />
 
                       <View className="flex-row gap-2 mb-2">
+                        {TICKET_TYPE_CATEGORIES.map((option) => {
+                          const selected =
+                            (tier.category || "admission") === option.value;
+                          return (
+                            <Pressable
+                              key={option.value}
+                              onPress={() =>
+                                setTicketTiers((prev) =>
+                                  prev.map((t) =>
+                                    t.id === tier.id
+                                      ? { ...t, category: option.value }
+                                      : t,
+                                  ),
+                                )
+                              }
+                              className="flex-1 rounded-xl px-3 py-2 items-center"
+                              style={{
+                                backgroundColor: selected
+                                  ? colors.primary
+                                  : colors.muted,
+                              }}
+                            >
+                              <Text
+                                className="text-xs font-semibold"
+                                style={{
+                                  color: selected
+                                    ? colors.primaryForeground
+                                    : colors.mutedForeground,
+                                }}
+                                numberOfLines={1}
+                              >
+                                {option.label}
+                              </Text>
+                            </Pressable>
+                          );
+                        })}
+                      </View>
+
+                      {/* Field captions — without these the three compact
+                          inputs below (Price / Quantity / Max per order)
+                          all look identical and buyers/hosts couldn't
+                          tell what the "4" on Max/user meant. */}
+                      <View className="flex-row gap-2 mb-1 px-1">
+                        <Text
+                          className="flex-1 text-[11px] font-semibold text-muted-foreground"
+                          style={{ letterSpacing: 0.4 }}
+                        >
+                          PRICE
+                        </Text>
+                        <Text
+                          className="flex-1 text-[11px] font-semibold text-muted-foreground"
+                          style={{ letterSpacing: 0.4 }}
+                        >
+                          QUANTITY
+                        </Text>
+                        <Text
+                          className="flex-1 text-[11px] font-semibold text-muted-foreground"
+                          style={{ letterSpacing: 0.4 }}
+                        >
+                          MAX / ORDER
+                        </Text>
+                      </View>
+
+                      <View className="flex-row gap-2 mb-2">
                         <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
                           <DollarSign
                             size={14}
@@ -1698,7 +2001,7 @@ function CreateEventScreenContent() {
                           />
                           <TextInput
                             className="flex-1 ml-2 py-3 text-sm text-foreground"
-                            placeholder="Price"
+                            placeholder="0"
                             placeholderTextColor={colors.mutedForeground}
                             value={
                               tier.priceCents > 0
@@ -1720,13 +2023,17 @@ function CreateEventScreenContent() {
                               )
                             }
                             keyboardType="decimal-pad"
+                            autoCorrect={false}
+                            autoComplete="off"
+                            spellCheck={false}
+                            textContentType="none"
                           />
                         </View>
                         <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
                           <Users size={14} color={colors.mutedForeground} />
                           <TextInput
                             className="flex-1 ml-2 py-3 text-sm text-foreground"
-                            placeholder="Quantity"
+                            placeholder="100"
                             placeholderTextColor={colors.mutedForeground}
                             value={
                               tier.quantity > 0 ? tier.quantity.toString() : ""
@@ -1744,12 +2051,16 @@ function CreateEventScreenContent() {
                               )
                             }
                             keyboardType="number-pad"
+                            autoCorrect={false}
+                            autoComplete="off"
+                            spellCheck={false}
+                            textContentType="none"
                           />
                         </View>
                         <View className="flex-1 flex-row items-center bg-muted rounded-xl px-3">
                           <TextInput
                             className="flex-1 py-3 text-sm text-foreground"
-                            placeholder="Max/user"
+                            placeholder="0"
                             placeholderTextColor={colors.mutedForeground}
                             value={
                               tier.maxPerUser > 0
@@ -1762,13 +2073,17 @@ function CreateEventScreenContent() {
                                   t.id === tier.id
                                     ? {
                                         ...t,
-                                        maxPerUser: v ? parseInt(v, 10) : 4,
+                                        maxPerUser: v ? parseInt(v, 10) : 0,
                                       }
                                     : t,
                                 ),
                               )
                             }
                             keyboardType="number-pad"
+                            autoCorrect={false}
+                            autoComplete="off"
+                            spellCheck={false}
+                            textContentType="none"
                           />
                         </View>
                       </View>
@@ -1783,9 +2098,10 @@ function CreateEventScreenContent() {
                         {
                           id: `tier-${Date.now()}`,
                           name: "",
+                          category: "admission",
                           priceCents: 0,
                           quantity: 100,
-                          maxPerUser: 4,
+                          maxPerUser: 0,
                           description: "",
                           saleStart: "",
                           saleEnd: "",

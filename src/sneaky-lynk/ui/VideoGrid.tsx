@@ -18,7 +18,6 @@ import { RTCView } from "@fishjam-cloud/react-native-client";
 import { LinearGradient } from "expo-linear-gradient";
 import {
   BadgeCheck,
-  Mic,
   MicOff,
   VideoOff,
   Crown,
@@ -29,10 +28,12 @@ import {
 import { Avatar } from "@/components/ui/avatar";
 import { getSneakyUserLabel } from "./user-labels";
 import type { SneakyUser } from "../types";
+import { useSneakyLynkCaptureStore } from "@/lib/stores/sneaky-lynk-capture-store";
 import Animated, {
-  FadeIn,
-  FadeOut,
+  ZoomIn,
+  ZoomOut,
   LinearTransition,
+  Easing,
   useSharedValue,
   useAnimatedStyle,
   withRepeat,
@@ -108,7 +109,7 @@ const SpeakingBars = memo(function SpeakingBars() {
 
 // ── Single video tile ─────────────────────────────────────────────
 
-const VideoTile = memo(function VideoTile({
+export const VideoTile = memo(function VideoTile({
   participant,
   isSpeaking,
   tileWidth,
@@ -153,19 +154,72 @@ const VideoTile = memo(function VideoTile({
     glowAnim.value = withTiming(isSpeaking ? 1 : 0, { duration: 250 });
   }, [isSpeaking, glowAnim]);
 
-  const glowStyle = useAnimatedStyle(() => ({
-    borderColor: glowAnim.value > 0.5 ? "#3FDCFF" : "transparent",
-    borderWidth: glowAnim.value * 2.5,
-    shadowColor: glowAnim.value > 0.5 ? "#3FDCFF" : "#000",
-    shadowOpacity: 0.14 + glowAnim.value * 0.18,
-    shadowRadius: 12 + glowAnim.value * 6,
-    shadowOffset: { width: 0, height: 10 },
-  }));
+  // Red pulse for "this participant just captured the room". Scoped
+  // selector on pulseUserIds[userId] so tiles that aren't the
+  // offender never re-render when a capture event fires.
+  const isCapturing = useSneakyLynkCaptureStore(
+    (s) => user.id in s.pulseUserIds,
+  );
+  const capturePulse = useSharedValue(0);
+  useEffect(() => {
+    if (isCapturing) {
+      // Single theatrical pulse — fade in fast, hold briefly, ease out.
+      // 1.2s total to match the store's TILE_PULSE_MS window.
+      capturePulse.value = withTiming(1, {
+        duration: 160,
+        easing: Easing.out(Easing.cubic),
+      });
+      capturePulse.value = withTiming(0, {
+        duration: 900,
+        easing: Easing.in(Easing.cubic),
+      });
+    } else {
+      capturePulse.value = withTiming(0, { duration: 160 });
+    }
+  }, [isCapturing, capturePulse]);
+
+  const glowStyle = useAnimatedStyle(() => {
+    // Capture pulse takes precedence over speaking glow — a capture
+    // signal is more important to communicate than who's talking.
+    const showCapture = capturePulse.value > 0.05;
+    const showSpeaking = !showCapture && glowAnim.value > 0.5;
+    return {
+      borderColor: showCapture
+        ? "rgb(240,82,82)"
+        : showSpeaking
+          ? "#3FDCFF"
+          : "transparent",
+      borderWidth: showCapture
+        ? 2 + capturePulse.value * 2
+        : glowAnim.value * 2.5,
+      shadowColor: showCapture
+        ? "rgb(240,82,82)"
+        : showSpeaking
+          ? "#3FDCFF"
+          : "#000",
+      shadowOpacity:
+        0.14 +
+        (showCapture
+          ? capturePulse.value * 0.5
+          : glowAnim.value * 0.18),
+      shadowRadius:
+        12 +
+        (showCapture ? capturePulse.value * 10 : glowAnim.value * 6),
+      shadowOffset: { width: 0, height: 10 },
+    };
+  });
 
   return (
     <Animated.View
-      entering={FadeIn.duration(180)}
-      exiting={FadeOut.duration(160)}
+      // Join "arrival" — subtle scale-up (0.92→1) + fade on a spring
+      // curve. Reads as the participant walking into the room, not a
+      // hard pop. 320ms gives the spring room to settle before the
+      // grid re-layout finishes.
+      entering={ZoomIn.springify().damping(16).stiffness(180).duration(320)}
+      // Leave — decisive, slightly faster than enter (asymmetric).
+      // Scale-down (1→0.94) + fade with a cubic ease-in so the motion
+      // accelerates out of view rather than drifting off.
+      exiting={ZoomOut.duration(180).easing(Easing.in(Easing.cubic))}
       layout={LinearTransition.springify().damping(18).stiffness(180)}
       style={{ width: tileWidth, height: tileHeight }}
     >
@@ -217,6 +271,17 @@ const VideoTile = memo(function VideoTile({
             </LinearGradient>
           )}
 
+          {/* Top gloss — subtle highlight on the upper 20% of the tile.
+              This is the detail that separates a polished "device
+              screen" tile from a flat rectangle (Zoom + Meet both do
+              a version of this). Invisible at a glance, felt at
+              every glance. */}
+          <LinearGradient
+            colors={["rgba(255,255,255,0.04)", "rgba(255,255,255,0)"]}
+            style={styles.topGloss}
+            pointerEvents="none"
+          />
+
           <LinearGradient
             colors={[
               "rgba(0,0,0,0.02)",
@@ -224,6 +289,13 @@ const VideoTile = memo(function VideoTile({
               "rgba(0,0,0,0.82)",
             ]}
             style={styles.bottomGradient}
+          />
+
+          {/* Hairline inner stroke — 1px light-ink edge inset against
+              the tile's rounded corners. Gives depth without weight. */}
+          <View
+            pointerEvents="none"
+            style={styles.innerStroke}
           />
 
           <View style={styles.topBadgeRow}>
@@ -279,15 +351,20 @@ const VideoTile = memo(function VideoTile({
             </View>
           )}
 
-          <View style={styles.micBadge}>
-            {isSpeaking ? (
+          {/* Mic indicator — Zoom pattern: absence = on. Only render
+              the badge when there's something to communicate
+              (speaking bars or a muted indicator). Hiding the "mic is
+              on" affirmative icon keeps tiles clean and draws the
+              eye only to real state changes. */}
+          {isSpeaking ? (
+            <View style={styles.micBadge}>
               <SpeakingBars />
-            ) : isMicOn ? (
-              <Mic size={12} color="#fff" />
-            ) : (
+            </View>
+          ) : !isMicOn ? (
+            <View style={styles.micBadge}>
               <MicOff size={12} color="#F87171" />
-            )}
-          </View>
+            </View>
+          ) : null}
         </Pressable>
       </Animated.View>
     </Animated.View>
@@ -301,7 +378,7 @@ function getGridLayout(
   screenWidth: number,
   screenHeight: number,
 ) {
-  const availableHeight = screenHeight - 178;
+  const availableHeight = screenHeight - 130;
   const gap = 6;
 
   if (count === 1) {
@@ -482,6 +559,19 @@ const styles = StyleSheet.create({
     right: 0,
     height: 76,
   },
+  topGloss: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    height: "22%",
+  },
+  innerStroke: {
+    ...StyleSheet.absoluteFill,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.06)",
+  },
   topBadgeRow: {
     position: "absolute",
     top: 9,
@@ -538,14 +628,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 5,
     borderRadius: 10,
-    backgroundColor: "rgba(59,130,246,0.18)",
+    // DVNT primary cyan — matches the host + co-host language so all
+    // identity affordances in the room share one color grammar.
+    backgroundColor: "rgba(62,164,229,0.18)",
     borderWidth: 1,
-    borderColor: "rgba(125,211,252,0.24)",
+    borderColor: "rgba(62,164,229,0.42)",
   },
   selfBadgeText: {
-    color: "#E0F2FE",
+    color: "#fff",
     fontSize: 10,
     fontWeight: "700",
+    letterSpacing: 0.3,
   },
   hostIdentityPill: {
     flexDirection: "row",
@@ -555,9 +648,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 9,
     paddingVertical: 7,
     maxWidth: 150,
-    backgroundColor: "rgba(4,8,16,0.7)",
+    // DVNT primary cyan at 18% alpha — matches the brand and is NOT
+    // destructive red (the old color read as "error" instead of "host").
+    backgroundColor: "rgba(62,164,229,0.18)",
     borderWidth: 1,
-    borderColor: "rgba(252,37,58,0.24)",
+    borderColor: "rgba(62,164,229,0.42)",
   },
   namePill: {
     position: "absolute",
@@ -581,7 +676,10 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   hostBadge: {
-    backgroundColor: "#FC253A",
+    // Crown chip sitting inside the host identity pill.
+    // DVNT primary cyan — was destructive red (#FC253A). Red reads
+    // as "problem"; cyan reads as "live / primary role".
+    backgroundColor: "rgb(62,164,229)",
     width: 16,
     height: 16,
     borderRadius: 8,
@@ -589,7 +687,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   coHostBadge: {
-    backgroundColor: "#8A40CF",
+    // Hairline cyan outline for co-host — present but quieter than
+    // the solid host chip. Was solid purple (#8A40CF) which doesn't
+    // exist in DVNT's palette.
+    backgroundColor: "rgba(62,164,229,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(62,164,229,0.42)",
     paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 6,

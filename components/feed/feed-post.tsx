@@ -207,19 +207,26 @@ function FeedPostComponent({
   const tagProgress = useSharedValue(0);
 
   // Feed post UI store (replaces all useState)
-  const {
-    setPressedPost,
-    setLikeAnimating,
-    setVideoState,
-    getVideoState,
-    activePostId,
-    isMuted,
-    toggleMute,
-    setActionSheetPostId,
-    setShareSheetPostId,
-  } = useFeedPostUIStore();
+  // Selector-per-field: FeedPost renders once per post in the feed FlatList.
+  // The previous destructure subscribed each row to the entire store, so
+  // any post opening an action sheet would re-render every other post.
+  // Selectors scope re-renders to the exact field each row cares about.
+  const setPressedPost = useFeedPostUIStore((s) => s.setPressedPost);
+  const setLikeAnimating = useFeedPostUIStore((s) => s.setLikeAnimating);
+  const setVideoState = useFeedPostUIStore((s) => s.setVideoState);
+  const getVideoState = useFeedPostUIStore((s) => s.getVideoState);
+  // Derived boolean — each row only re-renders when its OWN activeness
+  // flips, not on every scroll event that changes the active post anywhere.
+  const isActivePost = useFeedPostUIStore((s) => s.activePostId === id);
+  const isMuted = useFeedPostUIStore((s) => s.isMuted);
+  const toggleMute = useFeedPostUIStore((s) => s.toggleMute);
+  const setActionSheetPostId = useFeedPostUIStore(
+    (s) => s.setActionSheetPostId,
+  );
+  const setShareSheetPostId = useFeedPostUIStore(
+    (s) => s.setShareSheetPostId,
+  );
 
-  const isActivePost = activePostId === id;
   const videoState = getVideoState(id);
   const videoCurrentTime = videoState.currentTime;
   const videoDuration = videoState.duration;
@@ -321,6 +328,12 @@ function FeedPostComponent({
       try {
         p.loop = false;
         p.muted = isMuted;
+        // Never preempt background audio from feed scrolling. Muted
+        // videos: always mixWithOthers. Unmuted (user tapped to
+        // hear it): duck other audio (lower their Spotify) rather
+        // than stopping it entirely — matches the user contract
+        // "audio should only stop when a story plays".
+        p.audioMixingMode = isMuted ? "mixWithOthers" : "duckOthers";
         logVideoHealth("FeedPost", "player configured", { id });
       } catch (error) {
         logVideoHealth("FeedPost", "config error", { error: String(error) });
@@ -328,10 +341,16 @@ function FeedPostComponent({
     }
   });
 
-  // Mute sync
+  // Mute sync — also re-assigns audioMixingMode so toggling the speaker
+  // in the feed switches between "don't touch background audio" (muted)
+  // and "duck it while video plays" (unmuted). Without this the mode
+  // stays whatever it was on first render.
   useEffect(() => {
     if (hasPlayableVideo && player) {
       safeMute(player, isMountedRef, isMuted, "FeedPost");
+      try {
+        player.audioMixingMode = isMuted ? "mixWithOthers" : "duckOthers";
+      } catch {}
     }
   }, [hasPlayableVideo, player, isMuted, isMountedRef]);
 
@@ -932,36 +951,41 @@ function FeedPostComponent({
                   </ScrollView>
                 </View>
               </>
-            ) : (
-              <Pressable
-                onPress={handlePostPress}
-                onPressIn={handlePressIn}
-                onPressOut={handlePressOut}
-                style={{ width: "100%", height: PORTRAIT_HEIGHT }}
-              >
-                {media[0]?.url &&
-                (media[0].url.startsWith("http://") ||
-                  media[0].url.startsWith("https://")) ? (
-                  <DVNTMediaRenderer
-                    item={media[0]}
-                    width="100%"
-                    height={PORTRAIT_HEIGHT}
-                    contentFit="cover"
-                    showBadge={false}
-                    isPlaying={isActivePost && isFocused}
-                  />
-                ) : (
-                  <View
-                    style={{ width: "100%", height: PORTRAIT_HEIGHT }}
-                    className="bg-muted items-center justify-center"
-                  >
-                    <Text className="text-muted-foreground text-xs">
-                      No image
-                    </Text>
-                  </View>
-                )}
-              </Pressable>
-            )}
+            ) : (() => {
+              const singleUrl = media[0]?.url;
+              const isValidSingleUrl =
+                singleUrl &&
+                (singleUrl.startsWith("http://") ||
+                  singleUrl.startsWith("https://"));
+              return (
+                <Pressable
+                  onPress={handlePostPress}
+                  onPressIn={handlePressIn}
+                  onPressOut={handlePressOut}
+                  style={{ width: "100%", height: PORTRAIT_HEIGHT }}
+                >
+                  {isValidSingleUrl ? (
+                    <DVNTMediaRenderer
+                      item={media[0]}
+                      width="100%"
+                      height={PORTRAIT_HEIGHT}
+                      contentFit="cover"
+                      showBadge={false}
+                      isPlaying={isActivePost && isFocused}
+                    />
+                  ) : (
+                    <View
+                      style={{ width: "100%", height: PORTRAIT_HEIGHT }}
+                      className="bg-muted items-center justify-center"
+                    >
+                      <Text className="text-muted-foreground text-xs">
+                        No image
+                      </Text>
+                    </View>
+                  )}
+                </Pressable>
+              );
+            })()}
 
             {/* ── Tag overlay ── */}
             {!isVideo && postTags.length > 0 && (

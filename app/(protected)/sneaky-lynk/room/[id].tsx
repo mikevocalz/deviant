@@ -1,5 +1,5 @@
 /**
- * Sneaky Lynk Room Screen
+ * Private Video Room
  * Live audio/video room with speakers, listeners, and controls
  * Uses Fishjam for real audio/video — no mock data
  *
@@ -29,6 +29,7 @@ import {
   Radio,
   Mic,
   MicOff,
+  Hand,
 } from "lucide-react-native";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { LinearGradient } from "expo-linear-gradient";
@@ -47,6 +48,7 @@ import { supabase } from "@/lib/supabase/client";
 import {
   VideoStage,
   VideoGrid,
+  RoomStage,
   ParticipantActions,
   SpeakerGrid,
   ListenerGrid,
@@ -56,10 +58,19 @@ import {
   ChatSheet,
   RoomTimer,
   RoomParticipantsSheet,
+  HandQueueSheet,
   RemoteAudioLayer,
 } from "@/src/sneaky-lynk/ui";
 import type { VideoParticipant } from "@/src/sneaky-lynk/ui";
 import type { SneakyRoom, SneakyUser } from "@/src/sneaky-lynk/types";
+import { RoomJoinErrorSheet } from "@/src/sneaky-lynk/ui/RoomJoinErrorSheet";
+import { RoomFullSheet } from "@/src/sneaky-lynk/ui/RoomFullSheet";
+import { CaptureNotificationBanner } from "@/src/sneaky-lynk/ui/CaptureNotificationBanner";
+import { useSneakyLynkCaptureBroadcast } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureBroadcast";
+import {
+  classifySneakyLynkError,
+  type ClassifiedError,
+} from "@/src/sneaky-lynk/errors";
 import {
   getSneakyUserLabel,
   normalizeSneakyAnonLabel,
@@ -69,6 +80,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useRoomStore } from "@/src/sneaky-lynk/stores/room-store";
 import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
+import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { audioSession } from "@/src/services/calls/audioSession";
 import { shareUrl } from "@/lib/deep-linking/share-link";
 import {
@@ -77,6 +89,10 @@ import {
 } from "@/components/media/DVNTLiquidGlass";
 import { useRoomReactions } from "@/src/sneaky-lynk/hooks/useRoomReactions";
 import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureProtection";
+import { SneakySubscriptionModal } from "@/src/sneaky-lynk/components/SneakySubscriptionModal";
+import { SneakyPaywallModal } from "@/src/sneaky-lynk/components/SneakyPaywallModal";
+import { isFeatureEnabled } from "@/lib/feature-flags";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 // ── Error Boundary (per-route) — surfaces real crash message ────────
 
@@ -244,7 +260,7 @@ function ClosedRoomScreen({
             className="text-foreground font-semibold text-center"
             numberOfLines={1}
           >
-            {roomTitle || "Sneaky Lynk"}
+            {roomTitle || getLynkDisplayName()}
           </Text>
         </View>
         <View className="w-6" />
@@ -310,11 +326,22 @@ function PreJoinScreen({
         </View>
 
         <Text className="text-2xl font-bold text-foreground text-center mb-2">
-          {roomTitle || "Sneaky Lynk"}
+          {roomTitle || getLynkDisplayName()}
         </Text>
         <Text className="text-muted-foreground text-center mb-10">
           Choose how you want to appear in this room
         </Text>
+
+        <View className="w-full rounded-2xl bg-secondary px-5 py-4 mb-4">
+          <Text className="text-foreground font-semibold mb-2">
+            Room Safety
+          </Text>
+          <Text className="text-xs text-muted-foreground leading-5">
+            By joining, you agree to DVNT community guidelines. Recording is
+            prohibited, screenshots may notify the room, and participants can
+            report unsafe behavior.
+          </Text>
+        </View>
 
         {/* Anonymous Toggle */}
         <View className="w-full bg-secondary rounded-2xl px-5 py-4 mb-8">
@@ -367,8 +394,11 @@ function PreJoinScreen({
 // ── Router entry point ──────────────────────────────────────────────
 
 function SneakyLynkRoomScreenContent() {
-  // Prevent screen capture for the entire room lifecycle
-  useSneakyLynkCaptureProtection();
+  // Capture protection is mounted INSIDE ServerRoom + LocalRoom, not
+  // here, so the local screenshot listener has access to roomId +
+  // localUser for room-wide broadcast. Ref counter inside the hook
+  // guarantees a single active listener even if both child variants
+  // ever mount simultaneously.
 
   const {
     id,
@@ -442,7 +472,7 @@ function SneakyLynkRoomScreenContent() {
   ) {
     return (
       <ClosedRoomScreen
-        roomTitle={roomLookup.room?.title || paramTitle || "Sneaky Lynk"}
+        roomTitle={roomLookup.room?.title || paramTitle || getLynkDisplayName()}
         message={
           roomLookup.room
             ? "This Lynk has ended and can't be reopened."
@@ -457,7 +487,7 @@ function SneakyLynkRoomScreenContent() {
   if (isServerRoom && !hasJoined) {
     return (
       <PreJoinScreen
-        roomTitle={roomLookup.room?.title || paramTitle || "Sneaky Lynk"}
+        roomTitle={roomLookup.room?.title || paramTitle || getLynkDisplayName()}
         onJoin={handleJoin}
         onBack={() => router.back()}
       />
@@ -547,6 +577,20 @@ function LocalRoom({
   const effectiveMuted = !localMicEnabled;
   const effectiveVideoOn = localVideoOn && hasCamPermission;
 
+  // LocalRoom is the self-hosted "practice" space (id starts with
+  // "space-" / "my-room"). No remote participants so no broadcast
+  // peers + no separate host to DM — the local user IS the host.
+  // Still wire the protection hook so screenshots get blocked +
+  // the "You took a screenshot" self-confirmation banner fires.
+  const captureBroadcast = useSneakyLynkCaptureBroadcast({
+    roomId: id,
+    localUserId: localUser.id,
+    localUsername: localUser.displayName || localUser.username,
+    attributable: !localUser.isAnonymous,
+    // hostUserId intentionally omitted — the local user IS the host.
+  });
+  useSneakyLynkCaptureProtection(captureBroadcast.notifyLocalScreenshot);
+
   // Reset store on mount, request permissions
   useEffect(() => {
     let cancelled = false;
@@ -620,7 +664,7 @@ function LocalRoom({
     }
   }, [effectiveMuted, localUser.id, setActiveSpeakerId]);
 
-  const roomTitle = paramTitle || "Sneaky Lynk";
+  const roomTitle = paramTitle || getLynkDisplayName();
 
   const handleLeave = useCallback(async () => {
     // Local rooms are always hosted by the creator — end in DB too
@@ -651,6 +695,31 @@ function LocalRoom({
     endRoom(id, storeListeners.length);
     router.back();
   }, [router, id, endRoom, reset, storeListeners.length, showToast]);
+
+  // Subscription check — determines if the host has a paid plan (timer hidden
+  // for paid hosts; free hosts see the time-up paywall instead of being kicked)
+  const [showTimesUpPaywall, setShowTimesUpPaywall] = useState(false);
+  const [isPaidHost, setIsPaidHost] = useState(false);
+  useEffect(() => {
+    if (!authUser?.id) return;
+    supabase
+      .from("sneaky_subscriptions")
+      .select("status, plan_id")
+      .eq("host_id", authUser.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setIsPaidHost(data?.status === "active" && data?.plan_id !== "free");
+      });
+  }, [authUser?.id]);
+
+  const handleTimeUp = useCallback(() => {
+    if (isPaidHost) {
+      // Shouldn't happen (hideTimer=true), but just in case
+      return;
+    }
+    setShowTimesUpPaywall(true);
+  }, [isPaidHost]);
+
   const handleShare = useCallback(async () => {
     const shareTargetUrl = buildLynkShareUrl(id, roomHasVideo);
     const shareResult = await shareUrl(shareTargetUrl, {
@@ -705,18 +774,11 @@ function LocalRoom({
   const handleSwitchCamera = useCallback(async () => {
     const devices = cameraRef.current.cameraDevices || [];
     const nextFacing = isFrontCamera ? "back" : "front";
-    const liveVideoTrack = cameraRef.current.cameraStream?.getVideoTracks?.()[0];
 
-    if (
-      liveVideoTrack &&
-      typeof (liveVideoTrack as any)._switchCamera === "function"
-    ) {
-      (liveVideoTrack as any)._switchCamera();
-      setIsFrontCamera((prev) => !prev);
-      return;
-    }
-
-    const wasCameraOn = localVideoOn && !!cameraRef.current.cameraStream;
+    // See the matching comment in src/video/hooks/useVideoRoom.ts —
+    // the track's `_switchCamera()` is deprecated AND buggy for us
+    // because Fishjam starts cameras by deviceId (facingMode left
+    // undefined). Always use `selectCamera(deviceId)` directly.
     const nextCamera = devices.find((device: any) => {
       const label = String(device?.label || "").toLowerCase();
       const deviceId = String(device?.deviceId || "").toLowerCase();
@@ -736,10 +798,7 @@ function LocalRoom({
         setIsFrontCamera((prev) => !prev);
         return;
       }
-      console.warn(
-        "[SneakyLynk:Local] selectCamera failed:",
-        error,
-      );
+      console.warn("[SneakyLynk:Local] selectCamera failed:", error);
     }
 
     showToast(
@@ -837,34 +896,44 @@ function LocalRoom({
   const participantCount = allParticipants.length;
 
   return (
-    <RoomLayout
-      insets={insets}
-      connectionState={storeConnectionState}
-      isHost={true}
-      roomTitle={roomTitle}
-      participantCount={participantCount}
-      allParticipants={allParticipants}
-      activeSpeakers={activeSpeakers}
-      effectiveMuted={effectiveMuted}
-      effectiveVideoOn={effectiveVideoOn}
-      isHandRaised={isHandRaised}
-      hasVideo={roomHasVideo}
-      isChatOpen={isChatOpen}
-      showEjectModal={showEjectModal}
-      ejectPayload={ejectPayload}
-      roomId={id}
-      localUser={localUser}
-      onLeave={handleLeave}
-      onToggleMic={handleToggleMic}
-      onToggleVideo={handleToggleVideo}
-      onSwitchCamera={handleSwitchCamera}
-      onToggleHand={handleToggleHand}
-      onChat={handleChat}
-      onCloseChat={handleCloseChat}
-      onEjectDismiss={handleEjectDismiss}
-      onShare={handleShare}
-      localRole="host"
-    />
+    <>
+      <RoomLayout
+        insets={insets}
+        connectionState={storeConnectionState}
+        isHost={true}
+        roomTitle={roomTitle}
+        participantCount={participantCount}
+        allParticipants={allParticipants}
+        hostUserId={localUser.id}
+        activeSpeakers={activeSpeakers}
+        effectiveMuted={effectiveMuted}
+        effectiveVideoOn={effectiveVideoOn}
+        isHandRaised={isHandRaised}
+        hasVideo={roomHasVideo}
+        isChatOpen={isChatOpen}
+        showEjectModal={showEjectModal}
+        ejectPayload={ejectPayload}
+        roomId={id}
+        localUser={localUser}
+        onLeave={handleLeave}
+        onToggleMic={handleToggleMic}
+        onToggleVideo={handleToggleVideo}
+        onSwitchCamera={handleSwitchCamera}
+        onToggleHand={handleToggleHand}
+        onChat={handleChat}
+        onCloseChat={handleCloseChat}
+        onEjectDismiss={handleEjectDismiss}
+        onShare={handleShare}
+        localRole="host"
+        onTimeUp={handleTimeUp}
+        hideTimer={isPaidHost}
+      />
+      <SneakySubscriptionModal
+        visible={showTimesUpPaywall}
+        onClose={() => setShowTimesUpPaywall(false)}
+        reason="duration_limit"
+      />
+    </>
   );
 }
 
@@ -897,20 +966,36 @@ function ServerRoom({
   const {
     isHandRaised,
     raisedHands,
+    raisedHandOrder,
     isChatOpen,
+    isHandQueueOpen,
     showEjectModal,
     ejectPayload,
     listeners: storeListeners,
     setIsHandRaised,
     setRaisedHand,
     setRaisedHands,
+    clearRaisedHands,
     setActiveSpeakerId,
     openChat,
     closeChat,
+    openHandQueue,
+    closeHandQueue,
     showEject,
     hideEject,
     reset,
   } = useRoomStore();
+  // Classified join-error surfaced by the premium error sheet. Follows
+  // the existing useState pattern in this screen; a full no-useState
+  // migration of ServerRoom lives with the rest of the Sneaky Lynk
+  // cleanup work, not this targeted fix.
+  const [joinError, setJoinError] = useState<ClassifiedError | null>(null);
+  // Capacity flow phase — "idle" (sheet just opened, showing Notify me),
+  // "waiting" (polling for a seat), "seat-open" (poll detected room
+  // has space, waiting for user to tap-to-join).
+  const [capacityPhase, setCapacityPhase] = useState<
+    "idle" | "waiting" | "seat-open"
+  >("idle");
   const [roomSnapshot, setRoomSnapshot] = useState<SneakyRoom | null>(
     initialRoom,
   );
@@ -927,6 +1012,7 @@ function ServerRoom({
   const desiredVideoEnabledRef = useRef(roomHasVideo);
   const handToggleInFlightRef = useRef(false);
   const shareInFlightRef = useRef(false);
+  const reportInFlightRef = useRef(false);
   const markRoomClosed = useCallback(
     (room?: SneakyRoom | null, reason?: string) => {
       if (room) setRoomSnapshot(room);
@@ -944,8 +1030,23 @@ function ServerRoom({
       showToast("info", "Room Ended", "The host has ended this room");
       markRoomClosed(roomSnapshot);
     },
-    onError: (error) => {
-      showToast("error", "Error", error);
+    onError: (error, envelope) => {
+      // Classify BEFORE any toast — premium errors (room full, ended,
+      // rate-limited, etc.) get a dedicated sheet with proper copy.
+      // Pass the structured error envelope (code + detail) through to
+      // the classifier so capacity surfaces get seat counts + host/
+      // viewer context from the backend.
+      const classified = classifySneakyLynkError(
+        envelope?.code,
+        error,
+        envelope?.detail,
+      );
+      if (classified.reason !== "unknown") {
+        setJoinError(classified);
+      } else {
+        showToast("error", "Couldn't join", classified.body);
+      }
+
       if (isClosedRoomError(error)) {
         const normalizedError = error.toLowerCase();
         markRoomClosed(
@@ -996,6 +1097,26 @@ function ServerRoom({
   const isHost = videoRoom.localUser?.role === "host";
   const effectiveMuted = !videoRoom.isMicOn;
   const effectiveVideoOn = videoRoom.isCameraOn;
+
+  // Wire the screenshot broadcast channel. The hook returns a
+  // `notifyLocalScreenshot` callback that we pass into the existing
+  // capture-protection hook — which is the ONLY place the local
+  // screenshot listener is attached (avoiding double-subscription).
+  //
+  // For anonymous joiners, the hook ALSO sends a private DM to the
+  // host with the real username so moderators see the full picture
+  // while the public room banner only carries the anon label.
+  const captureBroadcast = useSneakyLynkCaptureBroadcast({
+    roomId: id,
+    roomTitle:
+      videoRoom.room?.title || roomSnapshot?.title || paramTitle || undefined,
+    localUserId: localUser.id,
+    localUsername: localUser.displayName || localUser.username,
+    hostUserId: roomSnapshot?.host?.id,
+    attributable: !localUser.isAnonymous,
+    realUsername: authUser?.username ?? undefined,
+  });
+  useSneakyLynkCaptureProtection(captureBroadcast.notifyLocalScreenshot);
   const connectionState =
     videoRoom.connectionState.status === "error"
       ? "disconnected"
@@ -1008,8 +1129,12 @@ function ServerRoom({
   const appStateRef = useRef(AppState.currentState);
   const isHostRef = useRef(isHost);
   isHostRef.current = isHost;
-  const hostDisconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hostBackgroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hostDisconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
+  const hostBackgroundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const reconcileDesiredMedia = useCallback(
     async (reason: "join" | "reconnect" | "foreground") => {
@@ -1140,7 +1265,8 @@ function ServerRoom({
           setRoomSnapshot((prev) => ({
             id: prev?.id || room.uuid || id,
             createdBy: prev?.createdBy || room.created_by || "",
-            title: room.title || prev?.title || paramTitle || "Sneaky Lynk",
+            title:
+              room.title || prev?.title || paramTitle || getLynkDisplayName(),
             topic: room.topic || prev?.topic || "",
             description: room.description || prev?.description || "",
             sweetSpicyMode:
@@ -1304,7 +1430,11 @@ function ServerRoom({
     if (videoRoom.isMicOn || videoRoom.microphone.isMicrophoneOn) return;
 
     const timer = setTimeout(async () => {
-      if (videoRoomRef.current.isMicOn || videoRoomRef.current.microphone.isMicrophoneOn) return;
+      if (
+        videoRoomRef.current.isMicOn ||
+        videoRoomRef.current.microphone.isMicrophoneOn
+      )
+        return;
       console.warn(
         "[SneakyLynk:Server] MIC_SAFETY: remote peers present but mic is still off, force-starting",
       );
@@ -1340,11 +1470,15 @@ function ServerRoom({
 
     if (connectionState === "disconnected") {
       if (!hostDisconnectTimerRef.current) {
-        console.log("[SneakyLynk:Host] Disconnected — starting 30s grace period");
+        console.log(
+          "[SneakyLynk:Host] Disconnected — starting 30s grace period",
+        );
         hostDisconnectTimerRef.current = setTimeout(() => {
           hostDisconnectTimerRef.current = null;
           if (!isHostRef.current) return;
-          console.log("[SneakyLynk:Host] Grace period expired — auto-ending room");
+          console.log(
+            "[SneakyLynk:Host] Grace period expired — auto-ending room",
+          );
           void sneakyLynkApi.endRoom(id);
           reset();
           router.back();
@@ -1352,7 +1486,9 @@ function ServerRoom({
       }
     } else {
       if (hostDisconnectTimerRef.current) {
-        console.log("[SneakyLynk:Host] Connection restored — cancelling grace timer");
+        console.log(
+          "[SneakyLynk:Host] Connection restored — cancelling grace timer",
+        );
         clearTimeout(hostDisconnectTimerRef.current);
         hostDisconnectTimerRef.current = null;
       }
@@ -1369,38 +1505,35 @@ function ServerRoom({
   // Host background guard: if the host backgrounds the app for >120s, auto-end
   // the room. Participants shouldn't be stranded in a hostless room.
   useEffect(() => {
-    const subscription = AppState.addEventListener(
-      "change",
-      (nextAppState) => {
-        if (!isHostRef.current) return;
+    const subscription = AppState.addEventListener("change", (nextAppState) => {
+      if (!isHostRef.current) return;
 
-        if (nextAppState === "background" || nextAppState === "inactive") {
-          if (!hostBackgroundTimerRef.current) {
-            console.log(
-              "[SneakyLynk:Host] App backgrounded — starting 120s grace period",
-            );
-            hostBackgroundTimerRef.current = setTimeout(() => {
-              hostBackgroundTimerRef.current = null;
-              if (!isHostRef.current) return;
-              console.log(
-                "[SneakyLynk:Host] Background grace expired — auto-ending room",
-              );
-              void sneakyLynkApi.endRoom(id);
-              reset();
-              router.back();
-            }, 120_000);
-          }
-        } else if (nextAppState === "active") {
-          if (hostBackgroundTimerRef.current) {
-            console.log(
-              "[SneakyLynk:Host] App foregrounded — cancelling background timer",
-            );
-            clearTimeout(hostBackgroundTimerRef.current);
+      if (nextAppState === "background" || nextAppState === "inactive") {
+        if (!hostBackgroundTimerRef.current) {
+          console.log(
+            "[SneakyLynk:Host] App backgrounded — starting 120s grace period",
+          );
+          hostBackgroundTimerRef.current = setTimeout(() => {
             hostBackgroundTimerRef.current = null;
-          }
+            if (!isHostRef.current) return;
+            console.log(
+              "[SneakyLynk:Host] Background grace expired — auto-ending room",
+            );
+            void sneakyLynkApi.endRoom(id);
+            reset();
+            router.back();
+          }, 120_000);
         }
-      },
-    );
+      } else if (nextAppState === "active") {
+        if (hostBackgroundTimerRef.current) {
+          console.log(
+            "[SneakyLynk:Host] App foregrounded — cancelling background timer",
+          );
+          clearTimeout(hostBackgroundTimerRef.current);
+          hostBackgroundTimerRef.current = null;
+        }
+      }
+    });
 
     return () => {
       subscription.remove();
@@ -1456,8 +1589,17 @@ function ServerRoom({
     videoRoom.room?.title || roomSnapshot?.title || paramTitle || "Room";
 
   const handleLeave = useCallback(async () => {
+    // Optimistic leave — navigate + tear down local state IMMEDIATELY,
+    // fire the backend call in the background. The user's tap feels
+    // instant (Zoom/Meet parity) instead of waiting on a round-trip.
+    //
+    // HOST path keeps its previous confirm-before-navigate behavior
+    // for the "end room for everyone" call — that action is consequential
+    // (it evicts every other participant) and we want to avoid a
+    // UX where the host "left" but the room stays open due to a
+    // silently-failed end request. Non-host leave is idempotent and
+    // safe to fire-and-forget.
     if (isHost) {
-      // Host ends the room for everyone
       const result = await sneakyLynkApi.endRoom(id);
       if (!result.ok && !isClosedRoomError(result.error?.message)) {
         console.error(
@@ -1480,34 +1622,38 @@ function ServerRoom({
           result.error?.message,
         );
       }
-    } else {
-      // Non-host: leave room (decrement participant_count, auto-end if empty)
-      const result = await sneakyLynkApi.leaveRoom(id);
-      if (!result.ok && !isClosedRoomError(result.error?.message)) {
-        console.error(
-          "[SneakyLynk:Server] Failed to leave room in DB:",
-          result.error?.message,
-        );
-        showToast(
-          "error",
-          "Couldn't leave Lynk",
-          result.error?.message || "Try again.",
-        );
-        return;
-      }
 
-      if (result.ok) {
-        console.log("[SneakyLynk:Server] Left room in DB:", id);
-      } else {
-        console.warn(
-          "[SneakyLynk:Server] Room already closed or unavailable:",
-          result.error?.message,
-        );
-      }
+      reset();
+      endRoomHistory(id, storeListeners.length);
+      router.back();
+      return;
     }
+
+    // Non-host: navigate first, then reconcile with the server.
     reset();
     endRoomHistory(id, storeListeners.length);
     router.back();
+
+    // Fire-and-forget — the user is already gone. Surface a background
+    // log for ops; do NOT toast on failure because the user's already
+    // on the previous screen and a "leave failed" toast post-leave is
+    // confusing UX. The server will reconcile the participant count on
+    // its own (Fishjam disconnect + heartbeat).
+    sneakyLynkApi
+      .leaveRoom(id)
+      .then((result) => {
+        if (!result.ok && !isClosedRoomError(result.error?.message)) {
+          console.error(
+            "[SneakyLynk:Server] Background leaveRoom failed:",
+            result.error?.message,
+          );
+        } else if (result.ok) {
+          console.log("[SneakyLynk:Server] Background leaveRoom ok:", id);
+        }
+      })
+      .catch((err) => {
+        console.error("[SneakyLynk:Server] Background leaveRoom threw:", err);
+      });
   }, [
     router,
     id,
@@ -1517,6 +1663,33 @@ function ServerRoom({
     isHost,
     showToast,
   ]);
+
+  // Subscription check for host — paid hosts skip the 16-min timer;
+  // free hosts see the upgrade paywall when time is up.
+  const [showTimesUpPaywall, setShowTimesUpPaywall] = useState(false);
+  const [showViewerPaywall, setShowViewerPaywall] = useState(false);
+  const [isPaidHost, setIsPaidHost] = useState(false);
+  useEffect(() => {
+    if (!isHost || !authUser?.id) return;
+    supabase
+      .from("sneaky_subscriptions")
+      .select("status, plan_id")
+      .eq("host_id", authUser.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        setIsPaidHost(data?.status === "active" && data?.plan_id !== "free");
+      });
+  }, [isHost, authUser?.id]);
+
+  const handleTimeUp = useCallback(() => {
+    if (isHost && !isPaidHost) {
+      setShowTimesUpPaywall(true);
+    } else {
+      // Guests just leave when time is up
+      handleLeave();
+    }
+  }, [isHost, isPaidHost, handleLeave]);
+
   const handleToggleMic = useCallback(async () => {
     const actuallyOn = videoRoomRef.current.isMicOn;
     const nextEnabled = !actuallyOn;
@@ -1629,7 +1802,57 @@ function ServerRoom({
     } finally {
       shareInFlightRef.current = false;
     }
-  }, [closedReason, id, roomSnapshot?.status, roomTitle, showToast, videoRoom.room?.status]);
+  }, [
+    closedReason,
+    id,
+    roomSnapshot?.status,
+    roomTitle,
+    showToast,
+    videoRoom.room?.status,
+  ]);
+
+  const handleReportRoom = useCallback(async () => {
+    if (reportInFlightRef.current) {
+      return;
+    }
+
+    reportInFlightRef.current = true;
+
+    try {
+      const reporterId = await getCurrentUserAuthId();
+      if (!reporterId) {
+        showToast("error", "Sign In Required", "Sign in to report this room.");
+        return;
+      }
+
+      const { error } = await supabase.from("reports_video_rooms").insert({
+        room_id: id,
+        reporter_id: reporterId,
+        reason: "in_room_report",
+        details: `Reported from active Lynk room: ${roomTitle}`,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      showToast(
+        "success",
+        "Report Submitted",
+        "Thanks. Our safety team will review this room.",
+      );
+    } catch (error: any) {
+      console.error("[SneakyLynk:Server] Report room failed:", error);
+      showToast(
+        "error",
+        "Report Failed",
+        error?.message || "We couldn't submit this report right now.",
+      );
+    } finally {
+      reportInFlightRef.current = false;
+    }
+  }, [id, roomTitle, showToast]);
+
   const handleEjectDismiss = useCallback(() => {
     hideEject();
     router.back();
@@ -1746,10 +1969,57 @@ function ServerRoom({
     setActionTarget(p);
   }, []);
 
+  // Host promotes a raised hand to "speaker". We optimistically lower
+  // the visual queue entry so the host sees the moderation complete
+  // instantly — the server broadcasts the real role change, so any
+  // drift self-heals on the next members-refresh tick.
+  const handleInviteToSpeak = useCallback(
+    async (targetUserId: string) => {
+      setRaisedHand(targetUserId, false);
+      // Backend role enum is "co-host" | "participant" — "speaker" isn't
+      // a server-side role, so we use co-host as the promotion target.
+      // From the listener's POV this grants mic + participant controls,
+      // which is the real meaning of "invited to speak".
+      const res = await videoApi.changeRole({
+        roomId: roomUuid,
+        targetUserId,
+        newRole: "co-host",
+      });
+      if (res.ok) {
+        showToast("success", "Invited", "User can now speak");
+      } else {
+        showToast(
+          "error",
+          "Error",
+          res.error?.message || "Couldn't invite to speak",
+        );
+      }
+    },
+    [roomUuid, showToast, setRaisedHand],
+  );
+
+  // Host lowers a raised hand without promotion. Server-side we don't
+  // currently have a "host lowers peer hand" endpoint (toggle_hand is
+  // caller-scoped), so this is a local-only dismissal for now — the
+  // participant's own client still thinks they're raised until they
+  // toggle back. Tracked for follow-up; local clear is Zoom-parity for
+  // hosts who just want to clear the queue visually.
+  const handleLowerHand = useCallback(
+    (targetUserId: string) => {
+      setRaisedHand(targetUserId, false);
+    },
+    [setRaisedHand],
+  );
+
+  const handleLowerAll = useCallback(() => {
+    clearRaisedHands();
+    closeHandQueue();
+  }, [clearRaisedHands, closeHandQueue]);
+
   if (closedReason) {
     return (
       <ClosedRoomScreen
-        roomTitle={roomSnapshot?.title || paramTitle || "Sneaky Lynk"}
+        roomTitle={roomSnapshot?.title || paramTitle || getLynkDisplayName()}
         message={closedReason}
         onBack={() => router.back()}
       />
@@ -1773,13 +2043,26 @@ function ServerRoom({
   // Build SneakyUser from a Fishjam participant
   const peerToUser = (p: any): SneakyUser => {
     const anonLabel = normalizeSneakyAnonLabel(p.anonLabel || p.username);
-    const name = anonLabel || p.username || p.displayName || "Guest";
     const isAnon = !!(p.isAnonymous || anonLabel);
+    // Prefer anon label → real username → displayName. Only use "Guest"
+    // as an absolute last resort — hosts in particular were hitting this
+    // fallback before the backend started stuffing user metadata into
+    // Fishjam peer.metadata. If the peer is the known host of THIS
+    // room, prefer the room snapshot's host info over a generic Guest.
+    const snapshotHost =
+      p.role === "host" ? (roomSnapshot?.host ?? null) : null;
+    const hostFallback = snapshotHost
+      ? snapshotHost.displayName || snapshotHost.username || null
+      : null;
+    const name =
+      anonLabel || p.username || p.displayName || hostFallback || "Guest";
     return {
       id: p.userId || p.oderId || p.odId,
       username: name,
       displayName: name,
-      avatar: isAnon ? "" : p.avatar || "",
+      avatar: isAnon
+        ? ""
+        : p.avatar || (snapshotHost ? snapshotHost.avatar || "" : "") || "",
       isVerified: false,
       isAnonymous: isAnon,
       anonLabel: isAnon ? anonLabel : null,
@@ -1836,7 +2119,7 @@ function ServerRoom({
   const totalParticipants = allParticipants.length;
 
   return (
-    <>
+    <View style={{ flex: 1 }}>
       <RoomLayout
         insets={insets}
         connectionState={connectionState}
@@ -1844,6 +2127,7 @@ function ServerRoom({
         roomTitle={roomTitle}
         participantCount={totalParticipants}
         allParticipants={allParticipants}
+        hostUserId={roomSnapshot?.host?.id ?? null}
         activeSpeakers={activeSpeakerIds}
         effectiveMuted={effectiveMuted}
         effectiveVideoOn={effectiveVideoOn}
@@ -1866,46 +2150,174 @@ function ServerRoom({
         onParticipantPress={isHost ? handleParticipantPress : undefined}
         onMuteAll={isHost ? handleToggleMuteAll : undefined}
         allMuted={allMuted}
-        onShare={handleShare}
+        // Share is host + co-host only. Matches the product intent:
+        // "if I am the host or cohost, I should be able to share the
+        // link." Listeners/speakers can forward via any system share
+        // from the browser if they navigated in via URL.
+        onShare={
+          isHost || videoRoom.localUser?.role === "co-host"
+            ? handleShare
+            : undefined
+        }
+        onReport={handleReportRoom}
         localRole={isHost ? "host" : videoRoom.localUser?.role || "participant"}
-        canOpenParticipants={isHost}
-        onOpenParticipants={
-          isHost ? () => setShowParticipantsSheet(true) : undefined
-        }
+        // Everyone can open the participant list — seeing who's in the
+        // room is a core social feature, not a host moderation tool.
+        // Moderation actions (mute/remove) inside the sheet are still
+        // host/cohost-gated via each row's per-participant permissions.
+        canOpenParticipants={true}
+        onOpenParticipants={() => setShowParticipantsSheet(true)}
+        raisedHandCount={raisedHandOrder.length}
+        onOpenHandQueue={isHost ? openHandQueue : undefined}
+        onTimeUp={handleTimeUp}
+        hideTimer={isHost && isPaidHost}
       />
 
-      <RoomParticipantsSheet
-        visible={showParticipantsSheet}
-        participants={allParticipants}
-        localUserId={localUser.id}
-        isHost={isHost}
-        onDismiss={() => setShowParticipantsSheet(false)}
-        onMute={handleMutePeer}
-        onUnmute={handleUnmutePeer}
-        onRemove={handleRemoveUser}
+      <SneakySubscriptionModal
+        visible={showTimesUpPaywall}
+        onClose={() => setShowTimesUpPaywall(false)}
+        reason="duration_limit"
       />
 
-      {/* Host action sheet — mute / co-host / remove */}
-      <ParticipantActions
-        visible={!!actionTarget}
-        participant={
-          actionTarget
-            ? {
-                userId: actionTarget.id,
-                user: actionTarget.user,
-                role: actionTarget.role,
-                isMicOn: actionTarget.isMicOn,
-              }
-            : null
-        }
-        onMute={handleMutePeer}
-        onUnmute={handleUnmutePeer}
-        onMakeCoHost={handleMakeCoHost}
-        onDemote={handleDemote}
-        onRemove={handleRemoveUser}
-        onClose={() => setActionTarget(null)}
+      <SneakyPaywallModal
+        visible={showViewerPaywall}
+        sessionId={id}
+        onClose={() => setShowViewerPaywall(false)}
+        onAccessGranted={() => {
+          setShowViewerPaywall(false);
+          setJoinError(null);
+          setCapacityPhase("idle");
+        }}
       />
-    </>
+
+      {/* Sheet overlay — absolute full-screen wrapper that sits ABOVE
+          RoomLayout's controls dock. Without this, gorhom BottomSheet
+          shared a stacking context with the dock (both absolute-positioned
+          inside RoomLayout's outer View) and the dock's zIndex 60 won on
+          Android. pointerEvents="box-none" lets taps pass through to the
+          layout below when no sheet is open; descendants (backdrop,
+          sheet body) still capture taps when a sheet is up. */}
+      <View
+        pointerEvents="box-none"
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 10000,
+          elevation: 10000,
+        }}
+      >
+        <HandQueueSheet
+          visible={isHandQueueOpen && isHost}
+          participants={allParticipants}
+          raisedHandOrder={raisedHandOrder}
+          onDismiss={closeHandQueue}
+          onInviteToSpeak={(userId) => {
+            closeHandQueue();
+            void handleInviteToSpeak(userId);
+          }}
+          onLowerHand={handleLowerHand}
+          onLowerAll={handleLowerAll}
+        />
+
+        <RoomParticipantsSheet
+          visible={showParticipantsSheet}
+          participants={allParticipants}
+          localUserId={localUser.id}
+          isHost={isHost}
+          onDismiss={() => setShowParticipantsSheet(false)}
+          onMute={handleMutePeer}
+          onUnmute={handleUnmutePeer}
+          onRemove={handleRemoveUser}
+        />
+
+        {/* Capacity flow — host upgrade vs viewer waitlist. Branched off
+          the generic error sheet because the UX is fundamentally
+          different (upsell for host, live-watch for viewer). */}
+        <RoomFullSheet
+          visible={joinError?.reason === "room_full"}
+          capacity={joinError?.capacity ?? null}
+          roomId={id}
+          phase={capacityPhase}
+          onClose={() => {
+            setJoinError(null);
+            setCapacityPhase("idle");
+            handleLeave();
+          }}
+          onStartWaiting={() => setCapacityPhase("waiting")}
+          onSeatOpen={() => {
+            // Seat detected. Two possible UX paths:
+            //   a) Auto-join immediately — cleanest, zero friction.
+            //   b) Flip to "seat-open" and let the user tap to confirm.
+            // Going with (a) — the user already opted in with "Notify me",
+            // making them tap again would feel like friction theater.
+            setJoinError(null);
+            setCapacityPhase("idle");
+            // useVideoRoom joins automatically on roomId prop; nothing
+            // else to do — the polling hook's final probe IS effectively
+            // the retry since it hits the real join endpoint.
+          }}
+          onUpgrade={() => {
+            // Hand off to the app's upgrade surface. The room's in-room
+            // paywall modal targets a different feature (Sneaky Link
+            // chat, not Sneaky Lynk rooms). Room-plan upgrades live on
+            // the account settings path — route there for now. When a
+            // dedicated "room cap" upgrade sheet ships, swap this to it.
+            setJoinError(null);
+            setCapacityPhase("idle");
+            router.push("/settings/order" as any);
+          }}
+          onPayToJoin={
+            isFeatureEnabled("sneaky_paywall_enabled") &&
+            !joinError?.capacity?.isHost
+              ? () => {
+                  setJoinError(null);
+                  setCapacityPhase("idle");
+                  setShowViewerPaywall(true);
+                }
+              : undefined
+          }
+        />
+
+        {/* Non-capacity join errors — room ended, rate-limited, forbidden,
+          unauthorized, unknown. Simpler single-CTA surface. */}
+        <RoomJoinErrorSheet
+          error={joinError?.reason === "room_full" ? null : joinError}
+          onDismiss={() => setJoinError(null)}
+          onRetry={() => {
+            setJoinError(null);
+            handleLeave();
+          }}
+          onSignIn={() => {
+            setJoinError(null);
+            router.replace("/(auth)/login" as any);
+          }}
+        />
+
+        {/* Host action sheet — mute / co-host / remove */}
+        <ParticipantActions
+          visible={!!actionTarget}
+          participant={
+            actionTarget
+              ? {
+                  userId: actionTarget.id,
+                  user: actionTarget.user,
+                  role: actionTarget.role,
+                  isMicOn: actionTarget.isMicOn,
+                }
+              : null
+          }
+          onMute={handleMutePeer}
+          onUnmute={handleUnmutePeer}
+          onMakeCoHost={handleMakeCoHost}
+          onDemote={handleDemote}
+          onRemove={handleRemoveUser}
+          onClose={() => setActionTarget(null)}
+        />
+      </View>
+    </View>
   );
 }
 
@@ -1918,6 +2330,7 @@ function RoomLayout({
   roomTitle,
   participantCount,
   allParticipants,
+  hostUserId,
   activeSpeakers,
   effectiveMuted,
   effectiveVideoOn,
@@ -1938,12 +2351,17 @@ function RoomLayout({
   onCloseChat,
   onEjectDismiss,
   onShare,
+  onReport,
   onParticipantPress,
   onMuteAll,
   allMuted,
   localRole,
   canOpenParticipants,
   onOpenParticipants,
+  raisedHandCount,
+  onOpenHandQueue,
+  onTimeUp,
+  hideTimer,
 }: {
   insets: any;
   connectionState: "connecting" | "connected" | "reconnecting" | "disconnected";
@@ -1958,6 +2376,7 @@ function RoomLayout({
   roomTitle: string;
   participantCount: number;
   allParticipants: VideoParticipant[];
+  hostUserId?: string | null;
   activeSpeakers: Set<string>;
   effectiveMuted: boolean;
   effectiveVideoOn: boolean;
@@ -1978,20 +2397,41 @@ function RoomLayout({
   onCloseChat: () => void;
   onEjectDismiss: () => void;
   onShare?: () => void;
+  onReport?: () => void;
   onParticipantPress?: (p: VideoParticipant) => void;
   onMuteAll?: () => void;
   allMuted?: boolean;
   canOpenParticipants?: boolean;
   onOpenParticipants?: () => void;
+  raisedHandCount?: number;
+  onOpenHandQueue?: () => void;
+  onTimeUp?: () => void;
+  hideTimer?: boolean;
 }) {
   const { reactions, sendReaction } = useRoomReactions({
     roomId,
     currentUser: localUser,
   });
-  const controlsClearance = insets.bottom + 168;
+  // Bottom padding below the speaker grid so the controls bar never
+  // clips participant name labels rendered on the last row of tiles.
+  // ControlsBar has: reactions row (~46) + mic/video/hand/share row
+  // (~64) + vertical padding (~24) + safe-area inset. Keeping a
+  // comfortable 200px floor (plus insets.bottom) so the name label
+  // + verified badge + role pill all sit above the dock cleanly.
+  const controlsClearance = insets.bottom + 200;
+
+  // Measured usable height for the stage area (container height minus
+  // controlsClearance padding). Passed to RoomStage so crowd tiles
+  // can be sized accurately without relying on inner onLayout timing.
+  const [stageContentHeight, setStageContentHeight] = useState(0);
 
   return (
     <View className="flex-1 bg-background">
+      {/* Single instance — serves both LocalRoom + ServerRoom. Absolute-
+          positioned via its own styles + zIndex, so this mount location
+          just needs to live inside the RoomLayout tree to receive the
+          store updates. */}
+      <CaptureNotificationBanner />
       <LinearGradient
         colors={["#090B10", "#0C1118", "#05070B"]}
         start={{ x: 0.05, y: 0 }}
@@ -2123,6 +2563,40 @@ function RoomLayout({
                         </Text>
                       </View>
                     ) : null}
+                    {isHost &&
+                    onOpenHandQueue &&
+                    raisedHandCount !== undefined &&
+                    raisedHandCount > 0 ? (
+                      <Pressable
+                        onPress={onOpenHandQueue}
+                        hitSlop={8}
+                        style={({ pressed }) => ({
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 4,
+                          paddingHorizontal: 9,
+                          paddingVertical: 5,
+                          borderRadius: 12,
+                          backgroundColor: "rgba(255, 109, 193, 0.18)",
+                          borderWidth: 1,
+                          borderColor: "rgba(255, 109, 193, 0.4)",
+                          opacity: pressed ? 0.75 : 1,
+                        })}
+                      >
+                        <Hand size={12} color="#FFC2E2" />
+                        <Text
+                          style={{
+                            color: "#FFD5EA",
+                            fontSize: 10,
+                            fontWeight: "800",
+                            letterSpacing: 0.3,
+                            fontVariant: ["tabular-nums"],
+                          }}
+                        >
+                          {raisedHandCount}
+                        </Text>
+                      </Pressable>
+                    ) : null}
                   </View>
 
                   {canOpenParticipants && onOpenParticipants ? (
@@ -2216,19 +2690,30 @@ function RoomLayout({
 
         <View
           className="flex-1"
-          style={{ paddingHorizontal: 6, paddingBottom: controlsClearance }}
+          style={{ paddingBottom: controlsClearance }}
+          onLayout={(e) => {
+            const h =
+              Math.round(e.nativeEvent.layout.height) - controlsClearance;
+            setStageContentHeight((prev) => (prev === h ? prev : h));
+          }}
         >
-          <VideoGrid
+          {/* RoomStage = Zoom-parity host-hero + paged attendee carousel.
+              Replaces the old adaptive VideoGrid. Layering with the
+              controls dock is preserved via the existing controlsClearance
+              padding above (dock stays absolute, zIndex 60). */}
+          <RoomStage
             participants={allParticipants}
             activeSpeakers={activeSpeakers}
             isHost={isHost}
+            hostUserId={hostUserId}
             onParticipantPress={onParticipantPress}
+            stageHeight={stageContentHeight}
           />
         </View>
 
         <RemoteAudioLayer participants={allParticipants} />
 
-        <RoomTimer onTimeUp={onLeave} />
+        {!hideTimer && <RoomTimer onTimeUp={onTimeUp ?? onLeave} />}
 
         <ControlsBar
           isMuted={effectiveMuted}
@@ -2246,25 +2731,34 @@ function RoomLayout({
           onShare={onShare}
           onSwitchCamera={onSwitchCamera}
           onSendReaction={sendReaction}
+          onReport={onReport}
         />
 
-        {showEjectModal ? (
-          <EjectModal
-            visible={showEjectModal}
-            payload={ejectPayload}
-            onDismiss={onEjectDismiss}
-          />
-        ) : null}
+        {/* Mount unconditionally so the sheet can run its close
+            animation when showEjectModal flips false. The sheet itself
+            drives visibility from the `visible` prop via index. */}
+        <EjectModal
+          visible={showEjectModal}
+          payload={ejectPayload}
+          onDismiss={onEjectDismiss}
+        />
 
-        {isChatOpen && (
-          <ChatSheet
-            isOpen={isChatOpen}
-            onClose={onCloseChat}
-            roomId={roomId}
-            currentUser={localUser}
-            participants={allParticipants.map((p) => p.user)}
-          />
-        )}
+        {/*
+          ChatSheet is mounted unconditionally so it can fetch + subscribe
+          to room comments on room entry — by the time the user opens the
+          chat, the comments are already warm. Gating the mount on
+          `isChatOpen` meant the user saw a spinner on every open because
+          the fetch effect only ran then.
+          The sheet itself drives its own snap-to / close based on the
+          `isOpen` prop.
+        */}
+        <ChatSheet
+          isOpen={isChatOpen}
+          onClose={onCloseChat}
+          roomId={roomId}
+          currentUser={localUser}
+          participants={allParticipants.map((p) => p.user)}
+        />
       </View>
     </View>
   );

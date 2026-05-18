@@ -47,7 +47,7 @@ export default {
     updates: {
       url: "https://u.expo.dev/5c0d13a3-c544-4ffc-ae8f-8e897dda2663",
       fallbackToCacheTimeout: 0, // Launch immediately with cached bundle — JS hook handles update check
-      checkAutomatically: "ON_ERROR_RECOVERY",
+      checkAutomatically: "ON_LOAD", // Changed from ON_ERROR_RECOVERY: applies cached OTA on cold start without needing reloadAsync() (which crashes iOS 26 Fabric)
       enableBsdiffPatchSupport: true,
       waitBeforeLaunchMs: 0, // Do not block launch waiting for OTA — avoids ErrorRecovery crash loop
       // Enhanced crash hardening
@@ -63,19 +63,131 @@ export default {
       bundleIdentifier: "com.dvnt.app",
       icon: "./assets/images/ios-icon.png",
       associatedDomains: ["applinks:dvntlive.app", "applinks:www.dvntlive.app"],
+      deploymentTarget: "17.0",
+      privacyManifests: {
+        NSPrivacyCollectedDataTypes: [
+          {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeAudioData",
+            NSPrivacyCollectedDataTypeLinked: false,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+            ],
+          },
+          {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeVideoData",
+            NSPrivacyCollectedDataTypeLinked: false,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+            ],
+          },
+          {
+            NSPrivacyCollectedDataType:
+              "NSPrivacyCollectedDataTypePreciseLocation",
+            NSPrivacyCollectedDataTypeLinked: true,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+            ],
+          },
+          {
+            NSPrivacyCollectedDataType:
+              "NSPrivacyCollectedDataTypePurchaseHistory",
+            NSPrivacyCollectedDataTypeLinked: true,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+            ],
+          },
+          {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypePaymentInfo",
+            NSPrivacyCollectedDataTypeLinked: true,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+            ],
+          },
+          {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeUserID",
+            NSPrivacyCollectedDataTypeLinked: true,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+              "NSPrivacyCollectedDataTypePurposeProductPersonalization",
+            ],
+          },
+          {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeDeviceID",
+            NSPrivacyCollectedDataTypeLinked: false,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+              "NSPrivacyCollectedDataTypePurposeAnalytics",
+            ],
+          },
+          {
+            NSPrivacyCollectedDataType:
+              "NSPrivacyCollectedDataTypePhotosorVideos",
+            NSPrivacyCollectedDataTypeLinked: true,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+            ],
+          },
+          {
+            NSPrivacyCollectedDataType: "NSPrivacyCollectedDataTypeContacts",
+            NSPrivacyCollectedDataTypeLinked: false,
+            NSPrivacyCollectedDataTypeTracking: false,
+            NSPrivacyCollectedDataTypePurposes: [
+              "NSPrivacyCollectedDataTypePurposeAppFunctionality",
+            ],
+          },
+        ],
+        NSPrivacyAccessedAPITypes: [
+          {
+            NSPrivacyAccessedAPIType:
+              "NSPrivacyAccessedAPICategoryFileTimestamp",
+            NSPrivacyAccessedAPITypeReasons: ["C617.1"],
+          },
+          {
+            NSPrivacyAccessedAPIType: "NSPrivacyAccessedAPICategoryDiskSpace",
+            NSPrivacyAccessedAPITypeReasons: ["7D9E.1"],
+          },
+          {
+            NSPrivacyAccessedAPIType:
+              "NSPrivacyAccessedAPICategoryUserDefaults",
+            NSPrivacyAccessedAPITypeReasons: ["CA92.1"],
+          },
+        ],
+        NSPrivacyTrackingDomains: [],
+        NSPrivacyTracking: false,
+      },
       infoPlist: {
         ITSAppUsesNonExemptEncryption: false,
         NSCameraUsageDescription:
-          "This app needs access to your camera to take photos and videos for posts and stories.",
+          "DVNT uses your camera to capture photos and videos for posts, stories, and live video rooms. Your camera is only active while you are creating content.",
         NSPhotoLibraryUsageDescription:
-          "This app needs access to your photo library to select photos and videos for posts and stories.",
+          "DVNT accesses your photo library so you can choose photos and videos to share in posts and stories.",
         NSMicrophoneUsageDescription:
-          "This app needs access to your microphone to record videos with audio.",
+          "DVNT uses your microphone to record audio for video posts, stories, and live video rooms. Your microphone is only active while you are recording or in a live room.",
         UIBackgroundModes: ["audio", "voip"],
         NSPhotoLibraryAddUsageDescription:
-          "Allow $(PRODUCT_NAME) to save photos.",
+          "DVNT saves media to your photo library when you choose to download photos or videos.",
         NSLocationWhenInUseUsageDescription:
-          "Allow $(PRODUCT_NAME) to access your location to show nearby events and venues.",
+          "DVNT uses your location to show nearby events and suggest relevant venues while you are using the app. Your location is never stored or shared without your permission.",
+        // FaceID / TouchID is offered as an optional second factor on
+        // sensitive actions (account deletion, payment confirmation).
+        // iOS crashes any process that calls LocalAuthentication on a
+        // FaceID-capable device without this string in Info.plist.
+        NSFaceIDUsageDescription:
+          "DVNT uses Face ID or Touch ID to confirm your identity before sensitive actions like deleting your account or confirming a payment.",
+        // iOS 17 split calendar permissions into a write-only key and a
+        // full-access key. DVNT calls Calendar.getCalendarsAsync (read)
+        // and Calendar.createEventAsync (write) when a user adds an
+        // event to their calendar, so we need full access.
+        NSCalendarsFullAccessUsageDescription:
+          "DVNT adds event reminders to your calendar when you choose to save an event, and reads your existing calendars so you can pick which one to save into.",
       },
     },
     android: {
@@ -147,6 +259,12 @@ export default {
     plugins: [
       "./plugins/disable-user-script-sandboxing",
       "./plugins/with-app-controller-init",
+      // Install NSSetUncaughtExceptionHandler EARLY so it's the first
+      // thing in didFinishLaunchingWithOptions — captures any
+      // uncaught NSException from any thread (TurboModule dispatch
+      // workers, AVAudioSession callbacks, Stripe sheets, etc.) with
+      // name / reason / call-stack-symbols persisted for next launch.
+      "./plugins/with-uncaught-exception-handler",
       "./plugins/android-fixes",
       "./plugins/fix-wgpu-headers",
       "./plugins/with-cube-luts",
@@ -155,16 +273,17 @@ export default {
       "expo-asset",
       "expo-audio",
       "expo-font",
-      "expo-image",
-      "expo-web-browser",
+      // SDK 56: expo-image, expo-web-browser no longer ship a config plugin
+      // (auto-linked). Listing them as plugin strings causes prebuild to fail.
       "@config-plugins/react-native-webrtc",
       [
         "@stripe/stripe-react-native",
         {
-          merchantIdentifier: "merchant.com.deviant",
+          merchantIdentifier: "merchant.com.dvnt.app",
           enableGooglePay: true,
         },
       ],
+      "./plugins/with-stripe-merchant-entitlement",
       [
         "expo-router",
         {
@@ -196,19 +315,20 @@ export default {
         "expo-image-picker",
         {
           photosPermission:
-            "Allow $(PRODUCT_NAME) to access your photos to share in posts and stories.",
+            "DVNT accesses your photo library so you can choose photos and videos to share in posts and stories.",
           cameraPermission:
-            "Allow $(PRODUCT_NAME) to access your camera to take photos and videos.",
+            "DVNT uses your camera to capture photos and videos for posts, stories, and live video rooms.",
           microphonePermission:
-            "Allow $(PRODUCT_NAME) to access your microphone to record videos with audio.",
+            "DVNT uses your microphone to record audio for video posts, stories, and live video rooms.",
         },
       ],
       [
         "expo-media-library",
         {
           photosPermission:
-            "Allow $(PRODUCT_NAME) to access your photo library.",
-          savePhotosPermission: "Allow $(PRODUCT_NAME) to save photos.",
+            "DVNT accesses your photo library so you can choose media to share in posts and stories.",
+          savePhotosPermission:
+            "DVNT saves media to your photo library when you choose to download photos or videos.",
           isAccessMediaLocationEnabled: true,
         },
       ],
@@ -221,9 +341,10 @@ export default {
       [
         "expo-camera",
         {
-          cameraPermission: "Allow $(PRODUCT_NAME) to access your camera.",
+          cameraPermission:
+            "DVNT uses your camera to capture photos and videos for posts, stories, and live video rooms.",
           microphonePermission:
-            "Allow $(PRODUCT_NAME) to access your microphone.",
+            "DVNT uses your microphone to record audio for video posts, stories, and live video rooms.",
           recordAudioAndroid: true,
         },
       ],
@@ -239,7 +360,7 @@ export default {
           },
           requestLocationPermission: true,
           locationPermission:
-            "Allow $(PRODUCT_NAME) to access your location to show nearby events and venues.",
+            "DVNT uses your location to show nearby events and suggest relevant venues while you are using the app.",
         },
       ],
       "@config-plugins/react-native-callkeep",
@@ -248,36 +369,19 @@ export default {
       "./plugins/with-live-activity",
       ["./plugins/with-development-team", { teamId: "436WA3W63V" }],
       "expo-secure-store",
-      "expo-sharing",
-      [
-        "./plugins/with-share-intent-fixed",
-        {
-          iosActivationRules: {
-            NSExtensionActivationSupportsWebURLWithMaxCount: 1,
-            NSExtensionActivationSupportsWebPageWithMaxCount: 1,
-            NSExtensionActivationSupportsText: true,
-            NSExtensionActivationSupportsImageWithMaxCount: 1,
-            NSExtensionActivationSupportsMovieWithMaxCount: 1,
-          },
-          androidIntentFilters: ["text/*", "image/*"],
-          androidMainActivityAttributes: {
-            "android:launchMode": "singleTask",
-          },
-        },
-      ],
       "react-native-compressor",
       [
         "expo-calendar",
         {
           calendarPermission:
-            "Allow $(PRODUCT_NAME) to access your calendar to add event reminders.",
+            "DVNT adds event reminders to your calendar when you choose to save events.",
         },
       ],
       [
         "expo-location",
         {
           locationAlwaysAndWhenInUsePermission:
-            "Allow $(PRODUCT_NAME) to use your location.",
+            "DVNT uses your location to show nearby events and suggest relevant venues while you are using the app.",
         },
       ],
       [

@@ -9,7 +9,7 @@
  * - Otherwise → /profile/[username] (UserProfile)
  */
 
-import { Router } from "expo-router";
+import type { Router } from "expo-router";
 import type { QueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 

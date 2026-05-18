@@ -67,7 +67,7 @@ function dbToTicket(rec: TicketRecord): Ticket {
         ? "valid"
         : rec.status === "scanned"
           ? "checked_in"
-          : rec.status === "refunded"
+          : rec.status === "refunded" || rec.status === "void"
             ? "revoked"
             : rec.status === "transfer_pending"
               ? "transfer_pending"
@@ -153,6 +153,9 @@ function ViewTicketScreenContent() {
     );
   }, [pendingTransfers, dbTicket?.id]);
   const [cancelingTransfer, setCancelingTransfer] = React.useState(false);
+  const [refundStep, setRefundStep] = React.useState<
+    "idle" | "confirm" | "loading"
+  >("idle");
   const handleCancelTransfer = React.useCallback(async () => {
     if (!outgoingTransfer?.id || cancelingTransfer) return;
     setCancelingTransfer(true);
@@ -178,7 +181,59 @@ function ViewTicketScreenContent() {
     } finally {
       setCancelingTransfer(false);
     }
-  }, [outgoingTransfer?.id, cancelingTransfer, showToast, queryClient, eventId]);
+  }, [
+    outgoingTransfer?.id,
+    cancelingTransfer,
+    showToast,
+    queryClient,
+    eventId,
+  ]);
+
+  // Only show refund if event starts MORE than 24 hours from now
+  const refundEligible = React.useMemo(() => {
+    if (!dbTicket?.event_date) return false;
+    const msUntilEvent = new Date(dbTicket.event_date).getTime() - Date.now();
+    return msUntilEvent > 24 * 60 * 60 * 1000;
+  }, [dbTicket?.event_date]);
+
+  const handleRefund = React.useCallback(async () => {
+    if (!dbTicket?.id || refundStep === "loading") return;
+    setRefundStep("loading");
+    const res =
+      dbTicket.cart_id && dbTicket.cart_line_item_id
+        ? await ticketsApi.requestLineRefund({
+            cartId: dbTicket.cart_id,
+            lineItemId: dbTicket.cart_line_item_id,
+          })
+        : await ticketsApi.requestRefund(dbTicket.id);
+    if ("error" in res && res.error) {
+      setRefundStep("confirm");
+      showToast("error", "Refund failed", res.error);
+      return;
+    }
+    const refundMessage = "message" in res ? res.message : undefined;
+    showToast(
+      "success",
+      "Ticket cancelled",
+      refundMessage || "Refund processed successfully",
+    );
+    await queryClient.invalidateQueries({
+      queryKey: ticketKeys.myTicketForEvent(eventId),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: ticketKeys.myTickets(),
+    });
+    router.back();
+  }, [
+    dbTicket?.cart_id,
+    dbTicket?.cart_line_item_id,
+    dbTicket?.id,
+    refundStep,
+    showToast,
+    queryClient,
+    eventId,
+    router,
+  ]);
 
   // ── Wallet pass refresh detection ──
   // Detect if ticket was upgraded after wallet pass was created
@@ -321,10 +376,7 @@ function ViewTicketScreenContent() {
             >
               <Shield size={16} color="#8A40CF" />
               <Text
-                style={[
-                  styles.statusBannerText,
-                  { color: "#8A40CF", flex: 1 },
-                ]}
+                style={[styles.statusBannerText, { color: "#8A40CF", flex: 1 }]}
               >
                 Transfer pending — waiting for recipient to accept
               </Text>
@@ -437,32 +489,157 @@ function ViewTicketScreenContent() {
             </View>
           </View>
 
-          {/* ── 2.5 UPGRADE TIER — link to dedicated upgrade screen ── */}
-          {ticket.status === "valid" && upgradeTiers.length > 0 && (
+          {/* ── 2.5 UPGRADE TIER — card with prominent price + CTA ── */}
+          {ticket.status === "valid" && upgradeTiers.length > 0 && (() => {
+            // upgradeTiers is sorted cheapest-first by the loader
+            const cheapest = upgradeTiers[0];
+            const diffDollars = Math.max(
+              0,
+              ((cheapest.price_cents ?? 0) -
+                (dbTicket?.purchase_amount_cents ?? 0)) /
+                100,
+            );
+            const extraCount = upgradeTiers.length - 1;
+            return (
+              <View style={styles.upgradeCard}>
+                <View style={styles.upgradeCardHeader}>
+                  <View style={styles.upgradeCardEyebrowWrap}>
+                    <Sparkles size={12} color="#C084FC" />
+                    <Text style={styles.upgradeCardEyebrow}>
+                      UPGRADE AVAILABLE
+                    </Text>
+                  </View>
+                  <Text style={styles.upgradeCardPrice}>
+                    +${diffDollars.toFixed(diffDollars % 1 === 0 ? 0 : 2)}
+                  </Text>
+                </View>
+                <Text style={styles.upgradeCardTier}>{cheapest.name}</Text>
+                <Text style={styles.upgradeCardSub}>
+                  Pay only the difference · Wallet updates automatically
+                </Text>
+                <Pressable
+                  onPress={() =>
+                    router.push(`/ticket/upgrade/${eventId}` as any)
+                  }
+                  style={({ pressed }) => [
+                    styles.upgradeCardCta,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Upgrade to ${cheapest.name}`}
+                >
+                  <Text style={styles.upgradeCardCtaText}>
+                    Upgrade to {cheapest.name}
+                  </Text>
+                  <ChevronRight size={18} color="#000" strokeWidth={2.5} />
+                </Pressable>
+                {extraCount > 0 ? (
+                  <Pressable
+                    onPress={() =>
+                      router.push(`/ticket/upgrade/${eventId}` as any)
+                    }
+                    style={({ pressed }) => [
+                      styles.upgradeCardMore,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <Text style={styles.upgradeCardMoreText}>
+                      +{extraCount} more {extraCount === 1 ? "tier" : "tiers"}{" "}
+                      available
+                    </Text>
+                  </Pressable>
+                ) : null}
+              </View>
+            );
+          })()}
+
+          {/* ── 2.7 ADD-ONS — link to event detail for buying more ── */}
+          {ticket.status === "valid" && eventId && (
             <Pressable
-              onPress={() => router.push(`/ticket/upgrade/${eventId}` as any)}
+              onPress={() =>
+                router.push(`/(protected)/events/${eventId}` as any)
+              }
               style={({ pressed }) => [
-                styles.upgradeBanner,
-                pressed && { opacity: 0.9 },
+                styles.addonsCard,
+                pressed && { opacity: 0.85 },
               ]}
+              accessibilityRole="button"
+              accessibilityLabel="Add coat check, drinks, and more for this event"
             >
-              <View style={styles.upgradeBannerIcon}>
-                <Sparkles size={16} color="#C084FC" />
+              <View style={styles.addonsIconWrap}>
+                <Sparkles size={18} color="rgb(255, 109, 193)" />
               </View>
-              <View style={styles.upgradeBannerText}>
-                <Text style={styles.upgradeBannerTitle}>
-                  Upgrade to {upgradeTiers.length === 1 ? upgradeTiers[0].name : "VIP or Bottle Service"}
-                </Text>
-                <Text style={styles.upgradeBannerSub}>
-                  Pay only the difference · Wallet pass updates instantly
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addonsTitle}>Add more for this event</Text>
+                <Text style={styles.addonsSub}>
+                  Coat check, drinks, extra tickets — pay in one go
                 </Text>
               </View>
-              <ChevronRight size={18} color="#C084FC" />
+              <ChevronRight size={18} color="rgb(255, 109, 193)" />
             </Pressable>
           )}
 
           {/* ── 3. ACCESS DETAILS ── */}
           <TicketAccessDetails ticket={ticket} />
+
+          {/* ── Danger Zone: Refund (only if >24h before event) ── */}
+          {ticket.status === "valid" && dbTicket && refundEligible && (
+            <View style={styles.dangerZone}>
+              {refundStep === "idle" && (
+                <Pressable
+                  onPress={() => setRefundStep("confirm")}
+                  style={({ pressed }) => [
+                    styles.refundButton,
+                    pressed && { opacity: 0.75 },
+                  ]}
+                >
+                  <TicketX size={15} color="#ef4444" />
+                  <Text style={styles.refundButtonText}>Request Refund</Text>
+                </Pressable>
+              )}
+              {refundStep === "confirm" && (
+                <Motion.View
+                  initial={{ opacity: 0, scale: 0.97 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ type: "spring", damping: 22, stiffness: 320 }}
+                  style={styles.refundConfirmCard}
+                >
+                  <Text style={styles.refundConfirmTitle}>
+                    Cancel this ticket?
+                  </Text>
+                  <Text style={styles.refundConfirmSub}>
+                    {dbTicket.cart_id && dbTicket.cart_line_item_id
+                      ? "This cancels every ticket or pass from this cart line. Other items from the same checkout stay active."
+                      : (dbTicket.purchase_amount_cents ?? 0) > 0
+                        ? "A refund will be issued to your original payment method. Funds typically appear within 5–10 business days."
+                        : "Your free ticket will be cancelled. This cannot be undone."}
+                  </Text>
+                  <View style={styles.refundConfirmActions}>
+                    <Pressable
+                      onPress={() => setRefundStep("idle")}
+                      style={styles.refundKeepBtn}
+                    >
+                      <Text style={styles.refundKeepText}>Keep Ticket</Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={handleRefund}
+                      style={styles.refundConfirmBtn}
+                    >
+                      <Text style={styles.refundConfirmText}>Yes, Cancel</Text>
+                    </Pressable>
+                  </View>
+                </Motion.View>
+              )}
+              {refundStep === "loading" && (
+                <View style={styles.refundLoadingRow}>
+                  <ActivityIndicator size="small" color="#ef4444" />
+                  <Text style={styles.refundLoadingText}>
+                    Processing refund...
+                  </Text>
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
 
@@ -472,35 +649,19 @@ function ViewTicketScreenContent() {
           { paddingBottom: insets.bottom + 12 },
         ]}
       >
-        <TicketActionsBar
-          ticket={ticket}
-          bottomInset={0}
-          style={styles.ticketActionsBar}
-        />
+        {/*
+          ── JSX ORDER NOTE ──
+          The parent uses flexDirection: "column-reverse" so the LAST
+          sibling in JSX renders at the TOP visually AND wins iOS
+          hit-tests (last sibling = on top in the native view hierarchy).
+          That's why Wallet (which should sit at the bottom) is declared
+          FIRST and TicketActionsBar (which should sit at the top AND own
+          its hit zone) is declared LAST.
 
-        {/* Wallet refresh prompt after upgrade */}
-        {needsWalletRefresh && (
-          <Pressable
-            onPress={handleAddToWallet}
-            style={({ pressed }) => [
-              styles.walletRefreshBanner,
-              pressed && { opacity: 0.88 },
-            ]}
-          >
-            <View style={styles.walletRefreshInner}>
-              <Sparkles size={16} color="#C084FC" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.walletRefreshTitle}>
-                  Ticket upgraded — refresh wallet pass
-                </Text>
-                <Text style={styles.walletRefreshSubtitle}>
-                  Tap to update your wallet with the new tier
-                </Text>
-              </View>
-              <ChevronRight size={16} color="#C084FC" />
-            </View>
-          </Pressable>
-        )}
+          Without this, the Wallet Pressable was capturing taps in the
+          Calendar / Share / Transfer row above it because it was the
+          last sibling.
+        */}
 
         {canAddToWallet && (
           <Pressable
@@ -538,8 +699,40 @@ function ViewTicketScreenContent() {
             </View>
           </Pressable>
         )}
-      </View>
 
+        {/* Wallet refresh prompt after upgrade — renders between Wallet
+            CTA (above visually) and TicketActionsBar (above visually too).
+            With column-reverse, this middle JSX position translates to
+            the middle visual slot. */}
+        {needsWalletRefresh && (
+          <Pressable
+            onPress={handleAddToWallet}
+            style={({ pressed }) => [
+              styles.walletRefreshBanner,
+              pressed && { opacity: 0.88 },
+            ]}
+          >
+            <View style={styles.walletRefreshInner}>
+              <Sparkles size={16} color="#C084FC" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.walletRefreshTitle}>
+                  Ticket upgraded — refresh wallet pass
+                </Text>
+                <Text style={styles.walletRefreshSubtitle}>
+                  Tap to update your wallet with the new tier
+                </Text>
+              </View>
+              <ChevronRight size={16} color="#C084FC" />
+            </View>
+          </Pressable>
+        )}
+
+        <TicketActionsBar
+          ticket={ticket}
+          bottomInset={0}
+          style={styles.ticketActionsBar}
+        />
+      </View>
     </View>
   );
 }
@@ -572,11 +765,23 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10,10,10,0.96)",
     paddingHorizontal: 16,
     paddingTop: 10,
+    // Render bottom-up so the TicketActionsBar (rendered LAST in JSX)
+    // wins the iOS hit-test against Add to Wallet (rendered FIRST). The
+    // visual ordering is preserved by column-reverse since iOS hit-tests
+    // the last sibling first.
+    flexDirection: "column-reverse",
   },
   ticketActionsBar: {
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
     marginHorizontal: -16,
+    // Ensure the Calendar / Share / Transfer Pressables always win the
+    // hit-test against the Add to Wallet Pressable rendered below. iOS
+    // Pressable hit-test on stacked sibling Views can leak downward
+    // because the Wallet button's larger bounds + rounded border get
+    // priority; explicit zIndex + elevation pins this row on top.
+    zIndex: 2,
+    elevation: 2,
   },
   heroWrap: {
     paddingHorizontal: 16,
@@ -684,6 +889,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(63,220,255,0.18)",
     overflow: "hidden",
+    // Sits below the TicketActionsBar in z-order so the 3-button row
+    // wins hit-tests in the overlap region.
+    zIndex: 1,
+    elevation: 1,
   },
   walletCtaSuccess: {
     backgroundColor: "rgba(10,28,34,0.98)",
@@ -703,39 +912,193 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   // Upgrade banner — links to dedicated upgrade screen
-  upgradeBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+  // New upgrade card — prominent CTA, replaces the old upgradeBanner
+  upgradeCard: {
     marginHorizontal: 20,
     marginBottom: 20,
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 14,
+    borderRadius: 20,
+    backgroundColor: "rgba(138,64,207,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(192,132,252,0.30)",
+    gap: 8,
+  },
+  upgradeCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  upgradeCardEyebrowWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: "rgba(192,132,252,0.18)",
+  },
+  upgradeCardEyebrow: {
+    color: "#C084FC",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+  },
+  upgradeCardPrice: {
+    color: "#C084FC",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    fontVariant: ["tabular-nums"],
+  },
+  upgradeCardTier: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  upgradeCardSub: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 4,
+  },
+  upgradeCardCta: {
+    marginTop: 4,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#C084FC",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  upgradeCardCtaText: {
+    color: "#000",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  upgradeCardMore: {
+    alignItems: "center",
+    paddingVertical: 8,
+  },
+  upgradeCardMoreText: {
+    color: "rgba(192,132,252,0.85)",
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  // Add-ons card — routes to event detail to buy more passes/tokens
+  addonsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginHorizontal: 20,
+    marginBottom: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 16,
-    backgroundColor: "rgba(138,64,207,0.10)",
+    backgroundColor: "rgba(255,109,193,0.10)",
     borderWidth: 1,
-    borderColor: "rgba(138,64,207,0.25)",
+    borderColor: "rgba(255,109,193,0.30)",
   },
-  upgradeBannerIcon: {
+  addonsIconWrap: {
     width: 36,
     height: 36,
     borderRadius: 12,
-    backgroundColor: "rgba(192,132,252,0.18)",
+    backgroundColor: "rgba(255,109,193,0.18)",
     alignItems: "center",
     justifyContent: "center",
   },
-  upgradeBannerText: {
-    flex: 1,
-  },
-  upgradeBannerTitle: {
+  addonsTitle: {
     color: "#fff",
     fontSize: 14,
     fontWeight: "700",
   },
-  upgradeBannerSub: {
-    color: "rgba(255,255,255,0.5)",
+  addonsSub: {
+    color: "rgba(255,255,255,0.55)",
     fontSize: 12,
     marginTop: 2,
+  },
+  // Danger zone — refund
+  dangerZone: {
+    marginHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 4,
+    alignItems: "center",
+  },
+  refundButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.22)",
+  },
+  refundButtonText: {
+    color: "#ef4444",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  refundConfirmCard: {
+    width: "100%",
+    padding: 16,
+    borderRadius: 16,
+    backgroundColor: "rgba(239,68,68,0.06)",
+    borderWidth: 1,
+    borderColor: "rgba(239,68,68,0.18)",
+    gap: 10,
+  },
+  refundConfirmTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  refundConfirmSub: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  refundConfirmActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 4,
+  },
+  refundKeepBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.06)",
+  },
+  refundKeepText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  refundConfirmBtn: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 12,
+    alignItems: "center",
+    backgroundColor: "rgba(239,68,68,0.18)",
+  },
+  refundConfirmText: {
+    color: "#ef4444",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  refundLoadingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 12,
+  },
+  refundLoadingText: {
+    color: "rgba(255,255,255,0.5)",
+    fontSize: 13,
   },
   // Wallet refresh banner (shown after ticket upgrade)
   walletRefreshBanner: {

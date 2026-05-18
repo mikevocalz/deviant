@@ -255,101 +255,155 @@ function applyCommentDelta(
   return { ...post, comments: Math.max(0, delta) };
 }
 
+type CreateCommentInput = Parameters<typeof commentsApiClient.createComment>[0];
+
+interface CreateCommentContext {
+  previousQueries: ReturnType<QueryClient["getQueriesData"]>;
+  previousThreadQueries: ReturnType<QueryClient["getQueriesData"]>;
+  previousCount: number | undefined;
+  optimisticCommentId: string;
+}
+
+async function runCreateCommentOnMutate(
+  queryClient: QueryClient,
+  newComment: CreateCommentInput,
+): Promise<CreateCommentContext> {
+  await queryClient.cancelQueries({
+    queryKey: commentKeys.byPost(newComment.post),
+  });
+
+  if (newComment.parent) {
+    await queryClient.cancelQueries({
+      queryKey: commentKeys.thread(newComment.post, newComment.parent),
+    });
+  }
+
+  const previousQueries = queryClient.getQueriesData<Comment[]>({
+    queryKey: commentKeys.byPost(newComment.post),
+  });
+  const previousThreadQueries = newComment.parent
+    ? queryClient.getQueriesData<CommentThread>({
+        queryKey: commentKeys.thread(newComment.post, newComment.parent),
+      })
+    : [];
+
+  const store = usePostStore.getState();
+  const previousCount = store.getCommentCount(newComment.post, 0);
+  store.setCommentCount(newComment.post, previousCount + 1);
+
+  const createdAt = new Date().toISOString();
+  const optimisticComment: Comment = {
+    id: `temp-${Date.now()}`,
+    username: newComment.authorUsername || "You",
+    avatar: "",
+    text: newComment.text,
+    timeAgo: "Just now",
+    createdAt,
+    likes: 0,
+    postId: newComment.post,
+    parentId: newComment.parent || null,
+    rootId: newComment.parent || null,
+    depth: newComment.parent ? 1 : 0,
+    replies: [],
+  };
+
+  queryClient.setQueriesData<Comment[]>(
+    { queryKey: commentKeys.byPost(newComment.post) },
+    (old) => {
+      if (!old) return [optimisticComment];
+      return insertCommentIntoThreads(old, optimisticComment);
+    },
+  );
+
+  // Bump the comment count on the Post record in every cache it lives in —
+  // feed (legacy + infinite), detail, profile grid. Without this, the count
+  // on the card the user just commented from stays stale until onSettled
+  // invalidates (which triggers a network refetch).
+  updatePostInAllCaches(queryClient, newComment.post, (post) =>
+    applyCommentDelta(post, +1, optimisticComment.id, optimisticComment),
+  );
+
+  if (newComment.parent) {
+    const fallbackThread =
+      previousThreadQueries.find(([, data]) => !!data?.parentComment)?.[1] ||
+      previousQueries.reduce<CommentThread | null>(
+        (thread, [, data]) =>
+          thread ||
+          (Array.isArray(data)
+            ? findCommentThread(data, newComment.parent as string)
+            : null),
+        null,
+      );
+
+    queryClient.setQueriesData<CommentThread | null>(
+      { queryKey: commentKeys.thread(newComment.post, newComment.parent) },
+      (old) => {
+        const baseThread = old?.parentComment ? old : fallbackThread;
+        if (!baseThread?.parentComment) return old;
+        const nextReplies = [
+          ...(baseThread.replies || []),
+          optimisticComment,
+        ];
+        return {
+          parentComment: {
+            ...baseThread.parentComment,
+            replies: nextReplies,
+          },
+          replies: nextReplies,
+        };
+      },
+    );
+  }
+
+  return {
+    previousQueries,
+    previousThreadQueries,
+    previousCount,
+    optimisticCommentId: optimisticComment.id,
+  };
+}
+
 export function useCreateComment() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: commentsApiClient.createComment,
-    onMutate: async (newComment) => {
-      await queryClient.cancelQueries({
-        queryKey: commentKeys.byPost(newComment.post),
-      });
-
-      if (newComment.parent) {
-        await queryClient.cancelQueries({
-          queryKey: commentKeys.thread(newComment.post, newComment.parent),
-        });
+    // Wrap the API method instead of passing it as a bare reference.
+    // Passing `commentsApiClient.createComment` directly detaches `this`
+    // and — more importantly — hides any synchronous error inside it
+    // behind React Query's generic "mutation failed" handler. Wrapping
+    // surfaces the real error (and keeps the call path stable if the
+    // method ever becomes `this`-bound).
+    mutationFn: async (data: CreateCommentInput) => {
+      try {
+        return await commentsApiClient.createComment(data);
+      } catch (err: any) {
+        // Produce a specific message instead of "undefined is not a
+        // function" when a downstream call throws synchronously.
+        const msg =
+          err?.message ||
+          (typeof err === "string" ? err : "Failed to post comment");
+        if (__DEV__)
+          console.error("[useCreateComment] mutationFn error:", err);
+        throw new Error(msg);
       }
-
-      const previousQueries = queryClient.getQueriesData<Comment[]>({
-        queryKey: commentKeys.byPost(newComment.post),
-      });
-      const previousThreadQueries = newComment.parent
-        ? queryClient.getQueriesData<CommentThread>({
-            queryKey: commentKeys.thread(newComment.post, newComment.parent),
-          })
-        : [];
-
-      const store = usePostStore.getState();
-      const previousCount = store.getCommentCount(newComment.post, 0);
-      store.setCommentCount(newComment.post, previousCount + 1);
-
-      const createdAt = new Date().toISOString();
-      const optimisticComment: Comment = {
-        id: `temp-${Date.now()}`,
-        username: newComment.authorUsername || "You",
-        avatar: "",
-        text: newComment.text,
-        timeAgo: "Just now",
-        createdAt,
-        likes: 0,
-        postId: newComment.post,
-        parentId: newComment.parent || null,
-        rootId: newComment.parent || null,
-        depth: newComment.parent ? 1 : 0,
-        replies: [],
-      };
-
-      queryClient.setQueriesData<Comment[]>(
-        { queryKey: commentKeys.byPost(newComment.post) },
-        (old) => {
-          if (!old) return [optimisticComment];
-          return insertCommentIntoThreads(old, optimisticComment);
-        },
-      );
-
-      // Bump the comment count on the Post record in every cache it lives
-      // in — feed (legacy + infinite), detail, profile grid. Without this,
-      // the count on the card the user just commented from stays stale
-      // until onSettled invalidates (which triggers a network refetch).
-      updatePostInAllCaches(queryClient, newComment.post, (post) =>
-        applyCommentDelta(post, +1, optimisticComment.id, optimisticComment),
-      );
-
-      if (newComment.parent) {
-        const fallbackThread =
-          previousThreadQueries.find(([, data]) => !!data?.parentComment)?.[1] ||
-          previousQueries.reduce<CommentThread | null>(
-            (thread, [, data]) =>
-              thread || (Array.isArray(data)
-                ? findCommentThread(data, newComment.parent as string)
-                : null),
-            null,
-          );
-
-        queryClient.setQueriesData<CommentThread | null>(
-          { queryKey: commentKeys.thread(newComment.post, newComment.parent) },
-          (old) => {
-            const baseThread = old?.parentComment ? old : fallbackThread;
-            if (!baseThread?.parentComment) return old;
-            const nextReplies = [...(baseThread.replies || []), optimisticComment];
-            return {
-              parentComment: {
-                ...baseThread.parentComment,
-                replies: nextReplies,
-              },
-              replies: nextReplies,
-            };
-          },
-        );
+    },
+    onMutate: async (newComment): Promise<CreateCommentContext> => {
+      try {
+        return await runCreateCommentOnMutate(queryClient, newComment);
+      } catch (err) {
+        // If ANY optimistic-cache update throws, never let it take down
+        // the whole mutation — the server call should still go through.
+        // Log in dev; return a no-op context so onError/onSettled still
+        // run cleanly.
+        if (__DEV__)
+          console.error("[useCreateComment] onMutate swallowed:", err);
+        return {
+          previousQueries: [],
+          previousThreadQueries: [],
+          previousCount: undefined,
+          optimisticCommentId: `temp-${Date.now()}`,
+        };
       }
-
-      return {
-        previousQueries,
-        previousThreadQueries,
-        previousCount,
-        optimisticCommentId: optimisticComment.id,
-      };
     },
     onError: (_error, newComment, context) => {
       context?.previousQueries?.forEach(([queryKey, data]) => {

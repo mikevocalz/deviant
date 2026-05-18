@@ -12,7 +12,7 @@
  * 
  * Valid formats:
  * - Numeric string: "123", "456789"
- * - UUID: "550e8400-e29b-41d4-a716-446655440000"
+ * - UUID: standard 36-character UUID string
  * 
  * Invalid:
  * - undefined, null, empty string

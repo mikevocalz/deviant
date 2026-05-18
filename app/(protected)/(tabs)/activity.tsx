@@ -43,6 +43,7 @@ import { notificationKeys } from "@/lib/hooks/use-notifications-query";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usersApi } from "@/lib/api/users";
+import { eventsApi } from "@/lib/api/events";
 
 const TABS = [
   "All",
@@ -125,6 +126,39 @@ function getLikedAccent(entityType: LikedActivity["entityType"]) {
     badgeSurface: "rgba(255, 91, 252, 0.16)",
     badgeText: "#F9A8FF",
   };
+}
+
+function EventInviteAcceptButton({ entityId }: { entityId: string }) {
+  const [accepted, setAccepted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const showToast = useUIStore((s) => s.showToast);
+
+  const handleAccept = async () => {
+    if (loading || accepted) return;
+    setLoading(true);
+    try {
+      await eventsApi.acceptCoOrganizerInvite(entityId);
+      setAccepted(true);
+      showToast("success", "Accepted", "You're now a co-organizer!");
+    } catch (err: any) {
+      showToast("error", "Error", err?.message || "Failed to accept invite");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Pressable
+      onPress={handleAccept}
+      disabled={loading || accepted}
+      className={`px-4 py-2 rounded-lg ml-3 ${accepted ? "bg-transparent border border-border" : "bg-emerald-600"}`}
+      style={(loading || accepted) ? { opacity: 0.6 } : undefined}
+    >
+      <Text className={`text-[13px] font-semibold ${accepted ? "text-muted-foreground" : "text-white"}`}>
+        {accepted ? "Joined" : loading ? "..." : "Accept"}
+      </Text>
+    </Pressable>
+  );
 }
 
 interface ActivityItemProps {
@@ -219,6 +253,10 @@ const ActivityItem = memo(
             {isFollowed ? "Following" : "Follow"}
           </Text>
         </Pressable>
+      )}
+
+      {activity.type === "event_invite" && activity.entityId && (
+        <EventInviteAcceptButton entityId={activity.entityId} />
       )}
     </Pressable>
   ),

@@ -10,6 +10,12 @@ interface TicketTierCardProps {
   onSelect: (tier: TicketTier) => void;
 }
 
+const TIER_CATEGORY: Record<string, string> = {
+  admission: "Admission",
+  product: "Product",
+  service: "Service",
+};
+
 export const TicketTierCard = memo(function TicketTierCard({
   tier,
   isSelected,
@@ -23,6 +29,7 @@ export const TicketTierCard = memo(function TicketTierCard({
 
   const isVip = tier.tier === "vip" || tier.tier === "table";
   const borderColor = isSelected ? tier.glowColor : "rgba(255,255,255,0.08)";
+  const categoryLabel = TIER_CATEGORY[tier.category] ?? "Admission";
   const bgColor = isSelected ? `${tier.glowColor}15` : "rgba(255,255,255,0.04)";
 
   return (
@@ -47,12 +54,15 @@ export const TicketTierCard = memo(function TicketTierCard({
       )}
 
       {/* Tier label */}
-      <View
-        style={[styles.tierBadge, { backgroundColor: `${tier.glowColor}25` }]}
-      >
-        <Text style={[styles.tierBadgeText, { color: tier.glowColor }]}>
-          {tier.tier.toUpperCase()}
-        </Text>
+      <View style={styles.tierBadgeRow}>
+        <View
+          style={[styles.tierBadge, { backgroundColor: `${tier.glowColor}25` }]}
+        >
+          <Text style={[styles.tierBadgeText, { color: tier.glowColor }]}>
+            {tier.tier.toUpperCase()}
+          </Text>
+        </View>
+        <Text style={styles.categoryLabel}>{categoryLabel}</Text>
       </View>
 
       {/* Name */}
@@ -115,12 +125,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
+  tierBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 10,
+  },
   tierBadge: {
     alignSelf: "flex-start",
     borderRadius: 8,
     paddingHorizontal: 8,
     paddingVertical: 3,
-    marginBottom: 10,
+  },
+  categoryLabel: {
+    color: "rgba(255,255,255,0.4)",
+    fontSize: 10,
+    fontWeight: "500",
+    letterSpacing: 0.3,
   },
   tierBadgeText: {
     fontSize: 10,

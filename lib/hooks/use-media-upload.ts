@@ -459,19 +459,14 @@ export function useMediaUpload(options: UseMediaUploadOptions = {}) {
           );
           setStatusMessage("Uploading Live Photo...");
 
-          // Upload the still image
-          let stillUri = file.uri;
-          try {
-            const compressed = await manipulateAsync(
-              file.uri,
-              [{ rotate: 0 }, { resize: { width: 1440 } }],
-              { compress: 0.85, format: SaveFormat.JPEG },
-            );
-            stillUri = compressed.uri;
-          } catch {
-            // fall back to original if compression fails
-          }
-          const stillResult = await serverUpload(stillUri, folder);
+          // Upload the still UNALTERED. Running it through manipulateAsync
+          // (resize / re-encode to JPEG) strips the Apple Live Photo
+          // pairing metadata that PHLivePhoto requires to instantiate
+          // the pair on another device. Without that metadata the
+          // native LivePhotoView fires onLoadError and the component
+          // falls back to a static image — which was the real cause of
+          // "Live Photos don't play" in prod.
+          const stillResult = await serverUpload(file.uri, folder);
 
           // Upload the paired video (no compression — short clip, Live Photo quality must be preserved)
           setStatusMessage("Uploading Live Photo video...");

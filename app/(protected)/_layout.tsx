@@ -19,6 +19,7 @@ import {
 } from "@/src/services/callkeep/voipPushService";
 import { useBootPrefetch } from "@/lib/hooks/use-boot-prefetch";
 import { useAppResume } from "@/lib/hooks/use-app-resume";
+import { useCartPaymentRecovery } from "@/lib/hooks/use-cart-payment-recovery";
 import { useBootLocation } from "@/lib/hooks/use-boot-location";
 import { useEventsLocationStore } from "@/lib/stores/events-location-store";
 import { refreshWeather } from "@/src/features/weatherfx/WeatherDecisionEngine";
@@ -134,6 +135,7 @@ export default function ProtectedLayout() {
   useBootPrefetch();
   // Silent background refresh on app resume (throttled 30s)
   useAppResume();
+  useCartPaymentRecovery();
   // Silently resolve device location → nearest city on boot (if already permitted)
   useBootLocation();
   // Track Events tab focus → drives WeatherGPUEngine visibility + audio fade
@@ -251,6 +253,8 @@ export default function ProtectedLayout() {
             )
           }
         />
+        <Stack.Screen name="checkout/review" options={modalTransitionConfig} />
+        <Stack.Screen name="checkout/success" options={modalTransitionConfig} />
         <Stack.Screen
           name="story/[id]"
           options={({ route }) =>

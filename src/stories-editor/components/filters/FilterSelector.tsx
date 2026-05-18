@@ -525,7 +525,7 @@ const styles = StyleSheet.create({
   },
   // ---- LUT overlay initials ----
   lutOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     justifyContent: "center",
     alignItems: "center",
   },

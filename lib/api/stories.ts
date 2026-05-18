@@ -2,7 +2,7 @@ import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
 import {
   getCurrentUserId,
-  getCurrentUserIdInt,
+  getCurrentUserIdSync,
   getCurrentUserAuthId,
 } from "./auth-helper";
 import {
@@ -124,7 +124,7 @@ export const storiesApi = {
       console.log("[Stories] getStories");
 
       const userId = getCurrentUserId();
-      const userIdInt = getCurrentUserIdInt();
+      const userIdInt = getCurrentUserIdSync();
       if (!userId) return [];
 
       // ── PARALLEL: authId + stories + close_friends ────────────────

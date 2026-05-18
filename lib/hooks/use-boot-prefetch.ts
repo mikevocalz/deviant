@@ -33,7 +33,7 @@ import { eventKeys } from "@/lib/hooks/use-events";
 import { bookmarkKeys } from "@/lib/hooks/use-bookmarks";
 import { activityKeys } from "@/lib/hooks/use-activities-query";
 import { storyKeys } from "@/lib/hooks/use-stories";
-import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { getCurrentUserIdSync } from "@/lib/api/auth-helper";
 import { useChatStore } from "@/lib/stores/chat-store";
 import { prefetchImages, prefetchImagesRN } from "@/lib/perf/image-prefetch";
 import { storiesApi as storiesApiClient } from "@/lib/api/stories";
@@ -261,7 +261,7 @@ export function useBootPrefetch() {
           queryFn: () => eventsApiClient.getMyEvents(),
         }),
         (() => {
-          const userIdInt = getCurrentUserIdInt();
+          const userIdInt = getCurrentUserIdSync();
           if (!userIdInt) return Promise.resolve();
           return queryClient.prefetchQuery({
             queryKey: eventKeys.liked(userIdInt),

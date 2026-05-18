@@ -34,7 +34,7 @@ function DVNTLiquidGlassComponent({
   radius = 24,
   paddingH = 12,
   paddingV = 8,
-  interactive = true,
+  interactive = false,
 }: DVNTLiquidGlassProps) {
   const inner = (
     <View
@@ -90,7 +90,7 @@ function DVNTLiquidGlassIconButtonComponent({
   children,
   style,
   size = 36,
-  interactive = true,
+  interactive = false,
 }: DVNTLiquidGlassIconButtonProps) {
   const radius = size / 4;
 

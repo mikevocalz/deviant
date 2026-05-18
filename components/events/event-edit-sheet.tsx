@@ -293,7 +293,7 @@ export function EventEditSheet({
 
     setIsSaving(true);
     try {
-      // Upload new local images
+      // Upload new local images first (we need the CDN URLs for the optimistic patch)
       const normalizedImages = await Promise.all(
         eventImages.map((uri) =>
           isRemoteMediaUri(uri)
@@ -325,6 +325,7 @@ export function EventEditSheet({
         description: description.trim(),
         location: location.trim(),
         startDate: eventDate.toISOString(),
+        price: Number(price) || 0,
       };
 
       if (endDate) updateData.endDate = endDate.toISOString();
@@ -332,22 +333,71 @@ export function EventEditSheet({
         updateData.coverImage = allImages[0];
         updateData.images = allImages.slice(1).map((url) => ({ url }));
       }
-      if (price) updateData.price = Number(price) || 0;
       if (maxAttendees) updateData.maxAttendees = Number(maxAttendees) || 0;
-      // V2 fields — use null (not undefined) so the API clears them when empty
       updateData.dressCode = dressCode.trim() || null;
       updateData.doorPolicy = doorPolicy.trim() || null;
       updateData.lineup = lineup.trim() || null;
       updateData.perks = perks.trim() || null;
       updateData.youtubeVideoUrl = youtubeVideoUrl.trim() || null;
 
-      await eventsApi.updateEvent(eventId, updateData);
+      // ── Optimistic update: patch caches + close sheet immediately ──
+      const detailKey = eventKeys.detail(eventId);
+      const previousDetail = queryClient.getQueryData(detailKey);
 
-      queryClient.invalidateQueries({ queryKey: eventKeys.all });
-      queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
+      const optimisticPatch: Record<string, unknown> = {
+        title: updateData.title,
+        description: updateData.description,
+        location: updateData.location,
+        fullDate: updateData.startDate,
+        endDate: updateData.endDate ?? null,
+        price: updateData.price,
+        maxAttendees: updateData.maxAttendees ?? null,
+        dressCode: updateData.dressCode ?? null,
+        doorPolicy: updateData.doorPolicy ?? null,
+        lineup: updateData.lineup ?? null,
+        perks: updateData.perks ?? null,
+        youtubeVideoUrl: updateData.youtubeVideoUrl ?? null,
+      };
+      if (allImages.length > 0) {
+        optimisticPatch.image = allImages[0];
+        optimisticPatch.images = allImages.slice(1).map((url) => ({ url }));
+      }
+
+      // Patch detail cache
+      queryClient.setQueryData(detailKey, (old: any) =>
+        old ? { ...old, ...optimisticPatch } : old,
+      );
+
+      // Patch all list caches so event cards show the updated price/title immediately
+      queryClient.setQueriesData<any[]>({ queryKey: eventKeys.all }, (old) => {
+        if (!old || !Array.isArray(old)) return old;
+        return old.map((e) =>
+          String(e.id) === String(eventId) ? { ...e, ...optimisticPatch } : e,
+        );
+      });
 
       showToast("success", "Event updated", "");
       onClose();
+
+      // ── Background: persist to server ──
+      eventsApi.updateEvent(eventId, updateData).then(
+        () => {
+          queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
+          queryClient.invalidateQueries({ queryKey: eventKeys.all });
+        },
+        (err) => {
+          console.error("[EventEditSheet] Background save error:", err);
+          if (previousDetail) {
+            queryClient.setQueryData(detailKey, previousDetail);
+          }
+          queryClient.invalidateQueries({ queryKey: eventKeys.all });
+          showToast(
+            "error",
+            "Save failed",
+            err?.message || "Changes could not be saved. Please try again.",
+          );
+        },
+      );
     } catch (error: any) {
       console.error("[EventEditSheet] Save error:", error);
       showToast(

@@ -7,6 +7,7 @@
  */
 import { View, Text, Pressable } from "react-native";
 import { Image } from "expo-image";
+import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import { LinearGradient } from "expo-linear-gradient";
 import { MapPin, Clock, Users, Calendar } from "lucide-react-native";
 import { useRouter } from "expo-router";
@@ -82,8 +83,26 @@ export const FeedEventCard = memo(function FeedEventCard({
             backgroundColor: "#111",
           }}
         >
-          {/* Hero image */}
-          {event.image ? (
+          {/* Hero — video flyer takes priority, falls back to still image */}
+          {event.flyerVideoUrl ? (
+            <View
+              style={{
+                width: "100%",
+                height: "100%",
+                position: "absolute",
+                overflow: "hidden",
+              }}
+            >
+              <DVNTAnimatedVideoView
+                uri={event.flyerVideoUrl}
+                width="100%"
+                height="100%"
+                contentFit="cover"
+                isPlaying
+                muted
+              />
+            </View>
+          ) : event.image ? (
             <View
               style={{
                 width: "100%",

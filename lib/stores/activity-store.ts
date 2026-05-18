@@ -7,7 +7,7 @@ import {
 } from "@/lib/api/notifications";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 import { supabase } from "@/lib/supabase/client";
-import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { getCurrentUserIdSync } from "@/lib/api/auth-helper";
 import { followsApi } from "@/lib/api/follows";
 
 // REMOVED: Module-level channel state causes leaks on rapid mount/unmount.
@@ -321,7 +321,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
   // Fetch the current user's following list and seed followedUsers
   fetchFollowingState: async () => {
     try {
-      const userIdInt = getCurrentUserIdInt();
+      const userIdInt = getCurrentUserIdSync();
       if (!userIdInt) {
         console.warn(
           "[ActivityStore] fetchFollowingState: no userId, skipping",
@@ -351,7 +351,7 @@ export const useActivityStore = create<ActivityState>((set, get) => ({
 
   // Subscribe to realtime notifications for instant updates
   subscribeToNotifications: () => {
-    const userId = getCurrentUserIdInt();
+    const userId = getCurrentUserIdSync();
     if (!userId) {
       console.log("[ActivityStore] No user ID for realtime subscription");
       return undefined;

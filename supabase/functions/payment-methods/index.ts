@@ -20,6 +20,12 @@ const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
+if (!STRIPE_SECRET_KEY) {
+  console.error(
+    "[payment-methods] FATAL: STRIPE_SECRET_KEY env var is not set.",
+  );
+}
+
 async function stripeGet(endpoint: string): Promise<any> {
   const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
     method: "GET",
@@ -97,6 +103,13 @@ async function getOrCreateCustomer(
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return optionsResponse();
   if (req.method !== "POST") return errorResponse("Method not allowed", 405);
+
+  if (!STRIPE_SECRET_KEY) {
+    return errorResponse(
+      "Stripe is not configured for this environment. Contact support.",
+      503,
+    );
+  }
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {

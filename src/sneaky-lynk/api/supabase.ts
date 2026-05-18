@@ -23,7 +23,13 @@ type ErrorCode =
 interface ApiResponse<T = unknown> {
   ok: boolean;
   data?: T;
-  error?: { code: ErrorCode; message: string };
+  error?: {
+    code: ErrorCode;
+    message: string;
+    /** Structured detail — populated for errors that render rich UX
+     *  (currently capacity). Forward-compatible: unknown keys are safe. */
+    detail?: Record<string, unknown>;
+  };
 }
 
 async function callEdgeFunction<T>(

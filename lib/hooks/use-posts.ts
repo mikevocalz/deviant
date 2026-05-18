@@ -8,6 +8,7 @@ import {
 import { debounce } from "@tanstack/pacer";
 import { postsApi } from "@/lib/api/posts";
 import type { Post } from "@/lib/types";
+import { deriveMediaKind } from "@/lib/api/posts";
 import { resolveTextPostPresentation } from "@/lib/posts/text-post";
 import { useRef, useCallback, useMemo, useEffect } from "react";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -139,7 +140,20 @@ export function useProfilePosts(userId: string) {
 }
 
 // Fetch single post by ID
-// CRITICAL: This is the canonical query for Post Detail - always ID-driven
+// CRITICAL: This is the canonical query for Post Detail - always ID-driven.
+// Stability contract:
+// - `placeholderData` returns previousData when available (keepPreviousData
+//   semantics) so a background refetch never drops the post object back to
+//   undefined — the detail screen keeps rendering the old tree while the
+//   fresh fetch is in flight.
+// - On initial mount (no previousData), we hydrate from any cached snapshot
+//   in the feed / profile / infinite-feed caches so the detail opens
+//   instantly instead of showing a skeleton.
+// - React Query v5's structural sharing already keeps the same object
+//   reference across refetches when the response is deep-equal, so the
+//   media subtree in post detail does NOT rebuild on no-op refetches.
+//   (The post detail screen also memoizes `stableMedia` by URL signature
+//   as a second line of defense for the GIF-flicker case.)
 export function usePost(id: string) {
   const queryClient = useQueryClient();
 
@@ -161,7 +175,8 @@ export function usePost(id: string) {
       return failureCount < 2;
     },
     placeholderData: isValidPostId(id)
-      ? () => findCachedPostSnapshot(queryClient, id)
+      ? (previousData) =>
+          previousData ?? findCachedPostSnapshot(queryClient, id)
       : undefined,
     staleTime: STALE_TIMES.postDetail,
   });
@@ -439,7 +454,15 @@ export function useCreatePost() {
             },
             media: (newPostData.media || []).map((m) => ({
               ...m,
-              type: (m.type as any) ?? "image",
+              // Same conversion as transformPost() + postsApi.createPost so
+              // the optimistic render in the feed matches the refetched one.
+              // Without this, GIFs show blank until the server round-trip
+              // replaces the optimistic post.
+              type: deriveMediaKind(
+                (m as any).type,
+                (m as any).mimeType,
+                (m as any).livePhotoVideoUrl,
+              ),
             })),
             kind:
               newPostData.kind === "text"
@@ -494,8 +517,18 @@ export function useCreatePost() {
           },
           media: (newPostData.media || []).map((m) => ({
             ...m,
-            type: ((m.type as any) ??
-              "image") as import("@/lib/types").MediaKind,
+            // Resolve DB flat shape (type: image|video + mimeType) to the
+            // in-memory MediaKind (gif / animated_video / livePhoto / etc).
+            // Without this, a gif-kind media lands in the legacy feed
+            // cache with type="image" and renders as a static <Image>
+            // (first frame only); a short looping video (animated_video)
+            // lands with type="video" and renders as a blank VideoThumb
+            // until the thumbnail generates.
+            type: deriveMediaKind(
+              (m as any).type,
+              (m as any).mimeType,
+              (m as any).livePhotoVideoUrl,
+            ),
           })),
           kind:
             newPostData.kind === "text"
@@ -544,7 +577,18 @@ export function useCreatePost() {
               },
               media: (newPostData.media || []).map((m) => ({
                 ...m,
-                type: (m.type as any) ?? "image",
+                // Match infinite-feed + legacy-feed behaviour: resolve
+                // the flat DB shape to MediaKind so the optimistic grid
+                // tile picks the correct renderer (gif / animated_video /
+                // livePhoto / image / video). Without this, a short
+                // video-as-gif lands in the profile cache with type
+                // "video" and renders as VideoThumbnailCell which is
+                // blank until the thumbnail generates on CDN.
+                type: deriveMediaKind(
+                  (m as any).type,
+                  (m as any).mimeType,
+                  (m as any).livePhotoVideoUrl,
+                ),
               })),
               kind:
                 newPostData.kind === "text"
@@ -795,37 +839,28 @@ export function useDeletePost() {
           deletedPostId,
         );
       const idStr = String(deletedPostId);
+      // Re-assert the optimistic removal in case any refetch raced in
+      // between onMutate and now.
       removePostEverywhere(queryClient, idStr);
 
-      queryClient.invalidateQueries({
-        queryKey: postKeys.feedInfinite(),
-        refetchType: "active",
-      });
-      queryClient.invalidateQueries({
-        queryKey: postKeys.feed(),
-        refetchType: "active",
-      });
-      queryClient.invalidateQueries({
-        queryKey: ["profilePosts"],
-        refetchType: "active",
-      });
+      // Mark queries stale WITHOUT triggering an immediate refetch.
+      // Previously this fired active refetches against the read replica,
+      // which often returned the deleted post (replica lag) and undid
+      // the optimistic removal. The post would re-appear in the profile
+      // grid within milliseconds of the delete succeeding.
+      const markStale = (queryKey: readonly unknown[]) =>
+        queryClient.invalidateQueries({ queryKey, refetchType: "none" });
+
+      markStale(postKeys.feedInfinite());
+      markStale(postKeys.feed());
+      markStale(["profilePosts"]);
 
       const ownerUsername = context?.deletedPost?.author?.username;
       if (ownerUsername) {
-        queryClient.invalidateQueries({
-          queryKey: ["users", "username", ownerUsername],
-          refetchType: "active",
-        });
-        queryClient.invalidateQueries({
-          queryKey: profileKeys.byUsername(ownerUsername),
-          refetchType: "active",
-        });
+        markStale(["users", "username", ownerUsername]);
+        markStale(profileKeys.byUsername(ownerUsername));
       }
-
-      queryClient.invalidateQueries({
-        queryKey: profileKeys.all,
-        refetchType: "active",
-      });
+      markStale(profileKeys.all);
     },
   });
 }

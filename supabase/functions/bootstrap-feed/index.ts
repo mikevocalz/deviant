@@ -249,6 +249,37 @@ Deno.serve(async (req: Request) => {
       { intUserId, authUserId },
     );
 
+    // ── NSFW follow gate: resolve which author IDs viewer may see spicy from ──
+    // Spicy posts are only shown to logged-in users who follow the author (or are the author).
+    // Guests (intUserId=null) requesting include_nsfw=true get an empty feed.
+    let spicyAuthorIds: number[] | null = null;
+    if (include_nsfw) {
+      if (!intUserId) {
+        // Guest cannot see spicy content — return empty feed immediately
+        return new Response(
+          JSON.stringify({
+            posts: [],
+            stories: [],
+            hasMore: false,
+            totalCount: 0,
+            unreadMessages: 0,
+            unreadNotifications: 0,
+            viewerProfile: null,
+            ms: Date.now() - t0,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      // Fetch the set of author IDs the viewer follows + themselves
+      const { data: followRows } = await supabase
+        .from("follows")
+        .select("following_id")
+        .eq("follower_id", intUserId);
+      const followedIds = (followRows || []).map((r: any) => Number(r.following_id));
+      followedIds.push(intUserId); // own posts always visible
+      spicyAuthorIds = followedIds;
+    }
+
     // ── Fire ALL queries in parallel — never sequential ──────────
 
     let postsQuery = supabase
@@ -270,9 +301,11 @@ Deno.serve(async (req: Request) => {
 
     // Strict spicy contract:
     //   include_nsfw=false → ONLY safe posts (is_nsfw=false OR NULL)
-    //   include_nsfw=true  → ONLY spicy posts (is_nsfw=true)
-    if (include_nsfw) {
-      postsQuery = postsQuery.eq("is_nsfw", true);
+    //   include_nsfw=true  → ONLY spicy posts (is_nsfw=true) from followed authors
+    if (include_nsfw && spicyAuthorIds !== null) {
+      postsQuery = postsQuery
+        .eq("is_nsfw", true)
+        .in("author_id", spicyAuthorIds);
     } else {
       postsQuery = postsQuery.or("is_nsfw.is.false,is_nsfw.is.null");
     }

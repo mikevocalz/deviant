@@ -13,6 +13,8 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifySignedQrPayload } from "../_shared/hmac-qr.ts";
+import { checkRateLimit } from "../_shared/rate-limit.ts";
+import { verifySession } from "../_shared/verify-session.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
@@ -66,10 +68,35 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Missing qr_token or qr_payload" }, 400);
     }
 
+    // Rate-limit per scanner identity. A single scanner can realistically process
+    // at most ~1 scan per 2s in a real door line — 30/minute is a generous ceiling.
+    // This prevents brute-force QR token enumeration.
+    // Rate limit by raw client identifier; scannerAuthId not available
+    // yet (verifySession runs below). x-forwarded-for is acceptable here.
+    const rateLimitKey = device_id || req.headers.get("x-forwarded-for") || "anon";
+    const rl = checkRateLimit(rateLimitKey, "ticket-scan", {
+      maxRequests: 30,
+      windowMs: 60_000,
+    });
+    if (!rl.allowed) {
+      return json(
+        { error: `Too many scan attempts. Try again in ${Math.ceil(rl.retryAfterMs / 1000)}s.` },
+        429,
+      );
+    }
+
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
+
+    // ── AUTH GATE (V2-SEC-01 fix) ─────────────────────────────
+    // Require a valid Better Auth session. Without this, anyone who
+    // captured a QR token could mark tickets scanned via direct HTTP.
+    const scannerAuthId = await verifySession(supabase, req);
+    if (!scannerAuthId) {
+      return json({ error: "Unauthorized — session required" }, 401);
+    }
 
     let ticketId: string | null = null;
     let ticketEventId: number | null = null;
@@ -90,20 +117,51 @@ Deno.serve(async (req: Request) => {
           ticketId,
           ticketEventId,
           "wrong_event",
-          scanned_by,
+          scannerAuthId,
           device_id,
         );
         return json({ valid: false, reason: "wrong_event" });
       }
     }
 
+    // ── HOST-ROLE GATE ─────────────────────────────────────────
+    // Determine the event the ticket belongs to, then confirm the
+    // session user is that event's host. We need this BEFORE any
+    // status mutation. For HMAC path we already have ticketEventId.
+    // For legacy qr_token path we need to look it up first.
+    let scanEventId: number | null = ticketEventId;
+    if (!scanEventId && qr_token) {
+      const { data: existing } = await supabase
+        .from("tickets")
+        .select("event_id")
+        .eq("qr_token", qr_token)
+        .single();
+      scanEventId = existing?.event_id ?? null;
+    }
+    if (!scanEventId) {
+      return json({ valid: false, reason: "ticket_not_found" });
+    }
+    const { data: scanEvent } = await supabase
+      .from("events")
+      .select("host_id")
+      .eq("id", scanEventId)
+      .single();
+    if (!scanEvent || String(scanEvent.host_id) !== String(scannerAuthId)) {
+      return json(
+        { error: "Forbidden — not the event host" },
+        403,
+      );
+    }
+
     // ── Atomic check-in by ticket ID (from HMAC) or qr_token (legacy) ──
+    // checked_in_by is forced to the verified session user; we don't
+    // trust the client-supplied scanned_by value for the audit trail.
     let updateQuery = supabase
       .from("tickets")
       .update({
         status: "scanned",
         checked_in_at: new Date().toISOString(),
-        checked_in_by: scanned_by || null,
+        checked_in_by: scannerAuthId,
       })
       .eq("status", "active");
 
@@ -150,7 +208,7 @@ Deno.serve(async (req: Request) => {
           existing.id,
           existing.event_id,
           reason,
-          scanned_by,
+          scannerAuthId,
           device_id,
         );
 
@@ -171,7 +229,7 @@ Deno.serve(async (req: Request) => {
       ticket.id,
       ticket.event_id,
       "valid",
-      scanned_by,
+      scannerAuthId,
       device_id,
     );
 

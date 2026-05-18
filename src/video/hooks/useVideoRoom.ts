@@ -56,7 +56,19 @@ interface UseVideoRoomOptions {
   anonymous?: boolean;
   onEjected?: (reason: EjectPayload) => void;
   onRoomEnded?: () => void;
-  onError?: (error: string) => void;
+  /**
+   * Fired on join/reconnect failure. The second arg carries the full
+   * error envelope (code + structured detail) for consumers that want
+   * to render rich UX like the capacity flow. `message` is kept as
+   * the first arg for backwards-compat with older call sites.
+   */
+  onError?: (
+    message: string,
+    envelope?: {
+      code?: string;
+      detail?: Record<string, unknown>;
+    },
+  ) => void;
 }
 
 function resolvePeerTracks(peer: any) {
@@ -248,17 +260,29 @@ export function useVideoRoom({
 
   const getPreferredCameraId = useCallback((facing: "front" | "back") => {
     const devices = cameraRef.current.cameraDevices || [];
-    const facingNeedle = facing.toLowerCase();
+    // Accept BOTH human-label values ("front"/"back") AND the WebRTC
+    // spec values that react-native-webrtc exposes on facingMode:
+    //   front  ↔  "user"
+    //   back   ↔  "environment"
+    // Older devices expose `position`, newer builds expose `facingMode`;
+    // some Android builds only populate the `label`. We check all of
+    // them so the matcher works on every platform Fishjam runs on.
+    const needles =
+      facing === "front"
+        ? ["front", "user", "facingmodeuser"]
+        : ["back", "environment", "facingmodeenvironment", "rear"];
+
     const match = devices.find((device: any) => {
       const label = String(device?.label || "").toLowerCase();
       const deviceId = String(device?.deviceId || "").toLowerCase();
       const position = String(device?.position || "").toLowerCase();
       const facingMode = String(device?.facingMode || "").toLowerCase();
-      return (
-        label.includes(facingNeedle) ||
-        deviceId.includes(facingNeedle) ||
-        position.includes(facingNeedle) ||
-        facingMode.includes(facingNeedle)
+      return needles.some(
+        (n) =>
+          label.includes(n) ||
+          deviceId.includes(n) ||
+          position.includes(n) ||
+          facingMode.includes(n),
       );
     });
 
@@ -495,7 +519,13 @@ export function useVideoRoom({
 
       if (!result.ok) {
         getStore().setConnectionStatus("error", result.error?.message);
-        onErrorRef.current?.(result.error?.message || "Failed to join room");
+        onErrorRef.current?.(
+          result.error?.message || "Failed to join room",
+          {
+            code: result.error?.code,
+            detail: result.error?.detail,
+          },
+        );
         return false;
       }
 
@@ -618,34 +648,41 @@ export function useVideoRoom({
     }
     cameraSwitchInFlightRef.current = true;
     try {
-      const stream = cameraRef.current.cameraStream;
-      const videoTrack = stream?.getVideoTracks?.()[0];
       const currentCameraId = cameraRef.current.currentCamera?.deviceId;
       const nextFacing = getStore().isFrontCamera ? "back" : "front";
       const targetCameraId = getPreferredCameraId(nextFacing);
 
-      if (videoTrack && typeof (videoTrack as any)._switchCamera === "function") {
-        (videoTrack as any)._switchCamera();
-        getStore().setFrontCamera(nextFacing === "front");
-        return;
-      }
+      // NOTE: we intentionally do NOT use `track._switchCamera()` here.
+      // It's marked `@deprecated` in
+      // @fishjam-cloud/react-native-webrtc/src/MediaStreamTrack.ts:118
+      // and — the root-cause of the "flip camera doesn't work for the
+      // host" bug — it reads `_settings.facingMode` to decide direction.
+      // Fishjam starts cameras by deviceId, which leaves
+      // `_settings.facingMode` undefined, so the toggle silently
+      // resolves to `'user'` every time and no-ops on a device that
+      // was already front-facing. Always use the supported
+      // `selectCamera(deviceId)` path instead — it internally calls
+      // `tsClient.replaceTrack` so remote peers see the new camera
+      // immediately.
 
       if (targetCameraId && targetCameraId !== currentCameraId) {
-        // selectCamera internally: gets new stream → tsClient.replaceTrack → remote
-        // peers see new camera immediately. Do NOT call stopCamera+startCamera after —
-        // that would tear down the track that selectCamera just published.
         const selectError = await cameraRef.current.selectCamera(targetCameraId);
         if (!selectError) {
           getStore().setFrontCamera(nextFacing === "front");
           return;
         }
         console.warn(
-          "[useVideoRoom] selectCamera failed, falling back to track switch:",
+          "[useVideoRoom] selectCamera failed:",
           selectError,
         );
       }
 
-      console.warn("[useVideoRoom] No camera-switch path available");
+      console.warn("[useVideoRoom] No camera-switch path available", {
+        nextFacing,
+        targetCameraId,
+        currentCameraId,
+        devices: cameraRef.current.cameraDevices?.length ?? 0,
+      });
       onErrorRef.current?.("Couldn't reverse camera");
     } catch (error) {
       console.error("[useVideoRoom] switchCamera failed:", error);

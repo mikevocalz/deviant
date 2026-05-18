@@ -20,6 +20,7 @@ import {
   UserPlus,
   Scissors,
   Type,
+  CalendarPlus,
 } from "lucide-react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
@@ -59,7 +60,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const MEDIA_PREVIEW_SIZE = (SCREEN_WIDTH - 48) / 2;
 const ASPECT_RATIO = 4 / 5;
 
-const MAX_PHOTOS = 4;
+const MAX_PHOTOS = 10;
 
 function CreateScreenContent() {
   const router = useRouter();
@@ -699,15 +700,21 @@ function CreateScreenContent() {
             {[
               {
                 key: "media",
-                label: "Media post",
+                label: "Media",
                 icon: ImageIcon,
-                description: "Up to 4 photos. Caption optional.",
+                description: "Photos or video",
               },
               {
                 key: "text",
-                label: "Text post",
+                label: "Text",
                 icon: Type,
-                description: "Words-only conversation starter",
+                description: "Text only",
+              },
+              {
+                key: "event",
+                label: "Event",
+                icon: CalendarPlus,
+                description: "Party, meetup, etc.",
               },
             ].map((option) => {
               const Icon = option.icon;
@@ -715,13 +722,17 @@ function CreateScreenContent() {
               return (
                 <Pressable
                   key={option.key}
-                  onPress={() =>
-                    handleSetPostKind(option.key as "media" | "text")
-                  }
+                  onPress={() => {
+                    if (option.key === "event") {
+                      router.push("/(protected)/events/create" as any);
+                    } else {
+                      handleSetPostKind(option.key as "media" | "text");
+                    }
+                  }}
                   style={{
                     flex: 1,
                     borderRadius: 14,
-                    paddingHorizontal: 14,
+                    paddingHorizontal: 8,
                     paddingVertical: 14,
                     backgroundColor: isActive
                       ? "rgba(62,164,229,0.16)"
@@ -745,6 +756,7 @@ function CreateScreenContent() {
                         color: isActive ? "#fff" : "#C2CAD7",
                         fontSize: 15,
                         fontWeight: "700",
+                        flex: 1,
                       }}
                     >
                       {option.label}
@@ -768,7 +780,7 @@ function CreateScreenContent() {
           </View>
         </View>
 
-        {isTextPost ? (
+        {isTextPost && (
           <TextPostSlidesComposer
             slides={textSlides}
             activeIndex={activeTextSlideIndex}
@@ -779,56 +791,14 @@ function CreateScreenContent() {
             onRemoveSlide={removeTextSlide}
             onThemeChange={setTextTheme}
           />
-        ) : (
-          <View style={{ padding: 16 }}>
-            <UserMentionAutocomplete
-              value={caption}
-              onChangeText={setCaption}
-              placeholder="Got a look, a moment, or a vibe? Caption optional."
-              multiline
-              maxLength={2200}
-              style={{
-                fontSize: 16,
-                minHeight: 80,
-              }}
-            />
-            <Text
-              style={{
-                fontSize: 12,
-                color: "#666",
-                marginTop: 8,
-                lineHeight: 18,
-              }}
-            >
-              Caption optional. Add context, @mentions, or leave it visual.
-            </Text>
-            <Text
-              style={{
-                fontSize: 12,
-                color: "#666",
-                marginTop: 6,
-                textAlign: "right",
-              }}
-            >
-              {caption.length}/2200
-            </Text>
-          </View>
         )}
 
-        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-          <LocationAutocompleteInstagram
-            value={location}
-            placeholder="Add location"
-            onLocationSelect={(data: LocationData) => setLocationData(data)}
-            onClear={() => setLocationData(null)}
-            onTextChange={(text) => {
-              // Clear location data if text is cleared
-              if (!text) {
-                setLocationData(null);
-              }
-            }}
-          />
-        </View>
+        {/*
+          Tag People + Location + photos sections render BELOW the primary
+          content area so the order matches the text-mode layout (content
+          → metadata). The Tag People button still gates on selected media
+          since photo-tagging requires photos.
+        */}
 
         {/* Tag People Button */}
         {!isTextPost && selectedMedia.length > 0 && (
@@ -1035,66 +1005,51 @@ function CreateScreenContent() {
           </View>
         )}
 
-        {!isTextPost && (
-          <>
-            <View
+        {!isTextPost && selectedMedia.length === 0 && (
+          <View
+            style={{
+              flexDirection: "row",
+              paddingHorizontal: 16,
+              gap: 8,
+              marginBottom: 20,
+            }}
+          >
+            <Pressable
+              onPress={handlePickLibrary}
               style={{
+                flex: 1,
                 flexDirection: "row",
-                paddingHorizontal: 16,
+                alignItems: "center",
+                justifyContent: "center",
                 gap: 8,
-                marginBottom: 20,
+                backgroundColor: "#3EA4E5",
+                paddingVertical: 14,
+                borderRadius: 12,
               }}
             >
-              <Pressable
-                onPress={handlePickLibrary}
-                disabled={!canAddMore && selectedMedia.length > 0}
-                style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  backgroundColor:
-                    canAddMore || selectedMedia.length === 0
-                      ? "#3EA4E5"
-                      : "#1a1a1a",
-                  paddingVertical: 14,
-                  borderRadius: 12,
-                  opacity: canAddMore || selectedMedia.length === 0 ? 1 : 0.5,
-                }}
-              >
-                <ImageIcon size={20} color="#fff" />
-                <Text style={{ color: "#fff", fontWeight: "600" }}>
-                  Library
-                </Text>
-              </Pressable>
-
-              <Pressable
-                onPress={handleOpenCamera}
-                disabled={selectedMedia.length >= MAX_PHOTOS}
-                style={{
-                  flex: 1,
-                  flexDirection: "row",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 8,
-                  backgroundColor: "#1a1a1a",
-                  paddingVertical: 14,
-                  borderRadius: 12,
-                  opacity: selectedMedia.length < MAX_PHOTOS ? 1 : 0.5,
-                }}
-              >
-                <Camera size={20} color="#fff" />
-                <Text style={{ color: "#fff", fontWeight: "600" }}>Camera</Text>
-              </Pressable>
-            </View>
-
-            <View style={{ paddingHorizontal: 16, marginBottom: 8 }}>
-              <Text style={{ color: "#666", fontSize: 13 }}>
-                {`Photos ${selectedMedia.length}/${MAX_PHOTOS}`}
+              <ImageIcon size={20} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "600" }}>
+                Add Photos
               </Text>
-            </View>
-          </>
+            </Pressable>
+
+            <Pressable
+              onPress={handleOpenCamera}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                backgroundColor: "#1a1a1a",
+                paddingVertical: 14,
+                borderRadius: 12,
+              }}
+            >
+              <Camera size={20} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "600" }}>Camera</Text>
+            </Pressable>
+          </View>
         )}
 
         {!isTextPost && selectedMedia.length > 0 && (
@@ -1228,47 +1183,45 @@ function CreateScreenContent() {
           </View>
         )}
 
-        {!isTextPost && selectedMedia.length === 0 && (
-          <View
-            style={{
-              alignItems: "center",
-              justifyContent: "center",
-              paddingVertical: 60,
-              paddingHorizontal: 32,
+        {/* Location — always rendered, sits below the content section so
+            it lives in the same vertical slot on text + media modes. */}
+        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+          <LocationAutocompleteInstagram
+            value={location}
+            placeholder="Add location"
+            onLocationSelect={(data: LocationData) => setLocationData(data)}
+            onClear={() => setLocationData(null)}
+            onTextChange={(text) => {
+              if (!text) {
+                setLocationData(null);
+              }
             }}
-          >
-            <View
+          />
+        </View>
+
+        {/* Caption — below media for media posts */}
+        {!isTextPost && (
+          <View style={{ padding: 16 }}>
+            <UserMentionAutocomplete
+              value={caption}
+              onChangeText={setCaption}
+              placeholder="Caption (optional)"
+              multiline
+              maxLength={2200}
               style={{
-                width: 80,
-                height: 80,
-                borderRadius: 40,
-                backgroundColor: "#111",
-                alignItems: "center",
-                justifyContent: "center",
-                marginBottom: 16,
+                fontSize: 16,
+                minHeight: 80,
               }}
-            >
-              <ImageIcon size={36} color="#666" />
-            </View>
+            />
             <Text
               style={{
-                color: "#fff",
-                fontSize: 18,
-                fontWeight: "600",
-                marginBottom: 8,
-              }}
-            >
-              Add Photos
-            </Text>
-            <Text
-              style={{
+                fontSize: 12,
                 color: "#666",
-                fontSize: 14,
-                textAlign: "center",
-                lineHeight: 20,
+                marginTop: 6,
+                textAlign: "right",
               }}
             >
-              Select up to {MAX_PHOTOS} photos
+              {caption.length}/2200
             </Text>
           </View>
         )}

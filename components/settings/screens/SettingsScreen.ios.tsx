@@ -46,6 +46,7 @@ import {
   CreditCard,
   Banknote,
   CloudRain,
+  LayoutGrid,
 } from "lucide-react-native";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -61,8 +62,12 @@ export default function SettingsScreenIOS() {
   const router = useRouter();
   const navigation = useNavigation();
   const { colors } = useColorScheme();
-  const { user, logout } = useAuthStore();
-  const { nsfwEnabled, setNsfwEnabled } = useAppStore();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
+  const setNsfwEnabled = useAppStore((s) => s.setNsfwEnabled);
+  const feedMode = useAppStore((s) => s.feedMode);
+  const setFeedMode = useAppStore((s) => s.setFeedMode);
 
   // Set up header with useLayoutEffect
   useLayoutEffect(() => {
@@ -255,7 +260,7 @@ export default function SettingsScreenIOS() {
   };
 
   return (
-    <SafeAreaView edges={["top"]} className="flex-1 bg-background">
+    <SafeAreaView edges={[]} className="flex-1 bg-background">
       <Main className="flex-1">
         <ScrollView className="flex-1" showsVerticalScrollIndicator={false}>
           {/* User Info Card - iOS Style */}
@@ -392,6 +397,39 @@ export default function SettingsScreenIOS() {
               label="Archived"
               onPress={() => router.push("/settings/archived" as any)}
             />
+            <View className="ml-12 h-px bg-border" />
+            <View className="flex-row items-center justify-between bg-card px-4 py-3">
+              <View className="flex-row items-center gap-3">
+                <LayoutGrid size={20} color="#666" />
+                <View>
+                  <Text className="text-base text-foreground">Feed Layout</Text>
+                  <Text className="text-xs text-muted-foreground">
+                    Switch between list and grid view
+                  </Text>
+                </View>
+              </View>
+              <View className="flex-row items-center rounded-lg overflow-hidden border border-border">
+                <Pressable
+                  onPress={() => setFeedMode("classic")}
+                  className="px-3 py-1.5"
+                  style={{ backgroundColor: feedMode === "classic" ? "rgba(62,164,229,0.2)" : "transparent" }}
+                >
+                  <Text className="text-sm font-medium" style={{ color: feedMode === "classic" ? "#3EA4E5" : "#888" }}>
+                    Feed
+                  </Text>
+                </Pressable>
+                <View className="w-px h-5 bg-border" />
+                <Pressable
+                  onPress={() => setFeedMode("masonry")}
+                  className="px-3 py-1.5"
+                  style={{ backgroundColor: feedMode === "masonry" ? "rgba(62,164,229,0.2)" : "transparent" }}
+                >
+                  <Text className="text-sm font-medium" style={{ color: feedMode === "masonry" ? "#3EA4E5" : "#888" }}>
+                    Grid
+                  </Text>
+                </Pressable>
+              </View>
+            </View>
             <View className="ml-12 h-px bg-border" />
             <View className="flex-row items-center justify-between bg-card px-4 py-3">
               <View className="flex-row items-center gap-3">

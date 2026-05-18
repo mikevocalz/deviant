@@ -7,7 +7,7 @@
 
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { getCurrentUserIdInt } from "./auth-helper";
+import { getCurrentUserIdSync } from "./auth-helper";
 
 export interface PostTag {
   id: number;
@@ -41,7 +41,7 @@ export const postTagsApi = {
     try {
       if (!tags.length) return [];
 
-      const currentUserId = getCurrentUserIdInt();
+      const currentUserId = getCurrentUserIdSync();
       if (!currentUserId) throw new Error("Not authenticated");
 
       const rows = tags.map((t) => ({
@@ -181,7 +181,7 @@ export const postTagsApi = {
     next: TagDiffInput[],
   ): Promise<PostTag[]> {
     try {
-      const currentUserId = getCurrentUserIdInt();
+      const currentUserId = getCurrentUserIdSync();
       if (!currentUserId) throw new Error("Not authenticated");
       const pid = parseInt(postId);
 

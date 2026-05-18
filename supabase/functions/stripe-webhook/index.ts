@@ -30,6 +30,7 @@ import {
   brandEmailWrapper,
 } from "../_shared/send-resend-email.ts";
 import { voidWalletPass } from "../_shared/wallet-push.ts";
+import { incrementPromoUsage } from "../_shared/apply-promo-code.ts";
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
@@ -45,7 +46,11 @@ async function sendGuestTicketEmail(
   eventTitle: string,
   startDate: string | null,
   location: string | null,
-  tickets: { id: string; qr_token: string; guest_lookup_token: string | null }[],
+  tickets: {
+    id: string;
+    qr_token: string;
+    guest_lookup_token: string | null;
+  }[],
 ): Promise<void> {
   const greeting = name ? `Hey ${name},` : "Hey,";
   const dateLine = startDate
@@ -149,12 +154,186 @@ async function verifyStripeSignature(
   }
 }
 
-function generateQrToken(): string {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => b.toString(16).padStart(2, "0"))
-    .join("");
+async function refundPaymentIntentForAllocationFailure(
+  paymentIntentId: string,
+  cartId: string,
+): Promise<void> {
+  const res = await fetch("https://api.stripe.com/v1/refunds", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${Deno.env.get("STRIPE_SECRET_KEY") || ""}`,
+      "Content-Type": "application/x-www-form-urlencoded",
+      "Idempotency-Key": `allocation_failure_${paymentIntentId}`,
+    },
+    body: new URLSearchParams({
+      payment_intent: paymentIntentId,
+      reason: "requested_by_customer",
+      "metadata[cart_id]": cartId,
+      "metadata[reason]": "system_allocation_failure",
+    }).toString(),
+  });
+
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    throw new Error(data.error?.message || "Stripe refund failed");
+  }
+}
+
+async function prepareCartTicketRows(
+  supabase: any,
+  cartId: string,
+): Promise<
+  {
+    ticket_id: string;
+    line_item_id: string;
+    qr_token: string;
+    qr_payload: string;
+  }[]
+> {
+  const { data: lineItems, error } = await supabase
+    .from("cart_line_items")
+    .select("id, quantity, ticket_types(event_id)")
+    .eq("cart_id", cartId)
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+  if (!lineItems?.length) {
+    throw new Error("Cart has no line items");
+  }
+
+  const preparedRows: {
+    ticket_id: string;
+    line_item_id: string;
+    qr_token: string;
+    qr_payload: string;
+  }[] = [];
+
+  for (const lineItem of lineItems) {
+    const eventId = Number(lineItem.ticket_types?.event_id);
+    const quantity = Number(lineItem.quantity);
+    if (!Number.isInteger(eventId) || eventId <= 0) {
+      throw new Error(`Invalid event for cart line item ${lineItem.id}`);
+    }
+    if (!Number.isInteger(quantity) || quantity <= 0) {
+      throw new Error(`Invalid quantity for cart line item ${lineItem.id}`);
+    }
+
+    for (let i = 0; i < quantity; i++) {
+      const ticketId = crypto.randomUUID();
+      const { qrToken, qrPayload } = await createSignedQrPayload(
+        ticketId,
+        eventId,
+      );
+
+      preparedRows.push({
+        ticket_id: ticketId,
+        line_item_id: lineItem.id,
+        qr_token: qrToken,
+        qr_payload: qrPayload,
+      });
+    }
+  }
+
+  return preparedRows;
+}
+
+async function handleCartPaymentIntentSucceeded(
+  supabase: any,
+  pi: any,
+): Promise<boolean> {
+  const metadata = pi.metadata || {};
+  const cartId = metadata.cart_id;
+  if (!cartId) return false;
+
+  console.log("[stripe-webhook] Cart PI succeeded", {
+    cartId,
+    paymentIntentId: pi.id,
+  });
+
+  const preparedTicketRows = await prepareCartTicketRows(supabase, cartId);
+
+  const { data: issuanceResult, error: issuanceError } = await supabase.rpc(
+    "cart_complete_issuance",
+    {
+      p_cart_id: cartId,
+      p_payment_intent_id: pi.id,
+      p_ticket_rows: preparedTicketRows,
+    },
+  );
+
+  if (issuanceError) {
+    console.error("[stripe-webhook] cart issuance RPC failed:", issuanceError);
+    await refundPaymentIntentForAllocationFailure(pi.id, cartId);
+    throw issuanceError;
+  }
+
+  if (!issuanceResult?.ok) {
+    console.error("[stripe-webhook] cart issuance rejected:", issuanceResult);
+    await refundPaymentIntentForAllocationFailure(pi.id, cartId);
+
+    await supabase
+      .from("orders")
+      .update({
+        status: "payment_failed",
+        updated_at: new Date().toISOString(),
+      })
+      .eq("cart_id", cartId);
+
+    return true;
+  }
+
+  if (issuanceResult.duplicate) {
+    console.log("[stripe-webhook] Cart already completed, skipping issuance", {
+      cartId,
+      issuedCount: issuanceResult.issuedCount,
+    });
+    return true;
+  }
+
+  const { data: lineItems } = await supabase
+    .from("cart_line_items")
+    .select("tier_id")
+    .eq("cart_id", cartId);
+
+  const seenTierIds = new Set<string>();
+  for (const line of lineItems || []) {
+    const tierId = String(line.tier_id);
+    if (seenTierIds.has(tierId)) continue;
+    seenTierIds.add(tierId);
+    await maybeFireCapacityAlerts(supabase, {
+      eventId: parseInt(metadata.event_id),
+      ticketTypeId: tierId,
+    });
+  }
+
+  const { data: orderRow } = await supabase
+    .from("orders")
+    .select("id")
+    .eq("cart_id", cartId)
+    .maybeSingle();
+
+  if (orderRow?.id) {
+    await supabase.from("order_timeline").insert([
+      {
+        order_id: orderRow.id,
+        type: "payment_authorized",
+        label: "Payment authorized",
+      },
+      {
+        order_id: orderRow.id,
+        type: "payment_captured",
+        label: "Payment captured",
+        detail: `${issuanceResult.issuedCount} ticket(s) issued`,
+      },
+    ]);
+  }
+
+  console.log("[stripe-webhook] Cart issuance complete", {
+    cartId,
+    issuedCount: issuanceResult.issuedCount,
+  });
+
+  return true;
 }
 
 Deno.serve(async (req: Request) => {
@@ -162,19 +341,27 @@ Deno.serve(async (req: Request) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
+  // Hard-fail if webhook secret is not configured — never skip signature verification.
+  // A missing secret means anyone could POST fake events and issue tickets, grant access,
+  // or trigger refunds without paying.
+  if (!STRIPE_WEBHOOK_SECRET) {
+    console.error(
+      "[stripe-webhook] STRIPE_WEBHOOK_SECRET is not set — rejecting request",
+    );
+    return new Response("Webhook secret not configured", { status: 500 });
+  }
+
   const body = await req.text();
   const sigHeader = req.headers.get("stripe-signature") || "";
 
-  if (STRIPE_WEBHOOK_SECRET) {
-    const valid = await verifyStripeSignature(
-      body,
-      sigHeader,
-      STRIPE_WEBHOOK_SECRET,
-    );
-    if (!valid) {
-      console.error("[stripe-webhook] Invalid signature");
-      return new Response("Invalid signature", { status: 400 });
-    }
+  const valid = await verifyStripeSignature(
+    body,
+    sigHeader,
+    STRIPE_WEBHOOK_SECRET,
+  );
+  if (!valid) {
+    console.error("[stripe-webhook] Invalid signature");
+    return new Response("Invalid signature", { status: 400 });
   }
 
   const event = JSON.parse(body);
@@ -230,9 +417,7 @@ Deno.serve(async (req: Request) => {
               user_id: userId,
               guest_email: guestEmail,
               guest_name: guestName,
-              guest_lookup_token: isGuestPurchase
-                ? crypto.randomUUID()
-                : null,
+              guest_lookup_token: isGuestPurchase ? crypto.randomUUID() : null,
               status: "active",
               qr_token: qrToken,
               qr_payload: qrPayload,
@@ -286,8 +471,18 @@ Deno.serve(async (req: Request) => {
             ticketTypeId,
           });
 
+          // ── Promo usage — increment here (after confirmed payment), NOT at checkout time.
+          // Incrementing at checkout creation would inflate usage counts for abandoned sessions.
+          if (metadata.promo_code_id) {
+            await incrementPromoUsage(supabase, metadata.promo_code_id);
+          }
+
           // ── Guest tickets: email confirmation with QR + lookup link ──
-          if (isGuestPurchase && insertedTickets && insertedTickets.length > 0) {
+          if (
+            isGuestPurchase &&
+            insertedTickets &&
+            insertedTickets.length > 0
+          ) {
             try {
               const { data: eventRow } = await supabase
                 .from("events")
@@ -447,9 +642,15 @@ Deno.serve(async (req: Request) => {
             .eq("id", ticketId);
 
           if (upgradeError) {
-            console.error("[stripe-webhook] Ticket upgrade error:", upgradeError);
+            console.error(
+              "[stripe-webhook] Ticket upgrade error:",
+              upgradeError,
+            );
             throw upgradeError;
           }
+
+          // Void old wallet pass — tier has changed, the old pass shows stale tier info
+          await voidWalletPass(supabase, ticketId);
 
           // Decrement quantity_sold on the OLD tier
           if (oldTicketTypeId && oldTicketTypeId !== newTicketTypeId) {
@@ -460,7 +661,9 @@ Deno.serve(async (req: Request) => {
               .single();
             await supabase
               .from("ticket_types")
-              .update({ quantity_sold: Math.max(0, (oldTt?.quantity_sold || 1) - 1) })
+              .update({
+                quantity_sold: Math.max(0, (oldTt?.quantity_sold || 1) - 1),
+              })
               .eq("id", oldTicketTypeId);
           }
 
@@ -487,7 +690,9 @@ Deno.serve(async (req: Request) => {
         const pi = event.data.object;
         const piMetadata = pi.metadata || {};
 
-        if (piMetadata.type === "event_ticket") {
+        if (piMetadata.type === "cart_checkout") {
+          await handleCartPaymentIntentSucceeded(supabase, pi);
+        } else if (piMetadata.type === "event_ticket") {
           const piEventId = parseInt(piMetadata.event_id);
           const piTicketTypeId = piMetadata.ticket_type_id;
           const piUserId = piMetadata.user_id;
@@ -617,6 +822,72 @@ Deno.serve(async (req: Request) => {
           console.log(
             `[stripe-webhook] PI succeeded: issued ${piQuantity} tickets for event ${piEventId}`,
           );
+        } else if (piMetadata.type === "ticket_upgrade") {
+          // ── Upgrade existing ticket to a higher tier (PaymentSheet) ──
+          const upTicketId = piMetadata.ticket_id;
+          const upNewTypeId = piMetadata.new_ticket_type_id;
+          const upEventId = parseInt(piMetadata.event_id);
+          const upPaidCents = pi.amount || 0;
+
+          const { data: upOldTicket } = await supabase
+            .from("tickets")
+            .select("ticket_type_id, purchase_amount_cents")
+            .eq("id", upTicketId)
+            .single();
+          const upOldTypeId = upOldTicket?.ticket_type_id;
+
+          const { data: upNewType } = await supabase
+            .from("ticket_types")
+            .select("price_cents, name")
+            .eq("id", upNewTypeId)
+            .single();
+
+          const upPrevPaid = upOldTicket?.purchase_amount_cents || 0;
+
+          const { error: upError } = await supabase
+            .from("tickets")
+            .update({
+              ticket_type_id: upNewTypeId,
+              purchase_amount_cents: upPrevPaid + upPaidCents,
+              stripe_payment_intent_id: pi.id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", upTicketId);
+
+          if (upError) {
+            console.error("[stripe-webhook] ticket_upgrade PI error:", upError);
+            throw upError;
+          }
+
+          // Increment quantity_sold on the new tier, decrement on the old
+          if (upNewTypeId) {
+            const { data: ntRow } = await supabase
+              .from("ticket_types")
+              .select("quantity_sold")
+              .eq("id", upNewTypeId)
+              .single();
+            await supabase
+              .from("ticket_types")
+              .update({ quantity_sold: (ntRow?.quantity_sold || 0) + 1 })
+              .eq("id", upNewTypeId);
+          }
+          if (upOldTypeId) {
+            const { data: otRow } = await supabase
+              .from("ticket_types")
+              .select("quantity_sold")
+              .eq("id", upOldTypeId)
+              .single();
+            await supabase
+              .from("ticket_types")
+              .update({
+                quantity_sold: Math.max(0, (otRow?.quantity_sold || 0) - 1),
+              })
+              .eq("id", upOldTypeId);
+          }
+
+          console.log(
+            `[stripe-webhook] Ticket ${upTicketId} upgraded to type ${upNewTypeId} for event ${upEventId} via PI ${pi.id}`,
+          );
         }
         break;
       }
@@ -650,6 +921,29 @@ Deno.serve(async (req: Request) => {
       case "payment_intent.payment_failed": {
         // Release hold on failed payment
         const failedPi = event.data.object;
+        const failedMetadata = failedPi.metadata || {};
+
+        if (failedMetadata.type === "cart_checkout" && failedMetadata.cart_id) {
+          await supabase.rpc("cart_release_hold", {
+            p_cart_id: failedMetadata.cart_id,
+          });
+
+          await supabase
+            .from("orders")
+            .update({
+              status: "payment_failed",
+              updated_at: new Date().toISOString(),
+            })
+            .eq("cart_id", failedMetadata.cart_id)
+            .eq("status", "payment_pending");
+
+          console.log(
+            "[stripe-webhook] Cart payment failed, hold released:",
+            failedMetadata.cart_id,
+          );
+          break;
+        }
+
         await supabase
           .from("ticket_holds")
           .update({ status: "expired" })
@@ -676,24 +970,118 @@ Deno.serve(async (req: Request) => {
       case "charge.refunded": {
         const charge = event.data.object;
         const paymentIntent = charge.payment_intent;
+        const refundObjects = Array.isArray(charge.refunds?.data)
+          ? charge.refunds.data
+          : [];
+        const refundedLineItemIds = Array.from(
+          new Set(
+            refundObjects
+              .map(
+                (refund: any) =>
+                  refund?.metadata?.cart_line_item_id ||
+                  refund?.metadata?.line_item_id,
+              )
+              .filter(Boolean),
+          ),
+        );
+        const stripeRefundIds = refundObjects
+          .map((refund: any) => refund?.id)
+          .filter(Boolean);
 
         if (paymentIntent) {
-          // Pull tickets BEFORE flipping them so we keep event_id +
-          // ticket_type_id to decrement inventory and notify waitlisters.
-          const { data: toRefund } = await supabase
-            .from("tickets")
-            .select("id, event_id, ticket_type_id")
-            .eq("stripe_payment_intent_id", paymentIntent)
-            .eq("status", "active");
+          let toRefund: any[] = [];
 
-          const { error: refundError } = await supabase
-            .from("tickets")
-            .update({ status: "refunded" })
-            .eq("stripe_payment_intent_id", paymentIntent)
-            .eq("status", "active");
+          if (refundedLineItemIds.length > 0) {
+            for (const refund of refundObjects) {
+              const lineItemId =
+                refund?.metadata?.cart_line_item_id ||
+                refund?.metadata?.line_item_id;
+              const cartId = refund?.metadata?.cart_id;
+              if (!lineItemId || !cartId || !refund?.amount || !refund?.id) {
+                continue;
+              }
 
-          if (refundError) {
-            console.error("[stripe-webhook] Refund update error:", refundError);
+              const { data: applied, error: applyError } = await supabase.rpc(
+                "cart_apply_line_refund",
+                {
+                  p_cart_id: cartId,
+                  p_line_item_id: lineItemId,
+                  p_stripe_refund_id: refund.id,
+                  p_amount_cents: refund.amount,
+                  p_idempotency_key: `cart_line_refund_${lineItemId}_${refund.amount}`,
+                },
+              );
+              if (applyError) {
+                console.error(
+                  "[stripe-webhook] Cart line refund sync error:",
+                  applyError,
+                );
+                continue;
+              }
+              if (Array.isArray(applied?.ticketRows)) {
+                toRefund = toRefund.concat(applied.ticketRows);
+              }
+            }
+          } else {
+            // Pull tickets BEFORE flipping them so we keep event_id +
+            // ticket_type_id to decrement inventory and notify waitlisters.
+            const { data: legacyToRefund } = await supabase
+              .from("tickets")
+              .select("id, event_id, ticket_type_id")
+              .eq("stripe_payment_intent_id", paymentIntent)
+              .eq("status", "active");
+            toRefund = legacyToRefund || [];
+
+            const { error: refundError } = await supabase
+              .from("tickets")
+              .update({ status: "refunded" })
+              .eq("stripe_payment_intent_id", paymentIntent)
+              .eq("status", "active");
+
+            if (refundError) {
+              console.error(
+                "[stripe-webhook] Refund update error:",
+                refundError,
+              );
+            }
+          }
+
+          // Tally refunds per tier + decrement quantity_sold so the
+          // freed seats show as available. Then fire one waitlist
+          // promotion per freed seat.
+          if (toRefund && toRefund.length > 0) {
+            const perTier = new Map<string, number>();
+            for (const t of toRefund) {
+              const key = String(t.ticket_type_id);
+              perTier.set(key, (perTier.get(key) ?? 0) + 1);
+            }
+            for (const [typeId, count] of perTier) {
+              const { data: tt } = await supabase
+                .from("ticket_types")
+                .select("quantity_sold, name, event_id")
+                .eq("id", typeId)
+                .maybeSingle();
+              if (!tt) continue;
+              await supabase
+                .from("ticket_types")
+                .update({
+                  quantity_sold: Math.max(0, (tt.quantity_sold ?? 0) - count),
+                })
+                .eq("id", typeId);
+              const { data: ev } = await supabase
+                .from("events")
+                .select("title")
+                .eq("id", tt.event_id)
+                .maybeSingle();
+              for (let i = 0; i < count; i++) {
+                await notifyNextWaitlister(supabase, {
+                  eventId: tt.event_id,
+                  ticketTypeId: typeId,
+                  tierName: tt.name,
+                  eventTitle: ev?.title ?? null,
+                });
+              }
+            }
           }
 
           // Tally refunds per tier + decrement quantity_sold so the
@@ -735,11 +1123,18 @@ Deno.serve(async (req: Request) => {
           }
 
           // Void wallet passes for refunded tickets
-          const { data: refundedTickets } = await supabase
+          let refundedTicketsQuery = supabase
             .from("tickets")
             .select("id")
             .eq("stripe_payment_intent_id", paymentIntent)
             .eq("status", "refunded");
+          if (refundedLineItemIds.length > 0) {
+            refundedTicketsQuery = refundedTicketsQuery.in(
+              "cart_line_item_id",
+              refundedLineItemIds,
+            );
+          }
+          const { data: refundedTickets } = await refundedTicketsQuery;
           if (refundedTickets) {
             for (const t of refundedTickets) {
               await voidWalletPass(supabase, t.id);

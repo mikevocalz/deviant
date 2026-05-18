@@ -2,6 +2,11 @@ import { supabase } from "../supabase/client";
 import { getCurrentUserAuthId } from "./auth-helper";
 import { requireBetterAuthToken } from "../auth/identity";
 import { invokeEdge } from "./invoke-edge";
+import {
+  CartLineRefundResponseDTO,
+  parseDTO,
+  type CartLineRefundResponse,
+} from "@/lib/contracts/dto";
 
 export interface TicketRecord {
   id: string;
@@ -13,6 +18,9 @@ export interface TicketRecord {
   checked_in_at: string | null;
   checked_in_by: string | null;
   purchase_amount_cents: number | null;
+  category?: "admission" | "coat_check" | "product" | "service";
+  cart_id?: string | null;
+  cart_line_item_id?: string | null;
   created_at: string;
   updated_at?: string;
   wallet_pass_updated_at?: string | null;
@@ -147,14 +155,26 @@ export const ticketsApi = {
   async scanTicket(
     qrToken: string,
     scannedBy?: string,
+    eventId?: string,
   ): Promise<{
     valid: boolean;
     reason?: string;
     ticket?: any;
   }> {
     try {
+      // ticket-scan now requires a Better Auth session (host-only). Without
+      // this header it returns 401 and scans silently fail.
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("ticket-scan", {
-        body: { qr_token: qrToken, scanned_by: scannedBy },
+        body: {
+          qr_token: qrToken,
+          scanned_by: scannedBy,
+          ...(eventId ? { event_id: eventId } : {}),
+        },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "x-auth-token": token,
+        },
       });
 
       if (error) throw error;
@@ -231,6 +251,15 @@ export const ticketsApi = {
   ): Promise<{ synced: string[]; failed: string[] }> {
     const synced: string[] = [];
     const failed: string[] = [];
+    // Resolve once; one session token for the whole batch.
+    let token: string | null = null;
+    try {
+      token = await requireBetterAuthToken();
+    } catch {
+      // Without a session every scan will 401 — mark all as failed so the
+      // queue stays intact for the next online sync attempt.
+      return { synced, failed: scans.map((s) => s.qrToken) };
+    }
     for (const scan of scans) {
       try {
         const { data, error } = await supabase.functions.invoke("ticket-scan", {
@@ -238,6 +267,10 @@ export const ticketsApi = {
             qr_token: scan.qrToken,
             scanned_by: scan.scannedBy,
             offline_scanned_at: scan.scannedAt,
+          },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
           },
         });
         if (error) throw error;
@@ -259,13 +292,17 @@ export const ticketsApi = {
     already_existed: boolean;
   } | null> {
     try {
-      const { data, error } = await supabase.rpc("issue_rsvp_ticket", {
-        p_event_id: parseInt(params.eventId),
-        p_user_auth_id: params.userId,
-      });
+      const { data, error } = await invokeEdge<{
+        ok: boolean;
+        data?: { id: string; qr_token: string; already_existed: boolean };
+        error?: { code: string; message: string };
+      }>("rsvp-issue-ticket", { eventId: parseInt(params.eventId, 10) });
 
       if (error) throw error;
-      return data as { id: string; qr_token: string; already_existed: boolean };
+      if (!data?.ok) {
+        throw new Error(data?.error?.message || "Failed to issue ticket");
+      }
+      return data.data ?? null;
     } catch (error) {
       console.error("[Tickets] issueRsvpTicket error:", error);
       return null;
@@ -426,6 +463,59 @@ export const ticketsApi = {
     } catch (error) {
       console.error("[Tickets] getPendingTransfers error:", error);
       return { incoming: [], outgoing: [] };
+    }
+  },
+
+  /**
+   * Buyer-initiated ticket refund.
+   * Only works before event starts and for active tickets.
+   */
+  async requestRefund(ticketId: string): Promise<{
+    ok?: boolean;
+    stripe_refund_id?: string;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke("ticket-refund", {
+        body: { ticket_id: ticketId },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (error) throw error;
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      return result;
+    } catch (error: any) {
+      console.error("[Tickets] requestRefund error:", error);
+      return { error: error.message || "Refund request failed" };
+    }
+  },
+
+  /**
+   * Buyer-initiated mixed-cart line refund.
+   * Cancels only the selected cart line item; sibling line items remain active.
+   */
+  async requestLineRefund(params: {
+    cartId: string;
+    lineItemId: string;
+  }): Promise<
+    (CartLineRefundResponse & { error?: undefined }) | { error: string }
+  > {
+    try {
+      const token = await requireBetterAuthToken();
+      const { data, error } = await supabase.functions.invoke(
+        "cart-line-refund",
+        {
+          body: params,
+          headers: { Authorization: `Bearer ${token}` },
+        },
+      );
+      if (error) throw error;
+      const result = typeof data === "string" ? JSON.parse(data) : data;
+      return parseDTO(CartLineRefundResponseDTO, result);
+    } catch (error: any) {
+      console.error("[Tickets] requestLineRefund error:", error);
+      return { error: error.message || "Line-item refund request failed" };
     }
   },
 

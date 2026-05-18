@@ -16,7 +16,51 @@ import { uploadToServer } from "@/lib/server-upload";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { logChat } from "@/lib/auth/auth-logger";
-import { invalidateTokenCache } from "@/lib/auth-client";
+import { invalidateTokenCache, getQueryClient } from "@/lib/auth-client";
+import { messageKeys } from "@/lib/messages/query-keys";
+import type { Conversation } from "@/lib/api/messages";
+import { ensureOnlineOrToast } from "@/lib/connectivity/guard";
+
+/**
+ * Optimistically move the just-sent conversation to the top of the list
+ * with the new lastMessage text, so the user sees their own send reflected
+ * in the chat list INSTANTLY — no wait for the server round-trip or
+ * realtime subscription. Preserves every other field on the conversation
+ * row so profile data doesn't flicker. If the conversation isn't in the
+ * cache yet (e.g. brand-new chat), this is a no-op and the list refetch
+ * on focus will pick it up.
+ */
+function bumpConversationToTopOptimistically(
+  viewerId: string | undefined,
+  conversationId: string,
+  lastMessagePreview: string,
+) {
+  if (!viewerId || !conversationId) return;
+  const qc = getQueryClient();
+  if (!qc) return;
+  try {
+    qc.setQueryData<Conversation[]>(
+      messageKeys.conversations(viewerId),
+      (old) => {
+        if (!Array.isArray(old)) return old;
+        const existing = old.find((c) => String(c.id) === String(conversationId));
+        if (!existing) return old;
+        const bumped: Conversation = {
+          ...existing,
+          lastMessage: lastMessagePreview || existing.lastMessage,
+          timestamp: new Date().toISOString(),
+          unread: false,
+        };
+        const rest = old.filter((c) => String(c.id) !== String(conversationId));
+        return [bumped, ...rest];
+      },
+    );
+  } catch (err) {
+    // Non-fatal — chat send continues; worst case the list refreshes on focus.
+    if (__DEV__)
+      console.warn("[ChatStore] bumpConversationToTop failed:", err);
+  }
+}
 
 export interface MediaAttachment {
   type: "image" | "video";
@@ -43,6 +87,14 @@ export interface SharedPostContext {
   mediaType?: import("@/lib/media/types").MediaKind;
 }
 
+export interface EventShareContext {
+  eventId: string;
+  eventTitle: string;
+  eventDate?: string | null;
+  eventImage?: string | null;
+  eventLocation?: string | null;
+}
+
 export interface MessageReaction {
   emoji: string;
   userId: string;
@@ -62,6 +114,7 @@ export interface Message {
   media?: MediaAttachment[];
   storyReply?: StoryReplyContext;
   sharedPost?: SharedPostContext;
+  eventShare?: EventShareContext;
   reactions?: MessageReaction[];
   status?: MessageStatus;
   clientMessageId?: string;
@@ -304,6 +357,18 @@ export const useChatStore = create<ChatState>((set, get) => ({
           };
         }
 
+        // Detect event share messages via metadata
+        let eventShare: EventShareContext | undefined;
+        if (meta && meta.type === "event_share") {
+          eventShare = {
+            eventId: String(meta.event_id || ""),
+            eventTitle: meta.event_title || "",
+            eventDate: meta.event_date ?? null,
+            eventImage: meta.event_image ?? null,
+            eventLocation: meta.event_location ?? null,
+          };
+        }
+
         return {
           id: String(msg.id),
           text: displayText,
@@ -348,6 +413,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           readAt: msg.readAt || null,
           storyReply,
           sharedPost,
+          eventShare,
           reactions: (() => {
             const r = meta?.reactions;
             return Array.isArray(r) ? r : [];
@@ -388,6 +454,20 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   // Send message to backend with Bunny CDN upload
   sendMessageToBackend: async (conversationId: string) => {
+    // Premium offline UX: if the device has been confirmed offline for
+    // longer than the flap window, don't fire the send. The optimistic
+    // message would be inserted then fail with a non-obvious error.
+    // Better to short-circuit with a clear toast and keep the user's
+    // text in the input so they can tap send again once reconnected.
+    if (
+      ensureOnlineOrToast(
+        "Message will send when you’re back online.",
+        "No connection",
+      )
+    ) {
+      return;
+    }
+
     const { currentMessage, pendingMedia, isSending } = get();
     // Re-entrance guard with staleness check — if stuck for >15s, force-reset
     if (isSending) {
@@ -456,6 +536,22 @@ export const useChatStore = create<ChatState>((set, get) => ({
         ],
       },
     }));
+
+    // Optimistic chat-list reorder: move this conversation to the top
+    // of the messages list with the just-sent preview. Instant UX —
+    // no waiting for the server round-trip or realtime push.
+    const previewText =
+      messageText.trim() ||
+      (mediaToSend.length > 0
+        ? mediaToSend[0]?.type === "video"
+          ? "📹 Video"
+          : "📷 Photo"
+        : "");
+    bumpConversationToTopOptimistically(
+      String(user.id),
+      conversationId,
+      previewText,
+    );
 
     try {
       // Upload media to Bunny CDN first, then send CDN URL

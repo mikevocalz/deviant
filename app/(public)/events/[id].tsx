@@ -11,13 +11,7 @@
  */
 
 import React, { useCallback, useMemo, useState } from "react";
-import {
-  View,
-  Text,
-  ScrollView,
-  Pressable,
-  StyleSheet,
-} from "react-native";
+import { View, Text, ScrollView, Pressable, StyleSheet } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -39,6 +33,7 @@ import { GuestCheckoutSheet } from "@/components/events/GuestCheckoutSheet";
 interface TierLite {
   id: string;
   name: string;
+  category: "admission" | "product" | "service";
   priceCents: number;
   description: string | null;
   remaining: number;
@@ -57,7 +52,10 @@ function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 }
 
-function formatSaleWindow(iso: string | null, kind: "opens" | "ends"): string | null {
+function formatSaleWindow(
+  iso: string | null,
+  kind: "opens" | "ends",
+): string | null {
   if (!iso) return null;
   const d = new Date(iso);
   if (isNaN(d.getTime())) return null;
@@ -110,6 +108,7 @@ function PublicEventDetailContent() {
         return {
           id: String(t.id),
           name: t.name,
+          category: t.category || "admission",
           priceCents: Number(t.price_cents || 0),
           description: t.description ?? null,
           remaining,
@@ -170,10 +169,29 @@ function PublicEventDetailContent() {
           <View style={{ width: 24 }} />
         </View>
         <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>Event unavailable</Text>
-          <Text style={styles.emptySub}>
-            We couldn't load this event. Please try again.
+          <Text style={{ fontSize: 48, textAlign: "center", marginBottom: 16 }}>
+            🔒
           </Text>
+          <Text style={styles.emptyTitle}>Private Event</Text>
+          <Text style={styles.emptySub}>
+            This event is private or invite-only. Sign in to see if you have
+            access.
+          </Text>
+          <Pressable
+            onPress={() => router.push("/(auth)/login" as any)}
+            style={{
+              marginTop: 24,
+              backgroundColor: "#a855f7",
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 12,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#fff", fontWeight: "600", fontSize: 15 }}>
+              Sign In
+            </Text>
+          </Pressable>
         </View>
       </SafeAreaView>
     );
@@ -247,9 +265,7 @@ function PublicEventDetailContent() {
           <Text style={styles.sectionHeading}>Tickets</Text>
 
           {tiers.length === 0 ? (
-            <Text style={styles.noTiers}>
-              Ticket sales haven't opened yet.
-            </Text>
+            <Text style={styles.noTiers}>Ticket sales haven't opened yet.</Text>
           ) : (
             tiers.map((tier) => {
               const isSelected = tier.id === selectedTierId;
@@ -279,7 +295,12 @@ function PublicEventDetailContent() {
                   ]}
                 >
                   <View style={styles.tierTop}>
-                    <Text style={styles.tierName}>{tier.name}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.tierCategory}>
+                        {tier.category.toUpperCase()}
+                      </Text>
+                      <Text style={styles.tierName}>{tier.name}</Text>
+                    </View>
                     <Text style={styles.tierPrice}>
                       {formatPrice(tier.priceCents)}
                     </Text>
@@ -338,19 +359,39 @@ function PublicEventDetailContent() {
           ]}
         >
           {!selectedTier ? (
-            <Text style={[styles.primaryCtaText, { color: "rgba(255,255,255,0.6)" }]}>
+            <Text
+              style={[
+                styles.primaryCtaText,
+                { color: "rgba(255,255,255,0.6)" },
+              ]}
+            >
               Select a ticket
             </Text>
           ) : selectedTier.saleNotStarted ? (
-            <Text style={[styles.primaryCtaText, { color: "rgba(255,255,255,0.6)" }]}>
+            <Text
+              style={[
+                styles.primaryCtaText,
+                { color: "rgba(255,255,255,0.6)" },
+              ]}
+            >
               Sales haven't opened yet
             </Text>
           ) : selectedTier.saleEnded ? (
-            <Text style={[styles.primaryCtaText, { color: "rgba(255,255,255,0.6)" }]}>
+            <Text
+              style={[
+                styles.primaryCtaText,
+                { color: "rgba(255,255,255,0.6)" },
+              ]}
+            >
               Sales ended
             </Text>
           ) : selectedTier.isSoldOut ? (
-            <Text style={[styles.primaryCtaText, { color: "rgba(255,255,255,0.6)" }]}>
+            <Text
+              style={[
+                styles.primaryCtaText,
+                { color: "rgba(255,255,255,0.6)" },
+              ]}
+            >
               Sold out
             </Text>
           ) : (
@@ -479,10 +520,16 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
   },
   tierName: {
-    flex: 1,
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+  tierCategory: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginBottom: 2,
   },
   tierPrice: {
     color: "#fff",

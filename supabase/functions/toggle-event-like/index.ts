@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
       "id",
     );
     if (!userData?.id) {
-      return errorResponse(req, "not_found", "User not found", 404);
+      return errorResponse(req, "not_found", "User not found");
     }
 
     const userId = userData.id;

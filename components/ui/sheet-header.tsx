@@ -1,6 +1,8 @@
 import { View, Text, Pressable, StyleSheet } from "react-native";
 import { ChevronLeft, X } from "lucide-react-native";
 
+const DVNT_FUCHSIA = "rgb(255, 109, 193)";
+
 interface SheetHeaderProps {
   title: string;
   onClose: () => void;
@@ -19,7 +21,7 @@ export function SheetHeader({ title, onClose, onBack }: SheetHeaderProps) {
         <Text style={styles.title}>{title}</Text>
       </View>
       <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
-        <X size={22} color="#fff" />
+        <X size={22} color={DVNT_FUCHSIA} />
       </Pressable>
     </View>
   );
@@ -50,7 +52,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
   },
@@ -58,7 +62,9 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    backgroundColor: "rgba(0,0,0,0.45)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
     alignItems: "center",
     justifyContent: "center",
   },

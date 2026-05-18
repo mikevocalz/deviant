@@ -142,7 +142,7 @@ export function DVNTMediaRenderer({
         style={{ width: "100%", height: "100%" } as ImageStyle}
         contentFit={contentFit}
         cachePolicy="memory-disk"
-        transition={200}
+        transition={0}
         accessibilityLabel={accessibilityLabel}
       />
     </View>

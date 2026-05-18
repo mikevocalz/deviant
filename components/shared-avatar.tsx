@@ -76,8 +76,9 @@ function SharedAvatarComponent({
             source={{ uri: resolvedUri! }}
             style={{ width: size, height: size }}
             contentFit="cover"
-            transition={200}
+            transition={0}
             cachePolicy="memory-disk"
+            recyclingKey={resolvedUri ?? undefined}
           />
         ) : (
           <View
@@ -130,8 +131,9 @@ function SharedAvatarComponent({
           source={{ uri: resolvedUri! }}
           style={{ width: size, height: size }}
           contentFit="cover"
-          transition={200}
+          transition={0}
           cachePolicy="memory-disk"
+          recyclingKey={resolvedUri ?? undefined}
         />
       ) : (
         <View

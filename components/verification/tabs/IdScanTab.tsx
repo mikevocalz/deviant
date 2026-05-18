@@ -219,6 +219,21 @@ export default function IdScanTab() {
           </Text>
         </View>
 
+        <View className="w-full rounded-2xl border border-white/8 bg-black/20 px-4 py-3 gap-2">
+          <Text className="text-sm font-semibold text-foreground">
+            🔒 Your privacy is protected
+          </Text>
+          <Text className="text-sm leading-5 text-muted">
+            Your ID is used only for instant age verification and is{" "}
+            <Text className="font-semibold text-foreground">
+              permanently deleted
+            </Text>{" "}
+            from our systems immediately after verification is complete. We do
+            not store, share, or sell your ID. DVNT cannot be used to commit
+            identity theft or fraud.
+          </Text>
+        </View>
+
         <View className="w-full rounded-2xl border border-white/8 bg-black/20 px-4 py-3">
           <Text className="text-sm font-semibold text-foreground">
             Before you capture

@@ -1,26 +1,40 @@
-import React, { useCallback, useMemo, useRef } from "react";
-import { View, Text, Pressable } from "react-native";
-import {
-  BottomSheetBackdrop,
-  BottomSheetFlatList,
-  BottomSheetModal,
-} from "@gorhom/bottom-sheet";
-import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
+/**
+ * RoomParticipantsSheet
+ *
+ * Live roster of a Sneaky Lynk room. Custom overlay (not gorhom/bottom-sheet)
+ * so it renders above the video room's native stacking context on all devices.
+ * Same pattern as StoryViewersSheet: absolute-fill overlay + Pressable backdrop
+ * + LegendList inside a bottom-anchored card.
+ *
+ * Design (DVNT editorial dark):
+ *   - Hero counter: large tabular number + "in the room" suffix
+ *   - Rounded-square avatars (house style — never circular)
+ *   - Role chips (host=cyan fill, co-host/mod=hairline outline)
+ *   - Hand-raised accent pink pill when raised
+ *   - Mic muted: small red icon badge on the right
+ *   - Host moderation: compact icon-only buttons on the right when host
+ *   - Stagger-fade entering animation on first 8 rows (50ms stride)
+ */
+
+import React, { useCallback, useMemo } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import Animated, {
+  FadeInDown,
+} from "react-native-reanimated";
+import { useRouter } from "expo-router";
 import {
   Crown,
   EyeOff,
   Mic,
   MicOff,
   Shield,
-  UserMinus,
   Users,
-  Video,
-  VideoOff,
+  UserMinus,
   X,
-  Hand,
 } from "lucide-react-native";
 import { Avatar } from "@/components/ui/avatar";
-import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
+import { LegendList } from "@/components/list";
+import { useColorScheme } from "@/lib/hooks";
 import type { VideoParticipant } from "./VideoGrid";
 import { getSneakyUserLabel } from "./user-labels";
 
@@ -40,40 +54,253 @@ const ROLE_ORDER: Record<string, number> = {
   "co-host": 1,
   moderator: 2,
   participant: 3,
+  speaker: 4,
+  listener: 5,
 };
 
-function getRoleMeta(role: string) {
+interface RoleMeta {
+  label: string;
+  icon: (color: string) => React.ReactNode;
+  useAccent: boolean;
+}
+
+function getRoleMeta(role: string): RoleMeta | null {
   switch (role) {
     case "host":
       return {
         label: "Host",
-        icon: <Crown size={12} color="#FBBF24" />,
-        tint: "rgba(251, 191, 36, 0.16)",
-        text: "#FCD34D",
+        icon: (c) => <Crown size={11} color={c} />,
+        useAccent: true,
       };
     case "co-host":
       return {
-        label: "Co-Host",
-        icon: <Shield size={12} color="#8B5CF6" />,
-        tint: "rgba(139, 92, 246, 0.16)",
-        text: "#C4B5FD",
+        label: "Co-host",
+        icon: (c) => <Shield size={11} color={c} />,
+        useAccent: false,
       };
     case "moderator":
       return {
-        label: "Moderator",
-        icon: <Shield size={12} color="#3B82F6" />,
-        tint: "rgba(59, 130, 246, 0.16)",
-        text: "#93C5FD",
+        label: "Mod",
+        icon: (c) => <Shield size={11} color={c} />,
+        useAccent: false,
       };
     default:
-      return {
-        label: "Listener",
-        icon: <Users size={12} color="#38BDF8" />,
-        tint: "rgba(56, 189, 248, 0.14)",
-        text: "#7DD3FC",
-      };
+      return null;
   }
 }
+
+// ── Participant row ───────────────────────────────────────────────────────────
+
+function ParticipantRow({
+  item,
+  index,
+  localUserId,
+  isHost,
+  colors,
+  onProfilePress,
+  onMute,
+  onUnmute,
+  onRemove,
+}: {
+  item: VideoParticipant;
+  index: number;
+  localUserId: string;
+  isHost: boolean;
+  colors: ReturnType<typeof useColorScheme>["colors"];
+  onProfilePress: (username: string) => void;
+  onMute: (userId: string) => void;
+  onUnmute: (userId: string) => void;
+  onRemove: (userId: string) => void;
+}) {
+  const isSelf = item.id === localUserId;
+  const isAnon = item.user.isAnonymous;
+  const displayLabel = isAnon ? "Anonymous" : getSneakyUserLabel(item.user);
+  const roleMeta = getRoleMeta(item.role);
+  const canModerate = isHost && !isSelf && item.role !== "host";
+  const delay = index < 8 ? index * 50 : 0;
+
+  const avatarEl = isAnon ? (
+    <View
+      style={[
+        styles.avatarAnon,
+        {
+          backgroundColor: `${colors.mutedForeground}14`,
+          borderColor: colors.border,
+        },
+      ]}
+    >
+      <EyeOff size={20} color={colors.mutedForeground} />
+    </View>
+  ) : (
+    <Avatar
+      uri={item.user.avatar}
+      username={item.user.username}
+      size={44}
+      variant="roundedSquare"
+    />
+  );
+
+  return (
+    <Animated.View
+      entering={FadeInDown.delay(delay).duration(200).springify().damping(22)}
+    >
+      <View style={styles.row}>
+        {/* Avatar — tappable if not anon */}
+        {isAnon ? (
+          <View style={styles.avatarSlot}>{avatarEl}</View>
+        ) : (
+          <Pressable
+            onPress={() => onProfilePress(item.user.username)}
+            hitSlop={6}
+            style={({ pressed }) => [
+              styles.avatarSlot,
+              { opacity: pressed ? 0.7 : 1 },
+            ]}
+          >
+            {avatarEl}
+          </Pressable>
+        )}
+
+        {/* Name + chips */}
+        <View style={styles.info}>
+          <Text
+            style={[
+              styles.username,
+              {
+                color: colors.foreground,
+                fontStyle: isAnon ? "italic" : "normal",
+              },
+            ]}
+            numberOfLines={1}
+          >
+            {displayLabel}
+            {isSelf ? (
+              <Text style={{ color: colors.mutedForeground }}>{" (You)"}</Text>
+            ) : null}
+          </Text>
+
+          {(roleMeta || item.isHandRaised) ? (
+            <View style={styles.chipsRow}>
+              {roleMeta ? (
+                <View
+                  style={[
+                    styles.chip,
+                    roleMeta.useAccent
+                      ? {
+                          backgroundColor: colors.primary,
+                          borderColor: colors.primary,
+                        }
+                      : {
+                          backgroundColor: `${colors.primary}1f`,
+                          borderColor: `${colors.primary}40`,
+                        },
+                  ]}
+                >
+                  {roleMeta.icon(
+                    roleMeta.useAccent ? colors.primaryForeground : colors.primary,
+                  )}
+                  <Text
+                    style={[
+                      styles.chipLabel,
+                      {
+                        color: roleMeta.useAccent
+                          ? colors.primaryForeground
+                          : colors.primary,
+                      },
+                    ]}
+                  >
+                    {roleMeta.label}
+                  </Text>
+                </View>
+              ) : null}
+
+              {item.isHandRaised ? (
+                <View
+                  style={[
+                    styles.chip,
+                    {
+                      backgroundColor: `${colors.accent}1f`,
+                      borderColor: `${colors.accent}40`,
+                    },
+                  ]}
+                >
+                  <Text style={[styles.chipLabel, { color: colors.accent }]}>
+                    ✋ Hand up
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+
+        {/* Right-side actions: mic status + optional mod buttons */}
+        <View style={styles.rightActions}>
+          {/* Muted badge — only shown when muted */}
+          {!item.isMicOn ? (
+            <View
+              style={[
+                styles.micBadge,
+                {
+                  backgroundColor: `${colors.destructive}1a`,
+                  borderColor: `${colors.destructive}40`,
+                },
+              ]}
+            >
+              <MicOff size={13} color={colors.destructive} />
+            </View>
+          ) : null}
+
+          {/* Host-only compact mod buttons */}
+          {canModerate ? (
+            <>
+              <Pressable
+                onPress={() =>
+                  item.isMicOn ? onMute(item.id) : onUnmute(item.id)
+                }
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.modIcon,
+                  {
+                    backgroundColor: item.isMicOn
+                      ? `${colors.destructive}14`
+                      : `${colors.primary}14`,
+                    borderColor: item.isMicOn
+                      ? `${colors.destructive}40`
+                      : `${colors.primary}40`,
+                    opacity: pressed ? 0.65 : 1,
+                  },
+                ]}
+              >
+                {item.isMicOn ? (
+                  <MicOff size={14} color={colors.destructive} />
+                ) : (
+                  <Mic size={14} color={colors.primary} />
+                )}
+              </Pressable>
+
+              <Pressable
+                onPress={() => onRemove(item.id)}
+                hitSlop={8}
+                style={({ pressed }) => [
+                  styles.modIcon,
+                  {
+                    backgroundColor: `${colors.destructive}14`,
+                    borderColor: `${colors.destructive}40`,
+                    opacity: pressed ? 0.65 : 1,
+                  },
+                ]}
+              >
+                <UserMinus size={14} color={colors.destructive} />
+              </Pressable>
+            </>
+          ) : null}
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ── Main sheet ────────────────────────────────────────────────────────────────
 
 export function RoomParticipantsSheet({
   visible,
@@ -85,12 +312,8 @@ export function RoomParticipantsSheet({
   onUnmute,
   onRemove,
 }: RoomParticipantsSheetProps) {
-  const modalRef = useRef<BottomSheetModal>(null);
-  const snapPoints = useMemo(() => ["78%"], []);
-
-  if (!visible) {
-    return null;
-  }
+  const { colors } = useColorScheme();
+  const router = useRouter();
 
   const sortedParticipants = useMemo(
     () =>
@@ -98,352 +321,305 @@ export function RoomParticipantsSheet({
         const aOrder = ROLE_ORDER[a.role] ?? 99;
         const bOrder = ROLE_ORDER[b.role] ?? 99;
         if (aOrder !== bOrder) return aOrder - bOrder;
-        if (!!a.isHandRaised !== !!b.isHandRaised) {
-          return a.isHandRaised ? -1 : 1;
-        }
+        if (!!a.isHandRaised !== !!b.isHandRaised) return a.isHandRaised ? -1 : 1;
         if (a.id === localUserId) return -1;
         if (b.id === localUserId) return 1;
-        return getSneakyUserLabel(a.user).localeCompare(
-          getSneakyUserLabel(b.user),
-        );
+        return getSneakyUserLabel(a.user).localeCompare(getSneakyUserLabel(b.user));
       }),
     [participants, localUserId],
   );
 
-  const renderBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        appearsOnIndex={0}
-        disappearsOnIndex={-1}
-        opacity={0.56}
-        pressBehavior="close"
-      />
-    ),
-    [],
+  const handleProfilePress = useCallback(
+    (username: string) => {
+      if (!username) return;
+      router.push(`/(protected)/profile/${username}` as any);
+      onDismiss();
+    },
+    [onDismiss, router],
   );
+
+  const keyExtractor = useCallback((item: VideoParticipant) => item.id, []);
 
   const renderItem = useCallback(
-    ({ item }: { item: VideoParticipant }) => {
-      const roleMeta = getRoleMeta(item.role);
-      const isSelf = item.id === localUserId;
-      const canModerate = isHost && !isSelf && item.role !== "host";
-      const label = getSneakyUserLabel(item.user);
-
-      return (
-        <View
-          style={{
-            marginBottom: 12,
-            borderRadius: 22,
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
-            backgroundColor: "rgba(11, 13, 18, 0.58)",
-            padding: 14,
-          }}
-        >
-          <View className="flex-row items-center">
-            {item.user.isAnonymous ? (
-              <View
-                style={{
-                  width: 48,
-                  height: 48,
-                  borderRadius: 16,
-                  alignItems: "center",
-                  justifyContent: "center",
-                  backgroundColor: "rgba(255,255,255,0.08)",
-                }}
-              >
-                <EyeOff size={20} color="#94A3B8" />
-              </View>
-            ) : (
-              <Avatar
-                uri={item.user.avatar}
-                username={item.user.username}
-                size={48}
-                variant="roundedSquare"
-              />
-            )}
-
-            <View className="flex-1 ml-3">
-              <View className="flex-row items-center">
-                <Text
-                  className="text-white text-[15px] font-semibold flex-1"
-                  numberOfLines={1}
-                >
-                  {label}
-                  {isSelf ? " (You)" : ""}
-                </Text>
-              </View>
-
-              <View className="flex-row items-center flex-wrap mt-2">
-                <View
-                  className="flex-row items-center"
-                  style={{
-                    backgroundColor: roleMeta.tint,
-                    borderRadius: 999,
-                    paddingHorizontal: 9,
-                    paddingVertical: 5,
-                    marginRight: 8,
-                  }}
-                >
-                  {roleMeta.icon}
-                  <Text
-                    style={{
-                      color: roleMeta.text,
-                      fontSize: 11,
-                      fontWeight: "700",
-                      marginLeft: 5,
-                    }}
-                  >
-                    {roleMeta.label}
-                  </Text>
-                </View>
-
-                <View
-                  className="flex-row items-center"
-                  style={{
-                    backgroundColor: item.isMicOn
-                      ? "rgba(16, 185, 129, 0.12)"
-                      : "rgba(239, 68, 68, 0.12)",
-                    borderRadius: 999,
-                    paddingHorizontal: 9,
-                    paddingVertical: 5,
-                    marginRight: 8,
-                  }}
-                >
-                  {item.isMicOn ? (
-                    <Mic size={11} color="#34D399" />
-                  ) : (
-                    <MicOff size={11} color="#F87171" />
-                  )}
-                  <Text
-                    style={{
-                      color: item.isMicOn ? "#A7F3D0" : "#FCA5A5",
-                      fontSize: 11,
-                      fontWeight: "700",
-                      marginLeft: 5,
-                    }}
-                  >
-                    {item.isMicOn ? "Live mic" : "Muted"}
-                  </Text>
-                </View>
-
-                <View
-                  className="flex-row items-center"
-                  style={{
-                    backgroundColor: "rgba(148, 163, 184, 0.12)",
-                    borderRadius: 999,
-                    paddingHorizontal: 9,
-                    paddingVertical: 5,
-                  }}
-                >
-                  {item.isCameraOn ? (
-                    <Video size={11} color="#7DD3FC" />
-                  ) : (
-                    <VideoOff size={11} color="#94A3B8" />
-                  )}
-                  <Text
-                    style={{
-                      color: "#CBD5E1",
-                      fontSize: 11,
-                      fontWeight: "700",
-                      marginLeft: 5,
-                    }}
-                  >
-                    {item.isCameraOn ? "Video on" : "Audio only"}
-                  </Text>
-                </View>
-
-                {item.isHandRaised ? (
-                  <View
-                    className="flex-row items-center"
-                    style={{
-                      backgroundColor: "rgba(120, 53, 15, 0.24)",
-                      borderRadius: 999,
-                      paddingHorizontal: 9,
-                      paddingVertical: 5,
-                      marginLeft: 8,
-                    }}
-                  >
-                    <Hand size={11} color="#FCD34D" />
-                    <Text
-                      style={{
-                        color: "#FDE68A",
-                        fontSize: 11,
-                        fontWeight: "700",
-                        marginLeft: 5,
-                      }}
-                    >
-                      Hand raised
-                    </Text>
-                  </View>
-                ) : null}
-              </View>
-            </View>
-          </View>
-
-          {canModerate && (
-            <View className="flex-row mt-4">
-              <Pressable
-                onPress={() =>
-                  item.isMicOn ? onMute(item.id) : onUnmute(item.id)
-                }
-                style={{
-                  flex: 1,
-                  marginRight: 10,
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: item.isMicOn
-                    ? "rgba(248, 113, 113, 0.25)"
-                    : "rgba(52, 211, 153, 0.24)",
-                  backgroundColor: item.isMicOn
-                    ? "rgba(127, 29, 29, 0.34)"
-                    : "rgba(6, 78, 59, 0.34)",
-                  paddingVertical: 12,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <View className="flex-row items-center">
-                  {item.isMicOn ? (
-                    <MicOff size={15} color="#FCA5A5" />
-                  ) : (
-                    <Mic size={15} color="#6EE7B7" />
-                  )}
-                  <Text
-                    style={{
-                      color: item.isMicOn ? "#FECACA" : "#A7F3D0",
-                      fontSize: 13,
-                      fontWeight: "700",
-                      marginLeft: 7,
-                    }}
-                  >
-                    {item.isMicOn ? "Mute user" : "Unmute user"}
-                  </Text>
-                </View>
-              </Pressable>
-
-              <Pressable
-                onPress={() => onRemove(item.id)}
-                style={{
-                  flexDirection: "row",
-                  borderRadius: 16,
-                  borderWidth: 1,
-                  borderColor: "rgba(248, 113, 113, 0.28)",
-                  backgroundColor: "rgba(127, 29, 29, 0.34)",
-                  paddingHorizontal: 14,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <UserMinus size={16} color="#FCA5A5" />
-                <Text
-                  style={{
-                    color: "#FECACA",
-                    fontSize: 13,
-                    fontWeight: "700",
-                    marginLeft: 7,
-                  }}
-                >
-                  Remove
-                </Text>
-              </Pressable>
-            </View>
-          )}
-        </View>
-      );
-    },
-    [isHost, localUserId, onMute, onRemove, onUnmute],
+    ({ item, index }: { item: VideoParticipant; index: number }) => (
+      <ParticipantRow
+        item={item}
+        index={index}
+        localUserId={localUserId}
+        isHost={isHost}
+        colors={colors}
+        onProfilePress={handleProfilePress}
+        onMute={onMute}
+        onUnmute={onUnmute}
+        onRemove={onRemove}
+      />
+    ),
+    [colors, handleProfilePress, isHost, localUserId, onMute, onRemove, onUnmute],
   );
 
+  if (!visible) return null;
+
   return (
-    <BottomSheetModal
-      ref={modalRef}
-      index={0}
-      snapPoints={snapPoints}
-      detached={true}
-      bottomInset={20}
-      animateOnMount
-      enablePanDownToClose
-      onDismiss={onDismiss}
-      backdropComponent={renderBackdrop}
-      backgroundComponent={GlassSheetBackground}
-      handleIndicatorStyle={{
-        backgroundColor: "rgba(255,255,255,0.28)",
-        width: 38,
-        height: 4,
-      }}
-      style={{ marginHorizontal: 12, zIndex: 9999, elevation: 9999 }}
-    >
-      <View className="px-5 pt-1 pb-3">
-        <View className="flex-row items-center justify-between mb-4">
-          <View>
-            <Text className="text-white text-[20px] font-bold">
-              Live roster
+    <View style={styles.overlay} pointerEvents="auto">
+      <Pressable style={styles.backdrop} onPress={onDismiss} />
+      <View
+        style={[
+          styles.sheet,
+          { backgroundColor: colors.secondary, borderColor: colors.border },
+        ]}
+      >
+        {/* Hero header */}
+        <View style={styles.header}>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[
+                styles.heroCount,
+                { color: colors.primary, fontVariant: ["tabular-nums"] },
+              ]}
+            >
+              {participants.length}
             </Text>
-            <Text className="text-neutral-400 text-[13px] mt-1">
-              {isHost
-                ? "Tap into the room and control who can stay live."
-                : "Everyone currently inside the room."}
-            </Text>
+            <View style={styles.heroLabelRow}>
+              <Text
+                style={[styles.heroLabel, { color: colors.mutedForeground }]}
+              >
+                {participants.length === 1 ? "person" : "people"} in the room
+              </Text>
+              {isHost ? (
+                <Text
+                  style={[styles.hostHint, { color: colors.mutedForeground }]}
+                >
+                  · tap icons to mute or remove
+                </Text>
+              ) : null}
+            </View>
           </View>
           <Pressable
             onPress={onDismiss}
-            style={{
-              width: 34,
-              height: 34,
-              borderRadius: 12,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "rgba(255,255,255,0.08)",
-            }}
+            hitSlop={12}
+            style={[
+              styles.closeBtn,
+              {
+                backgroundColor: "rgba(0,0,0,0.45)",
+                borderColor: colors.border,
+              },
+            ]}
           >
-            <X size={18} color="#CBD5E1" />
+            <X size={18} color="rgb(255, 109, 193)" />
           </Pressable>
         </View>
 
-        <View
-          className="flex-row items-center"
-          style={{
-            borderRadius: 18,
-            borderWidth: 1,
-            borderColor: "rgba(255,255,255,0.08)",
-            backgroundColor: "rgba(255,255,255,0.05)",
-            paddingHorizontal: 14,
-            paddingVertical: 12,
-            marginBottom: 14,
-          }}
-        >
-          <View
-            style={{
-              width: 36,
-              height: 36,
-              borderRadius: 14,
-              alignItems: "center",
-              justifyContent: "center",
-              backgroundColor: "rgba(56, 189, 248, 0.14)",
+        {/* Participant list */}
+        {participants.length === 0 ? (
+          <View style={styles.emptyWrap}>
+            <View
+              style={[styles.emptyRing, { borderColor: `${colors.primary}66` }]}
+            >
+              <View
+                style={[
+                  styles.emptyRingInner,
+                  { borderColor: `${colors.accent}55` },
+                ]}
+              />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+              No one here yet
+            </Text>
+            <Text style={[styles.emptyBody, { color: colors.mutedForeground }]}>
+              Participants will show up as they join.
+            </Text>
+          </View>
+        ) : (
+          <LegendList
+            data={sortedParticipants}
+            keyExtractor={keyExtractor}
+            renderItem={renderItem}
+            estimatedItemSize={64}
+            recycleItems
+            contentContainerStyle={{
+              paddingHorizontal: 16,
+              paddingBottom: 32,
+              paddingTop: 4,
             }}
-          >
-            <Users size={18} color="#7DD3FC" />
-          </View>
-          <View className="ml-3">
-            <Text className="text-white text-[15px] font-semibold">
-              {participants.length} active now
-            </Text>
-            <Text className="text-neutral-400 text-[12px] mt-0.5">
-              Host, co-hosts, and listeners are all visible here.
-            </Text>
-          </View>
-        </View>
+            showsVerticalScrollIndicator={false}
+          />
+        )}
       </View>
-
-      <BottomSheetFlatList
-        data={sortedParticipants}
-        keyExtractor={(item: VideoParticipant) => item.id}
-        renderItem={renderItem}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 32 }}
-        showsVerticalScrollIndicator={false}
-      />
-    </BottomSheetModal>
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  overlay: {
+    ...StyleSheet.absoluteFill,
+    zIndex: 9999,
+    elevation: 9999,
+    justifyContent: "flex-end",
+  },
+  backdrop: {
+    ...StyleSheet.absoluteFill,
+    backgroundColor: "rgba(0,0,0,0.62)",
+  },
+  sheet: {
+    borderTopLeftRadius: 22,
+    borderTopRightRadius: 22,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderRightWidth: StyleSheet.hairlineWidth,
+    maxHeight: "78%",
+    minHeight: 340,
+  },
+
+  // Header
+  header: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    paddingHorizontal: 20,
+    paddingTop: 18,
+    paddingBottom: 14,
+  },
+  heroCount: {
+    fontSize: 52,
+    fontWeight: "800",
+    letterSpacing: -2,
+    lineHeight: 56,
+  },
+  heroLabelRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    flexWrap: "wrap",
+    gap: 4,
+    marginTop: 2,
+  },
+  heroLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+    textTransform: "uppercase",
+  },
+  hostHint: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+
+  // Row
+  row: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 4,
+  },
+  avatarSlot: {
+    width: 44,
+    flexShrink: 0,
+  },
+  avatarAnon: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  info: {
+    flex: 1,
+    minWidth: 0,
+    gap: 4,
+    justifyContent: "center",
+  },
+  username: {
+    fontSize: 15,
+    fontWeight: "600",
+    letterSpacing: 0.1,
+  },
+  chipsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexWrap: "wrap",
+  },
+  chip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+    borderRadius: 100,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  chipLabel: {
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 0.4,
+    textTransform: "uppercase",
+  },
+
+  // Right-side actions
+  rightActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  micBadge: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  modIcon: {
+    width: 30,
+    height: 30,
+    borderRadius: 9,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Empty state
+  emptyWrap: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 32,
+    paddingBottom: 56,
+    gap: 8,
+  },
+  emptyRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 20,
+    borderWidth: 2,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 10,
+  },
+  emptyRingInner: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    borderWidth: 2,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    letterSpacing: 0.1,
+  },
+  emptyBody: {
+    fontSize: 13,
+    fontWeight: "500",
+    textAlign: "center",
+    paddingHorizontal: 32,
+  },
+});

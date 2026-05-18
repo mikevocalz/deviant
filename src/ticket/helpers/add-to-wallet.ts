@@ -108,21 +108,6 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
       return { success: false, error: "not_authenticated" };
     }
 
-    const directPassUrl = buildAppleWalletUrl(ticket, token);
-
-    try {
-      await WebBrowser.openBrowserAsync(directPassUrl, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        dismissButtonStyle: "close",
-      });
-      return { success: true };
-    } catch (browserError) {
-      console.warn(
-        "[addToAppleWallet] Direct Apple Wallet handoff failed, falling back:",
-        browserError,
-      );
-    }
-
     // Call edge function — returns binary .pkpass
     const supabaseUrl = getSupabaseUrl();
     const response = await fetch(
@@ -180,18 +165,35 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
       return { success: false, error: "wallet_pass_unavailable" };
     }
 
+    // Hand off the .pkpass to Apple Wallet. Two reliable paths on iOS:
+    //
+    //  1. WebBrowser.openBrowserAsync(httpsUrl) — Safari View Controller
+    //     loads the URL, sees the application/vnd.apple.pkpass response
+    //     Content-Type, and routes straight to the native Wallet 'Add
+    //     Pass' sheet. The Supabase URL briefly flashes in the SFView
+    //     chrome during the parse step; this is the best we can do
+    //     without a native PKAddPassesViewController module.
+    //
+    //  2. Sharing.shareAsync(fileUri, UTI: com.apple.pkpass) — shows
+    //     the iOS share sheet. Wallet shows up under 'More' but it's
+    //     two extra taps for the user. Use only as a last resort.
+    const httpsPassUrl = buildAppleWalletUrl(ticket, token);
     try {
-      const canOpenFile = await Linking.canOpenURL(fileUri).catch(() => false);
-      if (!canOpenFile) {
-        throw new Error("wallet_file_open_unavailable");
-      }
-      await Linking.openURL(fileUri);
+      await WebBrowser.openBrowserAsync(httpsPassUrl, {
+        presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
+        dismissButtonStyle: "close",
+        controlsColor: "#000000",
+        toolbarColor: "#000000",
+      });
     } catch (openError) {
+      console.warn(
+        "[addToAppleWallet] WebBrowser handoff failed, falling back to Share:",
+        openError,
+      );
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
         throw openError;
       }
-
       await Sharing.shareAsync(fileUri, {
         mimeType: "application/vnd.apple.pkpass",
         UTI: "com.apple.pkpass",

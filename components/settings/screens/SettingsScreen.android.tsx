@@ -61,8 +61,10 @@ export default function SettingsScreenAndroid() {
   const router = useRouter();
   const navigation = useNavigation();
   const { colors } = useColorScheme();
-  const { user, logout } = useAuthStore();
-  const { nsfwEnabled, setNsfwEnabled } = useAppStore();
+  const user = useAuthStore((s) => s.user);
+  const logout = useAuthStore((s) => s.logout);
+  const nsfwEnabled = useAppStore((s) => s.nsfwEnabled);
+  const setNsfwEnabled = useAppStore((s) => s.setNsfwEnabled);
 
   // Set up header with useLayoutEffect
   useLayoutEffect(() => {

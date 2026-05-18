@@ -414,8 +414,5 @@ function formatVerificationItem(item: string): string {
     external_account: "Bank account or debit card",
     tos_acceptance: "Terms of service acceptance",
   };
-  return (
-    MAP[item] ||
-    item.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
-  );
+  return (MAP[item] || item.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()));
 }

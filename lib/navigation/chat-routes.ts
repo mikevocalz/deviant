@@ -5,7 +5,7 @@
  * Prevents duplicate route patterns and ensures consistent param handling.
  */
 
-import { Router } from "expo-router";
+import type { Router } from "expo-router";
 
 export interface ChatRouteParams {
   /** Canonical numeric conversation ID */

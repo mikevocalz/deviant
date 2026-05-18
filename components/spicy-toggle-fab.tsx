@@ -24,7 +24,9 @@ type SpicyToggleFABProps = {
 };
 
 export function supportsNativeTabsBottomAccessory(): boolean {
-  return Platform.OS === "ios" && Number(Platform.Version) >= 26;
+  // Disabled: NativeTabs.BottomAccessory renders an empty gray bar on non-home
+  // tabs on iOS 26+ (iPhone Pro Max). Home screen has its own inline toggle.
+  return false;
 }
 
 export function SpicyToggleFAB({ accessoryPlacement }: SpicyToggleFABProps) {

@@ -73,6 +73,9 @@ export function MediaPreviewModal({
     (p) => {
       if (isMountedRef.current) {
         p.loop = true;
+        // Duck background audio (Spotify etc.) while the preview plays
+        // instead of preempting it.
+        p.audioMixingMode = "duckOthers";
         logVideoHealth("MediaPreviewModal", "player configured");
       }
     },

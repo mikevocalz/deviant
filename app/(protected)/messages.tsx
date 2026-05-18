@@ -60,8 +60,9 @@ import { useBootstrapMessages } from "@/lib/hooks/use-bootstrap-messages";
 import { screenPrefetch } from "@/lib/prefetch";
 import { useChatStore } from "@/lib/stores/chat-store";
 import { supabase } from "@/lib/supabase/client";
-import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { getCurrentUserIdSync } from "@/lib/api/auth-helper";
 import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 interface ConversationItem {
   id: string;
@@ -470,7 +471,7 @@ function ConversationList({
   );
 }
 
-// Sneaky Lynk tab content
+// Lynk tab content
 function SneakyLynkContent({
   router,
   isActive,
@@ -990,7 +991,7 @@ function MessagesScreenContent() {
           const newMsg = payload.new as any;
           const convId = String(newMsg.conversation_id);
           const content = newMsg.content || "";
-          const currentUserIntId = getCurrentUserIdInt();
+          const currentUserIntId = getCurrentUserIdSync();
           const isMine =
             currentUserIntId != null &&
             String(newMsg.sender_id) === String(currentUserIntId);
@@ -1367,7 +1368,7 @@ function MessagesScreenContent() {
           )}
         </Pressable>
 
-        {/* Sneaky Lynk Tab */}
+        {/* Lynk Tab */}
         <Pressable
           onPress={() => handleTabPress(2)}
           className={`flex-1 flex-row items-center justify-center gap-1.5 py-3 ${
@@ -1382,7 +1383,7 @@ function MessagesScreenContent() {
             }`}
             style={activeTab === 2 ? { color: "#FC253A" } : undefined}
           >
-            Sneaky Lynk
+            {getLynkDisplayName()}
           </Text>
         </Pressable>
       </View>

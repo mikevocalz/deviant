@@ -1,7 +1,8 @@
-diff --git a/lib/src/StoryListItem.js b/lib/src/StoryListItem.js
---- a/lib/src/StoryListItem.js
-+++ b/lib/src/StoryListItem.js
-@@ -290,9 +290,21 @@ const StoryListItem = ({ index, key, userId, profileImage, profileName, duration
+diff --git a/node_modules/react-native-insta-story/lib/src/StoryListItem.js b/node_modules/react-native-insta-story/lib/src/StoryListItem.js
+index 0000001..0000002 100644
+--- a/node_modules/react-native-insta-story/lib/src/StoryListItem.js
++++ b/node_modules/react-native-insta-story/lib/src/StoryListItem.js
+@@ -290,10 +290,22 @@ const StoryListItem = ({ index, key, userId, profileImage, profileName, duration
            </react_native_1.View>
          </react_native_1.View>
        </react_native_1.SafeAreaView>

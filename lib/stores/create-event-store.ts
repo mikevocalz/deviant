@@ -11,6 +11,7 @@ import { mmkvStorage } from "@/lib/mmkv-zustand";
 
 type VisibilityOption = "public" | "private" | "link_only";
 type AgeRestriction = "none" | "18+" | "21+";
+export type TicketTypeCategory = "admission" | "product" | "service";
 export type EventType =
   | "virtual_session"
   | "party"
@@ -49,6 +50,7 @@ interface LocationData {
 
 interface CoOrganizer {
   id: string;
+  authId?: string;
   username: string;
   avatar: string;
 }
@@ -56,6 +58,7 @@ interface CoOrganizer {
 interface TicketTier {
   id: string;
   name: string;
+  category: TicketTypeCategory;
   priceCents: number;
   quantity: number;
   maxPerUser: number;
@@ -88,8 +91,10 @@ interface DraftFields {
   ticketTiers: TicketTier[];
   coOrganizers: CoOrganizer[];
   flyerImage: string | null;
+  flyerMediaType: "image" | "video";
   eventType: EventType | null;
   disclaimers: string;
+  isNsfw: boolean;
 }
 
 // UI-only fields (not persisted, but in store to comply with no-useState rule)
@@ -104,9 +109,11 @@ interface UIFields {
   lineupInput: string;
   perksInput: string;
   ticketTierName: string;
+  simpleMaxPerUser: number;
   coOrganizerSearch: string;
   coOrganizerResults: {
     id: string;
+    authId?: string;
     username: string;
     avatar: string;
     name: string;
@@ -141,8 +148,10 @@ interface CreateEventActions {
     v: TicketTier[] | ((prev: TicketTier[]) => TicketTier[]),
   ) => void;
   setFlyerImage: (v: string | null) => void;
+  setFlyerMediaType: (v: "image" | "video") => void;
   setEventType: (v: EventType | null) => void;
   setDisclaimers: (v: string) => void;
+  setIsNsfw: (v: boolean) => void;
 
   // UI-only setters
   setShowDatePicker: (v: boolean) => void;
@@ -155,6 +164,7 @@ interface CreateEventActions {
   setLineupInput: (v: string) => void;
   setPerksInput: (v: string) => void;
   setTicketTierName: (v: string) => void;
+  setSimpleMaxPerUser: (v: number) => void;
   setAgreementAccepted: (v: boolean) => void;
 
   // Helpers
@@ -166,7 +176,13 @@ interface CreateEventActions {
   removeCoOrganizer: (userId: string) => void;
   setCoOrganizerSearch: (v: string) => void;
   setCoOrganizerResults: (
-    v: { id: string; username: string; avatar: string; name: string }[],
+    v: {
+      id: string;
+      authId?: string;
+      username: string;
+      avatar: string;
+      name: string;
+    }[],
   ) => void;
   removeLineupItem: (index: number) => void;
   removePerk: (index: number) => void;
@@ -203,8 +219,10 @@ const DRAFT_DEFAULTS: DraftFields = {
   ticketTiers: [],
   coOrganizers: [],
   flyerImage: null,
+  flyerMediaType: "image",
   eventType: null,
   disclaimers: "",
+  isNsfw: false,
 };
 
 const UI_DEFAULTS: UIFields = {
@@ -218,6 +236,7 @@ const UI_DEFAULTS: UIFields = {
   lineupInput: "",
   perksInput: "",
   ticketTierName: "",
+  simpleMaxPerUser: 4,
   coOrganizerSearch: "",
   coOrganizerResults: [],
   currentStep: 0,
@@ -261,8 +280,10 @@ export const useCreateEventStore = create<CreateEventState>()(
       setTicketTiers: (v) =>
         set((s) => ({ ticketTiers: resolve(v, s.ticketTiers) })),
       setFlyerImage: (v) => set({ flyerImage: v }),
+      setFlyerMediaType: (v) => set({ flyerMediaType: v }),
       setEventType: (v) => set({ eventType: v }),
       setDisclaimers: (v) => set({ disclaimers: v }),
+      setIsNsfw: (v) => set({ isNsfw: v }),
 
       // UI-only setters
       setShowDatePicker: (v) => set({ showDatePicker: v }),
@@ -275,6 +296,7 @@ export const useCreateEventStore = create<CreateEventState>()(
       setLineupInput: (v) => set({ lineupInput: v }),
       setPerksInput: (v) => set({ perksInput: v }),
       setTicketTierName: (v) => set({ ticketTierName: v }),
+      setSimpleMaxPerUser: (v) => set({ simpleMaxPerUser: v }),
       setAgreementAccepted: (v) => set({ agreementAccepted: v }),
 
       // Helpers

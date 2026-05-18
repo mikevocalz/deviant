@@ -85,7 +85,9 @@ export async function submitPasswordReset(newPassword: string) {
 
 export async function resendVerificationEmail(email: string) {
   if (!recoveryClient.sendVerificationEmail) {
-    throw new Error("Email verification resend is not available in this client build");
+    throw new Error(
+      "Email verification resend is not available in this client build",
+    );
   }
 
   return recoveryClient.sendVerificationEmail({ email });
@@ -96,6 +98,15 @@ let globalQueryClient: QueryClient | null = null;
 
 export function setQueryClient(client: QueryClient) {
   globalQueryClient = client;
+}
+
+/**
+ * Access the app-wide QueryClient outside a React tree. Safe for use from
+ * Zustand stores / API layer for optimistic cache updates. Returns null
+ * until `setQueryClient` has been called during app boot.
+ */
+export function getQueryClient(): QueryClient | null {
+  return globalQueryClient;
 }
 
 // Clear all cached data when switching users
@@ -131,6 +142,7 @@ export function clearAllCachedData() {
       usePostStore,
     } = require("@/lib/stores/post-store");
     const { useBookmarkStore } = require("@/lib/stores/bookmark-store");
+    const { useCartStore } = require("@/lib/stores/cart");
 
     useProfileStore.setState({
       activeTab: "posts",
@@ -162,6 +174,7 @@ export function clearAllCachedData() {
       commentLikeCounts: {},
     });
     useBookmarkStore.setState({ bookmarkedPosts: [] });
+    useCartStore.getState().reset();
 
     console.log("[Auth] === ALL USER DATA CLEARED ===");
   } catch (error) {

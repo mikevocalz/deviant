@@ -33,7 +33,14 @@ export interface SafeProfileData {
  */
 export interface SafeGridTile {
   id: string;
-  kind: "image" | "gif" | "livePhoto" | "carousel" | "video" | "text";
+  kind:
+    | "image"
+    | "gif"
+    | "livePhoto"
+    | "carousel"
+    | "video"
+    | "animated_video"
+    | "text";
   coverUrl: string | null;
   videoUrl: string | null;
   /** For livePhoto tiles: the paired video URI needed by DVNTLivePhotoView */
@@ -150,7 +157,7 @@ export function safeGridTile(post: any): SafeGridTile {
     const mediaCount = media.length;
 
     // Determine kind
-    let kind: "image" | "gif" | "livePhoto" | "carousel" | "video" | "text" =
+    let kind: SafeGridTile["kind"] =
       post.kind === "text" ? "text" : "image";
     const firstType = media[0]?.type;
     if (kind === "text") {
@@ -159,6 +166,8 @@ export function safeGridTile(post: any): SafeGridTile {
       kind = "carousel";
     } else if (firstType === "video") {
       kind = "video";
+    } else if (firstType === "animated_video") {
+      kind = "animated_video";
     } else if (firstType === "gif") {
       kind = "gif";
     } else if (firstType === "livePhoto") {
@@ -172,6 +181,11 @@ export function safeGridTile(post: any): SafeGridTile {
     if (kind === "video") {
       coverUrl =
         post.thumbnail || media[0]?.posterUrl || media[0]?.thumbnail || null;
+    } else if (kind === "animated_video") {
+      // animated_video renders the clip directly; coverUrl is just a
+      // fallback if the player can't initialize.
+      coverUrl =
+        media[0]?.thumbnail || post.thumbnail || media[0]?.posterUrl || null;
     } else {
       coverUrl = media[0]?.thumbnail || media[0]?.url || null;
     }
@@ -185,9 +199,12 @@ export function safeGridTile(post: any): SafeGridTile {
       coverUrl = null;
     }
 
-    // For video posts, preserve the video URL for client-side thumbnail generation
+    // For video and animated_video posts, preserve the source URL so the
+    // grid cell can render the clip (video thumbnail / looping player).
     const videoUrl =
-      kind === "video" && media[0]?.url ? String(media[0].url) : null;
+      (kind === "video" || kind === "animated_video") && media[0]?.url
+        ? String(media[0].url)
+        : null;
     // For livePhoto tiles, carry the paired video URI so the grid cell can
     // render the live photo player correctly.
     const livePhotoVideoUrl =

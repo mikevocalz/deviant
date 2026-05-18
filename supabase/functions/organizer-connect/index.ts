@@ -16,6 +16,12 @@ const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 // HTTPS base URL for Stripe return/refresh callbacks (custom schemes are rejected)
 const FUNCTION_BASE = `${SUPABASE_URL}/functions/v1/organizer-connect`;
 
+if (!STRIPE_SECRET_KEY) {
+  console.error(
+    "[organizer-connect] FATAL: STRIPE_SECRET_KEY env var is not set.",
+  );
+}
+
 // ── Stripe helpers ──────────────────────────────────────────
 
 async function stripeRequest(
@@ -52,17 +58,6 @@ async function stripeGet(endpoint: string): Promise<any> {
 
 // ── Callback HTML pages (served on GET for Stripe redirects) ─
 
-const RETURN_HTML = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Setup Complete</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}.c{text-align:center;padding:24px}h1{font-size:22px;margin-bottom:8px}p{color:#9ca3af;font-size:15px;line-height:1.5}</style>
-</head><body><div class="c"><h1>&#10003; Setup Complete</h1><p>You can close this window and return to DVNT.</p></div></body></html>`;
-
-const REFRESH_HTML = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Link Expired</title>
-<style>*{margin:0;padding:0;box-sizing:border-box}body{background:#0a0a0a;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh}.c{text-align:center;padding:24px}h1{font-size:22px;margin-bottom:8px}p{color:#9ca3af;font-size:15px;line-height:1.5}</style>
-</head><body><div class="c"><h1>Link Expired</h1><p>Please close this window and tap Continue Setup again.</p></div></body></html>`;
 
 // ── JSON response helper ────────────────────────────────────
 
@@ -88,16 +83,23 @@ Deno.serve(async (req: Request) => {
 
   // ── GET: Stripe callback landing pages ────────────────────
   if (req.method === "GET") {
+    // Supabase edge runtime forces text/plain on GET responses and adds
+    // CSP: default-src 'none'; sandbox — HTML can never render here.
+    // Redirect to the app's custom scheme instead; openAuthSessionAsync
+    // in the client catches the dvnt:// redirect and closes the browser.
     const url = new URL(req.url);
     const callback = url.searchParams.get("callback");
     if (callback === "return") {
-      return new Response(RETURN_HTML, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
+      return new Response(null, {
+        status: 302,
+        headers: { Location: "dvnt://stripe/connect/success" },
       });
     }
     if (callback === "refresh") {
-      return new Response(REFRESH_HTML, {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
+      // Link expired — redirect back to the app so the user can retry
+      return new Response(null, {
+        status: 302,
+        headers: { Location: "dvnt://stripe/connect/refresh" },
       });
     }
     return new Response("Not found", { status: 404 });
@@ -105,6 +107,16 @@ Deno.serve(async (req: Request) => {
 
   if (req.method !== "POST") {
     return new Response("Method not allowed", { status: 405 });
+  }
+
+  if (!STRIPE_SECRET_KEY) {
+    return json(
+      {
+        error:
+          "Stripe is not configured for this environment. Contact support.",
+      },
+      503,
+    );
   }
 
   try {
@@ -213,6 +225,37 @@ Deno.serve(async (req: Request) => {
       }
 
       return json({ url: link.url, account_id: stripeAccountId });
+    }
+
+    // "update": create an account_onboarding link for restricted/re-verification flow.
+    // Use this (NOT "start") when the account already exists but needs to satisfy
+    // Stripe's currently_due requirements (charges or payouts disabled).
+    // Note: account_update is only valid for fully-onboarded accounts; use
+    // account_onboarding which Stripe accepts for all account states.
+    if (action === "update") {
+      const { data: account } = await supabase
+        .from("organizer_accounts")
+        .select("stripe_account_id")
+        .eq("host_id", host_id)
+        .maybeSingle();
+
+      if (!account?.stripe_account_id) {
+        return json({ error: "No connected Stripe account found. Start onboarding first." });
+      }
+
+      console.log("[organizer-connect] creating account_onboarding link for", account.stripe_account_id);
+      const link = await stripeRequest("/account_links", {
+        account: account.stripe_account_id,
+        refresh_url: `${FUNCTION_BASE}?callback=refresh`,
+        return_url: `${FUNCTION_BASE}?callback=return`,
+        type: "account_onboarding",
+      });
+
+      if (!link.url || typeof link.url !== "string" || !link.url.startsWith("https://")) {
+        return json({ error: "Stripe returned an invalid verification URL" });
+      }
+
+      return json({ url: link.url, account_id: account.stripe_account_id });
     }
 
     if (action === "status") {

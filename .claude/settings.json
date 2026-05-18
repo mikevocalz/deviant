@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/mikevocalz/deviant log --oneline --all)",
+      "Bash(git -C /Users/mikevocalz/deviant branch -a --contains cc98937)",
+      "Bash(git -C /Users/mikevocalz/deviant pull origin claude/fix-crashes-improve-quality-aZkdM --ff-only)",
+      "Bash(git -C /Users/mikevocalz/deviant fetch origin)",
+      "Bash(git -C /Users/mikevocalz/deviant log --oneline origin/claude/fix-crashes-improve-quality-aZkdM)",
+      "mcp__plugin_supabase_supabase__deploy_edge_function",
+      "Bash(git -C /Users/mikevocalz/deviant diff cc98937..c610104 --name-only)",
+      "Bash(git -C /Users/mikevocalz/deviant fetch origin claude/fix-crashes-improve-quality-aZkdM)",
+      "mcp__plugin_supabase_supabase__apply_migration",
+      "Bash(git -C /Users/mikevocalz/deviant add supabase/migrations/20260428_event_discovery_visibility_filter.sql)",
+      "Bash(git -C /Users/mikevocalz/deviant commit -m ' *)",
+      "Bash(git -C /Users/mikevocalz/deviant push origin claude/fix-crashes-improve-quality-aZkdM)",
+      "Bash(git -C /Users/mikevocalz/deviant pull origin claude/fix-crashes-improve-quality-aZkdM --rebase)",
+      "Bash(git -C /Users/mikevocalz/deviant add supabase/migrations/20260429_event_visibility_detail_and_spotlight.sql)",
+      "mcp__plugin_supabase_supabase__execute_sql",
+      "Bash(git -C /Users/mikevocalz/deviant diff --name-only HEAD)",
+      "Bash(git -C /Users/mikevocalz/deviant stash)",
+      "Bash(git -C /Users/mikevocalz/deviant stash pop)",
+      "Bash(git -C /Users/mikevocalz/deviant add src/sneaky-lynk/ui/RoomParticipantsSheet.tsx src/sneaky-lynk/ui/ChatSheet.tsx)",
+      "Bash(EAS_SKIP_AUTO_FINGERPRINT=1 npx eas-cli update --branch production --message \"canary: OTA pipeline check\" --platform ios --environment production --non-interactive)",
+      "Bash(git -C /Users/mikevocalz/deviant add lib/hooks/use-presence.ts lib/api/organizer.ts app/\\\\\\(protected\\\\\\)/events/organizer-setup.tsx supabase/functions/organizer-connect/index.ts)",
+      "Bash(curl -s -I \"https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/organizer-connect?callback=return\")",
+      "Bash(curl -sv \"https://npfjanxturvmjyevoyfo.supabase.co/functions/v1/organizer-connect?callback=return\")",
+      "Bash(git -C /Users/mikevocalz/deviant add src/sneaky-lynk/ui/ChatSheet.tsx app/\\\\\\(protected\\\\\\)/events/organizer-setup.tsx supabase/functions/organizer-connect/index.ts)"
+    ]
+  }
+}

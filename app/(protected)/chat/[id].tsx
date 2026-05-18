@@ -64,7 +64,7 @@ import { messagesApiClient } from "@/lib/api/messages";
 import { useConversationResolution } from "@/lib/hooks/use-conversation-resolution";
 import { MENTION_COLOR } from "@/src/constants/mentions";
 import { messageKeys, useRefreshMessageCounts } from "@/lib/hooks/use-messages";
-import { getCurrentUserIdInt } from "@/lib/api/auth-helper";
+import { getCurrentUserIdSync } from "@/lib/api/auth-helper";
 import { useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import {
@@ -88,7 +88,10 @@ import { TypingIndicator } from "@/components/chat/typing-indicator";
 import { useUserPresence, formatLastSeen } from "@/lib/hooks/use-presence";
 import { StoryReplyBubble } from "@/components/chat/story-reply-bubble";
 import { SharedPostBubble } from "@/components/chat/shared-post-bubble";
-import { Galeria } from "@nandorojo/galeria";
+import { EventShareBubble } from "@/components/chat/event-share-bubble";
+// Galeria's native gestureRecognizer doesn't fire on iOS 26 — the
+// MediaLightbox drop-in matches Galeria's API. Revert when fixed.
+import { MediaLightbox as Galeria } from "@/components/media/MediaLightbox";
 import { useCameraResultStore } from "@/lib/stores/camera-result-store";
 import { SheetHeader } from "@/components/ui/sheet-header";
 import { supabase } from "@/lib/supabase/client";
@@ -225,7 +228,7 @@ function SingleVideoThumb({ media }: { media: MediaAttachment }) {
       />
       <View
         style={{
-          ...StyleSheet.absoluteFillObject,
+          ...StyleSheet.absoluteFill,
           justifyContent: "center",
           alignItems: "center",
           backgroundColor: "rgba(0,0,0,0.3)",
@@ -317,7 +320,7 @@ function MediaMessage({ mediaList, onPress }: MediaMessageProps) {
           {inner}
           <View
             style={{
-              ...StyleSheet.absoluteFillObject,
+              ...StyleSheet.absoluteFill,
               borderRadius: 6,
               backgroundColor: "rgba(0,0,0,0.55)",
               justifyContent: "center",
@@ -479,21 +482,25 @@ function ChatScreenContent() {
       ),
     });
   }, [navigation, router, peerUsername]);
-  const {
-    messages,
-    currentMessage,
-    setCurrentMessage,
-    sendMessageToBackend,
-    loadMessages,
-    mentionQuery,
-    showMentions,
-    setCursorPosition,
-    insertMention,
-    pendingMedia,
-    setPendingMedia,
-    isSending,
-    retryMessage,
-  } = useChatStore();
+  // Selector-per-field. The previous whole-store destructure subscribed
+  // ChatScreenContent to every field — `messages` updating on every
+  // realtime push, `currentMessage` on every keystroke, `isSending` on
+  // every send, etc. — all forcing a full chat-screen re-render.
+  // Selectors scope each field's re-render to the consumer.
+  // Actions (setters) are stable refs on Zustand, safe as selectors.
+  const messages = useChatStore((s) => s.messages);
+  const currentMessage = useChatStore((s) => s.currentMessage);
+  const setCurrentMessage = useChatStore((s) => s.setCurrentMessage);
+  const sendMessageToBackend = useChatStore((s) => s.sendMessageToBackend);
+  const loadMessages = useChatStore((s) => s.loadMessages);
+  const mentionQuery = useChatStore((s) => s.mentionQuery);
+  const showMentions = useChatStore((s) => s.showMentions);
+  const setCursorPosition = useChatStore((s) => s.setCursorPosition);
+  const insertMention = useChatStore((s) => s.insertMention);
+  const pendingMedia = useChatStore((s) => s.pendingMedia);
+  const setPendingMedia = useChatStore((s) => s.setPendingMedia);
+  const isSending = useChatStore((s) => s.isSending);
+  const retryMessage = useChatStore((s) => s.retryMessage);
 
   const chatMessages = messages[activeConvId] || emptyMessages;
   const cachedConversationMessages = activeConvId
@@ -623,7 +630,7 @@ function ChatScreenContent() {
   // updates live without needing to close and reopen the screen.
   // PERF: Merges single message into Zustand cache in O(1) instead of
   // refetching ALL messages from DB. Dedup handled by mergeRealtimeMessage.
-  const { mergeRealtimeMessage } = useChatStore();
+  const mergeRealtimeMessage = useChatStore((s) => s.mergeRealtimeMessage);
 
   useEffect(() => {
     const convId = resolvedConvIdRef.current;
@@ -634,7 +641,7 @@ function ChatScreenContent() {
 
     // Cancellation guard: prevents stale callbacks from executing after cleanup
     let cancelled = false;
-    const userIntId = getCurrentUserIdInt();
+    const userIntId = getCurrentUserIdSync();
 
     // Unique channel ID prevents collisions on rapid navigation
     const channelId = `chat-${convId}-${Date.now()}`;
@@ -785,25 +792,31 @@ function ChatScreenContent() {
       supabase.removeChannel(channel);
     };
   }, [activeConvId, isInitialHydrationComplete, mergeRealtimeMessage]);
-  const {
-    recipient,
-    isLoadingRecipient,
-    isGroupChat,
-    groupMembers,
-    groupName,
-    selectedMessage,
-    showMessageActions,
-    editingMessage,
-    editText,
-    setRecipient,
-    setIsLoadingRecipient,
-    setGroupInfo,
-    setSelectedMessage,
-    setShowMessageActions,
-    setEditingMessage,
-    setEditText,
-    resetChatScreen,
-  } = useChatScreenStore();
+  // Selector-per-field. Selecting `recipient` alongside `editText` via
+  // destructure meant every keystroke while editing a message re-rendered
+  // the whole chat screen (including the message list). Same for
+  // long-press (`selectedMessage`), action-sheet toggle, etc.
+  const recipient = useChatScreenStore((s) => s.recipient);
+  const isLoadingRecipient = useChatScreenStore((s) => s.isLoadingRecipient);
+  const isGroupChat = useChatScreenStore((s) => s.isGroupChat);
+  const groupMembers = useChatScreenStore((s) => s.groupMembers);
+  const groupName = useChatScreenStore((s) => s.groupName);
+  const selectedMessage = useChatScreenStore((s) => s.selectedMessage);
+  const showMessageActions = useChatScreenStore((s) => s.showMessageActions);
+  const editingMessage = useChatScreenStore((s) => s.editingMessage);
+  const editText = useChatScreenStore((s) => s.editText);
+  const setRecipient = useChatScreenStore((s) => s.setRecipient);
+  const setIsLoadingRecipient = useChatScreenStore(
+    (s) => s.setIsLoadingRecipient,
+  );
+  const setGroupInfo = useChatScreenStore((s) => s.setGroupInfo);
+  const setSelectedMessage = useChatScreenStore((s) => s.setSelectedMessage);
+  const setShowMessageActions = useChatScreenStore(
+    (s) => s.setShowMessageActions,
+  );
+  const setEditingMessage = useChatScreenStore((s) => s.setEditingMessage);
+  const setEditText = useChatScreenStore((s) => s.setEditText);
+  const resetChatScreen = useChatScreenStore((s) => s.resetChatScreen);
 
   const safeGroupMembers = useMemo(() => groupMembers || [], [groupMembers]);
   const headerGroupMembers = useMemo(() => {
@@ -1017,14 +1030,18 @@ function ChatScreenContent() {
   const listRef = useRef<LegendListRef>(null);
   const sendButtonScale = useRef(new Animated.Value(1)).current;
 
-  const {
-    previewMedia,
-    showPreviewModal,
-    setPreviewMedia,
-    setShowPreviewModal,
-  } = useFeedPostUIStore();
-  const { loadingScreens, setScreenLoading } = useUIStore();
-  const isLoading = loadingScreens.chat;
+  // Chat reuses feed-post's media preview modal. Selector-per-field so
+  // feed-side changes (activePostId flipping on scroll, mute toggles,
+  // sheet open/close) no longer re-render the chat screen.
+  const previewMedia = useFeedPostUIStore((s) => s.previewMedia);
+  const showPreviewModal = useFeedPostUIStore((s) => s.showPreviewModal);
+  const setPreviewMedia = useFeedPostUIStore((s) => s.setPreviewMedia);
+  const setShowPreviewModal = useFeedPostUIStore((s) => s.setShowPreviewModal);
+  // Narrow to just the chat loading flag — destructuring `loadingScreens`
+  // wholesale meant any other screen flipping its loading state
+  // re-rendered the chat screen.
+  const isLoading = useUIStore((s) => s.loadingScreens.chat);
+  const setScreenLoading = useUIStore((s) => s.setScreenLoading);
 
   useEffect(() => {
     setScreenLoading("chat", false);
@@ -1281,7 +1298,9 @@ function ChatScreenContent() {
     !isSending &&
     !!activeConvId;
 
-  const { deleteMessage, editMessage, reactToMessage } = useChatStore();
+  const deleteMessage = useChatStore((s) => s.deleteMessage);
+  const editMessage = useChatStore((s) => s.editMessage);
+  const reactToMessage = useChatStore((s) => s.reactToMessage);
   const messageActionsSheetRef = useRef<BottomSheetModal>(null);
   const messageActionsSnapPoints = useMemo(() => ["34%"], []);
 
@@ -1743,6 +1762,27 @@ function ChatScreenContent() {
                         <StoryReplyBubble
                           storyReply={item.storyReply}
                           replyText={item.text}
+                          isOwnMessage={isMe}
+                        />
+                        <Text
+                          className={`text-[11px] mt-1 px-1 ${
+                            isMe
+                              ? "text-foreground/70"
+                              : "text-muted-foreground"
+                          }`}
+                        >
+                          {item.time}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                }
+                if (item.eventShare) {
+                  return (
+                    <View style={{ flexShrink: 1 }}>
+                      <View className="mb-1">
+                        <EventShareBubble
+                          eventShare={item.eventShare}
                           isOwnMessage={isMe}
                         />
                         <Text

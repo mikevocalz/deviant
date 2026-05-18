@@ -1,16 +1,26 @@
 /**
  * Eject Modal Component
- * Shown when user is kicked or banned from a room
+ * Shown when user is kicked or banned from a room.
+ *
+ * Open/close contract (matches every other Sneaky Lynk sheet):
+ *   - Parent owns `visible`. Sheet's `index` is driven from it via
+ *     `visible ? 0 : -1`. A ref-driven useEffect nudges snapToIndex /
+ *     close to keep internal animation state in sync when the parent
+ *     flips the prop fast.
+ *   - All hooks are called unconditionally every render. An early
+ *     return before a hook violates rules-of-hooks and is what caused
+ *     prior sheets to render stuck. No early returns here.
  */
 
-import { useCallback, useRef } from "react";
-import { View, Text, Pressable } from "react-native";
+import { useCallback, useEffect, useRef } from "react";
+import { View, Text, Pressable, StyleSheet } from "react-native";
 import { ShieldX, Ban } from "lucide-react-native";
 import BottomSheet, {
   BottomSheetBackdrop,
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
 import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
+import { useColorScheme } from "@/lib/hooks";
 import type { EjectPayload } from "../types";
 
 interface EjectModalProps {
@@ -20,13 +30,20 @@ interface EjectModalProps {
 }
 
 export function EjectModal({ visible, payload, onDismiss }: EjectModalProps) {
-  if (!visible || !payload) {
-    return null;
-  }
-
+  const { colors } = useColorScheme();
   const sheetRef = useRef<BottomSheet>(null);
-  const isKick = payload?.action === "kick";
   const isBan = payload?.action === "ban";
+
+  // Keep the sheet animation in sync with the parent's `visible` flag.
+  // Without this, rapidly toggling visible (eject → ack → re-eject)
+  // leaves the sheet mounted at index -1 with stale animation state.
+  useEffect(() => {
+    if (visible && payload) {
+      sheetRef.current?.snapToIndex(0);
+    } else {
+      sheetRef.current?.close();
+    }
+  }, [visible, payload]);
 
   const handleSheetChange = useCallback(
     (index: number) => {
@@ -48,68 +65,193 @@ export function EjectModal({ visible, payload, onDismiss }: EjectModalProps) {
     [],
   );
 
+  // Guard content — we still want the BottomSheet mounted so the
+  // snapToIndex/close imperative path keeps working, but we skip the
+  // inner payload-dependent body when there's nothing to show.
+  const shouldRenderBody = !!payload;
+
   return (
     <BottomSheet
       ref={sheetRef}
-      index={0}
+      index={visible && payload ? 0 : -1}
       animateOnMount
       enableDynamicSizing
       enablePanDownToClose={false}
       backdropComponent={renderBackdrop}
       onChange={handleSheetChange}
       backgroundStyle={{
-        backgroundColor: "#1a1a2e",
+        backgroundColor: colors.secondary,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
       }}
       handleIndicatorStyle={{
-        backgroundColor: "rgba(255,255,255,0.3)",
-        width: 36,
+        backgroundColor: `${colors.foreground}30`,
+        width: 44,
       }}
       style={{ zIndex: 9999, elevation: 9999 }}
     >
-      <BottomSheetView className="px-6 pb-10 pt-2 items-center">
-        {/* Icon */}
+      <BottomSheetView>
+        {/* Sheet header — title + subtitle sit in a dedicated header
+            row (with hairline divider) so the sheet reads like every
+            other Sneaky Lynk sheet. No X close here; eject is modal
+            by design and the user must tap "Leave Room" to acknowledge. */}
         <View
-          className={`w-20 h-20 rounded-full items-center justify-center mb-4 ${
-            isBan ? "bg-destructive/20" : "bg-orange-500/20"
-          }`}
+          style={[
+            styles.header,
+            { borderBottomColor: colors.border },
+          ]}
         >
-          {isBan ? (
-            <Ban size={40} color="#F05252" />
-          ) : (
-            <ShieldX size={40} color="#F97316" />
-          )}
+          <View
+            style={[
+              styles.headerIcon,
+              {
+                backgroundColor: isBan
+                  ? `${colors.destructive}1f`
+                  : "rgba(249, 115, 22, 0.2)",
+                borderColor: isBan
+                  ? `${colors.destructive}40`
+                  : "rgba(249, 115, 22, 0.4)",
+              },
+            ]}
+          >
+            {isBan ? (
+              <Ban size={22} color={colors.destructive} />
+            ) : (
+              <ShieldX size={22} color="#F97316" />
+            )}
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text
+              style={[styles.headerTitle, { color: colors.foreground }]}
+            >
+              {isBan ? "You've been banned" : "You've been removed"}
+            </Text>
+            <Text
+              style={[styles.headerSub, { color: colors.mutedForeground }]}
+            >
+              {isBan
+                ? "You can't rejoin this room."
+                : "A moderator removed you from this room."}
+            </Text>
+          </View>
         </View>
 
-        {/* Title */}
-        <Text className="text-xl font-bold text-foreground mb-2">
-          {isBan ? "You've Been Banned" : "You've Been Removed"}
-        </Text>
+        {shouldRenderBody ? (
+          <View style={styles.body}>
+            {payload?.reason ? (
+              <View
+                style={[
+                  styles.reasonBox,
+                  {
+                    backgroundColor: `${colors.foreground}08`,
+                    borderColor: colors.border,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.reasonLabel,
+                    { color: colors.mutedForeground },
+                  ]}
+                >
+                  Reason
+                </Text>
+                <Text
+                  style={[styles.reasonText, { color: colors.foreground }]}
+                >
+                  {payload.reason}
+                </Text>
+              </View>
+            ) : null}
 
-        {/* Description */}
-        <Text className="text-muted-foreground text-center mb-2">
-          {isBan
-            ? "You have been banned from this room and cannot rejoin."
-            : "A moderator has removed you from this room."}
-        </Text>
-
-        {/* Reason */}
-        {payload?.reason && (
-          <View className="bg-secondary rounded-xl px-4 py-3 w-full mb-4">
-            <Text className="text-xs text-muted-foreground mb-1">Reason:</Text>
-            <Text className="text-sm text-foreground">{payload.reason}</Text>
+            <Pressable
+              onPress={onDismiss}
+              style={({ pressed }) => [
+                styles.leaveBtn,
+                {
+                  backgroundColor: colors.primary,
+                  opacity: pressed ? 0.85 : 1,
+                },
+              ]}
+            >
+              <Text
+                style={[
+                  styles.leaveLabel,
+                  { color: colors.primaryForeground },
+                ]}
+              >
+                Leave room
+              </Text>
+            </Pressable>
           </View>
-        )}
-
-        {/* Dismiss Button */}
-        <Pressable
-          onPress={onDismiss}
-          className="bg-primary w-full py-4 rounded-full items-center mt-2"
-        >
-          <Text className="text-white font-semibold text-base">Leave Room</Text>
-        </Pressable>
+        ) : null}
       </BottomSheetView>
     </BottomSheet>
   );
 }
+
+const styles = StyleSheet.create({
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  headerIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: "800",
+    letterSpacing: -0.2,
+  },
+  headerSub: {
+    fontSize: 12,
+    fontWeight: "500",
+    marginTop: 2,
+  },
+  body: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 28,
+    gap: 14,
+  },
+  reasonBox: {
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  reasonLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.5,
+    textTransform: "uppercase",
+    marginBottom: 4,
+  },
+  reasonText: {
+    fontSize: 14,
+    fontWeight: "500",
+    lineHeight: 20,
+  },
+  leaveBtn: {
+    height: 48,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 4,
+  },
+  leaveLabel: {
+    fontSize: 15,
+    fontWeight: "700",
+    letterSpacing: 0.2,
+  },
+});

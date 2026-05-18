@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { View, ActivityIndicator, Text } from "react-native";
 import { router } from "expo-router";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 export default function VideoRoomsRedirectScreen() {
   useEffect(() => {
@@ -14,7 +15,7 @@ export default function VideoRoomsRedirectScreen() {
     <View className="flex-1 bg-background items-center justify-center px-6">
       <ActivityIndicator size="large" color="#FC253A" />
       <Text className="text-muted-foreground mt-4 text-center">
-        Redirecting to Sneaky Lynk
+        Redirecting to {getLynkDisplayName()}
       </Text>
     </View>
   );

@@ -50,42 +50,40 @@ const PLANS: Plan[] = [
     name: "Free",
     price: "$0",
     priceNote: "forever",
-    maxParticipants: 7,
+    maxParticipants: 5,
     durationLabel: "5 min / session",
     highlight: false,
     features: [
-      "Up to 7 people per room",
+      "Up to 5 people per session",
       "5 minute session limit",
-      "2 sessions per day",
     ],
   },
   {
     id: "host_25",
-    name: "Host 25",
-    price: "$14.99",
+    name: "Host 15",
+    price: "$15",
     priceNote: "/ month",
-    maxParticipants: 25,
+    maxParticipants: 15,
     durationLabel: "Unlimited duration",
     highlight: true,
     features: [
-      "Up to 25 participants",
+      "Up to 15 screens per session",
       "Unlimited duration",
-      "Priority support",
+      "Cancel anytime",
     ],
   },
   {
     id: "host_50",
-    name: "Host 50",
-    price: "$24.99",
+    name: "Unlimited",
+    price: "$25",
     priceNote: "/ month",
-    maxParticipants: 50,
+    maxParticipants: 999,
     durationLabel: "Unlimited duration",
     highlight: false,
     features: [
-      "Up to 50 participants",
+      "Unlimited screens",
       "Unlimited duration",
-      "Priority support",
-      "Analytics dashboard (soon)",
+      "Cancel anytime",
     ],
   },
 ];
@@ -348,14 +346,19 @@ export function SneakySubscriptionModal({
           })}
 
           {/* iOS compliance */}
-          {Platform.OS === "ios" && (
-            <View className="flex-row items-center justify-center gap-1 mt-1">
+          <View className="items-center justify-center gap-1 mt-1">
+            <View className="flex-row items-center gap-1">
               <Shield size={10} color="#666" />
               <Text className="text-[10px] text-muted-foreground text-center">
-                Payment processed securely via our website
+                Cancel anytime. Renews the 1st of each month.
               </Text>
             </View>
-          )}
+            {Platform.OS === "ios" && (
+              <Text className="text-[10px] text-muted-foreground/60 text-center">
+                Payment processed securely via our website
+              </Text>
+            )}
+          </View>
         </ScrollView>
       </Animated.View>
     </Animated.View>

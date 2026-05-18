@@ -26,6 +26,7 @@ import { Play, Grid3x3 } from "lucide-react-native";
 import { type SafeGridTile } from "@/lib/utils/safe-profile-mappers";
 import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
 import { DVNTGifView } from "@/components/media/DVNTGifView";
+import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import { DVNTLivePhotoView } from "@/components/media/DVNTLivePhotoView";
 import { navigateToPost } from "@/lib/routes/post-routes";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
@@ -228,6 +229,16 @@ const GridCell = memo(function GridCell({
             contentFit="cover"
             isPlaying={true}
           />
+        ) : tile.kind === "animated_video" && tile.videoUrl ? (
+          // Short looping video post — expo-image can't decode mp4, so
+          // without this branch the tile renders blank in the grid.
+          <DVNTAnimatedVideoView
+            uri={tile.videoUrl}
+            width="100%"
+            height="100%"
+            contentFit="cover"
+            isPlaying
+          />
         ) : tile.kind === "livePhoto" && tile.coverUrl ? (
           // LivePhoto tiles: show live photo player when videoUrl is available,
           // fall back to static image when the paired video URI is missing.
@@ -254,7 +265,7 @@ const GridCell = memo(function GridCell({
             style={{ width: "100%", height: "100%" }}
             contentFit="cover"
             contentPosition="top"
-            transition={200}
+            transition={0}
             cachePolicy="memory-disk"
           />
         ) : (

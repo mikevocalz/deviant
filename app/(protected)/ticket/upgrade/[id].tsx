@@ -35,7 +35,8 @@ import {
   Zap,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import * as WebBrowser from "expo-web-browser";
+import { initStripe } from "@stripe/stripe-react-native";
+import { useStripeSafe as useStripe } from "@/lib/safe-native-modules";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ScreenSkeleton } from "@/components/ui/screen-skeleton";
 import { useMyTicketForEvent } from "@/lib/hooks/use-tickets";
@@ -101,6 +102,11 @@ function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 }
 
+/** Mirrors the server-side buyer fee: 2.5% + $1/ticket. */
+function buyerFee(diffCents: number): number {
+  return Math.round(diffCents * 0.025) + 100;
+}
+
 interface EnrichedTier extends TicketTypeRecord {
   tierLevel: TierLevel;
   accent: string;
@@ -115,6 +121,7 @@ function ViewTicketUpgradeScreenContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const eventId = Array.isArray(id) ? (id[0] ?? "") : (id ?? "");
   const { data: dbTicket, isLoading, refetch } = useMyTicketForEvent(eventId);
@@ -194,6 +201,18 @@ function ViewTicketUpgradeScreenContent() {
     [upgradeOptions, selectedTierId],
   );
 
+  // Auto-select the cheapest available upgrade so the user lands on the
+  // screen with the confirm CTA already visible (no "tap to discover the
+  // pay button" puzzle). The first item in upgradeOptions is the cheapest
+  // since the list is sorted ascending by price.
+  React.useEffect(() => {
+    if (selectedTierId) return;
+    const firstAvailable = upgradeOptions.find((t) => !t.soldOut);
+    if (firstAvailable) {
+      setSelectedTierId(String(firstAvailable.id));
+    }
+  }, [upgradeOptions, selectedTierId]);
+
   const handleSelectTier = React.useCallback((tier: EnrichedTier) => {
     if (tier.soldOut) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
@@ -217,7 +236,11 @@ function ViewTicketUpgradeScreenContent() {
         },
       });
       if (error) {
-        showToast("error", "Upgrade failed", error.message || "Could not start upgrade");
+        showToast(
+          "error",
+          "Upgrade failed",
+          error.message || "Could not start upgrade",
+        );
         setUpgradeState("idle");
         return;
       }
@@ -227,27 +250,106 @@ function ViewTicketUpgradeScreenContent() {
         setUpgradeState("idle");
         return;
       }
-      if (!result?.url) {
-        showToast("error", "Upgrade failed", "No checkout URL returned");
+
+      const {
+        paymentIntent,
+        ephemeralKey,
+        customer,
+        publishableKey,
+      } = result || {};
+
+      if (!paymentIntent || !ephemeralKey || !customer) {
+        showToast(
+          "error",
+          "Upgrade failed",
+          "Missing payment parameters from server",
+        );
         setUpgradeState("idle");
         return;
       }
-      await WebBrowser.openBrowserAsync(result.url, {
-        presentationStyle:
-          Platform.OS === "ios"
-            ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
-            : undefined,
+
+      // Re-init Stripe with the fresh publishable key (matches the
+      // initial-purchase flow — bypasses any bundle-time staleness).
+      if (publishableKey) {
+        try {
+          await initStripe({ publishableKey });
+        } catch (e) {
+          console.warn("[upgrade] initStripe re-init failed:", e);
+        }
+      }
+
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: "DVNT",
+        customerId: customer,
+        customerEphemeralKeySecret: ephemeralKey,
+        paymentIntentClientSecret: paymentIntent,
+        allowsDelayedPaymentMethods: false,
+        defaultBillingDetails: { name: "" },
+        appearance: {
+          colors: {
+            primary: selectedTier.accent || "#8A40CF",
+            background: "#1a1a1a",
+            componentBackground: "#262626",
+            componentText: "#ffffff",
+            secondaryText: "#a1a1aa",
+            placeholderText: "#71717a",
+            icon: selectedTier.accent || "#8A40CF",
+          },
+          shapes: { borderRadius: 12, borderWidth: 1 },
+        },
+        returnURL: "dvnt://ticket/upgrade/success",
       });
-      // On return, `refetch` will pick up the new ticket_type_id if payment completed.
+
+      if (initError) {
+        console.error("[upgrade] initPaymentSheet error:", initError);
+        showToast(
+          "error",
+          "Upgrade failed",
+          initError.message || "Could not open payment sheet",
+        );
+        setUpgradeState("idle");
+        return;
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        if (presentError.code === "Canceled") {
+          // User dismissed — silent
+          setUpgradeState("idle");
+          return;
+        }
+        console.error("[upgrade] presentPaymentSheet error:", presentError);
+        showToast(
+          "error",
+          "Payment failed",
+          presentError.message || "Could not complete payment",
+        );
+        setUpgradeState("idle");
+        return;
+      }
+
+      // Payment succeeded — webhook updates the ticket type asynchronously.
+      // Optimistically show success state + refetch.
+      Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      ).catch(() => {});
+      setUpgradeState("success");
       await refetch();
-      setUpgradeState("idle");
     } catch (err: any) {
       showToast("error", "Error", err?.message || "Could not start upgrade");
       setUpgradeState("idle");
     } finally {
       setIsConfirming(false);
     }
-  }, [selectedTier, dbTicket, showToast, refetch]);
+  }, [
+    selectedTier,
+    dbTicket,
+    showToast,
+    refetch,
+    initPaymentSheet,
+    presentPaymentSheet,
+  ]);
 
   const handleRefreshWallet = React.useCallback(async () => {
     if (!dbTicket) return;
@@ -423,7 +525,10 @@ function ViewTicketUpgradeScreenContent() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + 120 },
+          // Footer is ~210px tall (fee breakdown + confirm button + safe-
+          // area). Leave room so the last tier card AND the Confirm CTA
+          // both fit when scrolled to the bottom.
+          { paddingBottom: insets.bottom + 260 },
         ]}
         showsVerticalScrollIndicator={false}
       >
@@ -599,35 +704,39 @@ function ViewTicketUpgradeScreenContent() {
       >
         {selectedTier ? (
           <>
-            <View style={styles.footerSummary}>
-              <Text style={styles.footerSummaryLabel}>Price difference</Text>
-              <Text
-                style={[
-                  styles.footerSummaryAmount,
-                  { color: selectedTier.accent },
-                ]}
-              >
-                +{formatPrice(selectedTier.diffCents)}
-              </Text>
+            <View style={styles.feeBreakdown}>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeLabel}>Price difference</Text>
+                <Text style={styles.feeValue}>+{formatPrice(selectedTier.diffCents)}</Text>
+              </View>
+              <View style={styles.feeRow}>
+                <Text style={styles.feeLabel}>Service fee</Text>
+                <Text style={styles.feeValue}>+{formatPrice(buyerFee(selectedTier.diffCents))}</Text>
+              </View>
+              <View style={[styles.feeRow, styles.feeTotalRow]}>
+                <Text style={styles.feeTotalLabel}>You pay</Text>
+                <Text style={[styles.feeTotalAmount, { color: selectedTier.accent }]}>
+                  {formatPrice(selectedTier.diffCents + buyerFee(selectedTier.diffCents))}
+                </Text>
+              </View>
             </View>
             <Pressable
               onPress={handleConfirm}
               disabled={isConfirming}
               style={({ pressed }) => [
                 styles.confirmBtn,
-                { backgroundColor: selectedTier.accent },
                 pressed && !isConfirming && { opacity: 0.9 },
                 isConfirming && { opacity: 0.6 },
               ]}
             >
               {isConfirming ? (
-                <ActivityIndicator size="small" color="#000" />
+                <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
                   <Text style={styles.confirmBtnText}>
-                    Confirm · Pay {formatPrice(selectedTier.diffCents)}
+                    Confirm · Pay {formatPrice(selectedTier.diffCents + buyerFee(selectedTier.diffCents))}
                   </Text>
-                  <ChevronRight size={18} color="#000" strokeWidth={2.5} />
+                  <ChevronRight size={20} color="#fff" strokeWidth={2.5} />
                 </>
               )}
             </Pressable>
@@ -875,18 +984,38 @@ const styles = StyleSheet.create({
     borderTopColor: "rgba(255,255,255,0.06)",
     gap: 10,
   },
-  footerSummary: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
+  feeBreakdown: {
+    gap: 4,
     paddingHorizontal: 2,
+    marginBottom: 2,
   },
-  footerSummaryLabel: {
-    color: "rgba(255,255,255,0.5)",
+  feeRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  feeLabel: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  feeValue: {
+    color: "rgba(255,255,255,0.55)",
     fontSize: 13,
     fontWeight: "600",
   },
-  footerSummaryAmount: {
+  feeTotalRow: {
+    marginTop: 4,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255,255,255,0.08)",
+  },
+  feeTotalLabel: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  feeTotalAmount: {
     fontSize: 20,
     fontWeight: "800",
   },
@@ -894,15 +1023,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 16,
-    borderRadius: 16,
+    gap: 8,
+    paddingVertical: 18,
+    borderRadius: 18,
+    backgroundColor: "rgb(255, 109, 193)", // DVNT brand fuchsia — always
+    shadowColor: "rgb(255, 109, 193)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 8,
   },
   confirmBtnText: {
-    color: "#000",
-    fontSize: 15,
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "800",
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   footerHint: {
     paddingVertical: 16,

@@ -11,6 +11,8 @@ export interface EventDetail {
   endDate?: string;
   location: string;
   image: string;
+  flyerImageUrl?: string | null;
+  flyerVideoUrl?: string | null;
   images?: { type: string; url: string }[];
   youtubeVideoUrl?: string | null;
   price: number;
@@ -58,6 +60,7 @@ export interface TicketTier {
   originalPrice?: number;
   description?: string;
   perks: string[];
+  category: "admission" | "product" | "service";
   remaining: number;
   maxPerOrder: number;
   isSoldOut: boolean;

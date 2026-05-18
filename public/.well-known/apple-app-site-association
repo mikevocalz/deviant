@@ -4,7 +4,7 @@
     "details": [
       {
         "appIDs": [
-          "Q9NDPV378Y.com.dvnt.app"
+          "436WA3W63V.com.dvnt.app"
         ],
         "components": [
           {
@@ -48,6 +48,22 @@
             "comment": "Tickets"
           },
           {
+            "/": "/tickets/*",
+            "comment": "Tickets (plural alias: success/cancel/guest)"
+          },
+          {
+            "/": "/my-tickets",
+            "comment": "My Tickets"
+          },
+          {
+            "/": "/organizer-setup",
+            "comment": "Organizer onboarding"
+          },
+          {
+            "/": "/sneaky/*",
+            "comment": "Sneaky checkout (success/cancel/detail)"
+          },
+          {
             "/": "/call/*",
             "comment": "Video calls"
           },
@@ -66,6 +82,18 @@
           {
             "/": "/sneaky-lynk/*",
             "comment": "Sneaky Lynk"
+          },
+          {
+            "/": "/sl/*",
+            "comment": "Sneaky Lynk short link"
+          },
+          {
+            "/": "/user/*",
+            "comment": "User profile by ID"
+          },
+          {
+            "/": "/dm/*",
+            "comment": "Direct message by user ID"
           },
           {
             "/": "/search",
@@ -125,7 +153,7 @@
   },
   "webcredentials": {
     "apps": [
-      "Q9NDPV378Y.com.dvnt.app"
+      "436WA3W63V.com.dvnt.app"
     ]
   }
 }

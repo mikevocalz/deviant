@@ -113,58 +113,44 @@ function EventCard({
           elevation: 2,
         }}
       >
-        <Pressable
-          onPressIn={() => {
-            queryClient.prefetchQuery({
-              queryKey: eventKeys.detail(event.id),
-              queryFn: () => eventsApi.getEventById(event.id),
-              staleTime: 5 * 60 * 1000,
-            });
-          }}
-          onPress={() => router.push(`/(protected)/events/${event.id}` as any)}
-        >
-          <View style={{ height: cardHeight }} className="w-full">
-            {/* Parallax image layer */}
-            <Animated.View
-              style={{
-                width: "100%",
-                height: cardHeight + 100,
-                position: "absolute",
-                top: -50,
-              }}
-            >
-              <Image
-                source={{ uri: event.image }}
-                style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
-                transition={200}
-                cachePolicy="memory-disk"
-              />
-            </Animated.View>
-            <LinearGradient
-              colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.8)"]}
-              className="absolute inset-0"
-            />
-
-            {/* Like Button — top-left */}
-            <View className="absolute top-4 left-4">
-              <Pressable
-                onPress={handleLike}
-                hitSlop={8}
-                className="flex-row items-center gap-1.5 bg-black/40 px-4 py-2 rounded-xl"
+        {/* Wrap card content so the like button can be a sibling of the
+            navigation Pressable — prevents touch conflicts on Android/iOS. */}
+        <View style={{ height: cardHeight }}>
+          <Pressable
+            style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+            onPressIn={() => {
+              queryClient.prefetchQuery({
+                queryKey: eventKeys.detail(event.id),
+                queryFn: () => eventsApi.getEventById(event.id),
+                staleTime: 5 * 60 * 1000,
+              });
+            }}
+            onPress={() => router.push(`/(protected)/events/${event.id}` as any)}
+          >
+            <View style={{ height: cardHeight }} className="w-full">
+              {/* Parallax image layer */}
+              <Animated.View
+                style={{
+                  width: "100%",
+                  height: cardHeight + 100,
+                  position: "absolute",
+                  top: -50,
+                }}
               >
-                <Heart
-                  size={16}
-                  color={event.isLiked ? "#FF5BFC" : "#fff"}
-                  fill={event.isLiked ? "#FF5BFC" : "transparent"}
+                <Image
+                  source={{ uri: event.image }}
+                  style={{ width: "100%", height: "100%" }}
+                  contentFit="cover"
+                  transition={200}
+                  cachePolicy="memory-disk"
                 />
-                <Text className="text-white text-sm font-medium">
-                  {formatLikes(event.likes ?? 0)}
-                </Text>
-              </Pressable>
-            </View>
+              </Animated.View>
+              <LinearGradient
+                colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.8)"]}
+                className="absolute inset-0"
+              />
 
-            {/* Date Badge */}
+              {/* Date Badge */}
             <Motion.View
               initial={{ scale: 0.8, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
@@ -265,8 +251,38 @@ function EventCard({
                 </View>
               </View>
             </Animated.View>
+            </View>
+          </Pressable>
+
+          {/* Like Button — outside navigation Pressable to avoid touch conflicts */}
+          <View
+            pointerEvents="box-none"
+            style={{ position: "absolute", top: 16, left: 16 }}
+          >
+            <Pressable
+              onPress={handleLike}
+              hitSlop={8}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                gap: 6,
+                backgroundColor: "rgba(0,0,0,0.4)",
+                paddingHorizontal: 14,
+                paddingVertical: 8,
+                borderRadius: 12,
+              }}
+            >
+              <Heart
+                size={16}
+                color={event.isLiked ? "#FF5BFC" : "#fff"}
+                fill={event.isLiked ? "#FF5BFC" : "transparent"}
+              />
+              <Text style={{ color: "#fff", fontSize: 14, fontWeight: "500" }}>
+                {formatLikes(event.likes ?? 0)}
+              </Text>
+            </Pressable>
           </View>
-        </Pressable>
+        </View>
       </Motion.View>
     </Motion.View>
   );
@@ -311,6 +327,8 @@ function EventsScreenContent() {
   );
   const activeFilterCount = useEventsScreenStore((s) => s.activeFilterCount);
   const activeCategories = useEventsScreenStore((s) => s.activeCategories);
+  const nsfwFilter = useEventsScreenStore((s) => s.nsfwFilter);
+  const setNsfwFilter = useEventsScreenStore((s) => s.setNsfwFilter);
 
   // TanStack Debouncer for search — 400ms delay prevents query-per-keystroke
   const searchDebouncerRef = useRef(
@@ -355,12 +373,14 @@ function EventsScreenContent() {
     if (debouncedSearch.length >= 2) f.search = debouncedSearch;
     if (activeSort !== "soonest") f.sort = activeSort;
     if (activeCategories.length > 0) f.categories = activeCategories;
+    if (nsfwFilter === true) f.nsfw = true;
     return f;
   }, [
     activeFilters,
     debouncedSearch,
     activeSort,
     activeCategories,
+    nsfwFilter,
     deviceLat,
     deviceLng,
     activeCity,
@@ -413,32 +433,34 @@ function EventsScreenContent() {
     activeFilters.length > 0 ||
     activeCategories.length > 0 ||
     activeSort !== "soonest" ||
-    debouncedSearch.length >= 2;
+    debouncedSearch.length >= 2 ||
+    nsfwFilter === true;
 
   // Filter events by tab — server handles pill filters
-  // Tab indices: 0=For You, 1=All Events, 2=Upcoming, 3=Past
-  // Uses eventsWithPromotion (has is_promoted flag + de-duped) for All/Upcoming/Past
-  // When filters/search are active on For You tab, fall back to filtered "All Events"
-  // so that filter pills, search, and sort always take effect regardless of tab.
+  // Tab indices: 0=Upcoming, 1=For You, 2=All Events, 3=Past Events
+  // Uses eventsWithPromotion (has is_promoted flag + de-duped) for
+  // Upcoming/All/Past. For You uses the personalized feed unless
+  // filters/search are active, in which case we fall back to filtered
+  // "All Events" so pills + sort + search always apply.
   const getFilteredEvents = useCallback(
     (tabIndex: number) => {
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       switch (tabIndex) {
-        case 0: // For You — use filtered results when any filter/search is active
-          return hasActiveFilters ? eventsWithPromotion : forYouEvents;
-        case 2: // upcoming
+        case 0: // Upcoming — default landing tab
           return eventsWithPromotion.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) >= today,
           );
+        case 1: // For You — use filtered results when any filter/search is active
+          return hasActiveFilters ? eventsWithPromotion : forYouEvents;
         case 3: // past_events
           return eventsWithPromotion.filter(
             (event: Event) =>
               event.fullDate && new Date(event.fullDate) < today,
           );
-        default: // All Events (1)
+        default: // All Events (2)
           return eventsWithPromotion;
       }
     },
@@ -461,9 +483,9 @@ function EventsScreenContent() {
   );
 
   const tabs = [
+    { key: "upcoming", label: "Upcoming" },
     { key: "for_you", label: "For You" },
     { key: "all_events", label: "All Events" },
-    { key: "upcoming", label: "Upcoming" },
     { key: "past_events", label: "Past Events" },
   ];
 
@@ -504,7 +526,7 @@ function EventsScreenContent() {
   }, [events]);
 
   const showCollections =
-    debouncedSearch.length < 2 && activeFilters.length === 0;
+    debouncedSearch.length < 2 && activeFilters.length === 0 && !nsfwFilter;
 
   // Whether events are still loading (show inline skeletons, never block layout)
   const showEventSkeletons = isLoading && events.length === 0;
@@ -566,17 +588,22 @@ function EventsScreenContent() {
                   <Ticket size={18} color={colors.foreground} />
                 </Pressable>
               </Motion.View>
+              {/* Spicy toggle button */}
               <Motion.View
                 whileTap={{ scale: 0.9 }}
-                className="h-10 w-10 items-center justify-center rounded-xl bg-primary"
+                className="h-10 w-10 items-center justify-center rounded-xl bg-card border border-border"
+                style={
+                  nsfwFilter === true
+                    ? { backgroundColor: "rgba(153,27,27,0.3)", borderColor: "rgba(153,27,27,0.6)" }
+                    : undefined
+                }
               >
                 <Pressable
-                  onPress={() =>
-                    router.push("/(protected)/events/create" as any)
-                  }
+                  onPress={() => setNsfwFilter(nsfwFilter === true ? false : true)}
                   className="w-full h-full items-center justify-center"
+                  accessibilityLabel="Toggle spicy events"
                 >
-                  <Plus size={20} color="#fff" />
+                  <Text style={{ fontSize: 18 }}>{nsfwFilter === true ? "😈" : "😇"}</Text>
                 </Pressable>
               </Motion.View>
             </View>
@@ -639,7 +666,8 @@ function EventsScreenContent() {
         {/* Active filter chips — show inline when filters are active */}
         {(activeFilters.length > 0 ||
           activeCategories.length > 0 ||
-          activeSort !== "soonest") && (
+          activeSort !== "soonest" ||
+          nsfwFilter === true) && (
           <View className="px-4 pb-1">
             <ScrollView
               horizontal
@@ -700,6 +728,16 @@ function EventsScreenContent() {
                   <X size={12} color={colors.primary} strokeWidth={2} />
                 </Pressable>
               ))}
+              {nsfwFilter === true && (
+                <Pressable
+                  onPress={() => setNsfwFilter(null)}
+                  className="flex-row items-center gap-1 px-3 py-1.5 rounded-full"
+                  style={{ backgroundColor: "rgba(153,27,27,0.15)", borderWidth: 1, borderColor: "rgba(153,27,27,0.4)" }}
+                >
+                  <Text className="text-xs font-semibold" style={{ color: "#f87171" }}>😈 Spicy</Text>
+                  <X size={12} color="#f87171" strokeWidth={2} />
+                </Pressable>
+              )}
             </ScrollView>
           </View>
         )}
@@ -850,7 +888,8 @@ function EventsScreenContent() {
                       >
                         {tabIndex === 1 &&
                           spotlightItems.length > 0 &&
-                          !showMapView && (
+                          !showMapView &&
+                          !nsfwFilter && (
                             <SpotlightSection items={spotlightItems} />
                           )}
                         <View
@@ -873,7 +912,8 @@ function EventsScreenContent() {
                       >
                         {tabIndex === 1 &&
                           spotlightItems.length > 0 &&
-                          !showMapView && (
+                          !showMapView &&
+                          !nsfwFilter && (
                             <SpotlightSection items={spotlightItems} />
                           )}
                         <View

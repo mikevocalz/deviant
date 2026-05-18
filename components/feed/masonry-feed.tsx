@@ -26,6 +26,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Heart, Bookmark, Play, Grid3x3 } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
+import { usePrefetchComments } from "@/lib/hooks/use-comments";
+import { screenPrefetch } from "@/lib/prefetch";
 import { useBookmarks, useToggleBookmark } from "@/lib/hooks/use-bookmarks";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
 import { storyKeys } from "@/lib/hooks/use-stories";
@@ -37,13 +39,16 @@ import { FeedSkeleton } from "@/components/skeletons";
 // StoriesBar is rendered at the HomeScreen level (app/(protected)/(tabs)/index.tsx)
 // so it survives feed-mode toggles and the spicy toggle without remounting.
 import { EmptyState } from "@/components/ui/empty-state";
-import { ImageOff } from "lucide-react-native";
+import { ImageOff, WifiOff } from "lucide-react-native";
+import { useConnectivityStore } from "@/lib/stores/connectivity-store";
+import { useColorScheme } from "@/lib/hooks";
 import { seedLikeState, usePostLikeState } from "@/lib/hooks/usePostLikeState";
 import { navigateToPost } from "@/lib/routes/post-routes";
 import { getVideoThumbnail } from "@/lib/media/getVideoThumbnail";
 import { useQuery } from "@tanstack/react-query";
 import { DVNTMediaBadge } from "@/components/media/DVNTMediaBadge";
 import { DVNTGifView } from "@/components/media/DVNTGifView";
+import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import { DVNTLivePhotoView } from "@/components/media/DVNTLivePhotoView";
 import { FeedEventCard } from "./feed-event-card";
 import { shouldRenderInFeed } from "./renderable-posts";
@@ -54,7 +59,6 @@ import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
 import * as Haptics from "expo-haptics";
 import { TextPostSurface } from "@/components/post/TextPostSurface";
 import { resolveTextPostPresentation } from "@/lib/posts/text-post";
-import { useStories } from "@/lib/hooks/use-stories";
 import {
   extractFeedImageUrls,
   prefetchImages,
@@ -93,6 +97,141 @@ function formatCount(n: number): string {
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
   return String(n);
+}
+
+// ─── Grid-shaped loading placeholder ────────────────────────────────────────
+
+/**
+ * OfflineFeedEmpty
+ *
+ * Premium offline surface for when the user opens the feed with no
+ * cached data AND the app is confirmed offline. Replaces the generic
+ * "Failed to load posts" dev-looking message.
+ *
+ * Reads tokens from `useColorScheme` so it tracks DVNT's palette.
+ * Retry CTA fires `refetch()` — does nothing destructive even when
+ * still offline (React Query knows we're offline via onlineManager
+ * and pauses the retry until we're back online).
+ */
+function OfflineFeedEmpty({ onRetry }: { onRetry: () => void }) {
+  const { colors } = useColorScheme();
+  return (
+    <View
+      style={{
+        flex: 1,
+        alignItems: "center",
+        justifyContent: "center",
+        paddingHorizontal: 32,
+        paddingBottom: 120,
+        gap: 16,
+      }}
+    >
+      <View
+        style={{
+          width: 64,
+          height: 64,
+          borderRadius: 20,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: `${colors.primary}18`,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: `${colors.primary}40`,
+        }}
+      >
+        <WifiOff size={26} color={colors.primary} />
+      </View>
+      <View style={{ alignItems: "center", gap: 6 }}>
+        <Text
+          style={{
+            color: colors.foreground,
+            fontSize: 18,
+            fontWeight: "700",
+            letterSpacing: 0.1,
+          }}
+        >
+          You're offline
+        </Text>
+        <Text
+          style={{
+            color: colors.mutedForeground,
+            fontSize: 14,
+            textAlign: "center",
+            lineHeight: 20,
+          }}
+        >
+          We'll refresh the feed the moment you reconnect.
+        </Text>
+      </View>
+      <Pressable
+        onPress={onRetry}
+        style={({ pressed }) => ({
+          marginTop: 4,
+          paddingHorizontal: 18,
+          paddingVertical: 10,
+          borderRadius: 12,
+          backgroundColor: `${colors.foreground}10`,
+          borderWidth: StyleSheet.hairlineWidth,
+          borderColor: colors.border,
+          opacity: pressed ? 0.7 : 1,
+        })}
+      >
+        <Text
+          style={{
+            color: colors.foreground,
+            fontSize: 14,
+            fontWeight: "600",
+            letterSpacing: 0.1,
+          }}
+        >
+          Try again
+        </Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function MasonryGridSkeleton({ columnWidth }: { columnWidth: number }) {
+  const heights = [
+    columnWidth * 1.4,
+    columnWidth * 1.05,
+    columnWidth * 1.25,
+    columnWidth * 1.55,
+    columnWidth * 1.1,
+    columnWidth * 1.35,
+  ];
+  return (
+    <View
+      style={{
+        flex: 1,
+        flexDirection: "row",
+        paddingHorizontal: COLUMN_GAP,
+        paddingTop: COLUMN_GAP,
+      }}
+      pointerEvents="none"
+    >
+      {[0, 1].map((col) => (
+        <View
+          key={col}
+          style={{ flex: 1, paddingHorizontal: COLUMN_GAP / 2 }}
+        >
+          {heights
+            .filter((_, i) => i % 2 === col)
+            .map((h, i) => (
+              <View
+                key={i}
+                style={{
+                  width: columnWidth,
+                  height: h,
+                  borderRadius: CELL_RADIUS,
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  marginBottom: COLUMN_GAP,
+                }}
+              />
+            ))}
+        </View>
+      ))}
+    </View>
+  );
 }
 
 // ─── Video thumbnail cell ───────────────────────────────────────────────────
@@ -163,7 +302,16 @@ const MasonryCell = memo(function MasonryCell({
     toggle: toggleLike,
   } = usePostLikeState(post.id, post.likes || 0, post.viewerHasLiked || false);
 
+  const prefetchComments = usePrefetchComments();
+  const queryClient = useQueryClient();
   const handlePress = useCallback(() => onPress(post.id), [post.id, onPress]);
+  // Warm the post-detail + comments caches on press-in so the detail
+  // screen and its comment sheet paint with data instead of a spinner.
+  const handlePressIn = useCallback(() => {
+    if (!post.id) return;
+    screenPrefetch.postDetail(queryClient, post.id);
+    prefetchComments(post.id);
+  }, [post.id, prefetchComments, queryClient]);
 
   const handleBookmark = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -184,13 +332,18 @@ const MasonryCell = memo(function MasonryCell({
   const isVideo = media?.type === "video";
   const isCarousel = (post.media?.length || 0) > 1;
   const isGif = media?.type === "gif";
+  const isAnimatedVideo = media?.type === "animated_video";
   const isLivePhoto = media?.type === "livePhoto";
   const coverUrl = isVideo
     ? post.thumbnail || media?.thumbnail || null
     : media?.thumbnail || media?.url || null;
 
   return (
-    <Pressable onPress={handlePress} style={{ marginBottom: COLUMN_GAP }}>
+    <Pressable
+      onPress={handlePress}
+      onPressIn={handlePressIn}
+      style={{ marginBottom: COLUMN_GAP }}
+    >
       <View style={[styles.cell, { width, height, borderRadius: CELL_RADIUS }]}>
         {isTextPost ? (
           <TextPostSurface
@@ -216,6 +369,17 @@ const MasonryCell = memo(function MasonryCell({
             contentFit="cover"
             isPlaying
           />
+        ) : isAnimatedVideo && media?.url ? (
+          // Short video auto-tagged as a silent looping animation (gif-like).
+          // expo-image can't decode mp4, so without this branch the tile
+          // falls through to <Image src=mp4Url> and renders blank.
+          <DVNTAnimatedVideoView
+            uri={media.url}
+            width={width}
+            height={height}
+            contentFit="cover"
+            isPlaying
+          />
         ) : isLivePhoto && media?.url ? (
           // Live Photo — native player on iOS (tap-and-hold), still
           // fallback on Android.
@@ -232,7 +396,7 @@ const MasonryCell = memo(function MasonryCell({
             style={{ width, height }}
             contentFit="cover"
             cachePolicy="memory-disk"
-            transition={200}
+            transition={0}
           />
         ) : (
           <View style={[styles.emptyCell, { width, height }]}>
@@ -454,6 +618,11 @@ export function MasonryFeed() {
   const nsfwLoaded = useAppStore((s) => s.nsfwLoaded);
   const loadNsfwSetting = useAppStore((s) => s.loadNsfwSetting);
 
+  // Drives the OfflineFeedEmpty branch below — shown only when we
+  // have no cached posts AND the flap-debounced connectivity store
+  // says we're confirmed offline (not just flapping).
+  const isOffline = useConnectivityStore((s) => s.isOffline);
+
   useEffect(() => {
     loadNsfwSetting("masonry_feed_mount");
   }, [loadNsfwSetting]);
@@ -469,11 +638,7 @@ export function MasonryFeed() {
     return data.pages.flatMap((page) => page.data).filter(shouldRenderInFeed);
   }, [data]);
 
-  const {
-    data: stories = [],
-    isFetched: storiesFetched,
-    isError: storiesErrored,
-  } = useStories();
+  // Stories live at the HomeScreen level — no fetch needed here.
 
   // Seed like states from feed data
   useEffect(() => {
@@ -577,19 +742,20 @@ export function MasonryFeed() {
     [hasNextPage, isFetchingNextPage, fetchNextPage],
   );
 
-  const storiesReady = storiesFetched || storiesErrored;
-  const eventsReady = eventsFetched || eventsErrored;
-  const criticalImagesReady =
-    filteredPosts.length === 0 ? true : firstPageMediaPrefetched;
+  // While the grid itself is loading, render a minimal grid-shaped
+  // placeholder (NOT the classic feed-post skeleton — that renders the
+  // wrong shape here). Stories + events live in their own lanes and
+  // must never gate the grid body.
+  if (isLoading || !nsfwLoaded) {
+    return <MasonryGridSkeleton columnWidth={columnWidth} />;
+  }
 
-  if (
-    isLoading ||
-    !nsfwLoaded ||
-    !storiesReady ||
-    !eventsReady ||
-    !criticalImagesReady
-  ) {
-    return <FeedSkeleton />;
+  // Offline + no cached feed → show a deliberate offline surface
+  // instead of the generic error state. Uses the flap-debounced
+  // connectivity store, so we only render this after the app has
+  // been confirmed offline for 1.5s (no flash on brief dips).
+  if (isOffline && allPosts.length === 0) {
+    return <OfflineFeedEmpty onRetry={() => refetch()} />;
   }
 
   if (error) {

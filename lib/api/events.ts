@@ -1,9 +1,12 @@
 import { supabase } from "../supabase/client";
 import { DB } from "../supabase/db-map";
-import { requireBetterAuthToken } from "../auth/identity";
+import {
+  requireBetterAuthToken,
+  getCurrentUserId as getIntUserIdAsync,
+} from "../auth/identity";
 import {
   getCurrentUserId,
-  getCurrentUserIdInt,
+  getCurrentUserIdSync,
   getCurrentUserAuthId,
 } from "./auth-helper";
 
@@ -21,10 +24,31 @@ function parseJsonbArray(value: unknown): any[] {
   return [];
 }
 
+/** Returns true if the URL points to a video file */
+function isVideoUrl(url: string): boolean {
+  return /\.(mp4|mov|webm|m4v)(\?|$)/i.test(url);
+}
+
 /** Resolve event image URL from multiple DB columns */
 function resolveEventImage(event: any): string {
   // Priority: cover_image_url > image > cover_image_id (would need join)
   return event[DB.events.coverImageUrl] || event["image"] || "";
+}
+
+/** Returns the flyer video URL if the flyer is a video, otherwise undefined */
+function resolveFlyerVideoUrl(event: any): string | undefined {
+  const flyerUrl = event[DB.events.flyerImageUrl];
+  return flyerUrl && isVideoUrl(flyerUrl) ? flyerUrl : undefined;
+}
+
+function normalizeVisibility(
+  value: unknown,
+): "public" | "private" | "link_only" {
+  if (value === "private" || value === "link_only" || value === "public") {
+    return value;
+  }
+  if (value === "unlisted") return "link_only";
+  return "public";
 }
 
 /** Format a raw ISO date into the fields the EventCard UI expects */
@@ -54,6 +78,51 @@ function formatEventDate(isoDate: string | null | undefined) {
   };
 }
 
+/**
+ * Enrich a page of events with their cheapest ticket-tier price.
+ *
+ * The events.price column is a single-tier fallback. When a user creates
+ * tiered pricing, those tiers live in `ticket_types` (price_cents per
+ * tier) and `events.price` stays at 0 — which is why list cards were
+ * showing "FREE" even though the event detail screen rendered the real
+ * tiered prices.
+ *
+ * This runs one batched query per page (not N+1) and overrides
+ * `event.price` only when the cheapest active tier is > 0. Events with
+ * all-free tiers or no tiers stay as-is.
+ */
+async function enrichEventsWithTierPrices<
+  T extends { id: string; price: number },
+>(events: T[]): Promise<T[]> {
+  if (events.length === 0) return events;
+  const eventIds = events
+    .map((e) => parseInt(e.id, 10))
+    .filter((n) => Number.isFinite(n) && n > 0);
+  if (eventIds.length === 0) return events;
+
+  const { data, error } = await supabase
+    .from("ticket_types")
+    .select("event_id, price_cents, is_active")
+    .in("event_id", eventIds)
+    .eq("is_active", true);
+
+  if (error || !data) return events;
+
+  const minByEvent = new Map<number, number>();
+  for (const row of data as Array<{ event_id: number; price_cents: number }>) {
+    const prev = minByEvent.get(row.event_id);
+    if (prev === undefined || row.price_cents < prev) {
+      minByEvent.set(row.event_id, row.price_cents);
+    }
+  }
+
+  return events.map((e) => {
+    const min = minByEvent.get(parseInt(e.id, 10));
+    if (min === undefined || min <= 0) return e;
+    return { ...e, price: min / 100 };
+  });
+}
+
 export const eventsApi = {
   async toggleEventLike(
     eventId: string,
@@ -77,9 +146,11 @@ export const eventsApi = {
     });
 
     if (error) {
+      console.error("[toggleEventLike] invoke error:", error.message, error);
       throw new Error(error.message || "Failed to toggle event like");
     }
     if (!data?.ok || !data.data) {
+      console.error("[toggleEventLike] bad response:", JSON.stringify(data));
       throw new Error(data?.error?.message || "Failed to toggle event like");
     }
 
@@ -100,12 +171,13 @@ export const eventsApi = {
       search?: string;
       sort?: string;
       cityId?: number | null;
+      nsfw?: boolean | null;
     },
   ) {
     try {
       console.log("[Events] getEvents (batch RPC)");
 
-      const viewerId = getCurrentUserIdInt();
+      const viewerId = getCurrentUserIdSync() ?? (await getIntUserIdAsync());
 
       const { data, error } = await supabase.rpc("get_events_home", {
         p_limit: limit,
@@ -118,12 +190,13 @@ export const eventsApi = {
         p_search: filters?.search || null,
         p_category: category || null,
         p_sort: filters?.sort || "soonest",
+        p_nsfw: filters?.nsfw ?? null,
       });
 
       if (error) throw error;
 
       // RPC returns JSON array — map to client shape
-      return ((data as any[]) || []).map((event: any) => {
+      const mapped = ((data as any[]) || []).map((event: any) => {
         const dateParts = formatEventDate(event.start_date);
         const avatars = Array.isArray(event.attendee_avatars)
           ? event.attendee_avatars
@@ -147,16 +220,20 @@ export const eventsApi = {
           attendees: avatars.length > 0 ? avatars : totalCount,
           totalAttendees: totalCount,
           category: event.category || undefined,
-          locationLat: event.location_lat != null ? Number(event.location_lat) : undefined,
-          locationLng: event.location_lng != null ? Number(event.location_lng) : undefined,
+          locationLat:
+            event.location_lat != null ? Number(event.location_lat) : undefined,
+          locationLng:
+            event.location_lng != null ? Number(event.location_lng) : undefined,
           locationName: event.location_name || undefined,
-          locationAddress: event.location_address || event.location || undefined,
+          locationAddress:
+            event.location_address || event.location || undefined,
           host: {
             username: event.host_username || "unknown",
             avatar: event.host_avatar || "",
           },
         };
       });
+      return enrichEventsWithTierPrices(mapped);
     } catch (error) {
       console.error("[Events] getEvents error:", error);
       return [];
@@ -169,7 +246,7 @@ export const eventsApi = {
    */
   async getForYouEvents(limit: number = 20) {
     try {
-      const viewerId = getCurrentUserIdInt();
+      const viewerId = getCurrentUserIdSync() ?? (await getIntUserIdAsync());
       if (!viewerId) return this.getEvents(limit);
 
       const { data, error } = await supabase.rpc("get_events_for_you", {
@@ -186,7 +263,7 @@ export const eventsApi = {
         return this.getEvents(limit);
       }
 
-      return ((data as any[]) || []).map((event: any) => {
+      const mapped = ((data as any[]) || []).map((event: any) => {
         const dateParts = formatEventDate(event.start_date);
         const avatars = Array.isArray(event.attendee_avatars)
           ? event.attendee_avatars
@@ -217,6 +294,7 @@ export const eventsApi = {
           },
         };
       });
+      return enrichEventsWithTierPrices(mapped);
     } catch (error) {
       console.error("[Events] getForYouEvents error:", error);
       return this.getEvents(limit);
@@ -268,7 +346,7 @@ export const eventsApi = {
       const { data, error } = await query;
       if (error) throw error;
 
-      return (data || []).map((event: any) => {
+      const mapped = (data || []).map((event: any) => {
         const dateParts = formatEventDate(event[DB.events.startDate]);
         return {
           id: String(event[DB.events.id]),
@@ -277,10 +355,12 @@ export const eventsApi = {
           ...dateParts,
           location: event[DB.events.location],
           image: resolveEventImage(event),
+          flyerVideoUrl: resolveFlyerVideoUrl(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
         };
       });
+      return enrichEventsWithTierPrices(mapped);
     } catch (error) {
       console.error("[Events] getMyEvents error:", error);
       return [];
@@ -323,7 +403,7 @@ export const eventsApi = {
         );
       }
 
-      return (data || []).map((event: any) => {
+      const mapped = (data || []).map((event: any) => {
         const host = hostsMap.get(event[DB.events.hostId]);
         const dateParts = formatEventDate(event[DB.events.startDate]);
         return {
@@ -333,6 +413,7 @@ export const eventsApi = {
           ...dateParts,
           location: event[DB.events.location],
           image: resolveEventImage(event),
+          flyerVideoUrl: resolveFlyerVideoUrl(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
           host: {
@@ -341,6 +422,7 @@ export const eventsApi = {
           },
         };
       });
+      return enrichEventsWithTierPrices(mapped);
     } catch (error) {
       console.error("[Events] getPastEvents error:", error);
       return [];
@@ -355,7 +437,7 @@ export const eventsApi = {
   async getEventById(id: string) {
     try {
       console.log("[Events] getEventById (batch RPC)");
-      const viewerId = getCurrentUserIdInt();
+      const viewerId = getCurrentUserIdSync() ?? (await getIntUserIdAsync());
 
       const { data, error } = await supabase.rpc("get_event_detail", {
         p_event_id: parseInt(id),
@@ -377,9 +459,11 @@ export const eventsApi = {
         location: ev.location,
         image: ev.image || "",
         images: parseJsonbArray(ev.images),
+        flyerImageUrl: ev.flyer_image_url || null,
+        flyerVideoUrl: resolveFlyerVideoUrl(ev) || null,
         youtubeVideoUrl: ev.youtube_video_url || null,
         price: Number(ev.price) || 0,
-        likes: 0,
+        likes: Number(data.likes_count) || 0,
         isLiked: data.is_liked || false,
         attendees: Number(ev.total_attendees) || 0,
         maxAttendees: Number(ev.max_attendees),
@@ -412,6 +496,7 @@ export const eventsApi = {
         entryWindow: ev.entry_window || undefined,
         lineup: ev.lineup || undefined,
         perks: ev.perks || undefined,
+        likesCount: data.likes_count ?? 0,
         // Batch payload fields
         userRsvpStatus: data.user_rsvp_status || null,
         ticketTiers: data.ticket_tiers || [],
@@ -546,7 +631,7 @@ export const eventsApi = {
         insertPayload.location_address = eventData.locationAddress;
       if (eventData.locationType)
         insertPayload.location_type = eventData.locationType;
-      if (eventData.visibility) insertPayload.visibility = eventData.visibility;
+      insertPayload.visibility = normalizeVisibility(eventData.visibility);
       if (eventData.eventCategory)
         insertPayload.category = eventData.eventCategory;
       if (eventData.ageRestriction)
@@ -561,6 +646,7 @@ export const eventsApi = {
       if (eventData.perks) insertPayload.perks = eventData.perks;
       if (eventData.flyerImageUrl)
         insertPayload.flyer_image_url = eventData.flyerImageUrl;
+      if (eventData.nsfw != null) insertPayload.nsfw = eventData.nsfw;
 
       const { data, error } = await supabase
         .from(DB.events.table)
@@ -581,6 +667,7 @@ export const eventsApi = {
         ...dateParts,
         location: data[DB.events.location],
         image: resolveEventImage(data),
+        flyerVideoUrl: resolveFlyerVideoUrl(data),
         price: Number(data[DB.events.price]) || 0,
         attendees: 0,
         totalAttendees: 0,
@@ -633,7 +720,7 @@ export const eventsApi = {
       if (updates.category !== undefined)
         updateData.category = updates.category || null;
       if (updates.visibility !== undefined)
-        updateData.visibility = updates.visibility;
+        updateData.visibility = normalizeVisibility(updates.visibility);
       if (updates.ageRestriction !== undefined)
         updateData.age_restriction = updates.ageRestriction || null;
       if (updates.dressCode !== undefined)
@@ -655,6 +742,8 @@ export const eventsApi = {
         updateData.ticketing_enabled = updates.ticketingEnabled;
       if (updates.isOnline !== undefined)
         updateData[DB.events.isOnline] = updates.isOnline;
+      if (updates.flyerImageUrl !== undefined)
+        updateData[DB.events.flyerImageUrl] = updates.flyerImageUrl || null;
 
       const { data, error } = await supabase
         .from(DB.events.table)
@@ -682,7 +771,7 @@ export const eventsApi = {
 
       // Resolve all possible user identifiers for ownership check
       const authId = await getCurrentUserAuthId();
-      const userIdInt = getCurrentUserIdInt();
+      const userIdInt = getCurrentUserIdSync();
       const userId = getCurrentUserId();
       console.log(
         "[Events] deleteEvent identifiers — authId:",
@@ -841,29 +930,32 @@ export const eventsApi = {
   },
 
   /**
-   * Add co-organizer to event (only host can add)
+   * Add co-organizer to event (only host can add).
+   * Calls invite-co-organizer edge function which also sends push notification.
    */
   async addCoOrganizer(
     eventId: string,
     coOrganizerUserId: string,
-    role: "viewer" | "scanner" | "editor" | "admin" = "scanner",
+    role: "viewer" | "scanner" | "editor" | "admin" = "editor",
   ) {
     try {
-      const authId = getCurrentUserAuthId();
-      if (!authId) throw new Error("Not authenticated");
+      const { requireBetterAuthToken } = await import("../auth/identity");
+      const token = await requireBetterAuthToken();
 
-      const { error } = await supabase.from("event_co_organizers").upsert(
+      const { data, error } = await supabase.functions.invoke(
+        "invite-co-organizer",
         {
-          event_id: parseInt(eventId),
-          user_id: coOrganizerUserId,
-          role,
-          invited_by: authId,
-          accepted: false,
+          body: {
+            event_id: parseInt(eventId),
+            invitee_auth_id: coOrganizerUserId,
+            role,
+          },
+          headers: { "x-auth-token": token },
         },
-        { onConflict: "event_id,user_id" },
       );
 
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       return true;
     } catch (err) {
       console.error("[Events] addCoOrganizer error:", err);
@@ -952,7 +1044,7 @@ export const eventsApi = {
    */
   async isEventLiked(eventId: string): Promise<boolean> {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) return false;
 
       const { data, error } = await supabase
@@ -1013,7 +1105,7 @@ export const eventsApi = {
         );
       }
 
-      return (events || []).map((event: any) => {
+      const mapped = (events || []).map((event: any) => {
         const host = hostsMap.get(event[DB.events.hostId]);
         return {
           id: String(event[DB.events.id]),
@@ -1022,6 +1114,7 @@ export const eventsApi = {
           date: event[DB.events.startDate],
           location: event[DB.events.location],
           image: resolveEventImage(event),
+          flyerVideoUrl: resolveFlyerVideoUrl(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
           host: {
@@ -1030,6 +1123,7 @@ export const eventsApi = {
           },
         };
       });
+      return enrichEventsWithTierPrices(mapped);
     } catch (error) {
       console.error("[Events] getLikedEvents error:", error);
       return [];
@@ -1090,7 +1184,7 @@ export const eventsApi = {
    */
   async addEventComment(eventId: string, commentContent: string) {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) throw new Error("Not authenticated");
 
       const { data, error } = await supabase
@@ -1169,7 +1263,7 @@ export const eventsApi = {
    */
   async addEventReview(eventId: string, rating: number, content: string) {
     try {
-      const userId = getCurrentUserIdInt();
+      const userId = getCurrentUserIdSync();
       if (!userId) throw new Error("Not authenticated");
 
       // Upsert: one review per user per event

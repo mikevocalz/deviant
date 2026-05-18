@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DVNT App Designs</title>
+  <style>
+    /* Design tokens */
+    :root {
+      --color-primary: #4f46e5;
+      --color-primary-soft: #eef2ff;
+      --color-secondary: #ec4899;
+      --color-secondary-soft: #fff0f6;
+      --color-surface: #ffffff;
+      --color-surface-strong: #f8fafc;
+      --color-background: #e2e8f0;
+      --color-background-strong: #cbd5e1;
+      --color-border: #cbd5e1;
+      --color-text: #0f172a;
+      --color-muted: #475569;
+      --color-error: #ef4444;
+      --color-success: #16a34a;
+      --color-shadow-low: 0 10px 24px rgba(15, 23, 42, 0.08);
+      --color-shadow-medium: 0 16px 36px rgba(15, 23, 42, 0.12);
+      --color-shadow-high: 0 24px 48px rgba(15, 23, 42, 0.18);
+
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 20px;
+      --space-6: 24px;
+      --space-7: 32px;
+
+      --radius-sm: 12px;
+      --radius-md: 18px;
+      --radius-lg: 28px;
+      --radius-full: 999px;
+
+      --font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --font-weight-regular: 400;
+      --font-weight-medium: 500;
+      --font-weight-bold: 700;
+
+      --font-size-heading-1: clamp(1.8rem, 3vw, 2.2rem);
+      --font-size-heading-2: clamp(1.35rem, 2.5vw, 1.6rem);
+      --font-size-heading-3: 1.1rem;
+      --font-size-body: 0.95rem;
+      --font-size-caption: 0.78rem;
+      --font-size-button: 0.95rem;
+      --line-height-tight: 1.25;
+      --line-height-normal: 1.55;
+      --line-height-relaxed: 1.8;
+
+      --transition-fast: 150ms ease;
+      --transition-medium: 220ms ease;
+      --transition-long: 320ms ease;
+    }
+
+    [data-theme="dark"] {
+      --color-primary-soft: #312e81;
+      --color-surface: #0f172a;
+      --color-surface-strong: #111827;
+      --color-background: #020617;
+      --color-background-strong: #111827;
+      --color-border: #22324f;
+      --color-text: #f8fafc;
+      --color-muted: #94a3b8;
+      --color-shadow-low: 0 10px 24px rgba(0, 0, 0, 0.28);
+      --color-shadow-medium: 0 16px 36px rgba(0, 0, 0, 0.32);
+      --color-shadow-high: 0 24px 48px rgba(0, 0, 0, 0.4);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      padding: var(--space-5) var(--space-4) calc(var(--space-5) + 120px);
+      background: var(--color-background);
+      color: var(--color-text);
+      font-family: var(--font-family);
+      line-height: var(--line-height-normal);
+    }
+
+    img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+
+    button, .button {
+      font: inherit;
+      border: none;
+      cursor: pointer;
+      background: none;
+      color: inherit;
+    }
+
+    .canvas {
+      width: min(100%, 428px);
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-5);
+      min-height: calc(100vh - 120px);
+    }
+
+    .screen-frame {
+      width: 100%;
+      display: none;
+      flex-direction: column;
+      gap: var(--space-4);
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--color-shadow-low);
+    }
+
+    .screen-frame__title {
+      font-size: var(--font-size-heading-2);
+      font-weight: var(--font-weight-bold);
+      margin: 0;
+    }
+
+    .screen-frame__subtitle {
+      margin: 0;
+      color: var(--color-muted);
+      font-size: var(--font-size-caption);
+    }
+
+    .top-bar,
+    .bottom-bar,
+    .search-bar,
+    .profile-overview,
+    .feed-list,
+    .story-strip,
+    .activity-list,
+    .settings-list,
+    .post-form {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .top-bar {
+      align-items: center;
+      justify-content: space-between;
+      flex-direction: row;
+      gap: var(--space-3);
+    }
+
+    .top-bar__brand {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .top-bar__title {
+      font-size: var(--font-size-heading-3);
+      font-weight: var(--font-weight-bold);
+    }
+
+    .top-bar__actions {
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
+    }
+
+    .icon-button {
+      min-width: 44px;
+      min-height: 44px;
+      display: grid;
+      place-items: center;
+      border-radius: var(--radius-full);
+      background: var(--color-primary-soft);
+      color: var(--color-primary);
+      transition: transform var(--transition-fast), background var(--transition-fast);
+    }
+
+    .icon-button:hover {
+      transform: translateY(-1px);
+      background: var(--color-primary);
+      color: white;
+    }
+
+    .avatar-circle {
+      width: 42px;
+      height: 42px;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      background: linear-gradient(135deg, #8b5cf6, #ec4899);
+      display: grid;
+      place-items: center;
+      color: white;
+      font-weight: var(--font-weight-bold);
+    }
+
+    .story-strip {
+      flex-direction: row;
+      overflow-x: auto;
+      padding-bottom: 4px;
+      scrollbar-width: none;
+    }
+
+    .story-strip::-webkit-scrollbar {
+      display: none;
+    }
+
+    .story-card {
+      min-width: 96px;
+      flex: 0 0 auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface-strong);
+      border: 1px solid var(--color-border);
+      text-align: center;
+    }
+
+    .story-card__avatar {
+      width: 56px;
+      height: 56px;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+    }
+
+    .story-card__label {
+      font-size: var(--font-size-caption);
+      color: var(--color-text);
+      font-weight: var(--font-weight-medium);
+    }
+
+    .stream-item,
+    .activity-item,
+    .settings-item {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface-strong);
+      border: 1px solid var(--color-border);
+    }
+
+    .stream-item__header,
+    .activity-item__header,
+    .settings-item__header {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-3);
+      align-items: center;
+    }
+
+    .stream-item__meta,
+    .profile-overview__details,
+    .profile-summary {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .profile-card,
+    .grid-card,
+    .activity-item,
+    .settings-item {
+      gap: var(--space-3);
+    }
+
+    .profile-card {
+      display: flex;
+      flex-direction: row;
+      gap: var(--space-3);
+      align-items: center;
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--color-primary-soft);
+      border: 1px solid var(--color-border);
+    }
+
+    .profile-card__avatar {
+      width: 72px;
+      height: 72px;
+      border-radius: var(--radius-full);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+
+    .profile-card__details {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .profile-card__name {
+      font-size: var(--font-size-heading-3);
+      font-weight: var(--font-weight-bold);
+      margin: 0;
+    }
+
+    .profile-card__handle {
+      margin: 0;
+      color: var(--color-muted);
+      font-size: var(--font-size-caption);
+    }
+
+    .profile-stats {
+      display: flex;
+      gap: var(--space-3);
+      flex-wrap: wrap;
+    }
+
+    .profile-stat {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: var(--space-3);
+      border-radius: var(--radius-md);
+      background: var(--color-surface);
+      min-width: 96px;
+      text-align: center;
+    }
+
+    .profile-stat__value {
+      font-weight: var(--font-weight-bold);
+      font-size: var(--font-size-body);
+    }
+
+    .button--primary,
+    .button--secondary,
+    .button--pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      border-radius: var(--radius-full);
+      padding: 12px 16px;
+      font-size: var(--font-size-button);
+      font-weight: var(--font-weight-medium);
+      min-height: 44px;
+      transition: transform var(--transition-fast), background var(--transition-fast);
+    }
+
+    .button--primary {
+      background: var(--color-primary);
+      color: white;
+    }
+
+    .button--primary:hover,
+    .button--secondary:hover,
+    .button--pill:hover {
+      transform: translateY(-1px);
+    }
+
+    .button--secondary {
+      background: var(--color-surface-strong);
+      color: var(--color-text);
+      border: 1px solid var(--color-border);
+    }
+
+    .search-bar {
+      display: flex;
+      gap: var(--space-3);
+      align-items: center;
+      background: var(--color-surface-strong);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-lg);
+      padding: var(--space-3);
+    }
+
+    .search-input {
+      flex: 1;
+      min-height: 42px;
+      background: transparent;
+      border: none;
+      font-size: var(--font-size-body);
+      color: inherit;
+    }
+
+    .search-input::placeholder {
+      color: var(--color-muted);
+    }
+
+    .feed-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-4);
+    }
+
+    .feed-card__text,
+    .post-form__textarea,
+    .settings-item__note {
+      font-size: var(--font-size-body);
+      color: var(--color-text);
+      line-height: var(--line-height-relaxed);
+    }
+
+    .feed-card__image {
+      width: 100%;
+      min-height: 180px;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+    }
+
+    .feed-card__image img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .action-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    .action-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 14px;
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      color: var(--color-muted);
+      border: 1px solid var(--color-border);
+      font-size: var(--font-size-caption);
+    }
+
+    .activity-list,
+    .settings-list {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-3);
+    }
+
+    .activity-item__meta,
+    .settings-item__controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-3);
+      width: 100%;
+    }
+
+    .post-form__textarea {
+      width: 100%;
+      min-height: 120px;
+      padding: var(--space-3);
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--color-border);
+      background: var(--color-surface-strong);
+      resize: vertical;
+    }
+
+    .grid-row {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-3);
+    }
+
+    .grid-card {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-2);
+      padding: var(--space-3);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface-strong);
+      border: 1px solid var(--color-border);
+    }
+
+    .detail-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      color: var(--color-muted);
+      font-size: var(--font-size-caption);
+    }
+
+    .bottom-bar {
+      position: fixed;
+      left: 50%;
+      transform: translateX(-50%);
+      bottom: 16px;
+      width: min(100%, 428px);
+      max-width: 428px;
+      flex-direction: row;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-2);
+      padding: var(--space-4);
+      border-radius: var(--radius-lg);
+      background: var(--color-surface);
+      border: 1px solid var(--color-border);
+      box-shadow: var(--color-shadow-low);
+      z-index: 20;
+    }
+
+    .bottom-bar__item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      flex: 1;
+      min-height: 56px;
+      justify-content: center;
+      color: var(--color-muted);
+      font-size: var(--font-size-caption);
+    }
+
+    .bottom-bar__item--active {
+      color: var(--color-primary);
+    }
+
+    .screen-frame {
+      display: none;
+    }
+
+    .screen-frame.active {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 160px);
+      min-height: calc(100vh - 160px);
+      justify-content: flex-start;
+    }
+
+    .screen-frame--nav {
+      display: block;
+      padding: 0;
+      margin: 0;
+      border: none;
+      background: transparent;
+      box-shadow: none;
+      min-height: 0;
+    }
+
+    .screen-frame--nav .bottom-bar {
+      margin: 0;
+      border-radius: var(--radius-2xl, 36px);
+    }
+
+    .screen-frame {
+      min-height: calc(100vh - 260px) !important;
+      box-sizing: border-box;
+    }
+
+    .screen-frame__footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: var(--space-3);
+    }
+
+    .screen-frame__badge {
+      font-size: var(--font-size-caption);
+      padding: 4px 10px;
+      border-radius: var(--radius-full);
+      background: var(--color-secondary-soft);
+      color: var(--color-secondary);
+      font-weight: var(--font-weight-medium);
+    }
+
+    @media (max-width: 440px) {
+      body {
+        padding: var(--space-4) var(--space-3);
+      }
+    }
+  </style>
+</head>
+<body data-theme="light">
+  <div class="canvas" id="canvas">
+    <!-- layer: screen-home -->
+    <section class="screen-frame screen-frame--home active" data-layer-name="Home Screen">
+      <div class="screen-frame__header">
+        <div class="top-bar">
+          <div class="top-bar__brand">
+            <p class="screen-frame__title">DVNT</p>
+            <p class="screen-frame__subtitle">Your mobile community feed</p>
+          </div>
+          <div class="top-bar__actions">
+            <button class="icon-button" aria-label="Toggle theme" id="toggleThemeHome">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79Z" />
+              </svg>
+            </button>
+            <button class="icon-button" aria-label="Notifications">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+                <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+              </svg>
+            </button>
+            <div class="avatar-circle" aria-label="Current user avatar">MV</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="story-strip" aria-label="Story ribbon">
+        <div class="story-card story-card--add">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          <span class="story-card__label">Add Story</span>
+        </div>
+        <div class="story-card">
+          <div class="story-card__avatar"><img src="https://picsum.photos/seed/story1/120" alt="Story avatar Alex" /></div>
+          <span class="story-card__label">Alex</span>
+        </div>
+        <div class="story-card">
+          <div class="story-card__avatar"><img src="https://picsum.photos/seed/story2/120" alt="Story avatar Luna" /></div>
+          <span class="story-card__label">Luna</span>
+        </div>
+        <div class="story-card">
+          <div class="story-card__avatar"><img src="https://picsum.photos/seed/story3/120" alt="Story avatar Jaden" /></div>
+          <span class="story-card__label">Jaden</span>
+        </div>
+      </div>
+
+      <div class="post-form">
+        <div class="post-form__header">
+          <div class="avatar-circle">ME</div>
+          <div class="screen-frame__subtitle">What’s on your mind today?</div>
+        </div>
+        <textarea class="post-form__textarea" placeholder="Share a quick post…"></textarea>
+        <div class="action-bar">
+          <button class="button button--secondary">📷 Photo</button>
+          <button class="button button--secondary">🎥 Clip</button>
+          <button class="button button--secondary">📍 Tag</button>
+        </div>
+        <button class="button button--primary">Publish</button>
+      </div>
+
+      <div class="feed-list" aria-label="Recent posts">
+        <article class="stream-item" data-layer-name="Post Card - Maya">
+          <div class="stream-item__header">
+            <div class="stream-item__meta">
+              <div class="avatar-circle"><img src="https://picsum.photos/seed/maya/100" alt="Maya avatar" /></div>
+              <div>
+                <p class="screen-frame__title" style="font-size: var(--font-size-body);">Maya Johnson</p>
+                <p class="screen-frame__subtitle">2h ago • 128 likes</p>
+              </div>
+            </div>
+            <button class="icon-button" aria-label="More options">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="19" cy="12" r="1" />
+                <circle cx="5" cy="12" r="1" />
+              </svg>
+            </button>
+          </div>
+          <p class="feed-card__text">City lights and midnight thoughts. The feed is alive, and the story keeps unfolding.</p>
+          <div class="feed-card__image"><img src="https://picsum.photos/seed/post1/600/340" alt="Feed post image" /></div>
+          <div class="action-bar">
+            <button class="action-pill">❤️ 128</button>
+            <button class="action-pill">💬 24</button>
+            <button class="action-pill">🔗 Share</button>
+          </div>
+          <div class="comment-preview">
+            <div class="profile-card__avatar" style="width: 36px; height: 36px;"><img src="https://picsum.photos/seed/comment1/100" alt="Comment avatar" /></div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <span style="font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); color: var(--color-text);">Aria</span>
+              <span class="feed-card__text" style="font-size: var(--font-size-caption); color: var(--color-muted);">That sunset was breathtaking!</span>
+            </div>
+          </div>
+        </article>
+
+        <article class="stream-item" data-layer-name="Post Card - Noah">
+          <div class="stream-item__header">
+            <div class="stream-item__meta">
+              <div class="avatar-circle"><img src="https://picsum.photos/seed/noah/100" alt="Noah avatar" /></div>
+              <div>
+                <p class="screen-frame__title" style="font-size: var(--font-size-body);">Noah Chen</p>
+                <p class="screen-frame__subtitle">5h ago • 236 likes</p>
+              </div>
+            </div>
+            <button class="icon-button" aria-label="More options">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="1" />
+                <circle cx="19" cy="12" r="1" />
+                <circle cx="5" cy="12" r="1" />
+              </svg>
+            </button>
+          </div>
+          <p class="feed-card__text">Morning writing routine: coffee, pen, and the feeling that each line is its own small adventure.</p>
+          <div class="feed-card__image"><img src="https://picsum.photos/seed/post2/600/340" alt="Feed post image" /></div>
+          <div class="action-bar">
+            <button class="action-pill">❤️ 236</button>
+            <button class="action-pill">💬 52</button>
+            <button class="action-pill">🔗 Share</button>
+          </div>
+          <div class="comment-preview">
+            <div class="profile-card__avatar" style="width: 36px; height: 36px;"><img src="https://picsum.photos/seed/comment2/100" alt="Comment avatar" /></div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <span style="font-size: var(--font-size-caption); font-weight: var(--font-weight-medium); color: var(--color-text);">Rae</span>
+              <span class="feed-card__text" style="font-size: var(--font-size-caption); color: var(--color-muted);">This reads like a scene from a perfect dream.</span>
+            </div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- layer: screen-search -->
+    <section class="screen-frame screen-frame--search" data-layer-name="Search Screen">
+      <div>
+        <p class="screen-frame__title">Discover</p>
+        <p class="screen-frame__subtitle">Search posts, people, and topics.</p>
+      </div>
+      <div class="search-bar">
+        <div class="icon-button" aria-hidden="true" style="background: var(--color-surface); color: var(--color-muted);">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+        </div>
+        <input class="search-input" type="search" placeholder="Search DVNT" aria-label="Search" />
+        <button class="icon-button" aria-label="Filters">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M4 6h16M7 12h10M10 18h4" />
+          </svg>
+        </button>
+      </div>
+      <div class="grid-row">
+        <div class="grid-card" data-layer-name="Discover Card - Trending">
+          <p style="font-weight: var(--font-weight-bold); margin:0;">Trending</p>
+          <p class="feed-card__text">Explore the hottest stories and viral posts.</p>
+        </div>
+        <div class="grid-card" data-layer-name="Discover Card - Creators">
+          <p style="font-weight: var(--font-weight-bold); margin:0;">Creators</p>
+          <p class="feed-card__text">Follow profiles shaping the feed today.</p>
+        </div>
+        <div class="grid-card" data-layer-name="Discover Card - Events">
+          <p style="font-weight: var(--font-weight-bold); margin:0;">Events</p>
+          <p class="feed-card__text">Find live sessions and local meetups.</p>
+        </div>
+      </div>
+      <div class="story-card" style="padding: var(--space-4);">
+        <p style="font-weight: var(--font-weight-bold); margin:0;">Suggested Topics</p>
+        <div class="action-bar" style="flex-wrap: wrap;">
+          <span class="action-pill">#ShortStories</span>
+          <span class="action-pill">#Art</span>
+          <span class="action-pill">#NightLife</span>
+          <span class="action-pill">#Music</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- layer: screen-create -->
+    <section class="screen-frame screen-frame--create" data-layer-name="Create Screen">
+      <div>
+        <p class="screen-frame__title">Create Post</p>
+        <p class="screen-frame__subtitle">Write, attach media, and publish instantly.</p>
+      </div>
+      <div class="profile-card">
+        <div class="profile-card__avatar"><img src="https://picsum.photos/seed/me2/120" alt="Creator avatar" /></div>
+        <div class="profile-card__details">
+          <p class="profile-card__name">Mia Vale</p>
+          <p class="profile-card__handle">@miav</p>
+        </div>
+      </div>
+      <textarea class="post-form__textarea" placeholder="Tell the community what’s happening..."></textarea>
+      <div class="grid-row">
+        <div class="grid-card">
+          <p style="margin:0; font-weight: var(--font-weight-bold);">Add image</p>
+          <span class="detail-chip">📷 Gallery</span>
+        </div>
+        <div class="grid-card">
+          <p style="margin:0; font-weight: var(--font-weight-bold);">Add video</p>
+          <span class="detail-chip">🎥 Clip</span>
+        </div>
+        <div class="grid-card">
+          <p style="margin:0; font-weight: var(--font-weight-bold);">Add tag</p>
+          <span class="detail-chip">@tag</span>
+        </div>
+      </div>
+      <button class="button button--primary">Post to Feed</button>
+    </section>
+
+    <!-- layer: screen-activity -->
+    <section class="screen-frame screen-frame--activity" data-layer-name="Activity Screen">
+      <div>
+        <p class="screen-frame__title">Activity</p>
+        <p class="screen-frame__subtitle">Recent likes, comments, and follows.</p>
+      </div>
+      <div class="activity-list">
+        <article class="activity-item" data-layer-name="Activity Item - Follow">
+          <div class="activity-item__header">
+            <div class="activity-item__meta">
+              <div class="avatar-circle"><img src="https://picsum.photos/seed/act1/100" alt="Follower avatar" /></div>
+              <div>
+                <p style="margin:0; font-weight: var(--font-weight-medium);">Ashlin</p>
+                <p class="screen-frame__subtitle">started following you</p>
+              </div>
+            </div>
+            <button class="button button--pill">Follow back</button>
+          </div>
+        </article>
+        <article class="activity-item" data-layer-name="Activity Item - Comment">
+          <div class="activity-item__header">
+            <div class="activity-item__meta">
+              <div class="avatar-circle"><img src="https://picsum.photos/seed/act2/100" alt="Commenter avatar" /></div>
+              <div>
+                <p style="margin:0; font-weight: var(--font-weight-medium);">Sofia</p>
+                <p class="screen-frame__subtitle">commented on your post</p>
+              </div>
+            </div>
+            <span class="screen-frame__badge">2h ago</span>
+          </div>
+          <p class="settings-item__note">"The night market story made my whole evening — love the imagery!"</p>
+        </article>
+        <article class="activity-item" data-layer-name="Activity Item - Like">
+          <div class="activity-item__header">
+            <div class="activity-item__meta">
+              <div class="avatar-circle"><img src="https://picsum.photos/seed/act3/100" alt="Liker avatar" /></div>
+              <div>
+                <p style="margin:0; font-weight: var(--font-weight-medium);">Jordan</p>
+                <p class="screen-frame__subtitle">liked your story</p>
+              </div>
+            </div>
+            <span class="screen-frame__badge">4h ago</span>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- layer: screen-profile -->
+    <section class="screen-frame screen-frame--profile" data-layer-name="Profile Screen">
+      <div>
+        <p class="screen-frame__title">Profile</p>
+        <p class="screen-frame__subtitle">Your public story and stats.</p>
+      </div>
+      <div class="profile-card">
+        <div class="profile-card__avatar"><img src="https://picsum.photos/seed/me3/120" alt="Profile avatar" /></div>
+        <div class="profile-card__details">
+          <p class="profile-card__name">Mia Vale</p>
+          <p class="profile-card__handle">@miav</p>
+          <p class="screen-frame__subtitle">Storyteller, late-night creator, coffee lover.</p>
+        </div>
+      </div>
+      <div class="profile-stats">
+        <div class="profile-stat"><span class="profile-stat__value">1.2k</span><span>Followers</span></div>
+        <div class="profile-stat"><span class="profile-stat__value">392</span><span>Following</span></div>
+        <div class="profile-stat"><span class="profile-stat__value">78</span><span>Posts</span></div>
+      </div>
+      <div class="grid-row">
+        <div class="grid-card">
+          <p style="margin:0; font-weight: var(--font-weight-bold);">Top Story</p>
+          <p class="feed-card__text">Midnight market adventures and the people who make it glow.</p>
+        </div>
+        <div class="grid-card">
+          <p style="margin:0; font-weight: var(--font-weight-bold);">Highlights</p>
+          <p class="feed-card__text">A curated selection of your favorite moments.</p>
+        </div>
+      </div>
+      <button class="button button--secondary">Edit Profile</button>
+    </section>
+
+    <!-- layer: screen-settings -->
+    <section class="screen-frame screen-frame--settings" data-layer-name="Settings Screen">
+      <div>
+        <p class="screen-frame__title">Settings</p>
+        <p class="screen-frame__subtitle">Manage account, privacy, and display.</p>
+      </div>
+      <div class="settings-list">
+        <article class="settings-item" data-layer-name="Setting - Notifications">
+          <div class="settings-item__header">
+            <div>
+              <p style="margin:0; font-weight: var(--font-weight-medium);">Notifications</p>
+              <p class="screen-frame__subtitle">Control what updates you receive.</p>
+            </div>
+            <button class="button button--secondary">Manage</button>
+          </div>
+        </article>
+        <article class="settings-item" data-layer-name="Setting - Privacy">
+          <div class="settings-item__header">
+            <div>
+              <p style="margin:0; font-weight: var(--font-weight-medium);">Privacy</p>
+              <p class="screen-frame__subtitle">Choose who sees your profile.</p>
+            </div>
+            <button class="button button--secondary">Open</button>
+          </div>
+        </article>
+        <article class="settings-item" data-layer-name="Setting - Theme">
+          <div class="settings-item__header">
+            <div>
+              <p style="margin:0; font-weight: var(--font-weight-medium);">Theme</p>
+              <p class="screen-frame__subtitle">Switch between light and dark mode.</p>
+            </div>
+            <button class="button button--primary" id="toggleThemeSettings">Toggle</button>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <!-- layer: bottom-navigation -->
+    <section class="screen-frame screen-frame--nav" data-layer-name="Bottom Navigation">
+      <div class="bottom-bar">
+        <button class="bottom-bar__item bottom-bar__item--active" data-tab="home">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 12l9-9 9 9v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+            <path d="M9 21V9h6v12" />
+          </svg>
+          Home
+        </button>
+        <button class="bottom-bar__item" data-tab="search">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8" />
+            <path d="M21 21l-4.35-4.35" />
+          </svg>
+          Search
+        </button>
+        <button class="bottom-bar__item" data-tab="create">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          Create
+        </button>
+        <button class="bottom-bar__item" data-tab="activity">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          Activity
+        </button>
+        <button class="bottom-bar__item" data-tab="profile">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+            <circle cx="12" cy="7" r="4" />
+          </svg>
+          Profile
+        </button>
+      </div>
+    </section>
+  </div>
+  <script>
+    function toggleTheme() {
+      const root = document.body;
+      const isDark = root.getAttribute('data-theme') === 'dark';
+      root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+    }
+
+    document.getElementById('toggleThemeHome').addEventListener('click', toggleTheme);
+    document.getElementById('toggleThemeSettings').addEventListener('click', toggleTheme);
+
+    const tabButtons = document.querySelectorAll('.bottom-bar__item[data-tab]');
+    const screens = Array.from(document.querySelectorAll('.screen-frame')).filter((screen) => !screen.classList.contains('screen-frame--nav'));
+
+    function getScreenKey(screen) {
+      const match = screen.className.match(/screen-frame--([a-z]+)/);
+      return match ? match[1] : null;
+    }
+
+    function setActiveTab(tab) {
+      screens.forEach((screen) => {
+        const key = getScreenKey(screen);
+        if (!key) return;
+        screen.classList.toggle('active', key === tab);
+      });
+
+      tabButtons.forEach((button) => {
+        button.classList.toggle('bottom-bar__item--active', button.dataset.tab === tab);
+      });
+
+      window.scrollTo({ top: 0, behavior: 'instant' });
+    }
+
+    tabButtons.forEach((button) => {
+      button.addEventListener('click', () => setActiveTab(button.dataset.tab));
+    });
+
+    setActiveTab('home');
+  </script>
+  <script src="https://mcp.figma.com/mcp/html-to-design/capture.js" async></script>
+</body>
+</html>

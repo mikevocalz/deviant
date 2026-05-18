@@ -170,7 +170,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
   },
   blockedOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "rgba(0,0,0,0.85)",
     borderRadius: 20,
     alignItems: "center",

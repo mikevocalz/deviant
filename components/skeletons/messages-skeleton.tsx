@@ -40,7 +40,7 @@ export function MessagesSkeleton() {
         </View>
       </View>
 
-      {/* Tab bar: Inbox | Requests | Sneaky Lynk */}
+      {/* Tab bar: Inbox | Requests | Rooms */}
       <View style={styles.tabBar}>
         <View style={styles.tab}>
           <Skeleton style={styles.tabIcon} />

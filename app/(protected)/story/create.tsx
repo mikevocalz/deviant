@@ -65,6 +65,9 @@ function StoryVideoPreview({ uri }: { uri: string }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
     p.muted = false;
+    // Story *creation* preview — the user is actively reviewing what
+    // they're about to post. Duck other audio rather than stopping it.
+    p.audioMixingMode = "duckOthers";
   });
 
   const togglePlay = useCallback(() => {
@@ -1192,7 +1195,7 @@ function CreateStoryScreenContent() {
                   fontWeight: "700",
                 }}
               >
-                {visibility === "public" ? "Friends" : "Close Friends"}
+                {visibility === "public" ? "Everyone" : "Close Friends"}
               </Text>
             </Pressable>
           </View>

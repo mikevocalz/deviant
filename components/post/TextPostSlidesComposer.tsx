@@ -1,11 +1,9 @@
 import { Alert, Pressable, ScrollView, Text, View } from "react-native";
 import { Plus, Trash2 } from "lucide-react-native";
-import { TextPostSurface } from "@/components/post/TextPostSurface";
 import { UserMentionAutocomplete } from "@/components/ui/user-mention-autocomplete";
 import {
   TEXT_POST_MAX_LENGTH,
   TEXT_POST_MAX_SLIDES,
-  TEXT_POST_THEMES,
 } from "@/lib/posts/text-post";
 import type { TextPostSlide, TextPostThemeKey } from "@/lib/types";
 
@@ -65,16 +63,6 @@ export function TextPostSlidesComposer({
           <View style={{ minWidth: 0 }}>
             <Text style={{ color: "#fff", fontSize: 15, fontWeight: "700" }}>
               Slide {activeIndex + 1} of {slides.length}
-            </Text>
-            <Text
-              style={{
-                color: "rgba(148,163,184,0.82)",
-                fontSize: 12,
-                marginTop: 4,
-              }}
-            >
-              Up to {TEXT_POST_MAX_SLIDES} cards, {TEXT_POST_MAX_LENGTH}{" "}
-              characters each.
             </Text>
           </View>
 
@@ -195,19 +183,11 @@ export function TextPostSlidesComposer({
         </ScrollView>
       </View>
 
-      <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
-        <TextPostSurface
-          text={activeSlide?.content}
-          theme={theme}
-          variant="composer"
-        />
-      </View>
-
       <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
         <UserMentionAutocomplete
           value={activeSlide?.content || ""}
           onChangeText={(value) => onSlideChange(activeIndex, value)}
-          placeholder="Write a line worth stopping for..."
+          placeholder="Speak your mind…"
           multiline
           maxLength={TEXT_POST_MAX_LENGTH}
           style={{
@@ -216,58 +196,6 @@ export function TextPostSlidesComposer({
             lineHeight: 28,
           }}
         />
-
-        <View
-          style={{
-            marginTop: 14,
-            flexDirection: "row",
-            flexWrap: "wrap",
-            gap: 10,
-          }}
-        >
-          {Object.values(TEXT_POST_THEMES).map((themeOption) => {
-            const active = theme === themeOption.key;
-            return (
-              <Pressable
-                key={themeOption.key}
-                onPress={() => onThemeChange(themeOption.key)}
-                style={{
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 8,
-                  paddingHorizontal: 12,
-                  paddingVertical: 10,
-                  borderRadius: 999,
-                  backgroundColor: active
-                    ? "rgba(255,255,255,0.1)"
-                    : "rgba(255,255,255,0.04)",
-                  borderWidth: 1,
-                  borderColor: active
-                    ? themeOption.accent
-                    : "rgba(255,255,255,0.08)",
-                }}
-              >
-                <View
-                  style={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: 999,
-                    backgroundColor: themeOption.accent,
-                  }}
-                />
-                <Text
-                  style={{
-                    color: active ? "#fff" : "#CBD5E1",
-                    fontSize: 13,
-                    fontWeight: "700",
-                  }}
-                >
-                  {themeOption.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
 
         <Text
           style={{

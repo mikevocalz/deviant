@@ -7,8 +7,6 @@
 import React, {
   memo,
   useCallback,
-  useEffect,
-  useMemo,
   useRef,
   useState,
 } from "react";
@@ -18,22 +16,22 @@ import {
   Pressable,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CalendarPlus, Share2, Check, Send } from "lucide-react-native";
-import BottomSheet, {
-  BottomSheetBackdrop,
-  BottomSheetTextInput,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
-import type { BottomSheetBackdropProps } from "@gorhom/bottom-sheet";
 import * as Haptics from "expo-haptics";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { addTicketToCalendar } from "@/src/ticket/helpers/add-to-calendar";
 import { shareTicket } from "@/src/ticket/helpers/share-ticket";
 import { ticketsApi } from "@/lib/api/tickets";
+import { useSearchUsers } from "@/lib/hooks/use-search";
+import { Avatar } from "@/components/ui/avatar";
 import type { Ticket, TicketTierLevel } from "@/lib/stores/ticket-store";
 
 interface TicketActionsBarProps {
@@ -118,67 +116,47 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   }, [ticket, shareState, showToast]);
 
   // ── Transfer ──
-  const transferSheetRef = useRef<BottomSheet>(null);
+  const transferInputRef = useRef<TextInput>(null);
   const [showTransferModal, setShowTransferModal] = useState(false);
-  const [transferUsername, setTransferUsername] = useState("");
-
-  useEffect(() => {
-    if (showTransferModal) {
-      transferSheetRef.current?.expand();
-    } else {
-      transferSheetRef.current?.close();
-    }
-  }, [showTransferModal]);
-
-  const handleTransferSheetChange = useCallback((index: number) => {
-    if (index === -1) setShowTransferModal(false);
-  }, []);
-
-  const renderTransferBackdrop = useCallback(
-    (props: BottomSheetBackdropProps) => (
-      <BottomSheetBackdrop
-        {...props}
-        disappearsOnIndex={-1}
-        appearsOnIndex={0}
-        opacity={0.7}
-        pressBehavior="close"
-      />
-    ),
-    [],
-  );
+  const [transferQuery, setTransferQuery] = useState("");
+  const { data: transferSearchData, isFetching: isSearchingUsers } =
+    useSearchUsers(transferQuery);
+  const transferResults = transferSearchData?.docs ?? [];
 
   const handleTransfer = useCallback(() => {
     if (transferState === "loading") return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
       () => {},
     );
-    setTransferUsername("");
+    setTransferQuery("");
     setShowTransferModal(true);
-  }, [transferState]);
+  }, [transferState, ticket.id]);
 
-  const handleTransferSubmit = useCallback(async () => {
-    const username = transferUsername.trim();
-    if (!username) {
-      showToast("error", "Error", "Please enter a username");
-      return;
-    }
-    setShowTransferModal(false);
-    setTransferState("loading");
-    const result = await ticketsApi.initiateTransfer(ticket.id, username);
-    if (result.error) {
-      setTransferState("error");
-      showToast("error", "Transfer Failed", result.error);
-      setTimeout(() => setTransferState("idle"), 3000);
-    } else {
-      setTransferState("success");
-      showToast(
-        "success",
-        "Transfer Initiated",
-        `Waiting for @${username} to accept (expires in 24h)`,
+  const handleTransferToUser = useCallback(
+    async (recipientUsername: string) => {
+      if (!recipientUsername) return;
+      setShowTransferModal(false);
+      setTransferState("loading");
+      const result = await ticketsApi.initiateTransfer(
+        ticket.id,
+        recipientUsername,
       );
-      setTimeout(() => setTransferState("idle"), 3000);
-    }
-  }, [ticket, transferUsername, showToast]);
+      if (result.error) {
+        setTransferState("error");
+        showToast("error", "Transfer Failed", result.error);
+        setTimeout(() => setTransferState("idle"), 3000);
+      } else {
+        setTransferState("success");
+        showToast(
+          "success",
+          "Transfer Initiated",
+          `Waiting for @${recipientUsername} to accept (expires in 24h)`,
+        );
+        setTimeout(() => setTransferState("idle"), 3000);
+      }
+    },
+    [ticket, showToast],
+  );
 
   if (!isActive) return null;
 
@@ -221,7 +199,6 @@ export const TicketActionsBar = memo(function TicketActionsBar({
       <Pressable
         onPress={handleShare}
         style={[styles.actionButton, { backgroundColor: `${accent}20` }]}
-        disabled={shareState === "loading"}
       >
         {shareState === "loading" ? (
           <ActivityIndicator size="small" color={accent} />
@@ -240,7 +217,6 @@ export const TicketActionsBar = memo(function TicketActionsBar({
           styles.actionButton,
           transferState === "success" && styles.successButton,
         ]}
-        disabled={transferState === "loading"}
       >
         {transferState === "loading" ? (
           <ActivityIndicator size="small" color="#fff" />
@@ -260,55 +236,95 @@ export const TicketActionsBar = memo(function TicketActionsBar({
         </Text>
       </Pressable>
 
-      {/* Transfer username bottom sheet */}
-      <BottomSheet
-        ref={transferSheetRef}
-        index={-1}
-        snapPoints={["45%"]}
-        enablePanDownToClose
-        backdropComponent={renderTransferBackdrop}
-        onChange={handleTransferSheetChange}
-        backgroundStyle={styles.sheetBackground}
-        handleIndicatorStyle={styles.sheetHandle}
-        keyboardBehavior="interactive"
-        keyboardBlurBehavior="restore"
-        android_keyboardInputMode="adjustResize"
+      {/* Transfer username modal */}
+      <Modal
+        visible={showTransferModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowTransferModal(false)}
       >
-        <BottomSheetView style={styles.sheetContent}>
-          <Text style={styles.modalTitle}>Transfer Ticket</Text>
-          <Text style={styles.modalSubtitle}>
-            Enter the username of the person you want to transfer this ticket
-            to.
-          </Text>
-          <BottomSheetTextInput
-            style={styles.modalInput}
-            placeholder="Username"
-            placeholderTextColor="rgba(255,255,255,0.3)"
-            value={transferUsername}
-            onChangeText={setTransferUsername}
-            autoCapitalize="none"
-            autoCorrect={false}
-            returnKeyType="done"
-            onSubmitEditing={() => {
-              if (showTransferModal) handleTransferSubmit();
-            }}
-          />
-          <View style={styles.modalButtons}>
-            <Pressable
-              style={styles.modalCancelBtn}
-              onPress={() => setShowTransferModal(false)}
-            >
-              <Text style={styles.modalCancelText}>Cancel</Text>
+        <Pressable
+          style={styles.modalOverlay}
+          onPress={() => setShowTransferModal(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            style={styles.modalKAV}
+          >
+            <Pressable style={styles.sheetContent} onPress={() => {}}>
+              <View style={styles.sheetHandle} />
+              <Text style={styles.modalTitle}>Transfer Ticket</Text>
+              <Text style={styles.modalSubtitle}>
+                Search by username or name. Tap a result to send the ticket.
+              </Text>
+              <TextInput
+                ref={transferInputRef}
+                style={styles.modalInput}
+                placeholder="Search users"
+                placeholderTextColor="rgba(255,255,255,0.3)"
+                value={transferQuery}
+                onChangeText={setTransferQuery}
+                autoCapitalize="none"
+                autoCorrect={false}
+                returnKeyType="search"
+                autoFocus
+              />
+              <View style={styles.resultsList}>
+                {transferQuery.length === 0 ? (
+                  <Text style={styles.resultsHint}>
+                    Type to find a friend
+                  </Text>
+                ) : isSearchingUsers && transferResults.length === 0 ? (
+                  <ActivityIndicator color={accent} />
+                ) : transferResults.length === 0 ? (
+                  <Text style={styles.resultsHint}>
+                    No users matching “{transferQuery}”
+                  </Text>
+                ) : (
+                  transferResults.slice(0, 6).map((u: any) => (
+                    <Pressable
+                      key={u.id}
+                      onPress={() => handleTransferToUser(u.username)}
+                      style={({ pressed }) => [
+                        styles.userRow,
+                        pressed && {
+                          backgroundColor: "rgba(255,255,255,0.06)",
+                        },
+                      ]}
+                    >
+                      <Avatar
+                        uri={u.avatar}
+                        username={u.username}
+                        size={40}
+                        variant="roundedSquare"
+                      />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.userRowName} numberOfLines={1}>
+                          {u.name}
+                        </Text>
+                        <Text
+                          style={styles.userRowHandle}
+                          numberOfLines={1}
+                        >
+                          @{u.username}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))
+                )}
+              </View>
+              <View style={styles.modalButtons}>
+                <Pressable
+                  style={styles.modalCancelBtn}
+                  onPress={() => setShowTransferModal(false)}
+                >
+                  <Text style={styles.modalCancelText}>Cancel</Text>
+                </Pressable>
+              </View>
             </Pressable>
-            <Pressable
-              style={[styles.modalSubmitBtn, { backgroundColor: `${accent}` }]}
-              onPress={handleTransferSubmit}
-            >
-              <Text style={styles.modalSubmitText}>Transfer</Text>
-            </Pressable>
-          </View>
-        </BottomSheetView>
-      </BottomSheet>
+          </KeyboardAvoidingView>
+        </Pressable>
+      </Modal>
     </View>
   );
 });
@@ -344,16 +360,26 @@ const styles = StyleSheet.create({
   successLabel: {
     color: "#3FDCFF",
   },
-  sheetBackground: {
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "flex-end",
+  },
+  modalKAV: {
+    justifyContent: "flex-end",
+  },
+  sheetHandle: {
+    width: 36,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: "rgba(255,255,255,0.3)",
+    alignSelf: "center",
+    marginBottom: 20,
+  },
+  sheetContent: {
     backgroundColor: "#1a1a1a",
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-  },
-  sheetHandle: {
-    backgroundColor: "rgba(255,255,255,0.3)",
-    width: 36,
-  },
-  sheetContent: {
     padding: 24,
     paddingBottom: 40,
   },
@@ -406,5 +432,36 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "700",
+  },
+  resultsList: {
+    maxHeight: 320,
+    gap: 6,
+    paddingVertical: 6,
+    marginBottom: 12,
+  },
+  resultsHint: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 13,
+    textAlign: "center",
+    paddingVertical: 20,
+  },
+  userRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  userRowName: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  userRowHandle: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+    marginTop: 2,
   },
 });

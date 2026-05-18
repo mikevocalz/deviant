@@ -5,7 +5,7 @@
  * elevated privileges (service role). These operations are performed
  * via Supabase Edge Functions to keep the service role key secure.
  *
- * IMPORTANT: Never use supabase.from("users").update() directly in app code.
+ * IMPORTANT: Never update the users table directly from app code.
  * Always use these wrappers for privileged writes.
  */
 
@@ -89,6 +89,24 @@ export async function deleteAccountPrivileged(): Promise<boolean> {
   const token = await getAuthToken();
   if (!token) {
     throw new Error("Not authenticated");
+  }
+
+  // Client-side CallKeep cleanup BEFORE the server tears down the account.
+  // The server cascade deletes push_tokens and ends video_rooms, but the
+  // iOS Telecom framework still holds onto any registered call connections
+  // for this device. Without ending them first, callkeep can deliver a
+  // ghost incoming-call UI to the deleted account on the next VOIP push.
+  // Wrapped in try/catch because callkeep may not be initialised in
+  // every code path (e.g. account created and deleted without ever
+  // receiving a call).
+  try {
+    const { endAllCalls } = await import("@/src/services/callkeep/callkeep");
+    endAllCalls();
+  } catch (callkeepErr) {
+    console.warn(
+      "[Privileged] CallKeep cleanup before delete failed (non-fatal):",
+      callkeepErr,
+    );
   }
 
   const { data, error } = await supabase.functions.invoke<

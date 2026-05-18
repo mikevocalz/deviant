@@ -18,6 +18,7 @@ import {
   Calendar,
   MapPin,
   Send,
+  Shirt,
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import { LegendList } from "@/components/list";
@@ -45,6 +46,11 @@ const STATUS_COLORS: Record<
     bg: "rgba(138, 64, 207, 0.15)",
     text: "#8A40CF",
     label: "Transfer Pending",
+  },
+  payment_pending: {
+    bg: "rgba(234, 179, 8, 0.15)",
+    text: "#EAB308",
+    label: "Payment Pending",
   },
 };
 
@@ -91,6 +97,9 @@ function TicketCard({
   const queryClient = useQueryClient();
   const status = STATUS_COLORS[ticket.status] || STATUS_COLORS.void;
   const eventId = String(ticket.event_id || "");
+  const isCoatCheck = ticket.category === "coat_check";
+  const cardHeight = isCoatCheck ? 78 : 100;
+  const imageWidth = isCoatCheck ? 60 : 80;
 
   const handlePress = useCallback(() => {
     if (!eventId) return;
@@ -108,21 +117,38 @@ function TicketCard({
     >
       <Pressable
         onPress={handlePress}
-        className="mx-4 mb-3 bg-card rounded-2xl border border-border overflow-hidden"
+        className={`mx-4 mb-3 rounded-2xl border overflow-hidden ${
+          isCoatCheck
+            ? "bg-slate-950 border-purple-500/20"
+            : "bg-card border-border"
+        }`}
       >
         <View className="flex-row">
           {/* Event image */}
-          {ticket.event_image ? (
-            <View style={{ width: 80, height: 100, overflow: "hidden" }}>
+          {ticket.event_image && !isCoatCheck ? (
+            <View
+              style={{
+                width: imageWidth,
+                height: cardHeight,
+                overflow: "hidden",
+              }}
+            >
               <Image
                 source={{ uri: ticket.event_image }}
-                style={{ width: 80, height: 100 }}
+                style={{ width: imageWidth, height: cardHeight }}
                 contentFit="cover"
               />
             </View>
           ) : (
-            <View className="w-20 h-[100px] bg-muted items-center justify-center">
-              <Ticket size={24} color="#666" />
+            <View
+              style={{ width: imageWidth, height: cardHeight }}
+              className="bg-muted items-center justify-center"
+            >
+              {isCoatCheck ? (
+                <Shirt size={22} color="#A78BFA" />
+              ) : (
+                <Ticket size={24} color="#666" />
+              )}
             </View>
           )}
 
@@ -139,7 +165,9 @@ function TicketCard({
                 className="text-xs text-muted-foreground mt-0.5"
                 numberOfLines={1}
               >
-                {ticket.ticket_type_name}
+                {isCoatCheck
+                  ? `Coat Check · ${ticket.ticket_type_name || "Pass"}`
+                  : ticket.ticket_type_name}
               </Text>
             </View>
 
@@ -182,7 +210,12 @@ function TicketCard({
                 {status.label}
               </Text>
             </View>
-            {ticket.status === "active" && <QrCode size={20} color="#8A40CF" />}
+            {ticket.status === "active" &&
+              (isCoatCheck ? (
+                <Shirt size={18} color="#A78BFA" />
+              ) : (
+                <QrCode size={20} color="#8A40CF" />
+              ))}
           </View>
         </View>
       </Pressable>

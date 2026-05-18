@@ -6,6 +6,7 @@
 
 import { Share } from "react-native";
 import * as Haptics from "expo-haptics";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 const PRODUCTION_DOMAIN = "https://dvntlive.app";
 
@@ -13,12 +14,13 @@ const PRODUCTION_DOMAIN = "https://dvntlive.app";
 
 export const shareUrls = {
   profile: (username: string) => `${PRODUCTION_DOMAIN}/u/${username}`,
+  profileById: (userId: string) => `${PRODUCTION_DOMAIN}/user/${userId}`,
   post: (postId: string) => `${PRODUCTION_DOMAIN}/p/${postId}`,
   event: (eventId: string) => `${PRODUCTION_DOMAIN}/e/${eventId}`,
   story: (storyId: string) => `${PRODUCTION_DOMAIN}/story/${storyId}`,
   ticket: (ticketId: string) => `${PRODUCTION_DOMAIN}/ticket/${ticketId}`,
   chat: (chatId: string) => `${PRODUCTION_DOMAIN}/chat/${chatId}`,
-  room: (roomId: string) => `${PRODUCTION_DOMAIN}/room/${roomId}`,
+  sneakyLynk: (roomId: string) => `${PRODUCTION_DOMAIN}/sl/${roomId}`,
   comments: (postId: string) => `${PRODUCTION_DOMAIN}/comments/${postId}`,
 };
 
@@ -75,6 +77,18 @@ export async function shareEvent(
   });
 }
 
+export async function shareSneakyLynk(
+  roomId: string,
+  roomName?: string,
+): Promise<ShareResult> {
+  const url = shareUrls.sneakyLynk(roomId);
+  const lynkName = getLynkDisplayName();
+  return shareUrl(url, {
+    title: roomName ? `${roomName} - ${lynkName}` : `${lynkName} on DVNT`,
+    message: roomName ? `Join ${roomName} on DVNT\n${url}` : url,
+  });
+}
+
 /**
  * Share a story link via the native share sheet.
  */
@@ -96,9 +110,7 @@ export async function shareUrl(
   options?: ShareOptions,
 ): Promise<ShareResult> {
   try {
-    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
-      () => {},
-    );
+    void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
 
     const shareMessage = options?.message?.includes(url)
       ? options.message

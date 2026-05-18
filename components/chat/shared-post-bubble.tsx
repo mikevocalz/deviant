@@ -32,8 +32,9 @@ export function SharedPostBubble({
           source={{ uri: sharedPost.mediaUrl }}
           style={styles.mediaPreview}
           contentFit="cover"
-          transition={200}
+          transition={0}
           cachePolicy="memory-disk"
+          recyclingKey={sharedPost.mediaUrl}
         />
       ) : (
         <View style={[styles.mediaPreview, styles.noMedia]}>

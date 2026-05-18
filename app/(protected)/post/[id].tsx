@@ -15,6 +15,7 @@ import React, {
   useState,
   useEffect,
   useRef,
+  memo,
 } from "react";
 import * as Haptics from "expo-haptics";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -60,6 +61,7 @@ import {
 } from "@/components/media/DVNTLiquidGlass";
 import { HashtagText } from "@/components/ui/hashtag-text";
 import { PostActionSheet } from "@/components/post-action-sheet";
+import { useReportSheetStore } from "@/lib/stores/report-sheet-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useBookmarkStore } from "@/lib/stores/bookmark-store";
@@ -77,7 +79,11 @@ import { screenPrefetch } from "@/lib/prefetch";
 import { formatLikeCount } from "@/lib/utils/format-count";
 import { Alert } from "react-native";
 import { TagOverlayViewer } from "@/components/tags/TagOverlayViewer";
-import { Galeria } from "@nandorojo/galeria";
+// Galeria's native gestureRecognizer doesn't fire on iOS 26 — the
+// MediaLightbox drop-in matches Galeria's API (urls + .Image namespace)
+// using @gorhom/bottom-sheet, no native dependency. Revert when upstream
+// @nandorojo/galeria ships an iOS 26 fix.
+import { MediaLightbox as Galeria } from "@/components/media/MediaLightbox";
 import { usePostTags } from "@/lib/hooks/use-post-tags";
 import { usePostTagsUIStore } from "@/lib/stores/post-tags-store";
 import { TextPostSurface } from "@/components/post/TextPostSurface";
@@ -85,6 +91,7 @@ import {
   useSharedValue,
   withSpring,
   withTiming,
+  type SharedValue,
 } from "react-native-reanimated";
 import {
   useLikesSheet,
@@ -411,6 +418,10 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
       try {
         p.loop = false;
         p.muted = false;
+        // Duck background audio while the post video plays instead of
+        // preempting it — the user gets to hear the post sound over a
+        // lowered Spotify, not a silent one.
+        p.audioMixingMode = "duckOthers";
         logVideoHealth("PostDetail", "player configured", {
           postId,
           videoUrl: videoUrl.slice(0, 50),
@@ -687,6 +698,238 @@ function PostVideoPlayer({ postId, url }: { postId: string; url?: string }) {
   );
 }
 
+// ─── Slide-aware leaf components ────────────────────────────────────────────
+// These subscribe to `currentSlide` via selector so slide changes only
+// re-render themselves, never the parent screen. This is the fix for GIF
+// flicker in multi-media posts: before this split, every swipe re-rendered
+// PostDetailScreenContent, which rebuilt the entire carousel subtree and
+// restarted every GIF's native decoder.
+
+function useCurrentSlide() {
+  return usePostDetailScreenStore((s) => s.currentSlide);
+}
+
+const PaginationDots = memo(function PaginationDots({
+  count,
+  bottomOffset = 16,
+  activeColor = "bg-primary",
+  inactiveColor = "bg-foreground/50",
+}: {
+  count: number;
+  bottomOffset?: number;
+  activeColor?: string;
+  inactiveColor?: string;
+}) {
+  const currentSlide = useCurrentSlide();
+  if (count <= 1) return null;
+  return (
+    <View
+      pointerEvents="none"
+      style={{
+        position: "absolute",
+        bottom: bottomOffset,
+        left: 0,
+        right: 0,
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 6,
+      }}
+    >
+      {Array.from({ length: count }).map((_, i) => {
+        const active = i === currentSlide;
+        return (
+          <View
+            key={i}
+            style={{
+              width: active ? 12 : 6,
+              height: 6,
+              opacity: active ? 1 : 0.5,
+            }}
+            className={`h-1.5 rounded-full ${active ? activeColor : inactiveColor}`}
+          />
+        );
+      })}
+    </View>
+  );
+});
+
+const SlideAwareTagOverlay = memo(function SlideAwareTagOverlay({
+  postId,
+  tagProgress,
+}: {
+  postId: string;
+  tagProgress: SharedValue<number>;
+}) {
+  const currentSlide = useCurrentSlide();
+  return (
+    <TagOverlayViewer
+      postId={postId}
+      mediaIndex={currentSlide}
+      tagProgress={tagProgress}
+    />
+  );
+});
+
+const TextSlideDots = memo(function TextSlideDots({ count }: { count: number }) {
+  const currentSlide = useCurrentSlide();
+  if (count <= 1) return null;
+  return (
+    <View
+      style={{
+        flexDirection: "row",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: 6,
+        marginTop: 12,
+      }}
+      pointerEvents="none"
+    >
+      {Array.from({ length: count }).map((_, i) => {
+        const active = i === currentSlide;
+        return (
+          <View
+            key={i}
+            style={{
+              width: active ? 12 : 6,
+              height: 6,
+              borderRadius: 3,
+              opacity: active ? 1 : 0.5,
+              backgroundColor: active ? "#3FDCFF" : "rgba(255,255,255,0.38)",
+            }}
+          />
+        );
+      })}
+    </View>
+  );
+});
+
+type MediaItem = {
+  type?: string;
+  url?: string;
+  thumbnail?: string;
+  mimeType?: string;
+  livePhotoVideoUrl?: string;
+  updatedAt?: string | number;
+};
+
+const MediaSlide = memo(function MediaSlide({
+  medium,
+  galeriaIndex,
+  width,
+  height,
+}: {
+  medium: MediaItem;
+  galeriaIndex: number;
+  width: number;
+  height: number;
+}) {
+  const isValidUrl =
+    !!medium.url &&
+    (medium.url.startsWith("http://") || medium.url.startsWith("https://"));
+
+  return (
+    <View style={{ width, height }}>
+      {isValidUrl ? (
+        <Galeria.Image index={galeriaIndex >= 0 ? galeriaIndex : 0}>
+          {/*
+            isPlaying is intentionally `true` for every slide. Gating it
+            on `index === currentSlide` used to restart each GIF's native
+            decoder on every swipe, which is the #1 cause of flicker in
+            multi-GIF posts. expo-image's native GIF player is cheap when
+            the slide is scrolled off-screen (no raster work for offscreen
+            pixels), so there's no meaningful cost to leaving them on.
+          */}
+          <DVNTMediaRenderer
+            item={medium as any}
+            width={width}
+            height={height}
+            // Detail view slides: contain so every slide shows the
+            // complete frame from top to bottom. The carousel frame
+            // is a fixed 4:5 box; tall portraits used to lose heads
+            // and wide landscapes used to lose context to center-crop.
+            contentFit="contain"
+            isPlaying
+          />
+        </Galeria.Image>
+      ) : (
+        <View
+          style={{
+            width,
+            height,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          className="bg-muted"
+        >
+          <Text className="text-muted-foreground text-xs">No image</Text>
+        </View>
+      )}
+    </View>
+  );
+});
+
+const MediaCarousel = memo(function MediaCarousel({
+  media,
+  imageUrls,
+  width,
+  height,
+  onSlideChange,
+}: {
+  media: MediaItem[];
+  imageUrls: string[];
+  width: number;
+  height: number;
+  onSlideChange: (index: number) => void;
+}) {
+  const urlToIndex = useMemo(() => {
+    const map = new Map<string, number>();
+    imageUrls.forEach((u, i) => map.set(u, i));
+    return map;
+  }, [imageUrls]);
+
+  const handleScroll = useCallback(
+    (event: any) => {
+      const slideIndex = Math.round(
+        event.nativeEvent.contentOffset.x / width,
+      );
+      onSlideChange(slideIndex);
+    },
+    [onSlideChange, width],
+  );
+
+  return (
+    <Galeria urls={imageUrls.length > 0 ? imageUrls : undefined}>
+      <ScrollView
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onScroll={handleScroll}
+        scrollEventThrottle={16}
+      >
+        {media.map((medium, index) => {
+          const galeriaIndex = medium.url
+            ? urlToIndex.get(medium.url) ?? -1
+            : -1;
+          return (
+            <MediaSlide
+              // Stable key by URL preserves component identity (and the
+              // underlying GIF decoder state) across parent rerenders.
+              // Fallback to index only for items with no URL.
+              key={medium.url || `slot-${index}`}
+              medium={medium}
+              galeriaIndex={galeriaIndex}
+              width={width}
+              height={height}
+            />
+          );
+        })}
+      </ScrollView>
+      <PaginationDots count={media.length} />
+    </Galeria>
+  );
+});
+
 function PostDetailScreenContent() {
   // DEV-only loop detection
   useRenderLoopDetector("PostDetail");
@@ -716,16 +959,32 @@ function PostDetailScreenContent() {
   // CRITICAL: ALL HOOKS MUST BE CALLED UNCONDITIONALLY
   // Pass empty string if invalid - hooks will handle gracefully
   const { data: post, isLoading, error: postError } = usePost(postId);
-  const { data: comments = [], isLoading: commentsLoading } =
-    useComments(postId);
+  // Limit must match the comments sheet (app/(protected)/comments/[postId].tsx
+  // also uses 50) so they share a React Query cache key. Different limits
+  // → different keys → sheet refetches on open even though detail just
+  // loaded the same comments.
+  const { data: comments = [], isLoading: commentsLoading } = useComments(
+    postId,
+    50,
+  );
   const { data: bookmarkedPostIds = [] } = useBookmarks();
   const toggleBookmarkMutation = useToggleBookmark();
   const currentUser = useAuthStore((state) => state.user);
   const showToast = useUIStore((state) => state.showToast);
 
-  // FIX: Replace useState with Zustand to comply with project mandate
-  const { showActionSheet, setShowActionSheet, resetPostDetailScreen } =
-    usePostDetailScreenStore();
+  // Zustand selectors — NEVER subscribe to currentSlide at the root. It
+  // changes on every carousel scroll; reading it here would force the whole
+  // screen (including the media tree) to re-render on every swipe, which
+  // is what caused GIFs in multi-media posts to flicker.
+  // Downstream readers use selector-scoped subscriptions via
+  // useCurrentSlide() below.
+  const showActionSheet = usePostDetailScreenStore((s) => s.showActionSheet);
+  const setShowActionSheet = usePostDetailScreenStore(
+    (s) => s.setShowActionSheet,
+  );
+  const resetPostDetailScreen = usePostDetailScreenStore(
+    (s) => s.resetPostDetailScreen,
+  );
 
   const deletePostMutation = useDeletePost();
   const bookmarkStore = useBookmarkStore();
@@ -784,21 +1043,14 @@ function PostDetailScreenContent() {
     }
   }, [postTags.length, tagsVisible, toggleTags, postId, tagProgress]);
 
-  // FIX: Replace useState with Zustand
-  const { currentSlide, setCurrentSlide } = usePostDetailScreenStore();
+  // Setter-only subscription — stable function reference, does NOT
+  // re-render the screen when currentSlide changes. Components that
+  // actually need to READ currentSlide must subscribe via selector
+  // in their own leaf component (see PaginationDots, SlideAwareTagOverlay
+  // below) so the re-render is scoped to that leaf.
+  const setCurrentSlide = usePostDetailScreenStore((s) => s.setCurrentSlide);
 
-  const handleScroll = useCallback(
-    (event: any) => {
-      const slideIndex = Math.round(
-        event.nativeEvent.contentOffset.x / SCREEN_WIDTH,
-      );
-      setCurrentSlide(slideIndex);
-      loopDetection.log("PostDetail", "carousel:scroll", { slideIndex });
-    },
-    [setCurrentSlide],
-  );
-
-  // FIX: Cleanup effect - reset all screen state on unmount
+  // Cleanup effect - reset all screen state on unmount
   useEffect(() => {
     return () => {
       loopDetection.log("PostDetail", "unmount", { postId });
@@ -1049,18 +1301,37 @@ function PostDetailScreenContent() {
     targetCommentId,
   ]);
 
+  // Signature-keyed stabilization. `safePost.media` gets a new array
+  // reference on every React Query refetch even when the URLs haven't
+  // changed; that cascades into fresh references for imageUrls, the
+  // <MediaCarousel /> props, and every slide's `medium` — which restarts
+  // GIF decoders. Keying off a string signature preserves the array
+  // identity across no-op refetches so downstream memos stay stable.
+  const mediaSignature = useMemo(() => {
+    if (!hasMedia) return "";
+    return safePost.media
+      .map((m: any) => `${m?.type ?? ""}::${m?.url ?? ""}`)
+      .join("||");
+  }, [hasMedia, safePost.media]);
+
+  const stableMedia = useMemo(
+    () => (hasMedia ? safePost.media : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [mediaSignature],
+  );
+
   // Collect valid image URLs for Galeria full-screen viewer
   const imageUrls = useMemo(() => {
     if (!hasMedia || isVideo) return [];
-    return safePost.media
+    return stableMedia
       .filter(
-        (m) =>
+        (m: any) =>
           m.type !== "video" &&
           m.url &&
           (m.url.startsWith("http://") || m.url.startsWith("https://")),
       )
-      .map((m) => m.url);
-  }, [hasMedia, isVideo, safePost.media]);
+      .map((m: any) => m.url);
+  }, [hasMedia, isVideo, stableMedia]);
   const isLiked = isPostLiked; // From usePostLikeState hook
   const isSaved = isBookmarked; // isBookmarked is already a boolean from useMemo
   const handleBookmarkPress = useCallback(() => {
@@ -1334,113 +1605,52 @@ function PostDetailScreenContent() {
               }}
             >
               <SafeMediaWrapper width={SCREEN_WIDTH} height={PORTRAIT_HEIGHT}>
-                <Galeria urls={imageUrls.length > 0 ? imageUrls : undefined}>
-                  {hasMultipleMedia ? (
-                    // Carousel - SAME pattern as FeedItem
-                    <>
-                      <ScrollView
-                        horizontal
-                        pagingEnabled
-                        showsHorizontalScrollIndicator={false}
-                        onScroll={handleScroll}
-                        scrollEventThrottle={16}
-                      >
-                        {safePost.media.map((medium, index) => {
-                          const isValidUrl =
-                            medium.url &&
-                            (medium.url.startsWith("http://") ||
-                              medium.url.startsWith("https://"));
-                          const galeriaIndex = isValidUrl
-                            ? imageUrls.indexOf(medium.url)
-                            : -1;
-                          // For GIF / Live Photo / animated video, DVNTMediaRenderer
-                          // routes to the correct player component. Wrapping it in
-                          // Galeria.Image still works — the lightbox zoom will show
-                          // a still of the first frame, which is acceptable UX.
-                          return (
-                            <View key={index}>
-                              {isValidUrl ? (
-                                <Galeria.Image
-                                  index={galeriaIndex >= 0 ? galeriaIndex : 0}
-                                >
-                                  <DVNTMediaRenderer
-                                    item={medium as any}
-                                    width={SCREEN_WIDTH}
-                                    height={PORTRAIT_HEIGHT}
-                                    contentFit="cover"
-                                    isPlaying={index === currentSlide}
-                                  />
-                                </Galeria.Image>
-                              ) : (
-                                <View
-                                  style={{
-                                    width: SCREEN_WIDTH,
-                                    height: PORTRAIT_HEIGHT,
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                  }}
-                                  className="bg-muted"
-                                >
-                                  <Text className="text-muted-foreground text-xs">
-                                    No image
-                                  </Text>
-                                </View>
-                              )}
-                            </View>
-                          );
-                        })}
-                      </ScrollView>
-                      {/* Pagination dots - SAME as FeedItem */}
-                      <View
-                        className="absolute bottom-4 left-0 right-0 flex-row justify-center gap-1.5"
-                        pointerEvents="none"
-                      >
-                        {safePost.media.map((_, index) => (
-                          <View
-                            key={index}
-                            style={{
-                              width: index === currentSlide ? 12 : 6,
-                              opacity: index === currentSlide ? 1 : 0.5,
-                            }}
-                            className={`h-1.5 rounded-full ${
-                              index === currentSlide
-                                ? "bg-primary"
-                                : "bg-foreground/50"
-                            }`}
-                          />
-                        ))}
-                      </View>
-                    </>
-                  ) : safePost.media?.[0]?.url &&
-                    (safePost.media[0].url.startsWith("http://") ||
-                      safePost.media[0].url.startsWith("https://")) ? (
-                    // Single media item — use DVNTMediaRenderer to handle gif/livePhoto/image
+                {hasMultipleMedia ? (
+                  <MediaCarousel
+                    media={stableMedia as MediaItem[]}
+                    imageUrls={imageUrls}
+                    width={SCREEN_WIDTH}
+                    height={PORTRAIT_HEIGHT}
+                    onSlideChange={setCurrentSlide}
+                  />
+                ) : stableMedia[0]?.url &&
+                  (stableMedia[0].url.startsWith("http://") ||
+                    stableMedia[0].url.startsWith("https://")) ? (
+                  // Single media item — use DVNTMediaRenderer to handle
+                  // gif / livePhoto / image. Galeria is kept around the
+                  // single image for parity with the carousel lightbox.
+                  <Galeria urls={imageUrls.length > 0 ? imageUrls : undefined}>
                     <Galeria.Image index={0}>
                       <DVNTMediaRenderer
-                        item={safePost.media[0] as any}
+                        item={stableMedia[0] as any}
                         width={SCREEN_WIDTH}
                         height={PORTRAIT_HEIGHT}
-                        contentFit="cover"
+                        // Detail view: contain so the TOP of the photo is
+                        // never cropped out. cover was center-cropping
+                        // tall portraits (heads cut off). The 4:5 frame
+                        // still anchors the composition; any aspect
+                        // mismatch letterboxes cleanly on black.
+                        contentFit="contain"
                         showBadge={true}
                         isPlaying={true}
                       />
                     </Galeria.Image>
-                  ) : (
-                    <View
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        paddingHorizontal: 24,
-                      }}
-                    >
-                      <Text className="text-foreground text-base font-medium text-center leading-6">
-                        {safePost?.caption || "Media unavailable"}
-                      </Text>
-                    </View>
-                  )}
-                </Galeria>
+                  </Galeria>
+                ) : (
+                  <View
+                    style={{
+                      width: "100%",
+                      height: "100%",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      paddingHorizontal: 24,
+                    }}
+                  >
+                    <Text className="text-foreground text-base font-medium text-center leading-6">
+                      {safePost?.caption || "Media unavailable"}
+                    </Text>
+                  </View>
+                )}
               </SafeMediaWrapper>
             </View>
 
@@ -1456,24 +1666,30 @@ function PostDetailScreenContent() {
                 bottom: 0,
               }}
             >
-              <TagOverlayViewer
+              <SlideAwareTagOverlay
                 postId={postId}
-                mediaIndex={currentSlide}
                 tagProgress={tagProgress}
               />
             </Pressable>
+          </View>
 
-            {/* Action pill overlay — matches feed design */}
+          {/* Action rail — sits directly UNDER the image and is locked to
+              the same width so the like / comment / share / bookmark
+              controls align edge-to-edge with the media above. Prior
+              design floated this as a glass pill INSIDE the image which
+              covered part of the post. The inline variant reads much
+              cleaner and lets us kill the overlap. */}
+          {!isTextPost ? (
             <View
               style={{
-                position: "absolute",
-                bottom: 12,
-                left: 12,
-                zIndex: 50,
+                width: SCREEN_WIDTH,
+                paddingHorizontal: 12,
+                paddingTop: 10,
+                paddingBottom: 6,
               }}
             >
               <PostDetailActionBar
-                variant="glass"
+                variant="inline"
                 isLiked={isLiked}
                 likeCount={likeCount}
                 commentCount={commentCount}
@@ -1493,7 +1709,7 @@ function PostDetailScreenContent() {
                 onBookmark={handleBookmarkPress}
               />
             </View>
-          </View>
+          ) : null}
 
           {/* Text-only post */}
           {isTextPost && (
@@ -1537,32 +1753,7 @@ function PostDetailScreenContent() {
                       ),
                     )}
                   </ScrollView>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      justifyContent: "center",
-                      alignItems: "center",
-                      gap: 6,
-                      marginTop: 12,
-                    }}
-                    pointerEvents="none"
-                  >
-                    {resolvedTextSlides.map((_: unknown, index: number) => (
-                      <View
-                        key={index}
-                        style={{
-                          width: index === currentSlide ? 12 : 6,
-                          height: 6,
-                          borderRadius: 3,
-                          opacity: index === currentSlide ? 1 : 0.5,
-                          backgroundColor:
-                            index === currentSlide
-                              ? "#3FDCFF"
-                              : "rgba(255,255,255,0.38)",
-                        }}
-                      />
-                    ))}
-                  </View>
+                  <TextSlideDots count={resolvedTextSlides.length} />
                 </View>
               ) : (
                 <TextPostSurface
@@ -1834,6 +2025,17 @@ function PostDetailScreenContent() {
         onTranslate={handleTranslateCaption}
         isTranslated={isCaptionTranslated}
         isTranslationCapable={showTranslateButton}
+        onReport={() => {
+          // Apple Guideline 1.2 — opens the global ReportSheet for the
+          // current post detail. Non-owners only (sheet hides Report for owners).
+          useReportSheetStore.getState().openReportSheet({
+            entityType: "post",
+            entityId: postIdString,
+            label: post?.author?.username
+              ? `@${post.author.username}`
+              : undefined,
+          });
+        }}
       />
     </SafeAreaView>
   );

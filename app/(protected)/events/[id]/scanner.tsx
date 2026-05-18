@@ -36,13 +36,16 @@ import {
   ZapOff,
 } from "lucide-react-native";
 import { useScanTicket } from "@/lib/hooks/use-tickets";
+import { useEvent } from "@/lib/hooks/use-events";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
+import { getCurrentUserIdSync } from "@/lib/auth/identity";
 import * as Haptics from "expo-haptics";
 
 // Lazy-load VisionCamera to prevent crashes if not installed
 let Camera: any = null;
 let useCameraDevice: any = null;
+let useCameraFormat: any = null;
 let useCameraPermission: any = null;
 let useBarcodeScannerOutput: any = null;
 
@@ -51,6 +54,7 @@ try {
   const barcodeScanner = require("react-native-vision-camera-barcode-scanner");
   Camera = vc.Camera;
   useCameraDevice = vc.useCameraDevice;
+  useCameraFormat = vc.useCameraFormat;
   useCameraPermission = vc.useCameraPermission;
   useBarcodeScannerOutput = barcodeScanner.useBarcodeScannerOutput;
 } catch {
@@ -226,6 +230,8 @@ function LiveCamera({
       isActive={true}
       outputs={[barcodeScannerOutput]}
       torchMode={torchOn ? "on" : "off"}
+      enableZoomGesture
+      resizeMode="cover"
     />
   );
 }
@@ -260,9 +266,21 @@ function ScannerWithCamera({ eventId }: { eventId: string }) {
 
   const handleCodeScanned = useCallback(
     (codes: any[]) => {
+      console.log(
+        "[Scanner] handleCodeScanned fired — codes.length=",
+        codes?.length,
+        "cooldown=",
+        cooldownRef.current,
+        "hasResult=",
+        !!scanResult,
+      );
       if (cooldownRef.current || scanResult) return;
       const code = codes[0];
       const qrValue = code?.rawValue ?? code?.value;
+      console.log(
+        "[Scanner] qrValue=",
+        qrValue ? qrValue.substring(0, 40) : "(empty)",
+      );
       if (!qrValue) return;
 
       if (qrValue === lastScannedRef.current) return;
@@ -274,6 +292,7 @@ function ScannerWithCamera({ eventId }: { eventId: string }) {
       if (deepLinkMatch) {
         qrToken = deepLinkMatch[1];
       }
+      console.log("[Scanner] dispatching scan, qrToken prefix=", qrToken.substring(0, 12));
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
@@ -619,6 +638,51 @@ function ScannerWithCamera({ eventId }: { eventId: string }) {
 // otherwise renders ScannerWithCamera (which calls hooks unconditionally).
 function ScannerContent({ eventId }: { eventId: string }) {
   const router = useRouter();
+  const user = useAuthStore((s) => s.user);
+  const { data: event, isLoading: eventLoading } = useEvent(eventId);
+
+  // Host-only gate. Without this, anyone could deep-link to
+  // /events/<id>/scanner and access the camera. Server enforces the
+  // same check on ticket-scan, but failing fast on the client avoids
+  // even rendering the camera surface to unauthorized users.
+  const isHost = (() => {
+    if (!user?.id || !event?.host?.id) return false;
+    const hostId = String(event.host.id);
+    if (String(user.id) === hostId) return true;
+    const intId = getCurrentUserIdSync();
+    if (intId != null && String(intId) === hostId) return true;
+    const authId = (user as any)?.authId || (user as any)?.auth_id;
+    if (authId && String(authId) === hostId) return true;
+    return false;
+  })();
+
+  if (eventLoading) {
+    return (
+      <View className="flex-1 bg-black items-center justify-center">
+        <ActivityIndicator color="#fff" />
+      </View>
+    );
+  }
+
+  if (!isHost) {
+    return (
+      <View className="flex-1 bg-black items-center justify-center px-8">
+        <XCircle size={64} color="#ef4444" />
+        <Text className="text-white text-lg font-sans-semibold mt-4 text-center">
+          Not authorized
+        </Text>
+        <Text className="text-white/60 text-sm mt-2 text-center">
+          Only the event host can scan tickets at the door.
+        </Text>
+        <Pressable
+          onPress={() => router.back()}
+          className="mt-6 bg-white/10 rounded-full px-6 py-3"
+        >
+          <Text className="text-white font-sans-semibold">Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
 
   if (!hasVisionCamera) {
     return (

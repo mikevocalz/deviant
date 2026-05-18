@@ -15,6 +15,7 @@ import { useAuthStore } from "@/lib/stores/auth-store";
 import { useLynkHistoryStore } from "@/src/sneaky-lynk/stores/lynk-history-store";
 import { sneakyLynkApi } from "@/src/sneaky-lynk/api/supabase";
 import { useSneakyLynkCaptureProtection } from "@/src/sneaky-lynk/hooks/useSneakyLynkCaptureProtection";
+import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
 function CreateLynkScreenContent() {
   // Protect room config from capture even before joining
@@ -134,6 +135,48 @@ function CreateLynkScreenContent() {
         keyboardShouldPersistTaps="handled"
         bottomOffset={40}
       >
+        {/* Intro / Pricing Banner */}
+        <View
+          className="rounded-2xl p-4 mb-6"
+          style={{
+            backgroundColor: "rgba(252, 37, 58, 0.08)",
+            borderWidth: 1,
+            borderColor: "rgba(252, 37, 58, 0.2)",
+          }}
+        >
+          <Text className="text-base font-bold text-foreground mb-1">
+            {getLynkDisplayName()}
+          </Text>
+          <Text className="text-sm text-muted-foreground leading-5">
+            Host a private video room for your crew. Rooms with fewer than 5
+            people under 5 minutes are completely free.
+          </Text>
+          <View className="flex-row gap-3 mt-3">
+            <View
+              className="flex-1 rounded-xl p-3"
+              style={{ backgroundColor: "rgba(255,255,255,0.05)" }}
+            >
+              <Text className="text-xs font-bold text-foreground">
+                $15 / mo
+              </Text>
+              <Text className="text-[11px] text-muted-foreground mt-0.5">
+                Up to 15 screens
+              </Text>
+            </View>
+            <View
+              className="flex-1 rounded-xl p-3"
+              style={{ backgroundColor: "rgba(255,255,255,0.05)" }}
+            >
+              <Text className="text-xs font-bold text-foreground">
+                $25 / mo
+              </Text>
+              <Text className="text-[11px] text-muted-foreground mt-0.5">
+                Unlimited screens
+              </Text>
+            </View>
+          </View>
+        </View>
+
         {/* Title Input */}
         <View className="mb-6">
           <Text className="text-sm font-semibold text-muted-foreground mb-2">

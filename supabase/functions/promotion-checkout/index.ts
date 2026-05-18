@@ -18,6 +18,12 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const APP_SCHEME = "dvnt";
 
+if (!STRIPE_SECRET_KEY) {
+  console.error(
+    "[promotion-checkout] FATAL: STRIPE_SECRET_KEY env var is not set.",
+  );
+}
+
 // Pricing in cents
 const PRICING: Record<string, number> = {
   "24h": 999,
@@ -80,6 +86,18 @@ Deno.serve(async (req: Request) => {
       status: 405,
       headers: corsHeaders,
     });
+  }
+
+  if (!STRIPE_SECRET_KEY) {
+    return new Response(
+      JSON.stringify({
+        error: "Stripe is not configured for this environment.",
+      }),
+      {
+        status: 503,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      },
+    );
   }
 
   try {

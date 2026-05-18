@@ -1,18 +1,34 @@
 import "../global.css";
+// Install the global JS error handler FIRST — must be armed before
+// any other side-effect import can throw. Captures uncaught JS
+// errors + unhandled Promise rejections, persists to MMKV for the
+// next session to surface. OTA-safe — pure JS.
+import "@/lib/global-error-handler";
 import "@/lib/query-focus-manager";
 import "@/lib/i18n";
 import "@/lib/ota-bootstrap-log";
-import { Stack, router } from "expo-router";
+// Reads + logs prior-session crashes from BOTH layers:
+//   - JS errors persisted by global-error-handler (OTA-safe)
+//   - Native NSExceptions persisted by the AppDelegate handler from
+//     plugins/with-uncaught-exception-handler.js (requires native
+//     rebuild — the file just won't exist on OTA-only builds)
+import "@/lib/native-exception-log";
+import { Stack, router, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { QueryClient } from "@tanstack/react-query";
+import { QueryClient, onlineManager } from "@tanstack/react-query";
 import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
+import {
+  initConnectivity,
+  useConnectivityStore,
+} from "@/lib/stores/connectivity-store";
+import { OfflineBanner } from "@/components/offline-banner";
 import {
   persistOptions,
   checkAndClearCacheOnOTAUpdate,
 } from "@/lib/query-persistence";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useFonts } from "expo-font";
 import * as SplashScreen from "expo-splash-screen";
 import AnimatedSplashScreen from "@/components/animated-splash-screen";
@@ -20,6 +36,7 @@ import { Motion } from "@legendapp/motion";
 import { PortalHost } from "@rn-primitives/portal";
 import { ThemeProvider } from "@react-navigation/native";
 import { Toaster } from "sonner-native";
+import { ReportSheet } from "@/components/reports/report-sheet";
 import { NAV_THEME } from "@/theme";
 import { useColorScheme } from "@/lib/hooks";
 import { KeyboardProvider } from "react-native-keyboard-controller";
@@ -37,10 +54,7 @@ import {
 import { useUpdates } from "@/lib/hooks/use-updates";
 import { useNotifications } from "@/lib/hooks/use-notifications";
 import { screenPrefetch } from "@/lib/prefetch";
-import {
-  getPostDetailCommentsRoute,
-  getPostDetailRoute,
-} from "@/lib/routes/post-routes";
+import { routeFromNotification } from "@/lib/notifications/notificationRouter";
 import { setQueryClient } from "@/lib/auth-client";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { FeedSkeleton } from "@/components/skeletons";
@@ -63,6 +77,9 @@ import { PublicGateSheet } from "@/components/access/PublicGateSheet";
 import { DeviceTestBridge } from "@/components/dev/DeviceTestBridge";
 import { AppTrace } from "@/lib/diagnostics/app-trace";
 import { OtaUpdateBanner } from "@/components/ota/OtaUpdateBanner";
+import { OtaRecoveryBoundary } from "@/components/system/OtaRecoveryBoundary";
+import { confirmUpdateSuccess } from "@/lib/ota/updateSafety";
+import { captureOtaDiagnostics, logDiagnostics } from "@/lib/ota/otaDiagnostics";
 
 // CRITICAL: Check for OTA update and clear stale cache BEFORE creating QueryClient
 // This prevents crashes from incompatible persisted cache after OTA updates
@@ -109,6 +126,39 @@ const queryClient = new QueryClient({
 // Register query client with auth module so it can clear cache on user switch
 setQueryClient(queryClient);
 
+// ─── Connectivity wiring ───────────────────────────────────────────────────
+// Module-scope init so exactly ONE network listener is attached for the
+// whole app lifetime. initConnectivity() is idempotent — safe if this
+// module reloads during dev.
+//
+// CRITICAL: this block runs at module-eval time, BEFORE React mounts.
+// A throw here takes down the entire app bundle (the exact OTA crash
+// pattern we hit in prod). Everything is defensive — if connectivity
+// wiring fails, we continue with the optimistic-online seed and React
+// Query's onlineManager default. No user-visible impact beyond losing
+// the offline banner and mutation pause-on-offline behavior.
+try {
+  initConnectivity();
+} catch (e) {
+  console.warn("[Boot] initConnectivity failed (non-fatal):", e);
+}
+
+// Bridge the Zustand connectivity phase to React Query's onlineManager.
+// Same defensive envelope as above — a failure here must not crash boot.
+try {
+  onlineManager.setEventListener((setOnline) => {
+    setOnline(useConnectivityStore.getState().phase !== "offline");
+    const unsub = useConnectivityStore.subscribe((state, prev) => {
+      if (state.phase !== prev.phase) {
+        setOnline(state.phase !== "offline");
+      }
+    });
+    return unsub;
+  });
+} catch (e) {
+  console.warn("[Boot] onlineManager wiring failed (non-fatal):", e);
+}
+
 export default function RootLayout() {
   const { colorScheme } = useColorScheme();
   const loadAuthState = useAuthStore((s) => s.loadAuthState);
@@ -116,19 +166,26 @@ export default function RootLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hasSeenOnboarding = useAuthStore((s) => s.hasSeenOnboarding);
   const userId = useAuthStore((s) => s.user?.id);
-  const {
-    appReady,
-    splashAnimationFinished,
-    setAppReady,
-    onAnimationFinish,
-    setSplashAnimationFinished,
-  } = useAppStore();
+  // Root-layout wraps the whole app. Destructuring the store here
+  // re-rendered every descendant whenever ANY app-store field updated
+  // (pendingShareIntentRoute, nsfwEnabled, feedMode…). Narrow selectors
+  // scope re-renders to this one layout.
+  const appReady = useAppStore((s) => s.appReady);
+  const splashAnimationFinished = useAppStore(
+    (s) => s.splashAnimationFinished,
+  );
+  const setAppReady = useAppStore((s) => s.setAppReady);
+  const onAnimationFinish = useAppStore((s) => s.onAnimationFinish);
+  const setSplashAnimationFinished = useAppStore(
+    (s) => s.setSplashAnimationFinished,
+  );
   const insets = useSafeAreaInsets();
-  const [shareIntentReady, setShareIntentReady] = useState(false);
   const openedFromShareIntent = useDeepLinkStore(
     (s) => s.openedFromShareIntent,
   );
   const pendingShareIntentRoute = useAppStore((s) => s.pendingShareIntentRoute);
+  const shareIntentReady = useAppStore((s) => s.shareIntentReady);
+  const setShareIntentReady = useAppStore((s) => s.setShareIntentReady);
 
   useEffect(() => {
     const delay = openedFromShareIntent ? 0 : 1500;
@@ -150,6 +207,14 @@ export default function RootLayout() {
   useEffect(() => {
     if (splashAnimationFinished && authStatus !== "loading") {
       markBootCompleted();
+      // Confirm OTA update succeeded (clears pending marker, prevents crash-loop blacklisting)
+      try {
+        const Updates = require("expo-updates");
+        const runningUpdateId = Updates?.updateId ?? null;
+        confirmUpdateSuccess(runningUpdateId);
+        const diag = captureOtaDiagnostics();
+        logDiagnostics(diag);
+      } catch {}
       AppTrace.trace("BOOT", "boot_completed", {
         authStatus,
         isAuthenticated,
@@ -222,48 +287,13 @@ export default function RootLayout() {
 
     Notifications.getLastNotificationResponseAsync().then((response) => {
       if (!response) return;
-      const data = response.notification.request.content.data;
+      const data = response.notification.request.content.data as Record<string, unknown>;
       if (!data?.type) return;
 
       console.log("[RootLayout] Cold start from notification:", data.type);
 
-      // Build the target route based on notification type
-      let route: string | null = null;
-      switch (data.type) {
-        case "message":
-          if (data.conversationId)
-            route = `/(protected)/chat/${data.conversationId}`;
-          break;
-        case "call":
-          // Call notifications are handled by NotificationListener,
-          // but we still skip splash so the call UI shows immediately.
-          if (data.roomId) route = `/(protected)/call/${data.roomId}`;
-          break;
-        case "like":
-        case "comment":
-        case "mention":
-          if (
-            (data.type === "comment" || data.type === "mention") &&
-            data.postId
-          ) {
-            route = getPostDetailCommentsRoute(
-              String(data.postId),
-              typeof data.commentId === "string" ? data.commentId : undefined,
-            );
-          } else if (data.postId) {
-            route = getPostDetailRoute(String(data.postId));
-          }
-          break;
-        case "follow":
-          if (data.senderUsername)
-            route = `/(protected)/profile/${data.senderUsername}`;
-          else if (data.userId || data.senderId)
-            route = `/(protected)/profile/${data.userId || data.senderId}`;
-          break;
-        case "event":
-          if (data.eventId) route = `/(protected)/events/${data.eventId}`;
-          break;
-      }
+      // Central router resolves url > deepLink > typed fields
+      const route = routeFromNotification(data);
 
       // Skip splash for ANY notification tap — user expects immediate content
       const store = useAppStore.getState();
@@ -343,6 +373,22 @@ export default function RootLayout() {
     }
   }, [openedFromShareIntent, splashAnimationFinished, onAnimationFinish]);
 
+  // ── Auth-group routing guard ──────────────────────────────────────────
+  // SDK 56's expo-router (4.0.22) doesn't expose Stack.Protected. If an
+  // unauthenticated user lands on a (protected) route — including via deep
+  // link — bounce to login. If an authenticated user lands on (auth), forward
+  // to the tabs root. (public) is intentionally accessible in both states.
+  const segments = useSegments();
+  useEffect(() => {
+    if (!authSettled) return;
+    const top = segments[0] as string | undefined;
+    if (!isAuthenticated && top === "(protected)") {
+      router.replace("/(auth)/login");
+    } else if (isAuthenticated && top === "(auth)") {
+      router.replace("/(protected)/(tabs)");
+    }
+  }, [isAuthenticated, authSettled, segments]);
+
   // ── Execute queued notification route ─────────────────────────────────
   // After splash is done + auth settled + authenticated, navigate to the
   // route that was queued from a cold-start notification tap.
@@ -385,42 +431,57 @@ export default function RootLayout() {
     splashAnimationFinished,
   ]);
 
+  // ── Replay pending deep link after auth settles ──────────────────────
+  // +native-intent.tsx may fire before Zustand rehydrates, causing it to
+  // treat an already-authenticated user as a guest and save the link as
+  // pending. Once splash is done + auth settled + user is authenticated,
+  // replay any saved deep link so the user lands on the intended screen.
+  useEffect(() => {
+    if (!splashAnimationFinished || !authSettled || !isAuthenticated) return;
+    const pending = useDeepLinkStore.getState().consumePendingLink();
+    if (!pending) return;
+    setTimeout(() => {
+      console.log("[RootLayout] Replaying pending deep link:", pending.routerPath);
+      router.push(pending.routerPath as any);
+    }, 150);
+  }, [splashAnimationFinished, authSettled, isAuthenticated]);
+
   // Show animated splash until BOTH app is ready AND animation is finished
   // IMPORTANT: Always wait for splashAnimationFinished, even if appReady is true
   const showAnimatedSplash = !splashAnimationFinished;
 
   if (showAnimatedSplash) {
+    // No Reanimated wrapper here — worklets runtime races with first Fabric commit on OTA
     return (
-      <LayoutAnimationConfig skipEntering skipExiting>
-        <ErrorBoundary
-          screenName="Splash"
-          fallback={
-            <View
-              style={{
-                flex: 1,
-                backgroundColor: "#000",
-                justifyContent: "center",
-                alignItems: "center",
-              }}
+      <ErrorBoundary
+        screenName="Splash"
+        fallback={
+          <View
+            style={{
+              flex: 1,
+              backgroundColor: "#000",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          >
+            <Pressable
+              onPress={() => onAnimationFinish(false)}
+              style={{ padding: 24 }}
             >
-              <Pressable
-                onPress={() => onAnimationFinish(false)}
-                style={{ padding: 24 }}
-              >
-                <Text style={{ color: "#fff", fontSize: 16 }}>
-                  Tap to continue
-                </Text>
-              </Pressable>
-            </View>
-          }
-        >
-          <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />
-        </ErrorBoundary>
-      </LayoutAnimationConfig>
+              <Text style={{ color: "#fff", fontSize: 16 }}>
+                Tap to continue
+              </Text>
+            </Pressable>
+          </View>
+        }
+      >
+        <AnimatedSplashScreen onAnimationFinish={onAnimationFinish} />
+      </ErrorBoundary>
     );
   }
 
   return (
+    <OtaRecoveryBoundary>
     <ErrorBoundary
       screenName="App"
       onError={(error, errorInfo) => {
@@ -442,7 +503,7 @@ export default function RootLayout() {
                 publishableKey={
                   process.env.EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY || ""
                 }
-                merchantIdentifier="merchant.com.deviant"
+                merchantIdentifier="merchant.com.dvnt.app"
               >
                 <PersistQueryClientProvider
                   client={queryClient}
@@ -457,15 +518,12 @@ export default function RootLayout() {
                             Platform.OS === "android" ? insets.bottom : 0,
                         }}
                       >
-                        <StatusBar
-                          backgroundColor="#000"
-                          style="light"
-                          animated
-                        />
+                        <StatusBar style="light" animated />
                         {/* CRITICAL: Stack is ALWAYS mounted — never conditionally unmount
                     the navigation tree. Unmounting destroys the NavigationContainer
                     and causes stale header references after OTA reload.
-                    Stack.Protected gates handle auth routing internally. */}
+                    Auth gating is enforced inside (auth)/_layout and (protected)/_layout
+                    via redirects on the unauthenticated/authenticated state. */}
                         <Stack
                           screenOptions={{
                             headerShown: false,
@@ -474,37 +532,31 @@ export default function RootLayout() {
                             contentStyle: { backgroundColor: "#000" },
                           }}
                         >
-                          <Stack.Protected guard={!isAuthenticated}>
-                            <Stack.Screen
-                              name="(auth)"
-                              options={{ animation: "none" }}
-                            />
-                          </Stack.Protected>
-                          <Stack.Protected
-                            guard={!isAuthenticated && hasSeenOnboarding}
-                          >
-                            <Stack.Screen
-                              name="(public)"
-                              options={{ animation: "none" }}
-                            />
-                          </Stack.Protected>
-                          <Stack.Protected guard={isAuthenticated}>
-                            <Stack.Screen
-                              name="(protected)"
-                              options={{ animation: "none" }}
-                            />
-                            <Stack.Screen
-                              name="settings"
-                              options={{
-                                headerShown: false,
-                                presentation: "fullScreenModal",
-                                animation: "slide_from_bottom",
-                                animationDuration: 300,
-                                gestureEnabled: true,
-                                gestureDirection: "vertical",
-                              }}
-                            />
-                          </Stack.Protected>
+                          {/* SDK 56's expo-router (4.0.22) doesn't expose Stack.Protected.
+                              Auth gating happens in the useSegments-redirect effect above. */}
+                          <Stack.Screen
+                            name="(auth)"
+                            options={{ animation: "none" }}
+                          />
+                          <Stack.Screen
+                            name="(public)"
+                            options={{ animation: "none" }}
+                          />
+                          <Stack.Screen
+                            name="(protected)"
+                            options={{ animation: "none" }}
+                          />
+                          <Stack.Screen
+                            name="settings"
+                            options={{
+                              headerShown: false,
+                              presentation: "fullScreenModal",
+                              animation: "slide_from_bottom",
+                              animationDuration: 300,
+                              gestureEnabled: true,
+                              gestureDirection: "vertical",
+                            }}
+                          />
                         </Stack>
                         {/* Share intent — deferred 4s after main app (expo-share-intent SDK 55/RN 0.84 crash workaround) */}
                         {shareIntentReady && (
@@ -562,6 +614,10 @@ export default function RootLayout() {
                           )}
                       </View>
                       <PortalHost />
+                      {/* Global UGC report sheet — driven by useReportSheetStore.
+                          Mounted at root so any screen can call openReportSheet
+                          without per-screen modal plumbing. Apple Guideline 1.2. */}
+                      <ReportSheet />
                       {/* CRITICAL: pointerEvents box-none ensures toasts never block
                   touches on the navigation header underneath. Position bottom
                   to avoid header area entirely. */}
@@ -589,6 +645,12 @@ export default function RootLayout() {
                             descriptionStyle: { color: "#a1a1aa" },
                           }}
                         />
+                        {/* Global offline indicator. Mounted here so it
+                            sits above every stack screen but BELOW the
+                            toaster (so it doesn't block toast taps).
+                            Driven by the flap-debounced connectivity
+                            store so it never appears for brief dips. */}
+                        <OfflineBanner />
                       </View>
                     </LikesSheetProvider>
                   </ThemeProvider>
@@ -599,5 +661,6 @@ export default function RootLayout() {
         </LayoutAnimationConfig>
       </GestureHandlerRootView>
     </ErrorBoundary>
+    </OtaRecoveryBoundary>
   );
 }
