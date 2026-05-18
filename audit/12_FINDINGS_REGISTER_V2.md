@@ -19,6 +19,25 @@ v1 findings tracked separately in `02_FINDINGS_REGISTER.md`.
 | V2-DB-04 | P2 | Auth / Settings | **`auth_leaked_password_protection` is OFF** — Supabase auth setting that checks new passwords against the HIBP breach database. Dashboard toggle, not fixable via SQL. Recommend enabling. | Supabase Dashboard → Authentication → Policies | **OPEN** (dashboard toggle) |
 | V2-DB-05 | P3 | Architectural | **3 RPCs accept caller's `p_user_auth_id` as a parameter** — `issue_rsvp_ticket`, `submit_verification_request`, `increment_event_attendees`. With Better Auth (no Supabase JWT), the DB function cannot validate the caller from inside Postgres, so a logged-in user could spoof another user's id when calling these RPCs. Defense-in-depth fix: route through an edge function that calls `verifySession` and then invokes the RPC via service_role. | `lib/api/{tickets,users,events}.ts` | **OPEN** (architectural) |
 
+## Wave 6 regression sweep — 2026-05-18 session
+
+Verified the V2-DB-03 SECURITY DEFINER lockdown didn't break authenticated flows. Used `has_function_privilege()` role-impersonation via MCP rather than relying on the app to break in prod.
+
+**Caught and hotfixed:**
+
+| Regression | Root cause | Fix |
+|---|---|---|
+| `service_role` lost EXECUTE on `can_user_moderate_room`, `get_user_room_role`, `is_user_banned_from_room` | `REVOKE ... FROM PUBLIC` cascades to all roles incl. service_role. Would have broken 9 video edge functions. | Migration `v2_db_03b_restore_service_role_grants` — re-granted service_role on 8 helper RPCs (room moderation, rate-limit, info disclosure). |
+| `expire_spotlight_campaigns` silently failing from `lib/api/promotions.ts:42` after lockdown. The function is idempotent (only flips past-due rows) and the call site already tolerates errors as non-fatal, but expired campaigns would never auto-expire. | Same PUBLIC cascade as above. | Migration `v2_db_03c_restore_spotlight_sweep` — re-granted authenticated + service_role. Anon stays locked. |
+
+**Verified clean:**
+
+- Public-feed RPCs (`get_events_home`, `get_event_detail`, `get_events_for_you`, `get_promoted_event_ids`, `get_spotlight_feed`, `viewer_can_see_nsfw`) — anon still has EXECUTE.
+- Authenticated client RPCs (`issue_rsvp_ticket`, `submit_verification_request`, `increment_event_attendees`) — authenticated still has EXECUTE.
+- 14 trigger functions (audit_*_delete, sync_*, reconcile_*, maintain_*) — fire as table owner, EXECUTE perm irrelevant for trigger context. Verified no caller invokes them via RPC.
+- `service_role` has `BYPASSRLS = true` — confirmed RLS-enabled tables (`content_audit_log`, `sneaky_usage_tracking`, `liked_activity_history`) still readable/writable from edge functions.
+- `force_rls = false` on all 3 protected tables — no table-owner lockout.
+
 ## Pass-2 edge function audit — 2026-05-18 session
 
 Careful per-function read of every write/destructive/money-touching function the first pass flagged. The first-pass agent had a >60% false-positive rate; this pass actually opened each file.
