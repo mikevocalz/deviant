@@ -649,35 +649,19 @@ function ViewTicketScreenContent() {
           { paddingBottom: insets.bottom + 12 },
         ]}
       >
-        <TicketActionsBar
-          ticket={ticket}
-          bottomInset={0}
-          style={styles.ticketActionsBar}
-        />
+        {/*
+          ── JSX ORDER NOTE ──
+          The parent uses flexDirection: "column-reverse" so the LAST
+          sibling in JSX renders at the TOP visually AND wins iOS
+          hit-tests (last sibling = on top in the native view hierarchy).
+          That's why Wallet (which should sit at the bottom) is declared
+          FIRST and TicketActionsBar (which should sit at the top AND own
+          its hit zone) is declared LAST.
 
-        {/* Wallet refresh prompt after upgrade */}
-        {needsWalletRefresh && (
-          <Pressable
-            onPress={handleAddToWallet}
-            style={({ pressed }) => [
-              styles.walletRefreshBanner,
-              pressed && { opacity: 0.88 },
-            ]}
-          >
-            <View style={styles.walletRefreshInner}>
-              <Sparkles size={16} color="#C084FC" />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.walletRefreshTitle}>
-                  Ticket upgraded — refresh wallet pass
-                </Text>
-                <Text style={styles.walletRefreshSubtitle}>
-                  Tap to update your wallet with the new tier
-                </Text>
-              </View>
-              <ChevronRight size={16} color="#C084FC" />
-            </View>
-          </Pressable>
-        )}
+          Without this, the Wallet Pressable was capturing taps in the
+          Calendar / Share / Transfer row above it because it was the
+          last sibling.
+        */}
 
         {canAddToWallet && (
           <Pressable
@@ -715,6 +699,39 @@ function ViewTicketScreenContent() {
             </View>
           </Pressable>
         )}
+
+        {/* Wallet refresh prompt after upgrade — renders between Wallet
+            CTA (above visually) and TicketActionsBar (above visually too).
+            With column-reverse, this middle JSX position translates to
+            the middle visual slot. */}
+        {needsWalletRefresh && (
+          <Pressable
+            onPress={handleAddToWallet}
+            style={({ pressed }) => [
+              styles.walletRefreshBanner,
+              pressed && { opacity: 0.88 },
+            ]}
+          >
+            <View style={styles.walletRefreshInner}>
+              <Sparkles size={16} color="#C084FC" />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.walletRefreshTitle}>
+                  Ticket upgraded — refresh wallet pass
+                </Text>
+                <Text style={styles.walletRefreshSubtitle}>
+                  Tap to update your wallet with the new tier
+                </Text>
+              </View>
+              <ChevronRight size={16} color="#C084FC" />
+            </View>
+          </Pressable>
+        )}
+
+        <TicketActionsBar
+          ticket={ticket}
+          bottomInset={0}
+          style={styles.ticketActionsBar}
+        />
       </View>
     </View>
   );
@@ -748,6 +765,11 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(10,10,10,0.96)",
     paddingHorizontal: 16,
     paddingTop: 10,
+    // Render bottom-up so the TicketActionsBar (rendered LAST in JSX)
+    // wins the iOS hit-test against Add to Wallet (rendered FIRST). The
+    // visual ordering is preserved by column-reverse since iOS hit-tests
+    // the last sibling first.
+    flexDirection: "column-reverse",
   },
   ticketActionsBar: {
     borderTopWidth: 1,
