@@ -7,6 +7,7 @@
 import React, {
   memo,
   useCallback,
+  useEffect,
   useRef,
   useState,
 } from "react";
@@ -58,6 +59,18 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   const accent = TIER_ACCENT[tier];
 
   const isActive = ticket.status === "valid";
+
+  // Diag — one log per mount so we know the bar rendered at all
+  useEffect(() => {
+    console.log(
+      "[TicketActionsBar] mounted — ticket.id=",
+      ticket.id,
+      "status=",
+      ticket.status,
+      "transferable=",
+      ticket.transferable,
+    );
+  }, [ticket.id, ticket.status, ticket.transferable]);
 
   const [calendarState, setCalendarState] = useState<ActionState>("idle");
   const [shareState, setShareState] = useState<ActionState>("idle");
@@ -196,6 +209,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
       {/* Share */}
       <Pressable
         onPress={handleShare}
+        onPressIn={() => console.log("[TicketActionsBar] Share onPressIn")}
         style={[styles.actionButton, { backgroundColor: `${accent}20` }]}
         disabled={shareState === "loading"}
       >
@@ -212,6 +226,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
       {/* Transfer */}
       <Pressable
         onPress={handleTransfer}
+        onPressIn={() => console.log("[TicketActionsBar] Transfer onPressIn")}
         style={[
           styles.actionButton,
           transferState === "success" && styles.successButton,

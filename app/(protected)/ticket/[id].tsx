@@ -489,35 +489,69 @@ function ViewTicketScreenContent() {
             </View>
           </View>
 
-          {/* ── 2.5 UPGRADE TIER — link to dedicated upgrade screen ── */}
-          {ticket.status === "valid" && upgradeTiers.length > 0 && (
-            <Pressable
-              onPress={() => router.push(`/ticket/upgrade/${eventId}` as any)}
-              style={({ pressed }) => [
-                styles.upgradeBanner,
-                pressed && { opacity: 0.9 },
-              ]}
-            >
-              <View style={styles.upgradeBannerIcon}>
-                <Sparkles size={16} color="#C084FC" />
-              </View>
-              <View style={styles.upgradeBannerText}>
-                <Text style={styles.upgradeBannerTitle}>
-                  Upgrade to{" "}
-                  {upgradeTiers.length === 1
-                    ? upgradeTiers[0].name
-                    : upgradeTiers
-                        .slice(0, 2)
-                        .map((t: any) => t.name)
-                        .join(" or ")}
+          {/* ── 2.5 UPGRADE TIER — card with prominent price + CTA ── */}
+          {ticket.status === "valid" && upgradeTiers.length > 0 && (() => {
+            // upgradeTiers is sorted cheapest-first by the loader
+            const cheapest = upgradeTiers[0];
+            const diffDollars = Math.max(
+              0,
+              ((cheapest.price_cents ?? 0) -
+                (dbTicket?.purchase_amount_cents ?? 0)) /
+                100,
+            );
+            const extraCount = upgradeTiers.length - 1;
+            return (
+              <View style={styles.upgradeCard}>
+                <View style={styles.upgradeCardHeader}>
+                  <View style={styles.upgradeCardEyebrowWrap}>
+                    <Sparkles size={12} color="#C084FC" />
+                    <Text style={styles.upgradeCardEyebrow}>
+                      UPGRADE AVAILABLE
+                    </Text>
+                  </View>
+                  <Text style={styles.upgradeCardPrice}>
+                    +${diffDollars.toFixed(diffDollars % 1 === 0 ? 0 : 2)}
+                  </Text>
+                </View>
+                <Text style={styles.upgradeCardTier}>{cheapest.name}</Text>
+                <Text style={styles.upgradeCardSub}>
+                  Pay only the difference · Wallet updates automatically
                 </Text>
-                <Text style={styles.upgradeBannerSub}>
-                  Pay only the difference · Wallet pass updates instantly
-                </Text>
+                <Pressable
+                  onPress={() =>
+                    router.push(`/ticket/upgrade/${eventId}` as any)
+                  }
+                  style={({ pressed }) => [
+                    styles.upgradeCardCta,
+                    pressed && { opacity: 0.85 },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Upgrade to ${cheapest.name}`}
+                >
+                  <Text style={styles.upgradeCardCtaText}>
+                    Upgrade to {cheapest.name}
+                  </Text>
+                  <ChevronRight size={18} color="#000" strokeWidth={2.5} />
+                </Pressable>
+                {extraCount > 0 ? (
+                  <Pressable
+                    onPress={() =>
+                      router.push(`/ticket/upgrade/${eventId}` as any)
+                    }
+                    style={({ pressed }) => [
+                      styles.upgradeCardMore,
+                      pressed && { opacity: 0.7 },
+                    ]}
+                  >
+                    <Text style={styles.upgradeCardMoreText}>
+                      +{extraCount} more {extraCount === 1 ? "tier" : "tiers"}{" "}
+                      available
+                    </Text>
+                  </Pressable>
+                ) : null}
               </View>
-              <ChevronRight size={18} color="#C084FC" />
-            </Pressable>
-          )}
+            );
+          })()}
 
           {/* ── 3. ACCESS DETAILS ── */}
           <TicketAccessDetails ticket={ticket} />
@@ -819,39 +853,81 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   // Upgrade banner — links to dedicated upgrade screen
-  upgradeBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
+  // New upgrade card — prominent CTA, replaces the old upgradeBanner
+  upgradeCard: {
     marginHorizontal: 20,
     marginBottom: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderRadius: 16,
-    backgroundColor: "rgba(138,64,207,0.10)",
+    paddingHorizontal: 18,
+    paddingTop: 16,
+    paddingBottom: 14,
+    borderRadius: 20,
+    backgroundColor: "rgba(138,64,207,0.12)",
     borderWidth: 1,
-    borderColor: "rgba(138,64,207,0.25)",
+    borderColor: "rgba(192,132,252,0.30)",
+    gap: 8,
   },
-  upgradeBannerIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 12,
+  upgradeCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  upgradeCardEyebrowWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 999,
     backgroundColor: "rgba(192,132,252,0.18)",
+  },
+  upgradeCardEyebrow: {
+    color: "#C084FC",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 1.2,
+  },
+  upgradeCardPrice: {
+    color: "#C084FC",
+    fontSize: 22,
+    fontWeight: "800",
+    letterSpacing: -0.5,
+    fontVariant: ["tabular-nums"],
+  },
+  upgradeCardTier: {
+    color: "#fff",
+    fontSize: 18,
+    fontWeight: "700",
+    marginTop: 2,
+  },
+  upgradeCardSub: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 4,
+  },
+  upgradeCardCta: {
+    marginTop: 4,
+    height: 48,
+    borderRadius: 14,
+    backgroundColor: "#C084FC",
+    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
   },
-  upgradeBannerText: {
-    flex: 1,
+  upgradeCardCtaText: {
+    color: "#000",
+    fontSize: 15,
+    fontWeight: "800",
   },
-  upgradeBannerTitle: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "700",
+  upgradeCardMore: {
+    alignItems: "center",
+    paddingVertical: 8,
   },
-  upgradeBannerSub: {
-    color: "rgba(255,255,255,0.5)",
+  upgradeCardMoreText: {
+    color: "rgba(192,132,252,0.85)",
     fontSize: 12,
-    marginTop: 2,
+    fontWeight: "600",
   },
   // Danger zone — refund
   dangerZone: {
