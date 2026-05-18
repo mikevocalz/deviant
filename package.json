@@ -195,7 +195,7 @@
     ],
     "overrides": {
       "hermes-compiler": "250829098.0.10",
-      "react-native-nitro-modules": "0.35.2",
+      "react-native-nitro-modules": "0.35.6",
       "@expo/dom-webview": "55.0.5"
     },
     "patchedDependencies": {}

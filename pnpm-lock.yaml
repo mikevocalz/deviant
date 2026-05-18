@@ -7,7 +7,7 @@ settings:
 overrides:
   '@fishjam-cloud/react-native-webrtc': 0.25.6
   hermes-compiler: 250829098.0.10
-  react-native-nitro-modules: 0.35.2
+  react-native-nitro-modules: 0.35.6
   '@expo/dom-webview': 55.0.5
 
 importers:
@@ -5462,7 +5462,7 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '*'
-      react-native-nitro-modules: 0.35.2
+      react-native-nitro-modules: 0.35.6
 
   react-native-modalbox@2.0.2:
     resolution: {integrity: sha512-uSuoZ+siPPNqWGyw8NXhA/Aots7mOx2+qijFoeovequY0kczZEPZDd0ARHbzg+1cE3H3AATJEwGdkVA8lUxs0g==}
@@ -5472,7 +5472,7 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '*'
-      react-native-nitro-modules: 0.35.2
+      react-native-nitro-modules: 0.35.6
 
   react-native-nitro-modules@0.35.6:
     resolution: {integrity: sha512-3Cb7s+O5tpZ6RdIiPOB/wi3IMfBxD6tl6VDF8gJ5zvM/BEGTWxwMMLjzmWmsYPKekdbYBznF6qp2d2SxixPy8g==}
@@ -5563,14 +5563,14 @@ packages:
     peerDependencies:
       react: '*'
       react-native: '*'
-      react-native-nitro-modules: 0.35.2
+      react-native-nitro-modules: 0.35.6
 
   react-native-vision-camera-barcode-scanner@5.0.9:
     resolution: {integrity: sha512-jkH5HEMNTxGJ5+adSckjoINgHgJ1iCZFxZ/gIbKyrFt+rd0eV+1lA3TbyIjvt3iTUCByrfFcwP3Y56LSDjmApw==}
     peerDependencies:
       react: '*'
       react-native: '*'
-      react-native-nitro-modules: 0.35.2
+      react-native-nitro-modules: 0.35.6
       react-native-vision-camera: '*'
 
   react-native-vision-camera@5.0.9:
@@ -5579,7 +5579,7 @@ packages:
       react: '*'
       react-native: '*'
       react-native-nitro-image: '*'
-      react-native-nitro-modules: 0.35.2
+      react-native-nitro-modules: 0.35.6
 
   react-native-voip-push-notification@3.3.3:
     resolution: {integrity: sha512-cyWuI9//T1IQIq4RPq0QQe0NuEwIpnE0L98H2sUH4MjFsNMD/yNE4EJzEZN4cIwfPMZaASa0gQw6B1a7VwnkMA==}
