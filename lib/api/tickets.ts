@@ -162,11 +162,18 @@ export const ticketsApi = {
     ticket?: any;
   }> {
     try {
+      // ticket-scan now requires a Better Auth session (host-only). Without
+      // this header it returns 401 and scans silently fail.
+      const token = await requireBetterAuthToken();
       const { data, error } = await supabase.functions.invoke("ticket-scan", {
         body: {
           qr_token: qrToken,
           scanned_by: scannedBy,
           ...(eventId ? { event_id: eventId } : {}),
+        },
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "x-auth-token": token,
         },
       });
 
@@ -244,6 +251,15 @@ export const ticketsApi = {
   ): Promise<{ synced: string[]; failed: string[] }> {
     const synced: string[] = [];
     const failed: string[] = [];
+    // Resolve once; one session token for the whole batch.
+    let token: string | null = null;
+    try {
+      token = await requireBetterAuthToken();
+    } catch {
+      // Without a session every scan will 401 — mark all as failed so the
+      // queue stays intact for the next online sync attempt.
+      return { synced, failed: scans.map((s) => s.qrToken) };
+    }
     for (const scan of scans) {
       try {
         const { data, error } = await supabase.functions.invoke("ticket-scan", {
@@ -251,6 +267,10 @@ export const ticketsApi = {
             qr_token: scan.qrToken,
             scanned_by: scan.scannedBy,
             offline_scanned_at: scan.scannedAt,
+          },
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "x-auth-token": token,
           },
         });
         if (error) throw error;
