@@ -8,6 +8,7 @@ import {
   StyleSheet,
   FlatList,
   Alert,
+  Dimensions,
   type ViewStyle,
   type TextStyle,
 } from "react-native";
@@ -1294,8 +1295,14 @@ function MessagesScreenContent() {
 
   return (
     <View
-      className="flex-1 bg-background max-w-3xl w-full self-center"
-      style={{ paddingTop: insets.top }}
+      style={{
+        // Force explicit dimensions instead of flex:1 in case the parent
+        // Stack screen container isn't giving us height.
+        width: Dimensions.get("window").width,
+        height: Dimensions.get("window").height,
+        backgroundColor: "#000",
+        paddingTop: insets.top,
+      }}
     >
       {/* DEBUG SENTINEL — remove once blank-screen diagnosed */}
       <View
