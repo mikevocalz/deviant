@@ -7,7 +7,6 @@
 import React, {
   memo,
   useCallback,
-  useEffect,
   useRef,
   useState,
 } from "react";
@@ -60,25 +59,12 @@ export const TicketActionsBar = memo(function TicketActionsBar({
 
   const isActive = ticket.status === "valid";
 
-  // Diag — one log per mount so we know the bar rendered at all
-  useEffect(() => {
-    console.log(
-      "[TicketActionsBar] mounted — ticket.id=",
-      ticket.id,
-      "status=",
-      ticket.status,
-      "transferable=",
-      ticket.transferable,
-    );
-  }, [ticket.id, ticket.status, ticket.transferable]);
-
   const [calendarState, setCalendarState] = useState<ActionState>("idle");
   const [shareState, setShareState] = useState<ActionState>("idle");
   const [transferState, setTransferState] = useState<ActionState>("idle");
 
   // ── Calendar ──
   const handleCalendar = useCallback(async () => {
-    console.log("[TicketActionsBar] Calendar tap — ticket.id=", ticket.id);
     if (calendarState === "loading") return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
       () => {},
@@ -86,7 +72,6 @@ export const TicketActionsBar = memo(function TicketActionsBar({
     setCalendarState("loading");
 
     const result = await addTicketToCalendar(ticket);
-    console.log("[TicketActionsBar] Calendar result:", result);
 
     if (result.success) {
       setCalendarState("success");
@@ -111,7 +96,6 @@ export const TicketActionsBar = memo(function TicketActionsBar({
 
   // ── Share ──
   const handleShare = useCallback(async () => {
-    console.log("[TicketActionsBar] Share tap — ticket.id=", ticket.id);
     if (shareState === "loading") return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
       () => {},
@@ -119,7 +103,6 @@ export const TicketActionsBar = memo(function TicketActionsBar({
     setShareState("loading");
 
     const result = await shareTicket(ticket);
-    console.log("[TicketActionsBar] Share result:", result);
 
     if (result.success) {
       setShareState("idle");
@@ -136,7 +119,6 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   const [transferUsername, setTransferUsername] = useState("");
 
   const handleTransfer = useCallback(() => {
-    console.log("[TicketActionsBar] Transfer tap — ticket.id=", ticket.id);
     if (transferState === "loading") return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
       () => {},
@@ -209,9 +191,6 @@ export const TicketActionsBar = memo(function TicketActionsBar({
       {/* Share */}
       <Pressable
         onPress={handleShare}
-        onPressIn={() =>
-          console.log("[TicketActionsBar] Share onPressIn shareState=", shareState)
-        }
         style={[styles.actionButton, { backgroundColor: `${accent}20` }]}
       >
         {shareState === "loading" ? (
@@ -227,12 +206,6 @@ export const TicketActionsBar = memo(function TicketActionsBar({
       {/* Transfer */}
       <Pressable
         onPress={handleTransfer}
-        onPressIn={() =>
-          console.log(
-            "[TicketActionsBar] Transfer onPressIn transferState=",
-            transferState,
-          )
-        }
         style={[
           styles.actionButton,
           transferState === "success" && styles.successButton,

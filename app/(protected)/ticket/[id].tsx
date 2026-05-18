@@ -556,13 +556,9 @@ function ViewTicketScreenContent() {
           {/* ── 2.7 ADD-ONS — link to event detail for buying more ── */}
           {ticket.status === "valid" && eventId && (
             <Pressable
-              onPress={() => {
-                console.log(
-                  "[Ticket] Add-ons tap — routing to event detail",
-                  eventId,
-                );
-                router.push(`/(protected)/events/${eventId}` as any);
-              }}
+              onPress={() =>
+                router.push(`/(protected)/events/${eventId}` as any)
+              }
               style={({ pressed }) => [
                 styles.addonsCard,
                 pressed && { opacity: 0.85 },
@@ -686,9 +682,6 @@ function ViewTicketScreenContent() {
         {canAddToWallet && (
           <Pressable
             onPress={handleAddToWallet}
-            onPressIn={() =>
-              console.log("[Ticket] AddToWallet onPressIn — state=", walletState)
-            }
             disabled={walletState === "loading"}
             style={({ pressed }) => [
               styles.walletCta,
@@ -760,6 +753,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "rgba(255,255,255,0.06)",
     marginHorizontal: -16,
+    // Ensure the Calendar / Share / Transfer Pressables always win the
+    // hit-test against the Add to Wallet Pressable rendered below. iOS
+    // Pressable hit-test on stacked sibling Views can leak downward
+    // because the Wallet button's larger bounds + rounded border get
+    // priority; explicit zIndex + elevation pins this row on top.
+    zIndex: 2,
+    elevation: 2,
   },
   heroWrap: {
     paddingHorizontal: 16,
@@ -867,6 +867,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(63,220,255,0.18)",
     overflow: "hidden",
+    // Sits below the TicketActionsBar in z-order so the 3-button row
+    // wins hit-tests in the overlap region.
+    zIndex: 1,
+    elevation: 1,
   },
   walletCtaSuccess: {
     backgroundColor: "rgba(10,28,34,0.98)",
