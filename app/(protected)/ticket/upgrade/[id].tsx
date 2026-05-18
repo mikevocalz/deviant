@@ -199,6 +199,18 @@ function ViewTicketUpgradeScreenContent() {
     [upgradeOptions, selectedTierId],
   );
 
+  // Auto-select the cheapest available upgrade so the user lands on the
+  // screen with the confirm CTA already visible (no "tap to discover the
+  // pay button" puzzle). The first item in upgradeOptions is the cheapest
+  // since the list is sorted ascending by price.
+  React.useEffect(() => {
+    if (selectedTierId) return;
+    const firstAvailable = upgradeOptions.find((t) => !t.soldOut);
+    if (firstAvailable) {
+      setSelectedTierId(String(firstAvailable.id));
+    }
+  }, [upgradeOptions, selectedTierId]);
+
   const handleSelectTier = React.useCallback((tier: EnrichedTier) => {
     if (tier.soldOut) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});

@@ -65,6 +65,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
 
   // ── Calendar ──
   const handleCalendar = useCallback(async () => {
+    console.log("[TicketActionsBar] Calendar tap — ticket.id=", ticket.id);
     if (calendarState === "loading") return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
       () => {},
@@ -72,6 +73,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
     setCalendarState("loading");
 
     const result = await addTicketToCalendar(ticket);
+    console.log("[TicketActionsBar] Calendar result:", result);
 
     if (result.success) {
       setCalendarState("success");
@@ -96,6 +98,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
 
   // ── Share ──
   const handleShare = useCallback(async () => {
+    console.log("[TicketActionsBar] Share tap — ticket.id=", ticket.id);
     if (shareState === "loading") return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
       () => {},
@@ -103,6 +106,7 @@ export const TicketActionsBar = memo(function TicketActionsBar({
     setShareState("loading");
 
     const result = await shareTicket(ticket);
+    console.log("[TicketActionsBar] Share result:", result);
 
     if (result.success) {
       setShareState("idle");
@@ -119,13 +123,14 @@ export const TicketActionsBar = memo(function TicketActionsBar({
   const [transferUsername, setTransferUsername] = useState("");
 
   const handleTransfer = useCallback(() => {
+    console.log("[TicketActionsBar] Transfer tap — ticket.id=", ticket.id);
     if (transferState === "loading") return;
     void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(
       () => {},
     );
     setTransferUsername("");
     setShowTransferModal(true);
-  }, [transferState]);
+  }, [transferState, ticket.id]);
 
   const handleTransferSubmit = useCallback(async () => {
     const username = transferUsername.trim();
