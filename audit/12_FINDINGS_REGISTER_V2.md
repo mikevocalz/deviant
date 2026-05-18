@@ -10,13 +10,45 @@ v1 findings tracked separately in `02_FINDINGS_REGISTER.md`.
 | **V2-SEC-01** | **P0** | Security / Auth | **`ticket-scan` edge function had NO `verifySession`.** Any authed user with a copy of a QR token could mark tickets scanned. `scanned_by` was user-supplied and unvalidated. | `supabase/functions/ticket-scan/index.ts:57-100` | **FIXED** (`9d269cee`) |
 | **V2-SEC-02** | **P0** | Security / Auth | **Scanner UI route had no host-only guard.** Any authed user could navigate to `/events/<id>/scanner` and access the camera + scan tickets. | `app/(protected)/events/[id]/scanner.tsx:233-260` | **FIXED** (`9d269cee`) |
 | V2-BE-01 | P1 | Backend / Defensive | **12 Stripe-touching edge functions lacked the 503 STRIPE_SECRET_KEY guard.** Added uniform pattern + console.error startup warning. `stripe-webhook` intentionally excluded — webhooks must return 200 to prevent Stripe retry storms. Coverage now 19/20 Stripe functions. | `supabase/functions/{cart-line-refund,delete-account,host-disputes,host-payouts,organizer-connect,organizer-refund,payment-methods,payouts-release,promotion-checkout,purchases,reconcile-orders,ticket-refund}/index.ts` | **FIXED** |
-| **V2-LINK-01** | **P1** | Universal Links | **AASA missing 4 path patterns** that map to registered routes. `/tickets/*` (success/cancel/guest), `/my-tickets`, `/organizer-setup`, `/sneaky/*` were not in `apple-app-site-association`, so legitimate share links opened in Safari instead of the app. Confirmed via Explore audit cross-referencing `lib/deep-linking/route-registry.ts`. | `public/.well-known/apple-app-site-association` | **FIXED** |
+| **V2-LINK-00** | **P0** | Universal Links | **`dvntlive.app` does not resolve in public DNS.** No A, no NS records. iOS entitlement declares `applinks:dvntlive.app` (`app.config.js:65`) and the entire share-URL flow uses `https://dvntlive.app/...` (client share builders, push notification deep links, Android intent filters, edge function-generated URLs). Since iOS cannot fetch AASA from a non-existent host, **no universal link can possibly resolve back into the app right now** — every shared link will fail to load entirely (no Safari fallback because the domain itself doesn't exist). Verified by `dig @1.1.1.1 dvntlive.app` returning empty + `curl` failing with "Could not resolve host". | `app.config.js:65,204-205`; share-URL builders across `lib/` and `supabase/functions/` | **OPEN — needs domain registration + Vercel deploy** |
+| **V2-LINK-01** | **P1** | Universal Links | **AASA missing 4 path patterns** that map to registered routes. `/tickets/*` (success/cancel/guest), `/my-tickets`, `/organizer-setup`, `/sneaky/*` were not in `apple-app-site-association`, so once V2-LINK-00 is unblocked, these would still open in Safari. Confirmed via Explore audit cross-referencing `lib/deep-linking/route-registry.ts`. | `public/.well-known/apple-app-site-association` | **FIXED (content only — gated on V2-LINK-00 to be testable)** |
 | V2-LINK-02 | P2 | Android App Links | **`assetlinks.json` still contains placeholder fingerprints** `<DEBUG_SHA256_FINGERPRINT>` / `<RELEASE_SHA256_FINGERPRINT>`. Until populated with real signing-key SHA256s, Android App Links won't validate and deep links fall back to browser. Requires the user's keystore fingerprints — held for explicit user input. | `public/.well-known/assetlinks.json` | **OPEN** (needs keystore fingerprints) |
 | **V2-DB-01** | **P1** | Database / RLS | **3 public tables had RLS disabled** (advisor `rls_disabled_in_public`, ERROR level): `content_audit_log`, `sneaky_usage_tracking`, `liked_activity_history`. All three are server-only (trigger / edge-function writes). Enabled RLS + added explicit deny policies for anon/authenticated; service_role bypasses RLS so writes still work. | DB migration `v2_db_01_enable_rls_on_public_tables` | **FIXED** |
 | V2-DB-02 | P3 | Database / Hygiene | **39 `function_search_path_mutable` lints** (advisor undercounted at 244; real count was 39 in `public`). Pinned `search_path = public, pg_temp` on all of them to prevent role-mutable search-path attacks. | DB migration `v2_db_02_set_function_search_paths` | **FIXED** |
 | **V2-DB-03** | **P0** | Database / RPC | **34 SECURITY DEFINER functions exposed via PostgREST `/rest/v1/rpc/*` to the `anon` role.** Included `cart_apply_line_refund`, `increment_promo_uses`, `issue_rsvp_ticket`, `submit_verification_request`, `increment_event_attendees`, all `audit_*_delete` triggers, all `sync_*` and `reconcile_*` maintenance fns, all rate-limit fns, room-moderation helpers. Revoked EXECUTE from anon (and authenticated where appropriate). 7 intentional public-feed RPCs (`get_events_home`, `get_event_detail`, `get_events_for_you`, `get_promoted_event_ids`, `get_spotlight_feed`, `viewer_can_see_nsfw`) kept anon-callable. **Architectural follow-up**: `issue_rsvp_ticket` / `submit_verification_request` / `increment_event_attendees` accept `p_user_auth_id` as a parameter rather than deriving from session. A logged-in user could pass another user's auth_id. Should be routed through an edge function that validates the Better Auth token. | DB migration `v2_db_03_lock_down_security_definer_rpcs` | **FIXED** (with arch follow-up logged below) |
 | V2-DB-04 | P2 | Auth / Settings | **`auth_leaked_password_protection` is OFF** — Supabase auth setting that checks new passwords against the HIBP breach database. Dashboard toggle, not fixable via SQL. Recommend enabling. | Supabase Dashboard → Authentication → Policies | **OPEN** (dashboard toggle) |
 | V2-DB-05 | P3 | Architectural | **3 RPCs accept caller's `p_user_auth_id` as a parameter** — `issue_rsvp_ticket`, `submit_verification_request`, `increment_event_attendees`. With Better Auth (no Supabase JWT), the DB function cannot validate the caller from inside Postgres, so a logged-in user could spoof another user's id when calling these RPCs. Defense-in-depth fix: route through an edge function that calls `verifySession` and then invokes the RPC via service_role. | `lib/api/{tickets,users,events}.ts` | **OPEN** (architectural) |
+
+## Pass-2 edge function audit — 2026-05-18 session
+
+Careful per-function read of every write/destructive/money-touching function the first pass flagged. The first-pass agent had a >60% false-positive rate; this pass actually opened each file.
+
+**Result:** No P0 or P1 findings. The codebase uses a consistent pattern across ~50 functions:
+
+```ts
+const auth = req.headers.get("Authorization") || "";
+const token = auth.replace(/^Bearer\s+/i, "");
+// session lookup against Better Auth `session` table → authUserId
+// resolveOrProvisionUser(authUserId) → integer user.id
+// inline ownership check: WHERE author_id = userId (or equivalent)
+```
+
+This isn't the `verifySession` helper name, which is why the first pass missed it via grep. The check is still correct.
+
+Functions verified clean (sample):
+
+- **Destructive**: `delete-comment`, `delete-conversation`, `delete-event`, `delete-post`, `delete-story` — all check `author_id === resolved_session_userId` before deletion.
+- **Money / wallet**: `payouts-release` returns 500 if `CRON_SECRET` unset (correct posture); `wallet_web_service` is Apple PassKit's anonymous device-registration protocol (no auth by design); `ticket_wallet_google` validates ticket ownership via session.
+- **Social writes**: all `toggle-*` and `*-like` / `*-bookmark` / message endpoints verify session.
+- **Video moderation (12 fns)**: all 12 verify Better Auth session + check room role/moderation permission via RPC before mutating.
+- **Admin / cron**: bootstrap-* are session-required, cleanup-expired-media is cron-only with secret guard.
+
+Two P3 hygiene notes recorded (logged but not worth migration churn):
+
+| ID | Sev | Note |
+|---|---|---|
+| V2-EF-PASS2-P3a | P3 | `video_ban_user` self-ban check uses `===` without type normalization. Worst case: ban-self anomaly, not a security issue. |
+| V2-EF-PASS2-P3b | P3 | `wallet_web_service` Apple PassKit endpoints are auth-free by protocol. Confirmed safe — Apple signs device-side, server only stores opaque device tokens. |
 
 ## Cleared (agent claims that didn't hold up to verification)
 
