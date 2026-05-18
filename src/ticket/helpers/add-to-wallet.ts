@@ -172,18 +172,26 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
       return { success: false, error: "wallet_pass_unavailable" };
     }
 
+    // Open the .pkpass file directly. iOS recognizes the UTI from the
+    // file extension and routes to PKAddPassesViewController — the
+    // native 'Add Pass' sheet — without ever surfacing a URL or the
+    // iOS Share sheet picker.
+    //
+    // We do NOT call Linking.canOpenURL first. It returns false for
+    // file:// URLs by default (no scheme is whitelisted) even though
+    // openURL itself works fine for .pkpass on iOS. The Sharing fallback
+    // is a last resort — only fires if openURL throws.
     try {
-      const canOpenFile = await Linking.canOpenURL(fileUri).catch(() => false);
-      if (!canOpenFile) {
-        throw new Error("wallet_file_open_unavailable");
-      }
       await Linking.openURL(fileUri);
     } catch (openError) {
+      console.warn(
+        "[addToAppleWallet] Linking.openURL on pkpass failed, falling back to Share:",
+        openError,
+      );
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
         throw openError;
       }
-
       await Sharing.shareAsync(fileUri, {
         mimeType: "application/vnd.apple.pkpass",
         UTI: "com.apple.pkpass",
