@@ -1460,9 +1460,34 @@ function MessagesScreenContent() {
 
 export default function MessagesScreen() {
   const router = useRouter();
+  // DIAG — bypass content + ErrorBoundary entirely. If you see RED with
+  // 'MESSAGES TEST' the Stack route renders fine and the regression is
+  // in MessagesScreenContent. If still black, the Stack/navigation
+  // layer is the culprit.
   return (
-    <ErrorBoundary screenName="Messages" onGoBack={() => router.back()}>
-      <MessagesScreenContent />
-    </ErrorBoundary>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: "#ef4444",
+        alignItems: "center",
+        justifyContent: "center",
+      }}
+    >
+      <Text style={{ color: "#fff", fontSize: 32, fontWeight: "800" }}>
+        MESSAGES TEST
+      </Text>
+      <Pressable
+        onPress={() => router.back()}
+        style={{
+          marginTop: 20,
+          paddingHorizontal: 20,
+          paddingVertical: 12,
+          backgroundColor: "#000",
+          borderRadius: 12,
+        }}
+      >
+        <Text style={{ color: "#fff", fontWeight: "700" }}>Back</Text>
+      </Pressable>
+    </View>
   );
 }
