@@ -3,6 +3,7 @@ import { DB } from "../supabase/db-map";
 import { getCurrentUserId, getCurrentUserIdSync } from "./auth-helper";
 import { updateProfilePrivileged } from "../supabase/privileged";
 import { requireBetterAuthToken, getCurrentUserRow } from "../auth/identity";
+import { invokeEdge } from "./invoke-edge";
 
 function normalizeUserLinks(value: unknown): string[] {
   const sanitize = (items: unknown[]) =>
@@ -916,20 +917,25 @@ export const usersApi = {
    */
   async submitVerificationRequest(reason?: string, socialUrl?: string) {
     try {
-      const authId = await getCurrentUserId();
-      if (!authId) throw new Error("Not authenticated");
-
-      const { data, error } = await supabase.rpc(
-        "submit_verification_request",
-        {
-          p_user_auth_id: authId,
-          p_reason: reason || null,
-          p_social_url: socialUrl || null,
-        },
-      );
+      const { data, error } = await invokeEdge<{
+        ok: boolean;
+        data?: { success: boolean; error?: string; request_id?: number };
+        error?: { code: string; message: string };
+      }>("submit-verification", {
+        reason: reason || null,
+        socialUrl: socialUrl || null,
+      });
 
       if (error) throw error;
-      return data as { success: boolean; error?: string; request_id?: number };
+      if (!data?.ok) {
+        return {
+          success: false,
+          error: data?.error?.message || "Failed to submit request",
+        };
+      }
+      return (
+        data.data ?? { success: false, error: "No response from server" }
+      );
     } catch (error) {
       console.error("[Users] submitVerificationRequest error:", error);
       return { success: false, error: "Failed to submit request" };

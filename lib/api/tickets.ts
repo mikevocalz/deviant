@@ -292,13 +292,17 @@ export const ticketsApi = {
     already_existed: boolean;
   } | null> {
     try {
-      const { data, error } = await supabase.rpc("issue_rsvp_ticket", {
-        p_event_id: parseInt(params.eventId),
-        p_user_auth_id: params.userId,
-      });
+      const { data, error } = await invokeEdge<{
+        ok: boolean;
+        data?: { id: string; qr_token: string; already_existed: boolean };
+        error?: { code: string; message: string };
+      }>("rsvp-issue-ticket", { eventId: parseInt(params.eventId, 10) });
 
       if (error) throw error;
-      return data as { id: string; qr_token: string; already_existed: boolean };
+      if (!data?.ok) {
+        throw new Error(data?.error?.message || "Failed to issue ticket");
+      }
+      return data.data ?? null;
     } catch (error) {
       console.error("[Tickets] issueRsvpTicket error:", error);
       return null;
