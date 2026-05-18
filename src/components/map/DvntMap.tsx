@@ -170,7 +170,38 @@ function DvntMapInner({
   const mapRef = useRef<any>(null);
   const hasReportedReadyRef = useRef(false);
   const hasMountedRef = useRef(false);
+  const isUnmountedRef = useRef(false);
   const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    return () => {
+      isUnmountedRef.current = true;
+    };
+  }, []);
+
+  // expo-maps' setCameraPosition rejects ~50ms after the native view is
+  // recycled (tag-not-found). The Promise rejection bubbles to our global
+  // handler and spams the JS-CRASH log. Wrap in try + skip-when-unmounted
+  // and silently swallow the unmount-race rejection.
+  const safeSetCameraPosition = useCallback((config: any) => {
+    if (isUnmountedRef.current) return;
+    const ref = mapRef.current;
+    if (!ref?.setCameraPosition) return;
+    try {
+      const result = ref.setCameraPosition(config);
+      if (result && typeof result.then === "function") {
+        result.catch((err: any) => {
+          const msg = String(err?.message || err || "");
+          if (msg.includes("AppleMapsViewWrapper") || msg.includes("GoogleMapsViewWrapper")) {
+            return;
+          }
+          if (__DEV__) console.warn("[DvntMap] setCameraPosition failed:", msg);
+        });
+      }
+    } catch (err: any) {
+      if (__DEV__) console.warn("[DvntMap] setCameraPosition threw:", err?.message);
+    }
+  }, []);
 
   const cameraPosition = useMemo(
     () => ({
@@ -205,7 +236,7 @@ function DvntMapInner({
         Platform.OS === "android"
           ? { ...cameraPosition, duration: 0 }
           : cameraPosition;
-      mapRef.current?.setCameraPosition?.(config);
+      safeSetCameraPosition(config);
 
       // AppleMaps doesn't expose a reliable "loaded" callback — use timeout fallback
       const timeoutId = setTimeout(
@@ -219,7 +250,7 @@ function DvntMapInner({
         Platform.OS === "android"
           ? { ...cameraPosition, duration: 400 }
           : cameraPosition;
-      mapRef.current?.setCameraPosition?.(config);
+      safeSetCameraPosition(config);
     }
   }, [cameraPosition, finishLoading]);
 
