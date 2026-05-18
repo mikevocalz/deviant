@@ -18,6 +18,12 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const APP_SCHEME = "dvnt";
 
+if (!STRIPE_SECRET_KEY) {
+  console.error(
+    "[sneaky-billing-portal] FATAL: STRIPE_SECRET_KEY env var is not set.",
+  );
+}
+
 const cors = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -35,6 +41,16 @@ Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: cors });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  if (!STRIPE_SECRET_KEY) {
+    return json(
+      {
+        error:
+          "Stripe is not configured for this environment. Contact support.",
+      },
+      503,
+    );
+  }
 
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
