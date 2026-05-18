@@ -209,9 +209,10 @@ export const TicketActionsBar = memo(function TicketActionsBar({
       {/* Share */}
       <Pressable
         onPress={handleShare}
-        onPressIn={() => console.log("[TicketActionsBar] Share onPressIn")}
+        onPressIn={() =>
+          console.log("[TicketActionsBar] Share onPressIn shareState=", shareState)
+        }
         style={[styles.actionButton, { backgroundColor: `${accent}20` }]}
-        disabled={shareState === "loading"}
       >
         {shareState === "loading" ? (
           <ActivityIndicator size="small" color={accent} />
@@ -226,12 +227,16 @@ export const TicketActionsBar = memo(function TicketActionsBar({
       {/* Transfer */}
       <Pressable
         onPress={handleTransfer}
-        onPressIn={() => console.log("[TicketActionsBar] Transfer onPressIn")}
+        onPressIn={() =>
+          console.log(
+            "[TicketActionsBar] Transfer onPressIn transferState=",
+            transferState,
+          )
+        }
         style={[
           styles.actionButton,
           transferState === "success" && styles.successButton,
         ]}
-        disabled={transferState === "loading"}
       >
         {transferState === "loading" ? (
           <ActivityIndicator size="small" color="#fff" />

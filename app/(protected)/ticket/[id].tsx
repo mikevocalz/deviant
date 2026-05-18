@@ -553,6 +553,36 @@ function ViewTicketScreenContent() {
             );
           })()}
 
+          {/* ── 2.7 ADD-ONS — link to event detail for buying more ── */}
+          {ticket.status === "valid" && eventId && (
+            <Pressable
+              onPress={() => {
+                console.log(
+                  "[Ticket] Add-ons tap — routing to event detail",
+                  eventId,
+                );
+                router.push(`/(protected)/events/${eventId}` as any);
+              }}
+              style={({ pressed }) => [
+                styles.addonsCard,
+                pressed && { opacity: 0.85 },
+              ]}
+              accessibilityRole="button"
+              accessibilityLabel="Add coat check, drinks, and more for this event"
+            >
+              <View style={styles.addonsIconWrap}>
+                <Sparkles size={18} color="rgb(255, 109, 193)" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.addonsTitle}>Add more for this event</Text>
+                <Text style={styles.addonsSub}>
+                  Coat check, drinks, extra tickets — pay in one go
+                </Text>
+              </View>
+              <ChevronRight size={18} color="rgb(255, 109, 193)" />
+            </Pressable>
+          )}
+
           {/* ── 3. ACCESS DETAILS ── */}
           <TicketAccessDetails ticket={ticket} />
 
@@ -656,6 +686,9 @@ function ViewTicketScreenContent() {
         {canAddToWallet && (
           <Pressable
             onPress={handleAddToWallet}
+            onPressIn={() =>
+              console.log("[Ticket] AddToWallet onPressIn — state=", walletState)
+            }
             disabled={walletState === "loading"}
             style={({ pressed }) => [
               styles.walletCta,
@@ -928,6 +961,38 @@ const styles = StyleSheet.create({
     color: "rgba(192,132,252,0.85)",
     fontSize: 12,
     fontWeight: "600",
+  },
+  // Add-ons card — routes to event detail to buy more passes/tokens
+  addonsCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 14,
+    marginHorizontal: 20,
+    marginBottom: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 16,
+    backgroundColor: "rgba(255,109,193,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(255,109,193,0.30)",
+  },
+  addonsIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    backgroundColor: "rgba(255,109,193,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  addonsTitle: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  addonsSub: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 12,
+    marginTop: 2,
   },
   // Danger zone — refund
   dangerZone: {
