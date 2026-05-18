@@ -108,20 +108,12 @@ export async function addToAppleWallet(ticket: Ticket): Promise<WalletResult> {
       return { success: false, error: "not_authenticated" };
     }
 
-    const directPassUrl = buildAppleWalletUrl(ticket, token);
-
-    try {
-      await WebBrowser.openBrowserAsync(directPassUrl, {
-        presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
-        dismissButtonStyle: "close",
-      });
-      return { success: true };
-    } catch (browserError) {
-      console.warn(
-        "[addToAppleWallet] Direct Apple Wallet handoff failed, falling back:",
-        browserError,
-      );
-    }
+    // Skip the WebBrowser handoff entirely — it briefly flashed the
+    // Supabase function URL on a Safari/SFSafariView screen before iOS
+    // recognized the .pkpass response and forwarded to the Wallet sheet.
+    // The direct fetch + write-temp-file + Linking.openURL path below
+    // produces the same Wallet 'Add Pass' sheet without exposing the
+    // backend URL to the user.
 
     // Call edge function — returns binary .pkpass
     const supabaseUrl = getSupabaseUrl();

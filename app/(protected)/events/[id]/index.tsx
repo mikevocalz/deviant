@@ -380,17 +380,17 @@ function EventDetailScreenContent() {
 
   const handleUpgradeConfirm = useCallback(() => {
     if (!upgradeSheetOption || !myTicketData) return;
-    initiateUpgrade(
-      {
-        ticketId: myTicketData.id,
-        newTicketTypeId: upgradeSheetOption.tier.id,
-      },
-      { onSettled: () => setUpgradeSheetOption(null) },
-    );
+    // Route to the dedicated upgrade screen which uses native PaymentSheet.
+    // The old `initiateUpgrade()` path opened a Stripe Checkout URL in
+    // Safari, briefly exposing the Supabase function URL on a white loading
+    // screen before payment. The native flow keeps everything in-app.
+    setUpgradeSheetOption(null);
+    router.push(`/(protected)/ticket/upgrade/${eventId}` as any);
   }, [
     upgradeSheetOption,
     myTicketData,
-    initiateUpgrade,
+    eventId,
+    router,
     setUpgradeSheetOption,
   ]);
 
