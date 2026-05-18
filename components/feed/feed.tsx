@@ -712,8 +712,16 @@ export function Feed({
           guestMode ? (
             <>{headerContent}</>
           ) : (
-            // StoriesBar lives at HomeScreen level — no header content needed here.
-            <View style={{ height: 8 }} />
+            // StoriesBar lifted to HomeScreen (app/(protected)/(tabs)/index.tsx)
+            // so it stays mounted across feed-mode toggles and the spicy toggle.
+            // Restore the thin divider that used to sit above the first post.
+            <View
+              style={{
+                height: 8,
+                borderTopWidth: 1,
+                borderTopColor: "rgba(255,255,255,0.06)",
+              }}
+            />
           )
         }
         ListFooterComponent={renderFooter}

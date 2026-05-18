@@ -58,6 +58,7 @@ function FeedPostSkeleton() {
 export function FeedSkeleton() {
   return (
     <View style={styles.container}>
+      <View style={styles.topSpacer} />
       <FeedPostSkeleton />
       <FeedPostSkeleton />
     </View>
@@ -69,6 +70,9 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#000",
     paddingBottom: 20,
+  },
+  topSpacer: {
+    height: 40,
   },
   postContainer: {
     marginBottom: 16,

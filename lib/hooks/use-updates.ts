@@ -149,7 +149,7 @@ function showUpdateToast(updateId?: string | null) {
       "A new version has been downloaded and is ready to install.",
       [
         { text: "Update Later", style: "cancel", onPress: handleDismiss },
-        { text: "Restart App Now", style: "default", onPress: handleApply },
+        { text: "How to Install", style: "default", onPress: handleApply },
       ],
     );
   }

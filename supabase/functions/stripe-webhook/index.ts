@@ -1084,6 +1084,44 @@ Deno.serve(async (req: Request) => {
             }
           }
 
+          // Tally refunds per tier + decrement quantity_sold so the
+          // freed seats show as available. Then fire one waitlist
+          // promotion per freed seat.
+          if (toRefund && toRefund.length > 0) {
+            const perTier = new Map<string, number>();
+            for (const t of toRefund) {
+              const key = String(t.ticket_type_id);
+              perTier.set(key, (perTier.get(key) ?? 0) + 1);
+            }
+            for (const [typeId, count] of perTier) {
+              const { data: tt } = await supabase
+                .from("ticket_types")
+                .select("quantity_sold, name, event_id")
+                .eq("id", typeId)
+                .maybeSingle();
+              if (!tt) continue;
+              await supabase
+                .from("ticket_types")
+                .update({
+                  quantity_sold: Math.max(0, (tt.quantity_sold ?? 0) - count),
+                })
+                .eq("id", typeId);
+              const { data: ev } = await supabase
+                .from("events")
+                .select("title")
+                .eq("id", tt.event_id)
+                .maybeSingle();
+              for (let i = 0; i < count; i++) {
+                await notifyNextWaitlister(supabase, {
+                  eventId: tt.event_id,
+                  ticketTypeId: typeId,
+                  tierName: tt.name,
+                  eventTitle: ev?.title ?? null,
+                });
+              }
+            }
+          }
+
           // Void wallet passes for refunded tickets
           let refundedTicketsQuery = supabase
             .from("tickets")

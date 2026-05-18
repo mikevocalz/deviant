@@ -35,6 +35,7 @@ import { useAppStore } from "@/lib/stores/app-store";
 
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useBootstrapFeed } from "@/lib/hooks/use-bootstrap-feed";
+import { FeedSkeleton } from "@/components/skeletons";
 // StoriesBar is rendered at the HomeScreen level (app/(protected)/(tabs)/index.tsx)
 // so it survives feed-mode toggles and the spicy toggle without remounting.
 import { EmptyState } from "@/components/ui/empty-state";
@@ -780,9 +781,16 @@ export function MasonryFeed() {
         />
       }
     >
-      {/* StoriesBar lives at HomeScreen level. No separator between
-          stories and grid — user prefers edge-to-edge. */}
-      <View style={{ height: 8 }} />
+      {/* StoriesBar lifted to HomeScreen (app/(protected)/(tabs)/index.tsx)
+          so it stays mounted across feed-mode toggles and the spicy toggle.
+          Thin divider restores the separator that used to sit above the grid. */}
+      <View
+        style={{
+          height: 8,
+          borderTopWidth: 1,
+          borderTopColor: "rgba(255,255,255,0.06)",
+        }}
+      />
 
       {filteredPosts.length === 0 ? (
         <EmptyState
