@@ -525,7 +525,10 @@ function ViewTicketUpgradeScreenContent() {
       <ScrollView
         contentContainerStyle={[
           styles.scrollContent,
-          { paddingBottom: insets.bottom + 120 },
+          // Footer is ~210px tall (fee breakdown + confirm button + safe-
+          // area). Leave room so the last tier card AND the Confirm CTA
+          // both fit when scrolled to the bottom.
+          { paddingBottom: insets.bottom + 260 },
         ]}
         showsVerticalScrollIndicator={false}
       >
