@@ -822,6 +822,72 @@ Deno.serve(async (req: Request) => {
           console.log(
             `[stripe-webhook] PI succeeded: issued ${piQuantity} tickets for event ${piEventId}`,
           );
+        } else if (piMetadata.type === "ticket_upgrade") {
+          // ── Upgrade existing ticket to a higher tier (PaymentSheet) ──
+          const upTicketId = piMetadata.ticket_id;
+          const upNewTypeId = piMetadata.new_ticket_type_id;
+          const upEventId = parseInt(piMetadata.event_id);
+          const upPaidCents = pi.amount || 0;
+
+          const { data: upOldTicket } = await supabase
+            .from("tickets")
+            .select("ticket_type_id, purchase_amount_cents")
+            .eq("id", upTicketId)
+            .single();
+          const upOldTypeId = upOldTicket?.ticket_type_id;
+
+          const { data: upNewType } = await supabase
+            .from("ticket_types")
+            .select("price_cents, name")
+            .eq("id", upNewTypeId)
+            .single();
+
+          const upPrevPaid = upOldTicket?.purchase_amount_cents || 0;
+
+          const { error: upError } = await supabase
+            .from("tickets")
+            .update({
+              ticket_type_id: upNewTypeId,
+              purchase_amount_cents: upPrevPaid + upPaidCents,
+              stripe_payment_intent_id: pi.id,
+              updated_at: new Date().toISOString(),
+            })
+            .eq("id", upTicketId);
+
+          if (upError) {
+            console.error("[stripe-webhook] ticket_upgrade PI error:", upError);
+            throw upError;
+          }
+
+          // Increment quantity_sold on the new tier, decrement on the old
+          if (upNewTypeId) {
+            const { data: ntRow } = await supabase
+              .from("ticket_types")
+              .select("quantity_sold")
+              .eq("id", upNewTypeId)
+              .single();
+            await supabase
+              .from("ticket_types")
+              .update({ quantity_sold: (ntRow?.quantity_sold || 0) + 1 })
+              .eq("id", upNewTypeId);
+          }
+          if (upOldTypeId) {
+            const { data: otRow } = await supabase
+              .from("ticket_types")
+              .select("quantity_sold")
+              .eq("id", upOldTypeId)
+              .single();
+            await supabase
+              .from("ticket_types")
+              .update({
+                quantity_sold: Math.max(0, (otRow?.quantity_sold || 0) - 1),
+              })
+              .eq("id", upOldTypeId);
+          }
+
+          console.log(
+            `[stripe-webhook] Ticket ${upTicketId} upgraded to type ${upNewTypeId} for event ${upEventId} via PI ${pi.id}`,
+          );
         }
         break;
       }

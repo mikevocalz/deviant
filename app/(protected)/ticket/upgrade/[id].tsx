@@ -35,7 +35,8 @@ import {
   Zap,
 } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
-import * as WebBrowser from "expo-web-browser";
+import { initStripe } from "@stripe/stripe-react-native";
+import { useStripeSafe as useStripe } from "@/lib/safe-native-modules";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { ScreenSkeleton } from "@/components/ui/screen-skeleton";
 import { useMyTicketForEvent } from "@/lib/hooks/use-tickets";
@@ -120,6 +121,7 @@ function ViewTicketUpgradeScreenContent() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const showToast = useUIStore((s) => s.showToast);
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const eventId = Array.isArray(id) ? (id[0] ?? "") : (id ?? "");
   const { data: dbTicket, isLoading, refetch } = useMyTicketForEvent(eventId);
@@ -234,7 +236,11 @@ function ViewTicketUpgradeScreenContent() {
         },
       });
       if (error) {
-        showToast("error", "Upgrade failed", error.message || "Could not start upgrade");
+        showToast(
+          "error",
+          "Upgrade failed",
+          error.message || "Could not start upgrade",
+        );
         setUpgradeState("idle");
         return;
       }
@@ -244,27 +250,106 @@ function ViewTicketUpgradeScreenContent() {
         setUpgradeState("idle");
         return;
       }
-      if (!result?.url) {
-        showToast("error", "Upgrade failed", "No checkout URL returned");
+
+      const {
+        paymentIntent,
+        ephemeralKey,
+        customer,
+        publishableKey,
+      } = result || {};
+
+      if (!paymentIntent || !ephemeralKey || !customer) {
+        showToast(
+          "error",
+          "Upgrade failed",
+          "Missing payment parameters from server",
+        );
         setUpgradeState("idle");
         return;
       }
-      await WebBrowser.openBrowserAsync(result.url, {
-        presentationStyle:
-          Platform.OS === "ios"
-            ? WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET
-            : undefined,
+
+      // Re-init Stripe with the fresh publishable key (matches the
+      // initial-purchase flow — bypasses any bundle-time staleness).
+      if (publishableKey) {
+        try {
+          await initStripe({ publishableKey });
+        } catch (e) {
+          console.warn("[upgrade] initStripe re-init failed:", e);
+        }
+      }
+
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: "DVNT",
+        customerId: customer,
+        customerEphemeralKeySecret: ephemeralKey,
+        paymentIntentClientSecret: paymentIntent,
+        allowsDelayedPaymentMethods: false,
+        defaultBillingDetails: { name: "" },
+        appearance: {
+          colors: {
+            primary: selectedTier.accent || "#8A40CF",
+            background: "#1a1a1a",
+            componentBackground: "#262626",
+            componentText: "#ffffff",
+            secondaryText: "#a1a1aa",
+            placeholderText: "#71717a",
+            icon: selectedTier.accent || "#8A40CF",
+          },
+          shapes: { borderRadius: 12, borderWidth: 1 },
+        },
+        returnURL: "dvnt://ticket/upgrade/success",
       });
-      // On return, `refetch` will pick up the new ticket_type_id if payment completed.
+
+      if (initError) {
+        console.error("[upgrade] initPaymentSheet error:", initError);
+        showToast(
+          "error",
+          "Upgrade failed",
+          initError.message || "Could not open payment sheet",
+        );
+        setUpgradeState("idle");
+        return;
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        if (presentError.code === "Canceled") {
+          // User dismissed — silent
+          setUpgradeState("idle");
+          return;
+        }
+        console.error("[upgrade] presentPaymentSheet error:", presentError);
+        showToast(
+          "error",
+          "Payment failed",
+          presentError.message || "Could not complete payment",
+        );
+        setUpgradeState("idle");
+        return;
+      }
+
+      // Payment succeeded — webhook updates the ticket type asynchronously.
+      // Optimistically show success state + refetch.
+      Haptics.notificationAsync(
+        Haptics.NotificationFeedbackType.Success,
+      ).catch(() => {});
+      setUpgradeState("success");
       await refetch();
-      setUpgradeState("idle");
     } catch (err: any) {
       showToast("error", "Error", err?.message || "Could not start upgrade");
       setUpgradeState("idle");
     } finally {
       setIsConfirming(false);
     }
-  }, [selectedTier, dbTicket, showToast, refetch]);
+  }, [
+    selectedTier,
+    dbTicket,
+    showToast,
+    refetch,
+    initPaymentSheet,
+    presentPaymentSheet,
+  ]);
 
   const handleRefreshWallet = React.useCallback(async () => {
     if (!dbTicket) return;

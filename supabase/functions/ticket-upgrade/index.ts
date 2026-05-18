@@ -1,14 +1,18 @@
 /**
- * Ticket Upgrade Edge Function
+ * Ticket Upgrade Edge Function (native PaymentSheet)
  *
  * POST /ticket-upgrade
  * Body: { ticket_id, new_ticket_type_id }
  *
- * Creates a Stripe Checkout Session charging the price DIFFERENCE between
- * the user's current ticket and the requested higher tier.
+ * Returns: { paymentIntent, ephemeralKey, customer, publishableKey, paymentIntentId, diff_cents, buyer_fee }
  *
- * On successful payment, the stripe-webhook marks the old ticket upgraded
- * and issues a new ticket at the higher tier.
+ * Creates a Stripe PaymentIntent charging the price DIFFERENCE between
+ * the user's current ticket and the requested higher tier, plus a buyer
+ * service fee. The client opens the native PaymentSheet with this PI.
+ *
+ * On payment_intent.succeeded, stripe-webhook (case metadata.type ===
+ * "ticket_upgrade" inside payment_intent.succeeded) updates the existing
+ * ticket row to the new tier.
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
@@ -16,9 +20,15 @@ import { verifySession } from "../_shared/verify-session.ts";
 import { computeFees } from "../_shared/fee-calculator.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
+const STRIPE_PUBLISHABLE_KEY = Deno.env.get("STRIPE_PUBLISHABLE_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const APP_SCHEME = "dvnt";
+
+if (!STRIPE_SECRET_KEY) {
+  console.error(
+    "[ticket-upgrade] FATAL: STRIPE_SECRET_KEY env var is not set. Configure via: npx supabase secrets set STRIPE_SECRET_KEY=sk_...",
+  );
+}
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -50,6 +60,39 @@ async function stripeRequest(
   return data;
 }
 
+async function getOrCreateCustomer(
+  supabase: any,
+  authId: string,
+): Promise<string> {
+  const { data: existing } = await supabase
+    .from("stripe_customers")
+    .select("stripe_customer_id")
+    .eq("user_id", authId)
+    .single();
+  if (existing?.stripe_customer_id) return existing.stripe_customer_id;
+
+  const { data: authUser } = await supabase
+    .from("user")
+    .select("id, name, email")
+    .eq("id", authId)
+    .single();
+
+  const params: Record<string, string> = {
+    "metadata[dvnt_user_id]": authId,
+  };
+  if (authUser?.email) params.email = authUser.email;
+  if (authUser?.name) params.name = authUser.name;
+
+  const customer = await stripeRequest("/customers", params);
+
+  await supabase.from("stripe_customers").upsert({
+    user_id: authId,
+    stripe_customer_id: customer.id,
+  });
+
+  return customer.id;
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: cors });
@@ -59,13 +102,22 @@ Deno.serve(async (req: Request) => {
     return new Response("Method not allowed", { status: 405, headers: cors });
   }
 
+  if (!STRIPE_SECRET_KEY) {
+    return json(
+      {
+        error:
+          "Stripe is not configured for this environment. Contact support.",
+      },
+      503,
+    );
+  }
+
   try {
     const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { Authorization: `Bearer ${SUPABASE_SERVICE_KEY}` } },
     });
 
-    // Verify user session
     const authId = await verifySession(supabase, req);
     if (!authId) {
       return json({ error: "Unauthorized" }, 401);
@@ -73,13 +125,16 @@ Deno.serve(async (req: Request) => {
 
     const { ticket_id, new_ticket_type_id } = await req.json();
     if (!ticket_id || !new_ticket_type_id) {
-      return json({ error: "ticket_id and new_ticket_type_id are required" }, 400);
+      return json(
+        { error: "ticket_id and new_ticket_type_id are required" },
+        400,
+      );
     }
 
     // Fetch the existing ticket
     const { data: ticket, error: ticketErr } = await supabase
       .from("tickets")
-      .select("id, event_id, user_id, purchase_amount_cents, status, ticket_type_id, checked_in_at")
+      .select("id, event_id, user_id, ticket_type_id, purchase_amount_cents, status")
       .eq("id", ticket_id)
       .single();
 
@@ -87,46 +142,38 @@ Deno.serve(async (req: Request) => {
       return json({ error: "Ticket not found" }, 404);
     }
 
-    // Verify ownership — ticket.user_id is the Better Auth userId string
-    if (String(ticket.user_id) !== String(authId)) {
-      return json({ error: "Not your ticket" }, 403);
+    if (ticket.user_id !== authId) {
+      return json({ error: "You don't own this ticket" }, 403);
     }
 
-    if (ticket.status !== "active") {
-      return json({ error: "Only active tickets can be upgraded" }, 400);
+    if (ticket.status !== "active" && ticket.status !== "valid") {
+      return json({ error: "Ticket is not active" }, 400);
     }
 
-    // Block upgrades after check-in
-    if (ticket.checked_in_at) {
-      return json({ error: "Checked-in tickets cannot be upgraded" }, 400);
-    }
-
-    // Block same-tier upgrade
     if (String(ticket.ticket_type_id) === String(new_ticket_type_id)) {
       return json({ error: "You already have this tier" }, 400);
     }
 
-    // Fetch new ticket type with inventory
+    // Fetch the new tier
     const { data: newType, error: newTypeErr } = await supabase
       .from("ticket_types")
-      .select("id, name, price_cents, event_id, quantity_total, quantity_sold, is_active")
+      .select("*")
       .eq("id", new_ticket_type_id)
+      .eq("event_id", ticket.event_id)
       .single();
 
     if (newTypeErr || !newType) {
-      return json({ error: "Target tier not found" }, 404);
+      return json({ error: "New tier not found for this event" }, 404);
     }
 
-    if (!newType.is_active) {
-      return json({ error: "This tier is no longer available" }, 400);
+    if (newType.is_active === false) {
+      return json({ error: "This tier is not available" }, 400);
     }
 
-    if (String(newType.event_id) !== String(ticket.event_id)) {
-      return json({ error: "Tier belongs to a different event" }, 400);
-    }
-
-    // Inventory check — account for the slot that will be freed by moving off old tier
-    const availableSlots = (newType.quantity_total || 0) - (newType.quantity_sold || 0);
+    // Check availability for the new tier
+    const totalCap = newType.quantity_total ?? Infinity;
+    const sold = newType.quantity_sold ?? 0;
+    const availableSlots = totalCap - sold;
     if (availableSlots <= 0) {
       return json({ error: "This tier is sold out" }, 400);
     }
@@ -136,44 +183,32 @@ Deno.serve(async (req: Request) => {
     const diffCents = Math.max(0, newPriceCents - paidCents);
 
     if (diffCents === 0) {
-      return json({ error: "New tier must cost more than your current tier" }, 400);
+      return json(
+        { error: "New tier must cost more than your current tier" },
+        400,
+      );
     }
 
     if (newPriceCents < paidCents) {
       return json({ error: "Downgrades are not supported" }, 400);
     }
 
-    // Fetch event for display name
-    const { data: event } = await supabase
-      .from("events")
-      .select("title")
-      .eq("id", ticket.event_id)
-      .single();
-
-    // Compute buyer fees: 2.5% + $1/ticket (on top of price difference).
-    // The buyer pays customer_charge_amount; organizer fees are handled separately
-    // via Stripe Connect application_fee_amount once organizer accounts are linked.
+    // Compute buyer fees: 2.5% + $1 on top of the price difference
     const fees = computeFees(diffCents, 1);
 
-    // Create Stripe Checkout Session for the price difference + buyer fee.
-    // Success routes back to the upgrade screen so the user sees the animated
-    // success state + wallet refresh CTA. Cancel routes to the ticket detail.
-    const successUrl = `${APP_SCHEME}://ticket/upgrade/${ticket.event_id}?upgraded=1`;
-    const cancelUrl = `${APP_SCHEME}://ticket/${ticket.event_id}`;
+    // Stripe Customer + ephemeral key for PaymentSheet
+    const customerId = await getOrCreateCustomer(supabase, authId);
 
-    const session = await stripeRequest("/checkout/sessions", {
-      mode: "payment",
-      "line_items[0][price_data][currency]": "usd",
-      "line_items[0][price_data][unit_amount]": String(fees.customer_charge_amount),
-      "line_items[0][price_data][product_data][name]": `Upgrade to ${newType.name}`,
-      "line_items[0][price_data][product_data][description]":
-        `${event?.title || "Event"} — Upgrade from current ticket (incl. $${(fees.buyer_fee / 100).toFixed(2)} service fee)`,
-      "line_items[0][quantity]": "1",
-      success_url: successUrl,
-      cancel_url: cancelUrl,
+    const pi = await stripeRequest("/payment_intents", {
+      amount: String(fees.customer_charge_amount),
+      currency: "usd",
+      customer: customerId,
+      "automatic_payment_methods[enabled]": "true",
+      description: `Upgrade to ${newType.name}`,
       "metadata[type]": "ticket_upgrade",
       "metadata[ticket_id]": String(ticket_id),
       "metadata[new_ticket_type_id]": String(new_ticket_type_id),
+      "metadata[old_ticket_type_id]": String(ticket.ticket_type_id),
       "metadata[event_id]": String(ticket.event_id),
       "metadata[user_auth_id]": authId,
       "metadata[diff_cents]": String(diffCents),
@@ -181,8 +216,26 @@ Deno.serve(async (req: Request) => {
       "metadata[fee_policy_version]": fees.fee_policy_version,
     });
 
+    const ephemeralRes = await fetch(
+      "https://api.stripe.com/v1/ephemeral_keys",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+          "Stripe-Version": "2026-02-25.clover",
+        },
+        body: new URLSearchParams({ customer: customerId }).toString(),
+      },
+    );
+    const ephemeralKey = await ephemeralRes.json();
+
     return json({
-      url: session.url,
+      paymentIntent: pi.client_secret,
+      ephemeralKey: ephemeralKey.secret,
+      customer: customerId,
+      publishableKey: STRIPE_PUBLISHABLE_KEY,
+      paymentIntentId: pi.id,
       diff_cents: diffCents,
       buyer_fee: fees.buyer_fee,
       customer_charge_amount: fees.customer_charge_amount,
