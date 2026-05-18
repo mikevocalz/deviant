@@ -28,6 +28,8 @@ interface EventDetailScreenState {
   upgradeSheetOption: UpgradeTierOption | null;
   // Share sheet
   showShareSheet: boolean;
+  // Header overflow action sheet (collapses calendar/share/like/edit/delete)
+  showActionSheet: boolean;
 
   setSelectedTier: (tier: TicketTier | null) => void;
   setShowRatingModal: (show: boolean) => void;
@@ -43,6 +45,7 @@ interface EventDetailScreenState {
   setMomentUploadProgress: (progress: number) => void;
   setUpgradeSheetOption: (option: UpgradeTierOption | null) => void;
   setShowShareSheet: (show: boolean) => void;
+  setShowActionSheet: (show: boolean) => void;
   resetEventDetailScreen: () => void;
 }
 
@@ -61,6 +64,7 @@ const initialState = {
   momentUploadProgress: 0,
   upgradeSheetOption: null,
   showShareSheet: false,
+  showActionSheet: false,
 };
 
 export const useEventDetailScreenStore = create<EventDetailScreenState>(
@@ -81,6 +85,7 @@ export const useEventDetailScreenStore = create<EventDetailScreenState>(
     setMomentUploadProgress: (progress) => set({ momentUploadProgress: progress }),
     setUpgradeSheetOption: (option) => set({ upgradeSheetOption: option }),
     setShowShareSheet: (show) => set({ showShareSheet: show }),
+    setShowActionSheet: (show) => set({ showActionSheet: show }),
 
     resetEventDetailScreen: () => set(initialState),
   }),

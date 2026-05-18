@@ -360,6 +360,10 @@ function EventDetailScreenContent() {
   const setShowShareSheet = useEventDetailScreenStore(
     (s) => s.setShowShareSheet,
   );
+  const showActionSheet = useEventDetailScreenStore((s) => s.showActionSheet);
+  const setShowActionSheet = useEventDetailScreenStore(
+    (s) => s.setShowActionSheet,
+  );
 
   const { data: myTicketData } = useMyTicketForEvent(eventId);
   const { data: liveTicketTypes = [] } = useTicketTypes(eventId);
@@ -2040,40 +2044,13 @@ function EventDetailScreenContent() {
             {event.title}
           </Animated.Text>
           <View style={s.headerActions}>
-            {isHost && (
-              <Pressable
-                onPress={() =>
-                  router.push(`/(protected)/events/${eventId}/edit` as any)
-                }
-                hitSlop={12}
-              >
-                <DVNTLiquidGlassIconButton size={40}>
-                  <Pencil size={18} color="#fff" />
-                </DVNTLiquidGlassIconButton>
-              </Pressable>
-            )}
-            {isHost && (
-              <Pressable onPress={handleDeleteEvent} hitSlop={12}>
-                <DVNTLiquidGlassIconButton size={40}>
-                  <Trash2 size={18} color="#ef4444" />
-                </DVNTLiquidGlassIconButton>
-              </Pressable>
-            )}
-            <Pressable onPress={handleAddToCalendar} hitSlop={12}>
-              <DVNTLiquidGlassIconButton size={40}>
-                <CalendarPlus size={18} color="#fff" />
-              </DVNTLiquidGlassIconButton>
-            </Pressable>
-            <Pressable onPress={handleShare} hitSlop={12}>
-              <DVNTLiquidGlassIconButton size={40}>
-                <Share2 size={18} color="#fff" />
-              </DVNTLiquidGlassIconButton>
-            </Pressable>
-            <Pressable onPress={() => setShowShareSheet(true)} hitSlop={12}>
-              <DVNTLiquidGlassIconButton size={40}>
-                <Send size={18} color="#fff" />
-              </DVNTLiquidGlassIconButton>
-            </Pressable>
+            {/*
+              Header buttons collapsed into a single overflow menu. Heart
+              stays inline for one-tap like/unlike since it's the highest-
+              frequency action. Everything else (edit/delete/calendar/
+              share/send) lives in the EventActionSheet to keep the chrome
+              uncluttered.
+            */}
             <Pressable onPress={handleToggleLike} hitSlop={12}>
               <DVNTLiquidGlassIconButton size={40}>
                 <Heart
@@ -2081,6 +2058,16 @@ function EventDetailScreenContent() {
                   color={isLiked ? "#FF5BFC" : "#fff"}
                   fill={isLiked ? "#FF5BFC" : "transparent"}
                 />
+              </DVNTLiquidGlassIconButton>
+            </Pressable>
+            <Pressable
+              onPress={() => setShowActionSheet(true)}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="More options"
+            >
+              <DVNTLiquidGlassIconButton size={40}>
+                <MoreHorizontal size={20} color="#fff" />
               </DVNTLiquidGlassIconButton>
             </Pressable>
           </View>
@@ -2140,6 +2127,21 @@ function EventDetailScreenContent() {
         eventDate={eventData?.fullDate || eventData?.date || undefined}
         eventImage={eventData?.image || undefined}
         eventLocation={eventData?.location || undefined}
+      />
+
+      {/* Header overflow — calendar / share / edit / delete / promote */}
+      <EventActionSheet
+        visible={showActionSheet}
+        onClose={() => setShowActionSheet(false)}
+        isHost={isHost}
+        isLiked={isLiked}
+        onShare={handleShare}
+        onToggleLike={handleToggleLike}
+        onAddToCalendar={handleAddToCalendar}
+        onEdit={() =>
+          router.push(`/(protected)/events/${eventId}/edit` as any)
+        }
+        onDelete={handleDeleteEvent}
       />
     </View>
   );
