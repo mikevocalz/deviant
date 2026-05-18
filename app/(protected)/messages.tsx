@@ -1297,6 +1297,13 @@ function MessagesScreenContent() {
       className="flex-1 bg-background max-w-3xl w-full self-center"
       style={{ paddingTop: insets.top }}
     >
+      {/* DEBUG SENTINEL — remove once blank-screen diagnosed */}
+      <View
+        style={{
+          height: 12,
+          backgroundColor: "rgb(255, 109, 193)",
+        }}
+      />
       {/* Header */}
       <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
         <Pressable onPress={() => router.back()} hitSlop={12}>
