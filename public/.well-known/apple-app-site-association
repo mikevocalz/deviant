@@ -48,6 +48,22 @@
             "comment": "Tickets"
           },
           {
+            "/": "/tickets/*",
+            "comment": "Tickets (plural alias: success/cancel/guest)"
+          },
+          {
+            "/": "/my-tickets",
+            "comment": "My Tickets"
+          },
+          {
+            "/": "/organizer-setup",
+            "comment": "Organizer onboarding"
+          },
+          {
+            "/": "/sneaky/*",
+            "comment": "Sneaky checkout (success/cancel/detail)"
+          },
+          {
             "/": "/call/*",
             "comment": "Video calls"
           },
