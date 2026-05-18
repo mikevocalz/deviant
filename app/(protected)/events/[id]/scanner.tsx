@@ -212,18 +212,6 @@ function LiveCamera({
   torchOn: boolean;
 }) {
   const device = useCameraDevice("back");
-  // Pick a high-res format. VisionCamera defaults to the lowest format
-  // that satisfies the outputs, which on most iPhones is 720p — fine
-  // for QR scanning math but visibly blurry when the preview fills a
-  // full-screen Camera view on iPhone 14 Pro (1179×2556). Asking for
-  // 1080p photo + 1080p video gives a sharp preview without taxing the
-  // GPU more than necessary.
-  const format = useCameraFormat
-    ? useCameraFormat(device, [
-        { videoResolution: { width: 1920, height: 1080 } },
-        { photoResolution: { width: 1920, height: 1080 } },
-      ])
-    : undefined;
   const barcodeScannerOutput = useBarcodeScannerOutput({
     barcodeFormats: ["qr-code"],
     outputResolution: "full",
@@ -239,7 +227,6 @@ function LiveCamera({
     <Camera
       style={{ flex: 1 }}
       device={device}
-      format={format}
       isActive={true}
       outputs={[barcodeScannerOutput]}
       torchMode={torchOn ? "on" : "off"}
