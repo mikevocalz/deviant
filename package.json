@@ -131,7 +131,7 @@
     "react-native-keyboard-controller": "^1.21.5",
     "react-native-mmkv": "^4.3.1",
     "react-native-nitro-image": "^0.13.1",
-    "react-native-nitro-modules": "^0.35.4",
+    "react-native-nitro-modules": "0.35.6",
     "react-native-pager-view": "^8.0.1",
     "react-native-reanimated": "^4.3.0",
     "react-native-safe-area-context": "^5.7.0",
