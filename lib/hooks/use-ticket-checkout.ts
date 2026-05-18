@@ -96,12 +96,18 @@ export function useTicketCheckout() {
         // be stale (e.g. an OTA published before the EAS env was set), so
         // we always trust the server's response which reads from the
         // edge-function secret store at request time.
+        //
+        // NOTE: we deliberately do NOT pass merchantIdentifier here.
+        // The Apple Pay processing certificate for merchant.com.dvnt.app
+        // is not yet registered with Stripe, and an unregistered merchant
+        // ID makes presentPaymentSheet bail out with STPGenericConnection
+        // Error ('There was an unexpected error -- try again in a few
+        // seconds'). Disabling Apple Pay surfaces clears the error so
+        // card-entry works. Re-enable once the Apple Pay processing
+        // certificate is generated + uploaded to Stripe.
         if (publishableKey) {
           try {
-            await initStripe({
-              publishableKey,
-              merchantIdentifier: "merchant.com.dvnt.app",
-            });
+            await initStripe({ publishableKey });
           } catch (e) {
             console.warn(
               "[useTicketCheckout] initStripe re-init failed (continuing):",
