@@ -725,19 +725,18 @@ function ViewTicketUpgradeScreenContent() {
               disabled={isConfirming}
               style={({ pressed }) => [
                 styles.confirmBtn,
-                { backgroundColor: selectedTier.accent },
                 pressed && !isConfirming && { opacity: 0.9 },
                 isConfirming && { opacity: 0.6 },
               ]}
             >
               {isConfirming ? (
-                <ActivityIndicator size="small" color="#000" />
+                <ActivityIndicator size="small" color="#fff" />
               ) : (
                 <>
                   <Text style={styles.confirmBtnText}>
                     Confirm · Pay {formatPrice(selectedTier.diffCents + buyerFee(selectedTier.diffCents))}
                   </Text>
-                  <ChevronRight size={18} color="#000" strokeWidth={2.5} />
+                  <ChevronRight size={20} color="#fff" strokeWidth={2.5} />
                 </>
               )}
             </Pressable>
@@ -1024,15 +1023,21 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
-    paddingVertical: 16,
-    borderRadius: 16,
+    gap: 8,
+    paddingVertical: 18,
+    borderRadius: 18,
+    backgroundColor: "rgb(255, 109, 193)", // DVNT brand fuchsia — always
+    shadowColor: "rgb(255, 109, 193)",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.45,
+    shadowRadius: 14,
+    elevation: 8,
   },
   confirmBtnText: {
-    color: "#000",
-    fontSize: 15,
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "800",
-    letterSpacing: 0.2,
+    letterSpacing: 0.3,
   },
   footerHint: {
     paddingVertical: 16,
