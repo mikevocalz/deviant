@@ -2142,6 +2142,22 @@ function EventDetailScreenContent() {
           router.push(`/(protected)/events/${eventId}/edit` as any)
         }
         onDelete={handleDeleteEvent}
+        onDashboard={
+          isHost
+            ? () =>
+                router.push(
+                  `/(protected)/events/${eventId}/organizer` as any,
+                )
+            : undefined
+        }
+        onScanner={
+          isHost
+            ? () =>
+                router.push(
+                  `/(protected)/events/${eventId}/scanner` as any,
+                )
+            : undefined
+        }
       />
     </View>
   );
