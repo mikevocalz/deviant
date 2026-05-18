@@ -381,6 +381,7 @@ export function WeatherModule({
         contentContainerStyle={{
           paddingHorizontal: 16,
           gap: 10,
+          paddingTop: 14,
           paddingBottom: 4,
         }}
       >
