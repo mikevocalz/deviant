@@ -279,9 +279,21 @@ function ScannerWithCamera({ eventId }: { eventId: string }) {
 
   const handleCodeScanned = useCallback(
     (codes: any[]) => {
+      console.log(
+        "[Scanner] handleCodeScanned fired — codes.length=",
+        codes?.length,
+        "cooldown=",
+        cooldownRef.current,
+        "hasResult=",
+        !!scanResult,
+      );
       if (cooldownRef.current || scanResult) return;
       const code = codes[0];
       const qrValue = code?.rawValue ?? code?.value;
+      console.log(
+        "[Scanner] qrValue=",
+        qrValue ? qrValue.substring(0, 40) : "(empty)",
+      );
       if (!qrValue) return;
 
       if (qrValue === lastScannedRef.current) return;
@@ -293,6 +305,7 @@ function ScannerWithCamera({ eventId }: { eventId: string }) {
       if (deepLinkMatch) {
         qrToken = deepLinkMatch[1];
       }
+      console.log("[Scanner] dispatching scan, qrToken prefix=", qrToken.substring(0, 12));
 
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
