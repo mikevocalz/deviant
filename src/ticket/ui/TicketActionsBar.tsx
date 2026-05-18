@@ -459,8 +459,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   userRowHandle: {
-    color: "rgba(255,255,255,0.55)",
-    fontSize: 13,
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
     marginTop: 2,
   },
 });
