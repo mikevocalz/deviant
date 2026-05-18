@@ -957,6 +957,12 @@ function MessagesScreenContent() {
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((s) => s.user);
+  console.log(
+    "[MessagesScreen] render — currentUser=",
+    currentUser?.id,
+    "tab=",
+    tab,
+  );
   const setMessagesUnread = useUnreadCountsStore((s) => s.setMessagesUnread);
   const setSpamUnread = useUnreadCountsStore((s) => s.setSpamUnread);
   const queryClient = useQueryClient();
