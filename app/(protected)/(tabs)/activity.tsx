@@ -338,6 +338,23 @@ const ActivityItem = memo(
           </Text>
           {getActivityText(activity)}
         </Text>
+        {activity.type === "event_broadcast" && activity.payload?.body && (
+          <Text
+            className="mt-1 text-sm text-foreground"
+            numberOfLines={3}
+            style={{ opacity: 0.85 }}
+          >
+            “{activity.payload.body}”
+          </Text>
+        )}
+        {activity.type === "event_changed" && activity.payload?.summary && (
+          <Text
+            className="mt-1 text-xs text-muted-foreground"
+            numberOfLines={2}
+          >
+            {activity.payload.summary}
+          </Text>
+        )}
         <Text className="mt-0.5 text-xs text-muted-foreground">
           {activity.timeAgo}
         </Text>

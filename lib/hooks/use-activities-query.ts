@@ -68,6 +68,13 @@ export interface Activity {
   timeAgo: string;
   isRead: boolean;
   createdAt?: string;
+  /** Inline content carried by certain activity types (e.g. broadcast). */
+  payload?: {
+    title?: string;
+    body?: string;
+    summary?: string;
+    changes?: string[];
+  } | null;
 }
 
 export interface LikedActivity {
@@ -148,6 +155,7 @@ function notificationToActivity(notif: Notification): Activity | null {
       ),
       isRead: !!notif.readAt,
       createdAt: notif.createdAt || new Date().toISOString(),
+      payload: notif.payload || null,
     };
   } catch (error) {
     console.error("[ActivitiesQuery] notificationToActivity error:", error);

@@ -46,6 +46,13 @@ export interface Notification {
   } | null;
   postId: string | null;
   commentId: string | null;
+  /** Inline activity payload (e.g. broadcast body, change summary). */
+  payload?: {
+    title?: string;
+    body?: string;
+    summary?: string;
+    changes?: string[];
+  } | null;
 }
 
 interface NotificationCommentContext {
@@ -588,6 +595,36 @@ export const notificationsApi = {
         }
       }
 
+      // Batch-fetch event titles for event-typed activity rows so the
+      // feed can render "X cancelled Friday Night" instead of the
+      // bare entity id. One query for every distinct event.
+      const eventIds = [
+        ...new Set(
+          (data || [])
+            .filter(
+              (n: any) => n.entity_type === "event" && n.entity_id != null,
+            )
+            .map((n: any) => parseInt(String(n.entity_id), 10))
+            .filter((id: number) => Number.isFinite(id) && id > 0),
+        ),
+      ];
+      const eventMap = new Map<
+        string,
+        { title: string | null; cover: string | null }
+      >();
+      if (eventIds.length > 0) {
+        const { data: eventRows } = await supabase
+          .from("events")
+          .select("id, title, cover_image_url")
+          .in("id", eventIds);
+        for (const e of eventRows || []) {
+          eventMap.set(String((e as any).id), {
+            title: (e as any).title || null,
+            cover: (e as any).cover_image_url || null,
+          });
+        }
+      }
+
       // Batch-query follows table: which actors does the viewer follow?
       const actorIds = [
         ...new Set(
@@ -638,6 +675,11 @@ export const notificationsApi = {
             ? entityId
             : commentContext?.commentId || null;
 
+        const eventInfo =
+          n.entity_type === "event" && entityId
+            ? eventMap.get(String(entityId))
+            : undefined;
+
         return {
           id: String(n.id),
           type: n.type,
@@ -653,6 +695,13 @@ export const notificationsApi = {
           post: postData,
           postId: resolvedPostId,
           commentId,
+          payload: n.entity_payload || null,
+          event: eventInfo
+            ? {
+                id: String(entityId),
+                title: eventInfo.title || undefined,
+              }
+            : null,
         };
       });
 

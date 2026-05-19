@@ -60,6 +60,12 @@ export interface Activity {
   timeAgo: string;
   isRead: boolean;
   createdAt?: string;
+  payload?: {
+    title?: string;
+    body?: string;
+    summary?: string;
+    changes?: string[];
+  } | null;
 }
 
 interface ActivityState {
