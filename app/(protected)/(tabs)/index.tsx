@@ -9,7 +9,6 @@ import * as Haptics from "expo-haptics";
 import { useCallback, memo } from "react";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { Motion } from "@legendapp/motion";
-import { Flame, Sparkles } from "lucide-react-native";
 
 /**
  * StoriesBar memoized at module level. Rendering it as a sibling of the
@@ -30,50 +29,34 @@ export const FeedModeToggle = memo(function FeedModeToggle() {
     setNsfwEnabled(!nsfwEnabled, "feed_toggle");
   }, [nsfwEnabled, setNsfwEnabled]);
 
-  // Pill-shaped toggle with both icon AND label so the header element
-  // reads as "this is a feed-mode switch" instead of as a stray emoji.
-  // Active state uses fuchsia for spicy, cyan for sweet — both brand
-  // tones, with the off-state staying neutral so the active mode pops.
   return (
     <Motion.View
-      whileTap={{ scale: 0.94 }}
+      whileTap={{ scale: 0.9 }}
+      style={[
+        {
+          width: 40,
+          height: 40,
+          borderRadius: 12,
+          alignItems: "center",
+          justifyContent: "center",
+          borderWidth: 1,
+          backgroundColor: nsfwEnabled
+            ? "rgba(153,27,27,0.3)"
+            : "rgba(255,255,255,0.06)",
+          borderColor: nsfwEnabled
+            ? "rgba(153,27,27,0.6)"
+            : "rgba(255,255,255,0.12)",
+        },
+      ]}
       transition={{ type: "spring", damping: 20, stiffness: 300 }}
     >
       <Pressable
         onPress={toggleSpicy}
-        accessibilityLabel={
-          nsfwEnabled ? "Switch to sweet feed" : "Switch to spicy feed"
-        }
-        style={{
-          flexDirection: "row",
-          alignItems: "center",
-          gap: 6,
-          paddingHorizontal: 12,
-          paddingVertical: 7,
-          borderRadius: 999,
-          borderWidth: 1,
-          backgroundColor: nsfwEnabled
-            ? "rgba(255,91,252,0.14)"
-            : "rgba(63,220,255,0.10)",
-          borderColor: nsfwEnabled
-            ? "rgba(255,91,252,0.45)"
-            : "rgba(63,220,255,0.32)",
-        }}
+        style={{ width: "100%", height: "100%", alignItems: "center", justifyContent: "center" }}
+        accessibilityLabel={nsfwEnabled ? "Switch to sweet feed" : "Switch to spicy feed"}
       >
-        {nsfwEnabled ? (
-          <Flame size={14} color="#FF5BFC" />
-        ) : (
-          <Sparkles size={14} color="#3FDCFF" />
-        )}
-        <Text
-          style={{
-            fontSize: 12,
-            fontWeight: "700",
-            letterSpacing: 0.2,
-            color: nsfwEnabled ? "#FF5BFC" : "#3FDCFF",
-          }}
-        >
-          {nsfwEnabled ? "Spicy" : "Sweet"}
+        <Text style={{ fontSize: 18 }}>
+          {nsfwEnabled ? "😈" : "😇"}
         </Text>
       </Pressable>
     </Motion.View>
