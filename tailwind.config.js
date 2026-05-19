@@ -15,12 +15,25 @@ module.exports = {
         "display-semibold": ["SpaceGrotesk-SemiBold", "system-ui", "sans-serif"],
         "display-bold": ["SpaceGrotesk-Bold", "system-ui", "sans-serif"],
       },
+      fontSize: {
+        // Semantic type scale — see lib/theme/typography.ts.
+        // [size, { lineHeight, letterSpacing, fontWeight }]
+        display: ["32px", { lineHeight: "40px", letterSpacing: "-0.5px", fontWeight: "700" }],
+        title:   ["22px", { lineHeight: "28px", letterSpacing: "-0.3px", fontWeight: "600" }],
+        heading: ["17px", { lineHeight: "22px", letterSpacing: "-0.2px", fontWeight: "600" }],
+        body:    ["15px", { lineHeight: "20px", fontWeight: "400" }],
+        caption: ["13px", { lineHeight: "16px", fontWeight: "500" }],
+        micro:   ["11px", { lineHeight: "14px", letterSpacing: "0.3px", fontWeight: "600" }],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        // Tier-accent semantic aliases — see lib/theme/tier-colors.ts
+        "accent-cyan": "hsl(var(--accent-cyan))",
+        "accent-vip-soft": "hsl(var(--accent-vip-soft))",
         primary: {
           DEFAULT: "hsl(var(--primary))",
           foreground: "hsl(var(--primary-foreground))",

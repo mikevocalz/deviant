@@ -9,6 +9,10 @@
     --accent: 304 100% 68%;
     --purple: 267 55% 53%;
 
+    /* Tier-Accent Semantic Aliases — see lib/theme/tier-colors.ts */
+    --accent-cyan: 191 100% 62%;     /* #3FDCFF — free tier */
+    --accent-vip-soft: 270 89% 75%;  /* #C084FC — VIP highlight variant */
+
     /* Base Colors */
     --background: 0 0% 0%;
     --foreground: 0 0% 100%;
