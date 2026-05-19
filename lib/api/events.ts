@@ -1076,20 +1076,46 @@ export const eventsApi = {
   },
 
   /**
-   * Accept co-organizer invitation
+   * Accept co-organizer invitation. Legacy signature: takes the EVENT_ID
+   * (matches activity feed rows where notifications.entity_id was the
+   * event id). Internally locates the pending event_co_organizers row
+   * for the current user on that event, then routes through the
+   * invite-co-organizer edge fn so the inviter gets a push + the audit
+   * log entry is created. Bypassing the edge fn (direct DB upsert)
+   * dropped both of those — fixed in V2-EVT-03 follow-up.
    */
   async acceptCoOrganizerInvite(eventId: string) {
     try {
-      const authId = getCurrentUserAuthId();
+      const authId = await getCurrentUserAuthId();
       if (!authId) throw new Error("Not authenticated");
 
-      const { error } = await supabase
+      // Locate the user's pending invite for this event so we can pass
+      // its uuid invite_id to the edge fn (which takes invite_id, not
+      // event_id + user_id).
+      const { data: invite } = await supabase
         .from("event_co_organizers")
-        .update({ accepted: true })
+        .select("id, accepted")
         .eq("event_id", parseInt(eventId))
-        .eq("user_id", authId);
+        .eq("user_id", authId)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (!invite) throw new Error("No pending invite found");
+      if (invite.accepted) return true; // already accepted, idempotent
+
+      const { invokeEdge } = await import("./invoke-edge");
+      const { data, error } = await invokeEdge<{
+        ok: boolean;
+        alreadyAccepted?: boolean;
+        error?: { code: string; message: string };
+      }>("invite-co-organizer", {
+        action: "accept",
+        invite_id: invite.id,
+      });
+      if (error || !data?.ok) {
+        throw new Error(
+          data?.error?.message || error?.message || "Failed to accept",
+        );
+      }
       return true;
     } catch (err) {
       console.error("[Events] acceptCoOrganizerInvite error:", err);

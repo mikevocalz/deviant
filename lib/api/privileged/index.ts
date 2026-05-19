@@ -362,6 +362,37 @@ export async function cancelEvent(
  */
 export type CoOrgRole = "scanner" | "editor" | "admin";
 
+export interface HostDashboardEvent {
+  id: number;
+  title: string;
+  start_date: string | null;
+  end_date: string | null;
+  cover_image_url: string | null;
+  status: string;
+  total_attendees: number | null;
+  capacity: number | null;
+  sold_count: number;
+  scanned_count: number;
+  gross_cents: number;
+}
+
+export interface HostDashboard {
+  ok: boolean;
+  stats: {
+    monthSold: number;
+    monthRevenueCents: number;
+    scanRate: number | null;
+  };
+  tonight: HostDashboardEvent[];
+  upcoming: HostDashboardEvent[];
+  drafts: HostDashboardEvent[];
+  past: HostDashboardEvent[];
+}
+
+export async function getHostDashboard(): Promise<HostDashboard> {
+  return invokeEdgeFunction<HostDashboard>("get-host-dashboard", {});
+}
+
 export interface StaffEntry {
   inviteId: string | null;
   authId: string;
