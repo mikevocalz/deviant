@@ -11,7 +11,7 @@ import { CORS_HEADERS, jsonResponse } from "../_shared/verify-session.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const DEEP_LINK_BASE = "https://dvntlive.app";
+const DEEP_LINK_BASE = "https://dvntapp.live";
 const CDN_BASE = Deno.env.get("BUNNY_CDN_URL") || "https://dvnt.b-cdn.net";
 
 // ── Helpers ────────────────────────────────────────────────────────────

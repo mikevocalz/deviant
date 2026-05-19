@@ -1,7 +1,7 @@
 import { Alert, Platform, Share } from "react-native";
 
 const APP_SCHEME = "dvnt";
-const WEB_BASE_URL = "https://dvntlive.app";
+const WEB_BASE_URL = "https://dvntapp.live";
 
 export interface ShareableContent {
   type: "post" | "profile" | "event" | "story";

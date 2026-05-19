@@ -1,12 +1,12 @@
 /**
  * Deep link builder — single source of truth for widget/Live Activity surfaces.
- * Uses existing app config: scheme dvnt, domain dvntlive.app.
+ * Uses existing app config: scheme dvnt, domain dvntapp.live.
  * See lib/deep-linking/link-engine.ts and app.config.js for scheme/domains.
  *
  * Widget and native intents MUST use these functions — no hardcoded URLs.
  */
 
-const WEB_BASE = "https://dvntlive.app";
+const WEB_BASE = "https://dvntapp.live";
 
 export function eventDeepLink(eventId: string): string {
   return `${WEB_BASE}/e/${eventId}`;

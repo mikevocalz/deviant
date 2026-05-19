@@ -110,7 +110,7 @@ type LiveSurfacePayload = {
 | `/moment/:id` | `/(protected)/post/:id` | Moment alias (NEW) |
 | `/events?sort=soon` | `/(protected)/(tabs)/events` | Events sorted soonest (existing) |
 
-Base domain: `https://dvntlive.app`
+Base domain: `https://dvntapp.live`
 
 ## iOS Architecture
 

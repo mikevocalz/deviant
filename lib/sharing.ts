@@ -1,6 +1,6 @@
 import { Share, Platform } from "react-native";
 
-const APP_URL = "https://dvntlive.app";
+const APP_URL = "https://dvntapp.live";
 
 interface ShareOptions {
   title: string;

@@ -1,7 +1,7 @@
 /**
  * Link Engine
  * Central deep link processing: parse → policy → resolve → navigate.
- * Handles https://dvntlive.app/*, dvnt://*, and Expo dev URLs.
+ * Handles https://dvntapp.live/*, dvnt://*, and Expo dev URLs.
  */
 
 import { router } from "expo-router";
@@ -18,7 +18,7 @@ import {
 
 // ── Constants ────────────────────────────────────────────────────────
 
-const PRODUCTION_DOMAIN = "dvntlive.app";
+const PRODUCTION_DOMAIN = "dvntapp.live";
 const CUSTOM_SCHEME = "dvnt";
 const WWW_DOMAIN = `www.${PRODUCTION_DOMAIN}`;
 const DEV_CLIENT_BOOTSTRAP_MARKERS =
@@ -29,8 +29,8 @@ const DEV_CLIENT_BOOTSTRAP_MARKERS =
 /**
  * Parse any incoming URL into a normalized ParsedDeepLink.
  * Supports:
- *  - https://dvntlive.app/*
- *  - https://www.dvntlive.app/*
+ *  - https://dvntapp.live/*
+ *  - https://www.dvntapp.live/*
  *  - dvnt://*
  *  - exp://... (dev only)
  */

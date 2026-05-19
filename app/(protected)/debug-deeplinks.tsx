@@ -20,16 +20,16 @@ import {
 import { useDeepLinkStore } from "@/lib/stores/deep-link-store";
 
 const SAMPLE_URLS = [
-  "https://dvntlive.app/u/mikevocalz",
-  "https://dvntlive.app/p/42",
-  "https://dvntlive.app/e/7",
-  "https://dvntlive.app/story/15",
-  "https://dvntlive.app/messages",
-  "https://dvntlive.app/auth/reset?token=abc123",
+  "https://dvntapp.live/u/mikevocalz",
+  "https://dvntapp.live/p/42",
+  "https://dvntapp.live/e/7",
+  "https://dvntapp.live/story/15",
+  "https://dvntapp.live/messages",
+  "https://dvntapp.live/auth/reset?token=abc123",
   "dvnt://u/mikevocalz",
   "dvnt://p/42",
   "dvnt://settings/close-friends",
-  "https://dvntlive.app/unknown-route",
+  "https://dvntapp.live/unknown-route",
 ];
 
 function DeepLinkTesterScreenContent() {
@@ -106,7 +106,7 @@ function DeepLinkTesterScreenContent() {
           <TextInput
             value={url}
             onChangeText={setUrl}
-            placeholder="https://dvntlive.app/u/mikevocalz"
+            placeholder="https://dvntapp.live/u/mikevocalz"
             placeholderTextColor="#666"
             className="text-foreground text-sm"
             autoCapitalize="none"

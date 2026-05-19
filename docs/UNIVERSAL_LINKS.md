@@ -1,12 +1,12 @@
-# Universal links — why `https://dvntlive.app/e/20` isn't opening the app
+# Universal links — why `https://dvntapp.live/e/20` isn't opening the app
 
 > TL;DR: The app config is correct. The **domain isn't serving** the
 > AASA + assetlinks files that iOS and Android require to claim the
 > domain, so shared links open in Safari/Chrome instead of the app.
-> Deploy `public/.well-known/*` to `https://dvntlive.app/.well-known/`
+> Deploy `public/.well-known/*` to `https://dvntapp.live/.well-known/`
 > with the right `Content-Type` headers, replace the Android
 > fingerprint placeholders, and ship a native build. Then every shared
-> `https://dvntlive.app/…` link will open the app directly.
+> `https://dvntapp.live/…` link will open the app directly.
 
 ---
 
@@ -14,14 +14,14 @@
 
 | Piece | Location | Status |
 |---|---|---|
-| iOS associated domains | `app.config.js:65` — `applinks:dvntlive.app` + `applinks:www.dvntlive.app` | ✅ |
-| Android intent filters | `app.config.js:87-96` — `https` + `dvntlive.app` host | ✅ |
+| iOS associated domains | `app.config.js:65` — `applinks:dvntapp.live` + `applinks:www.dvntapp.live` | ✅ |
+| Android intent filters | `app.config.js:87-96` — `https` + `dvntapp.live` host | ✅ |
 | Custom scheme fallback | `app.config.js:292` — `scheme: "dvnt"` | ✅ |
 | Expo Router handler | `app/+native-intent.tsx` — parses URL → routes | ✅ |
 | Route registry | `lib/deep-linking/route-registry.ts:142` — `/e/:id` → `/(protected)/events/:id` | ✅ |
 | Guest public route | `lib/deep-linking/link-engine.ts:165-174` — logged-out users land on `/(public)/events/:id` | ✅ |
 
-Every `https://dvntlive.app/…` path you care about is already mapped:
+Every `https://dvntapp.live/…` path you care about is already mapped:
 `/e/:id`, `/events/:id`, `/u/:username`, `/p/:id`, `/post/:id`,
 `/story/:id`, `/ticket/:id`, `/comments/:postId`, `/tickets/guest/:token`,
 and ~a dozen more. See `lib/deep-linking/route-registry.ts` for the
@@ -31,13 +31,13 @@ full list.
 
 ## 2 — What's broken (you need to fix this)
 
-### 2a. `dvntlive.app` must serve these two files
+### 2a. `dvntapp.live` must serve these two files
 
-**iOS:** `https://dvntlive.app/.well-known/apple-app-site-association`
-**Android:** `https://dvntlive.app/.well-known/assetlinks.json`
+**iOS:** `https://dvntapp.live/.well-known/apple-app-site-association`
+**Android:** `https://dvntapp.live/.well-known/assetlinks.json`
 
 Both files already exist in this repo at `public/.well-known/` but this
-is an Expo app, not a web host. Something has to serve `dvntlive.app`.
+is an Expo app, not a web host. Something has to serve `dvntapp.live`.
 The file content is correct; the hosting is what's missing.
 
 Requirements Apple/Google enforce:
@@ -80,7 +80,7 @@ fingerprints (Play re-signs your APKs).
 
 ## 3 — How to deploy the `.well-known` files
 
-Pick whichever hosting you use for `dvntlive.app`. This repo contains
+Pick whichever hosting you use for `dvntapp.live`. This repo contains
 a `vercel.json` pre-configured with the right rewrites + headers, so
 if you host with Vercel you can literally `vercel deploy` from the
 repo root and it Just Works.
@@ -94,7 +94,7 @@ vercel link            # link to a Vercel project or create new
 vercel --prod          # deploys `public/` as a static site with
                         # correct Content-Type headers for .well-known
 
-# Point dvntlive.app → this Vercel project in the Vercel dashboard.
+# Point dvntapp.live → this Vercel project in the Vercel dashboard.
 ```
 
 The included `vercel.json` explicitly sets `Content-Type: application/json`
@@ -138,7 +138,7 @@ Publish directory: `public`.
 
 ### Option D — Supabase Edge Function (not recommended but workable)
 
-If you don't have any web host for dvntlive.app at all, you CAN serve
+If you don't have any web host for dvntapp.live at all, you CAN serve
 the files from a Supabase Edge Function and point the apex domain
 there via a rewrite. But static hosting is simpler and free.
 
@@ -172,7 +172,7 @@ domain side.
 Even with the domain correctly serving the files, the NATIVE BINARY on
 the user's device has to have:
 
-- iOS: the **Associated Domains entitlement** with `applinks:dvntlive.app`
+- iOS: the **Associated Domains entitlement** with `applinks:dvntapp.live`
 - Android: the **intent-filter** with `autoVerify="true"` on the host
 
 Both are declared in `app.config.js`, which means they only land on user
@@ -204,10 +204,10 @@ the app:
 
 ```bash
 # On iOS device (install mode):
-xcrun simctl openurl booted "https://dvntlive.app/e/20"
+xcrun simctl openurl booted "https://dvntapp.live/e/20"
 
 # On Android device:
-adb shell am start -W -a android.intent.action.VIEW -d "https://dvntlive.app/e/20"
+adb shell am start -W -a android.intent.action.VIEW -d "https://dvntapp.live/e/20"
 ```
 
 On Android, `adb` will tell you if the intent resolved to the app or
@@ -221,5 +221,5 @@ As a fallback sanity check, the custom-scheme link always works:
 dvnt://e/20
 ```
 
-If `dvnt://e/20` opens the app but `https://dvntlive.app/e/20` doesn't,
+If `dvnt://e/20` opens the app but `https://dvntapp.live/e/20` doesn't,
 the universal-link plumbing is the failure — not the JS router.

@@ -62,7 +62,7 @@ export default {
       supportsTablet: true,
       bundleIdentifier: "com.dvnt.app",
       icon: "./assets/images/ios-icon.png",
-      associatedDomains: ["applinks:dvntlive.app", "applinks:www.dvntlive.app"],
+      associatedDomains: ["applinks:dvntapp.live", "applinks:www.dvntapp.live"],
       deploymentTarget: "17.0",
       privacyManifests: {
         NSPrivacyCollectedDataTypes: [
@@ -201,8 +201,8 @@ export default {
           action: "VIEW",
           autoVerify: true,
           data: [
-            { scheme: "https", host: "dvntlive.app", pathPrefix: "/" },
-            { scheme: "https", host: "www.dvntlive.app", pathPrefix: "/" },
+            { scheme: "https", host: "dvntapp.live", pathPrefix: "/" },
+            { scheme: "https", host: "www.dvntapp.live", pathPrefix: "/" },
           ],
           category: ["BROWSABLE", "DEFAULT"],
         },

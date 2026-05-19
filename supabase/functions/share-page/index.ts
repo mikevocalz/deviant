@@ -20,7 +20,7 @@ const APP_STORE_URL = "https://apps.apple.com/app/id6758054072";
 const PLAY_STORE_URL =
   "https://play.google.com/store/apps/details?id=com.dvnt.app";
 const APP_SCHEME = "dvnt";
-const WEB_DOMAIN = "https://dvntlive.app";
+const WEB_DOMAIN = "https://dvntapp.live";
 const CDN_URL = Deno.env.get("BUNNY_CDN_URL") || "https://dvnt.b-cdn.net";
 
 const CORS_HEADERS = {

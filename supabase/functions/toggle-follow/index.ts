@@ -327,8 +327,8 @@ async function sendFollowNotification(
         entityId: String(followerId),
         // Canonical URL — notification router resolves this first
         url: followerUsername !== "Someone"
-          ? `https://dvntlive.app/u/${followerUsername}`
-          : `https://dvntlive.app/user/${followerId}`,
+          ? `https://dvntapp.live/u/${followerUsername}`
+          : `https://dvntapp.live/user/${followerId}`,
       },
       sound: "default",
       channelId: "default",

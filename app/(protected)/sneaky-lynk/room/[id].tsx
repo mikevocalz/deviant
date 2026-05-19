@@ -183,7 +183,7 @@ interface PresenceEvent {
 }
 
 function buildLynkShareUrl(roomId: string, hasVideo = false) {
-  const base = `https://dvntlive.app/sneaky-lynk/room/${roomId}`;
+  const base = `https://dvntapp.live/sneaky-lynk/room/${roomId}`;
   return hasVideo ? `${base}?hasVideo=1` : base;
 }
 

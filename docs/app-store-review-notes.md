@@ -6,7 +6,7 @@ DVNT includes event discovery, ticketing, social posting, messaging, and live vi
 
 Use the seeded Apple review account when testing gated flows:
 
-- Email: `applereview@dvntlive.app`
+- Email: `applereview@dvntapp.live`
 - Password: provided in App Store Connect review notes
 
 Suggested review path:

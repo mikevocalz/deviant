@@ -8,7 +8,7 @@ import { Share } from "react-native";
 import * as Haptics from "expo-haptics";
 import { getLynkDisplayName } from "@/lib/branding/lynk-branding";
 
-const PRODUCTION_DOMAIN = "https://dvntlive.app";
+const PRODUCTION_DOMAIN = "https://dvntapp.live";
 
 // ── URL Builders ─────────────────────────────────────────────────────
 
