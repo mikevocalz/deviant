@@ -34,6 +34,12 @@ import {
 import { Image } from "expo-image";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { eventsApi, formatEventDate } from "@/lib/api/events";
+import {
+  propagateEntity,
+  queryContainsEntity,
+  snapshotMatchingQueries,
+  rollback,
+} from "@/lib/cache/propagate";
 import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useMediaPicker } from "@/lib/hooks";
@@ -340,21 +346,16 @@ export function EventEditSheet({
       updateData.perks = perks.trim() || null;
       updateData.youtubeVideoUrl = youtubeVideoUrl.trim() || null;
 
-      // ── Optimistic update: patch caches + close sheet immediately ──
-      const detailKey = eventKeys.detail(eventId);
-      const previousDetail = queryClient.getQueryData(detailKey);
-
+      // ── Optimistic update: patch every cache that contains this event ──
       // Derive the same display-format fields the API normally computes
-      // (date = day number, month = "FEB", time = "8:00 PM"). Without these,
-      // event cards continue showing the OLD day/month/time until a refetch
-      // happens, which feels like the edit didn't take.
+      // (date = day number, month = "FEB", time = "8:00 PM"). Without
+      // these, event cards keep showing the OLD day/month/time until a
+      // refetch lands and the edit feels like it didn't take.
       const dateParts = formatEventDate(updateData.startDate as string);
-
       const optimisticPatch: Record<string, unknown> = {
         title: updateData.title,
         description: updateData.description,
         location: updateData.location,
-        // Spread the formatted parts FIRST so explicit fullDate below wins
         ...dateParts,
         endDate: updateData.endDate ?? null,
         price: updateData.price,
@@ -370,18 +371,15 @@ export function EventEditSheet({
         optimisticPatch.images = allImages.slice(1).map((url) => ({ url }));
       }
 
-      // Patch detail cache
-      queryClient.setQueryData(detailKey, (old: any) =>
-        old ? { ...old, ...optimisticPatch } : old,
-      );
-
-      // Patch all list caches so event cards show the updated price/title immediately
-      queryClient.setQueriesData<any[]>({ queryKey: eventKeys.all }, (old) => {
-        if (!old || !Array.isArray(old)) return old;
-        return old.map((e) =>
-          String(e.id) === String(eventId) ? { ...e, ...optimisticPatch } : e,
-        );
-      });
+      // Snapshot for rollback, then propagate across every query that
+      // references this event — event detail, event-list queries (feed,
+      // upcoming, past, byCategory, search, forYou, profile-hosted),
+      // ticket caches that nest event metadata, etc. Predicate-based
+      // means new screens that show an event card pick up the patch
+      // automatically without us listing their query keys here.
+      const eventPredicate = queryContainsEntity("event", eventId);
+      const snapshot = snapshotMatchingQueries(queryClient, eventPredicate);
+      propagateEntity(queryClient, "event", eventId, optimisticPatch);
 
       showToast("success", "Event updated", "");
       onClose();
@@ -394,9 +392,7 @@ export function EventEditSheet({
         },
         (err) => {
           console.error("[EventEditSheet] Background save error:", err);
-          if (previousDetail) {
-            queryClient.setQueryData(detailKey, previousDetail);
-          }
+          rollback(queryClient, snapshot);
           queryClient.invalidateQueries({ queryKey: eventKeys.all });
           showToast(
             "error",
