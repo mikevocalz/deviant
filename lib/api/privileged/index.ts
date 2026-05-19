@@ -443,6 +443,52 @@ export async function exportEventAttendeesCsv(eventId: number): Promise<{
 
 export type BroadcastAudience = "all" | "scanned" | "unscanned";
 
+export interface CompResult {
+  issued: number;
+  skipped: { recipient: string; reason: string }[];
+  tier?: string;
+}
+
+/**
+ * Bulk-issue free tickets to a list of usernames/emails. Owner or
+ * admin only. Server enforces tier capacity + skips dupes.
+ */
+export async function bulkCompTickets(
+  eventId: number,
+  tierId: string,
+  recipients: string[],
+  note?: string,
+): Promise<CompResult> {
+  return invokeEdgeFunction<CompResult>("bulk-comp-tickets", {
+    event_id: eventId,
+    tier_id: tierId,
+    recipients,
+    note,
+  });
+}
+
+export interface RefundResult {
+  refunded: number;
+  voided: number;
+  failures: { ticketId: string; error: string }[];
+}
+
+/**
+ * Bulk-refund tickets. Owner only. Paid tickets go through Stripe
+ * (per-ticket idempotency). Free tickets are voided directly.
+ */
+export async function bulkRefundTickets(
+  eventId: number,
+  ticketIds: string[],
+  reason?: string,
+): Promise<RefundResult> {
+  return invokeEdgeFunction<RefundResult>("bulk-refund-tickets", {
+    event_id: eventId,
+    ticket_ids: ticketIds,
+    reason,
+  });
+}
+
 /**
  * Send a push + activity-feed broadcast to every attendee of an event.
  * Owner or accepted admin only. Editors and scanners are denied

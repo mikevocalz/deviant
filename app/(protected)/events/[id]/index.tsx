@@ -2227,6 +2227,14 @@ function EventDetailScreenContent() {
                 )
             : undefined
         }
+        onLive={
+          isHost
+            ? () =>
+                router.push(
+                  `/(protected)/events/${eventId}/live` as any,
+                )
+            : undefined
+        }
       />
     </View>
   );

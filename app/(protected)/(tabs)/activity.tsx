@@ -81,6 +81,8 @@ const ActivityIcon = memo(({ type }: { type: Activity["type"] }) => {
     case "ticket_transfer_accepted":
     case "ticket_transfer_declined":
     case "ticket_transfer_cancelled":
+    case "ticket_comped":
+    case "ticket_refunded":
       return <Calendar size={16} color="#10B981" />;
     default:
       return null;
@@ -129,6 +131,10 @@ function getActivityText(activity: Activity): string {
       return ` declined your ticket transfer. It's back in your wallet.`;
     case "ticket_transfer_cancelled":
       return ` cancelled the ticket transfer.`;
+    case "ticket_comped":
+      return ` comped you a ticket to ${activity.event?.title || "an event"}.`;
+    case "ticket_refunded":
+      return ` issued a refund for your ${activity.event?.title || "event"} ticket.`;
     default:
       return "";
   }

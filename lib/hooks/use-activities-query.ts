@@ -41,7 +41,9 @@ export type ActivityType =
   | "ticket_transfer_initiated"
   | "ticket_transfer_accepted"
   | "ticket_transfer_declined"
-  | "ticket_transfer_cancelled";
+  | "ticket_transfer_cancelled"
+  | "ticket_comped"
+  | "ticket_refunded";
 
 export interface Activity {
   id: string;

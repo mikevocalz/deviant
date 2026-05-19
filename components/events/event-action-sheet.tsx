@@ -20,6 +20,7 @@ import {
   Download,
   UserPlus,
   Users,
+  Radio,
 } from "lucide-react-native";
 
 interface EventActionSheetProps {
@@ -36,6 +37,7 @@ interface EventActionSheetProps {
   onScanner?: () => void;
   onStaff?: () => void;
   onAttendees?: () => void;
+  onLive?: () => void;
   onPromote?: () => void;
   onDownloadOffline?: () => void;
   offlineTokenCount?: number;
@@ -55,6 +57,7 @@ export function EventActionSheet({
   onScanner,
   onStaff,
   onAttendees,
+  onLive,
   onPromote,
   onDownloadOffline,
   offlineTokenCount = 0,
@@ -150,6 +153,24 @@ export function EventActionSheet({
                 <View style={styles.rowTextWrap}>
                   <Text style={styles.rowText}>Dashboard</Text>
                   <Text style={styles.rowSubtext}>View attendees & analytics</Text>
+                </View>
+              </Pressable>
+            )}
+
+            {onLive && (
+              <Pressable
+                onPress={() => {
+                  onLive();
+                  onClose();
+                }}
+                style={styles.row}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: "rgba(34,197,94,0.14)" }]}>
+                  <Radio size={20} color="#22C55E" />
+                </View>
+                <View style={styles.rowTextWrap}>
+                  <Text style={styles.rowText}>War Room (Live)</Text>
+                  <Text style={styles.rowSubtext}>Real-time scans & 30-min chart</Text>
                 </View>
               </Pressable>
             )}

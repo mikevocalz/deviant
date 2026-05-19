@@ -220,6 +220,13 @@ export default function HostDashboardScreen() {
     [router],
   );
 
+  // TONIGHT rows route straight to the live war room — that's the
+  // screen a host actually wants the moment the event is happening.
+  const goLive = useCallback(
+    (id: number) => router.push(`/(protected)/events/${id}/live` as any),
+    [router],
+  );
+
   if (q.isLoading) {
     return (
       <SafeAreaView edges={["top"]} style={styles.container}>
@@ -339,7 +346,7 @@ export default function HostDashboardScreen() {
                   <EventRow
                     key={e.id}
                     event={e}
-                    onPress={() => goEvent(e.id)}
+                    onPress={() => goLive(e.id)}
                     prominent
                   />
                 ))}

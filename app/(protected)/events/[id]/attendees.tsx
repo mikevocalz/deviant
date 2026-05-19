@@ -38,7 +38,11 @@ import {
   Ban,
   Download,
   MessageSquare,
+  Gift,
+  RotateCcw,
+  X as XIcon,
 } from "lucide-react-native";
+import { useQueryClient } from "@tanstack/react-query";
 import { ticketsApi } from "@/lib/api/tickets";
 import { tierAccent } from "@/lib/theme/tier-colors";
 import { exportEventAttendeesCsv } from "@/lib/api/privileged";
@@ -46,6 +50,8 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { BroadcastModal } from "@/components/events/broadcast-modal";
+import { CompTicketsModal } from "@/components/events/comp-tickets-modal";
+import { RefundConfirmModal } from "@/components/events/refund-confirm-modal";
 
 type StatusFilter =
   | "all"
@@ -128,9 +134,52 @@ export default function EventAttendeesScreen() {
   const canExport =
     role === "owner" || role === "admin" || role === "editor";
   const canBroadcast = role === "owner" || role === "admin";
+  const canComp = role === "owner" || role === "admin";
+  const canRefund = role === "owner";
   const [exporting, setExporting] = useState(false);
   const [broadcastOpen, setBroadcastOpen] = useState(false);
+  const [compOpen, setCompOpen] = useState(false);
+  const [refundOpen, setRefundOpen] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const showToast = useUIStore((s) => s.showToast);
+  const queryClient = useQueryClient();
+
+  // Refund-eligible (paid/free, not already refunded/scanned/void)
+  const isRefundable = useCallback((status: string) => {
+    return (
+      status === "active" || status === "transfer_pending"
+    );
+  }, []);
+
+  const toggleSelect = useCallback(
+    (id: string, status: string) => {
+      if (!isRefundable(status)) return;
+      setSelected((prev) => {
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        return next;
+      });
+    },
+    [isRefundable],
+  );
+
+  const exitSelect = useCallback(() => {
+    setSelecting(false);
+    setSelected(new Set());
+  }, []);
+
+  const selectedTotalCents = useMemo(() => {
+    let s = 0;
+    for (const t of flat) {
+      if (selected.has(t.id))
+        s += Number(t.purchase_amount_cents || 0);
+    }
+    return s;
+  }, [flat, selected]);
+
+  const selectedIds = useMemo(() => Array.from(selected), [selected]);
 
   const handleExport = useCallback(async () => {
     if (exporting) return;
@@ -171,18 +220,59 @@ export default function EventAttendeesScreen() {
     ({ item }: { item: any }) => {
       const { Icon, color, label } = statusBadge(item.status);
       const tier = item.ticket_type_name || "General";
+      const refundable = isRefundable(item.status);
+      const isSelected = selected.has(item.id);
+      const handlePress = () => {
+        if (selecting) {
+          toggleSelect(item.id, item.status);
+        }
+      };
+      const handleLongPress = () => {
+        if (!canRefund) return;
+        if (!refundable) return;
+        setSelecting(true);
+        toggleSelect(item.id, item.status);
+      };
       return (
-        <Pressable style={styles.row}>
-          <View
-            style={[
-              styles.avatar,
-              { backgroundColor: "rgba(255,255,255,0.06)" },
-            ]}
-          >
-            <Text style={styles.avatarText}>
-              {(item.qr_token || "?").slice(0, 1).toUpperCase()}
-            </Text>
-          </View>
+        <Pressable
+          onPress={handlePress}
+          onLongPress={handleLongPress}
+          delayLongPress={250}
+          style={[
+            styles.row,
+            isSelected && {
+              backgroundColor: "rgba(252,37,58,0.08)",
+            },
+            selecting && !refundable && { opacity: 0.45 },
+          ]}
+        >
+          {selecting ? (
+            <View
+              style={[
+                styles.avatar,
+                isSelected
+                  ? styles.avatarSelected
+                  : { backgroundColor: "rgba(255,255,255,0.06)" },
+              ]}
+            >
+              {isSelected ? (
+                <CheckCircle2 size={20} color="#fff" />
+              ) : (
+                <Circle size={20} color="rgba(255,255,255,0.4)" />
+              )}
+            </View>
+          ) : (
+            <View
+              style={[
+                styles.avatar,
+                { backgroundColor: "rgba(255,255,255,0.06)" },
+              ]}
+            >
+              <Text style={styles.avatarText}>
+                {(item.qr_token || "?").slice(0, 1).toUpperCase()}
+              </Text>
+            </View>
+          )}
           <View style={styles.body}>
             <Text style={styles.name} numberOfLines={1}>
               {item.guest_name ||
@@ -224,7 +314,7 @@ export default function EventAttendeesScreen() {
         </Pressable>
       );
     },
-    [],
+    [isRefundable, selected, selecting, toggleSelect, canRefund],
   );
 
   return (
@@ -243,30 +333,56 @@ export default function EventAttendeesScreen() {
           )}
         </View>
         <View style={{ flexDirection: "row", gap: 8 }}>
-          {canBroadcast && (
+          {selecting ? (
             <Pressable
-              onPress={() => setBroadcastOpen(true)}
+              onPress={exitSelect}
               hitSlop={12}
               style={styles.exportBtn}
-              accessibilityLabel="Message attendees"
+              accessibilityLabel="Exit selection"
             >
-              <MessageSquare size={18} color="#C084FC" />
+              <XIcon size={18} color="#fff" />
             </Pressable>
-          )}
-          {canExport && (
-            <Pressable
-              onPress={handleExport}
-              hitSlop={12}
-              disabled={exporting}
-              style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
-              accessibilityLabel="Export attendees as CSV"
-            >
-              {exporting ? (
-                <ActivityIndicator size="small" color="#C084FC" />
-              ) : (
-                <Download size={18} color="#C084FC" />
+          ) : (
+            <>
+              {canComp && (
+                <Pressable
+                  onPress={() => setCompOpen(true)}
+                  hitSlop={12}
+                  style={[
+                    styles.exportBtn,
+                    { borderColor: "rgba(63,220,255,0.32)", backgroundColor: "rgba(63,220,255,0.12)" },
+                  ]}
+                  accessibilityLabel="Comp tickets"
+                >
+                  <Gift size={18} color="#3FDCFF" />
+                </Pressable>
               )}
-            </Pressable>
+              {canBroadcast && (
+                <Pressable
+                  onPress={() => setBroadcastOpen(true)}
+                  hitSlop={12}
+                  style={styles.exportBtn}
+                  accessibilityLabel="Message attendees"
+                >
+                  <MessageSquare size={18} color="#C084FC" />
+                </Pressable>
+              )}
+              {canExport && (
+                <Pressable
+                  onPress={handleExport}
+                  hitSlop={12}
+                  disabled={exporting}
+                  style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
+                  accessibilityLabel="Export attendees as CSV"
+                >
+                  {exporting ? (
+                    <ActivityIndicator size="small" color="#C084FC" />
+                  ) : (
+                    <Download size={18} color="#C084FC" />
+                  )}
+                </Pressable>
+              )}
+            </>
           )}
         </View>
       </View>
@@ -276,6 +392,31 @@ export default function EventAttendeesScreen() {
         onClose={() => setBroadcastOpen(false)}
         eventId={eventId}
         attendeeCount={total}
+      />
+      <CompTicketsModal
+        visible={compOpen}
+        onClose={() => setCompOpen(false)}
+        eventId={eventId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({
+            queryKey: ["event-attendees", eventId],
+          });
+        }}
+      />
+      <RefundConfirmModal
+        visible={refundOpen}
+        onClose={() => {
+          setRefundOpen(false);
+          exitSelect();
+        }}
+        eventId={eventId}
+        ticketIds={selectedIds}
+        totalCents={selectedTotalCents}
+        onSuccess={() => {
+          queryClient.invalidateQueries({
+            queryKey: ["event-attendees", eventId],
+          });
+        }}
       />
 
       <View style={styles.searchWrap}>
@@ -353,6 +494,39 @@ export default function EventAttendeesScreen() {
             ) : null
           }
         />
+      )}
+
+      {selecting && (
+        <View style={styles.selectionBar}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.selectionCount}>
+              {selected.size} selected
+            </Text>
+            {selectedTotalCents > 0 && (
+              <Text style={styles.selectionSub}>
+                ~${(selectedTotalCents / 100).toFixed(2)} to refund
+              </Text>
+            )}
+          </View>
+          <Pressable
+            onPress={exitSelect}
+            style={styles.selectionCancel}
+            hitSlop={8}
+          >
+            <Text style={styles.selectionCancelText}>Cancel</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setRefundOpen(true)}
+            disabled={selected.size === 0}
+            style={[
+              styles.selectionRefund,
+              selected.size === 0 && { opacity: 0.4 },
+            ]}
+          >
+            <RotateCcw size={14} color="#fff" />
+            <Text style={styles.selectionRefundText}>Refund</Text>
+          </Pressable>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -489,4 +663,61 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
   footerLoading: { padding: 16, alignItems: "center" },
+  avatarSelected: {
+    backgroundColor: "#FC253A",
+  },
+  selectionBar: {
+    position: "absolute",
+    left: 12,
+    right: 12,
+    bottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 16,
+    backgroundColor: "#181818",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.45,
+    shadowRadius: 18,
+    elevation: 8,
+  },
+  selectionCount: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  selectionSub: {
+    color: "rgba(255,255,255,0.45)",
+    fontSize: 11,
+    marginTop: 2,
+  },
+  selectionCancel: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 999,
+  },
+  selectionCancelText: {
+    color: "rgba(255,255,255,0.7)",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  selectionRefund: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "#FC253A",
+  },
+  selectionRefundText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 13,
+  },
 });
