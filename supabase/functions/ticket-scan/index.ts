@@ -146,9 +146,31 @@ Deno.serve(async (req: Request) => {
       .select("host_id")
       .eq("id", scanEventId)
       .single();
-    if (!scanEvent || String(scanEvent.host_id) !== String(scannerAuthId)) {
+    if (!scanEvent) {
+      return json({ valid: false, reason: "event_not_found" }, 404);
+    }
+    const isHost = String(scanEvent.host_id) === String(scannerAuthId);
+
+    // V2-SEC-02b: also honor event_co_organizers role for non-host staff.
+    // The role ladder is owner → admin → editor → scanner; anyone above
+    // (or equal to) 'scanner' AND accepted can check in tickets. This
+    // unblocks door staff that aren't the actual event owner.
+    let isAuthorizedScanner = isHost;
+    if (!isAuthorizedScanner) {
+      const { data: coOrg } = await supabase
+        .from("event_co_organizers")
+        .select("role, accepted")
+        .eq("event_id", scanEventId)
+        .eq("user_id", scannerAuthId)
+        .eq("accepted", true)
+        .in("role", ["scanner", "editor", "admin"])
+        .maybeSingle();
+      isAuthorizedScanner = !!coOrg;
+    }
+
+    if (!isAuthorizedScanner) {
       return json(
-        { error: "Forbidden — not the event host" },
+        { error: "Forbidden — not the event host or an authorized scanner" },
         403,
       );
     }
