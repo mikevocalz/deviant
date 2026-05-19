@@ -149,22 +149,33 @@ Deno.serve(async (req: Request) => {
     // 401 every subsequent request and effectively brick reads.
     try {
       const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
-      const probeRes = await fetch(`${SUPABASE_URL}/rest/v1/?select=*`, {
-        method: "HEAD",
-        headers: {
-          Authorization: `Bearer ${access_token}`,
-          apikey: anonKey,
+      // GET against a real table with limit=0 — HEAD got
+      // short-circuited at the gateway before JWT verification ran,
+      // so a wrong secret slipped through. limit=0 keeps the
+      // response tiny and doesn't require any rows to exist.
+      const probeRes = await fetch(
+        `${SUPABASE_URL}/rest/v1/users?select=id&limit=0`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${access_token}`,
+            apikey: anonKey,
+            Accept: "application/json",
+          },
         },
-      });
+      );
+      const probeBody = await probeRes.text();
       if (probeRes.status === 401) {
-        const wwwAuth = probeRes.headers.get("www-authenticate") || "";
         const isSignatureProblem =
-          wwwAuth.includes("invalid_token") ||
-          wwwAuth.includes("No suitable key");
+          probeBody.includes("PGRST301") ||
+          probeBody.includes("No suitable key") ||
+          probeBody.includes("None of the keys was able to decode the JWT") ||
+          probeBody.includes("InvalidJWTToken") ||
+          probeBody.includes("invalid signature");
         if (isSignatureProblem) {
           console.error(
             "[mint-supabase-jwt] PostgREST rejected our signature — DVNT_JWT_SECRET is the wrong value. Probe response:",
-            wwwAuth,
+            probeBody.slice(0, 200),
           );
           return json(
             {
@@ -179,8 +190,8 @@ Deno.serve(async (req: Request) => {
             req,
           );
         }
-        // Some other 401 (RLS denial on the root endpoint, etc.) —
-        // signature is still considered valid; let the client proceed.
+        // Some other 401 (RLS denial, etc.) — signature is valid;
+        // let the client proceed.
       }
     } catch (probeErr) {
       // Probe network error — fail open. The client's existing 401
