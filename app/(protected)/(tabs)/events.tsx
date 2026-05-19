@@ -23,6 +23,8 @@ import {
   History,
   Map,
   Zap,
+  Flame,
+  Sparkles,
 } from "lucide-react-native";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useRouter } from "expo-router";
@@ -588,22 +590,46 @@ function EventsScreenContent() {
                   <Ticket size={18} color={colors.foreground} />
                 </Pressable>
               </Motion.View>
-              {/* Spicy toggle button */}
-              <Motion.View
-                whileTap={{ scale: 0.9 }}
-                className="h-10 w-10 items-center justify-center rounded-xl bg-card border border-border"
-                style={
-                  nsfwFilter === true
-                    ? { backgroundColor: "rgba(153,27,27,0.3)", borderColor: "rgba(153,27,27,0.6)" }
-                    : undefined
-                }
-              >
+              {/* Spicy / Sweet feed toggle — matches the home screen
+                  treatment (lucide icon + label pill, brand colors so
+                  the active mode reads at a glance). */}
+              <Motion.View whileTap={{ scale: 0.94 }}>
                 <Pressable
                   onPress={() => setNsfwFilter(nsfwFilter === true ? false : true)}
-                  className="w-full h-full items-center justify-center"
                   accessibilityLabel="Toggle spicy events"
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 6,
+                    paddingHorizontal: 12,
+                    paddingVertical: 7,
+                    borderRadius: 999,
+                    borderWidth: 1,
+                    backgroundColor:
+                      nsfwFilter === true
+                        ? "rgba(255,91,252,0.14)"
+                        : "rgba(63,220,255,0.10)",
+                    borderColor:
+                      nsfwFilter === true
+                        ? "rgba(255,91,252,0.45)"
+                        : "rgba(63,220,255,0.32)",
+                  }}
                 >
-                  <Text style={{ fontSize: 18 }}>{nsfwFilter === true ? "😈" : "😇"}</Text>
+                  {nsfwFilter === true ? (
+                    <Flame size={14} color="#FF5BFC" />
+                  ) : (
+                    <Sparkles size={14} color="#3FDCFF" />
+                  )}
+                  <Text
+                    style={{
+                      fontSize: 12,
+                      fontWeight: "700",
+                      letterSpacing: 0.2,
+                      color: nsfwFilter === true ? "#FF5BFC" : "#3FDCFF",
+                    }}
+                  >
+                    {nsfwFilter === true ? "Spicy" : "Sweet"}
+                  </Text>
                 </Pressable>
               </Motion.View>
             </View>
