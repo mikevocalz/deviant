@@ -9,6 +9,12 @@ import {
   keepPreviousData,
 } from "@tanstack/react-query";
 import { eventsApi as eventsApiClient } from "@/lib/api/events";
+import {
+  propagateEntity,
+  queryContainsEntity,
+  snapshotMatchingQueries,
+  rollback,
+} from "@/lib/cache/propagate";
 import { getCurrentUserIdSync } from "@/lib/api/auth-helper";
 import { STALE_TIMES } from "@/lib/perf/stale-time-config";
 import { useAuthStore } from "@/lib/stores/auth-store";
@@ -332,15 +338,39 @@ export function useCreateEvent() {
   });
 }
 
-// Update event mutation
+// Update event mutation — optimistic across every cache that references
+// the event (detail + lists + ticket-detail's embedded event copy + …).
+// See `lib/cache/propagate.ts`.
 export function useUpdateEvent() {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ eventId, updates }: { eventId: string; updates: any }) =>
       eventsApiClient.updateEvent(eventId, updates),
-    onSuccess: (_result, { eventId }) => {
-      // Invalidate the specific event and all event lists
+
+    onMutate: async ({ eventId, updates }) => {
+      const predicate = queryContainsEntity("event", eventId);
+      await queryClient.cancelQueries({ predicate });
+      const snapshot = snapshotMatchingQueries(queryClient, predicate);
+      propagateEntity(queryClient, "event", eventId, updates);
+      return { snapshot };
+    },
+
+    onError: (_err, _vars, ctx) => {
+      if (ctx?.snapshot) rollback(queryClient, ctx.snapshot);
+    },
+
+    onSuccess: (result, { eventId }) => {
+      // Replace optimistic with authoritative server data
+      if (result) {
+        propagateEntity(
+          queryClient,
+          "event",
+          eventId,
+          result as Record<string, unknown>,
+        );
+      }
+      // Background refresh for any keys the predicate missed
       queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
       queryClient.invalidateQueries({ queryKey: eventKeys.all });
     },
