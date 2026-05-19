@@ -33,7 +33,7 @@ import {
 } from "lucide-react-native";
 import { Image } from "expo-image";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { eventsApi } from "@/lib/api/events";
+import { eventsApi, formatEventDate } from "@/lib/api/events";
 import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useMediaPicker } from "@/lib/hooks";
@@ -344,11 +344,18 @@ export function EventEditSheet({
       const detailKey = eventKeys.detail(eventId);
       const previousDetail = queryClient.getQueryData(detailKey);
 
+      // Derive the same display-format fields the API normally computes
+      // (date = day number, month = "FEB", time = "8:00 PM"). Without these,
+      // event cards continue showing the OLD day/month/time until a refetch
+      // happens, which feels like the edit didn't take.
+      const dateParts = formatEventDate(updateData.startDate as string);
+
       const optimisticPatch: Record<string, unknown> = {
         title: updateData.title,
         description: updateData.description,
         location: updateData.location,
-        fullDate: updateData.startDate,
+        // Spread the formatted parts FIRST so explicit fullDate below wins
+        ...dateParts,
         endDate: updateData.endDate ?? null,
         price: updateData.price,
         maxAttendees: updateData.maxAttendees ?? null,

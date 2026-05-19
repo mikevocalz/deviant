@@ -52,7 +52,7 @@ function normalizeVisibility(
 }
 
 /** Format a raw ISO date into the fields the EventCard UI expects */
-function formatEventDate(isoDate: string | null | undefined) {
+export function formatEventDate(isoDate: string | null | undefined) {
   if (!isoDate) {
     return {
       date: "--",

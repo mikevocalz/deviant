@@ -35,6 +35,99 @@ function json(data: unknown, status = 200) {
   });
 }
 
+/**
+ * Resolve auth_id → { intId, username, avatar } via the app users table.
+ * Returns null if the auth_id has no app users row yet.
+ */
+async function lookupAppUser(
+  supabase: any,
+  authId: string,
+): Promise<{ id: number; username: string | null; avatar: string | null } | null> {
+  const { data } = await supabase
+    .from("users")
+    .select("id, username, avatar_id(url)")
+    .eq("auth_id", authId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    id: data.id,
+    username: data.username ?? null,
+    avatar:
+      (Array.isArray((data as any).avatar_id)
+        ? (data as any).avatar_id[0]?.url
+        : (data as any).avatar_id?.url) ?? null,
+  };
+}
+
+/**
+ * Send a push notification + insert in-app notification row.
+ * Best-effort — failures are logged but don't break the calling action.
+ */
+async function notifyTransfer(
+  supabase: any,
+  params: {
+    recipientIntId: number;
+    senderIntId: number;
+    senderUsername: string | null;
+    senderAvatar: string | null;
+    title: string;
+    body: string;
+    notificationType: string;
+    entityId: string;
+  },
+): Promise<void> {
+  try {
+    // In-app notification feed entry
+    await supabase.from("notifications").insert({
+      recipient_id: params.recipientIntId,
+      sender_id: params.senderIntId,
+      type: params.notificationType,
+      entity_type: "ticket_transfer",
+      entity_id: params.entityId,
+    });
+
+    // Push
+    const { data: tokens } = await supabase
+      .from("push_tokens")
+      .select("token")
+      .eq("user_id", params.recipientIntId);
+
+    if (tokens && tokens.length > 0) {
+      const messages = tokens.map((t: { token: string }) => ({
+        to: t.token,
+        title: params.title,
+        body: params.body,
+        data: {
+          type: params.notificationType,
+          senderId: String(params.senderIntId),
+          senderUsername: params.senderUsername ?? undefined,
+          senderAvatar: params.senderAvatar ?? undefined,
+          entityType: "ticket_transfer",
+          entityId: params.entityId,
+          // Deep link to My Tickets where pending transfers are surfaced
+          url: "https://dvntapp.live/my-tickets",
+        },
+        sound: "default",
+        channelId: "default",
+      }));
+
+      await fetch("https://exp.host/--/api/v2/push/send", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(messages),
+      });
+      console.log(
+        `[transfer-ticket] Push sent to ${tokens.length} device(s) for ${params.notificationType}`,
+      );
+    }
+  } catch (err) {
+    console.warn("[transfer-ticket] notifyTransfer failed (non-fatal):", err);
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS")
     return new Response(null, { status: 204, headers: cors });
@@ -151,6 +244,31 @@ Deno.serve(async (req: Request) => {
         `[transfer-ticket] Transfer initiated: ${ticket_id} from ${userId} to ${recipient.id}`,
       );
 
+      // Notify recipient — push + in-app feed entry
+      const senderUser = await lookupAppUser(supabase, userId);
+      const recipientUser = await lookupAppUser(supabase, recipient.id);
+      if (senderUser && recipientUser) {
+        const { data: eventRow } = await supabase
+          .from("events")
+          .select("title")
+          .eq("id", ticket.event_id)
+          .maybeSingle();
+        const eventTitle = eventRow?.title ?? "an event";
+        const senderHandle = senderUser.username
+          ? `@${senderUser.username}`
+          : "Someone";
+        await notifyTransfer(supabase, {
+          recipientIntId: recipientUser.id,
+          senderIntId: senderUser.id,
+          senderUsername: senderUser.username,
+          senderAvatar: senderUser.avatar,
+          title: "Ticket transfer pending",
+          body: `${senderHandle} sent you a ticket for ${eventTitle}. Tap to accept.`,
+          notificationType: "ticket_transfer_initiated",
+          entityId: String(transfer.id),
+        });
+      }
+
       return json({
         transfer_id: transfer.id,
         expires_at: transfer.expires_at,
@@ -236,6 +354,25 @@ Deno.serve(async (req: Request) => {
         `[transfer-ticket] Transfer accepted: ${ticket.id} now owned by ${userId}`,
       );
 
+      // Notify sender — their transfer was accepted
+      const senderApp = await lookupAppUser(supabase, transfer.from_user_id);
+      const accepterApp = await lookupAppUser(supabase, userId);
+      if (senderApp && accepterApp) {
+        const accepterHandle = accepterApp.username
+          ? `@${accepterApp.username}`
+          : "The recipient";
+        await notifyTransfer(supabase, {
+          recipientIntId: senderApp.id,
+          senderIntId: accepterApp.id,
+          senderUsername: accepterApp.username,
+          senderAvatar: accepterApp.avatar,
+          title: "Ticket transfer accepted",
+          body: `${accepterHandle} accepted your ticket.`,
+          notificationType: "ticket_transfer_accepted",
+          entityId: String(transfer_id),
+        });
+      }
+
       return json({
         success: true,
         ticket_id: ticket.id,
@@ -284,6 +421,38 @@ Deno.serve(async (req: Request) => {
 
       console.log(`[transfer-ticket] Transfer declined: ${transfer_id}`);
 
+      // Notify sender — their transfer was declined
+      const { data: declineTransferRow } = await supabase
+        .from("ticket_transfers")
+        .select("from_user_id, to_user_id")
+        .eq("id", transfer_id)
+        .single();
+      if (declineTransferRow) {
+        const senderApp = await lookupAppUser(
+          supabase,
+          declineTransferRow.from_user_id,
+        );
+        const declinerApp = await lookupAppUser(
+          supabase,
+          declineTransferRow.to_user_id,
+        );
+        if (senderApp && declinerApp) {
+          const declinerHandle = declinerApp.username
+            ? `@${declinerApp.username}`
+            : "The recipient";
+          await notifyTransfer(supabase, {
+            recipientIntId: senderApp.id,
+            senderIntId: declinerApp.id,
+            senderUsername: declinerApp.username,
+            senderAvatar: declinerApp.avatar,
+            title: "Ticket transfer declined",
+            body: `${declinerHandle} declined your ticket. It's back in your wallet.`,
+            notificationType: "ticket_transfer_declined",
+            entityId: String(transfer_id),
+          });
+        }
+      }
+
       return json({ success: true });
     }
 
@@ -327,6 +496,38 @@ Deno.serve(async (req: Request) => {
         .eq("id", transfer.ticket_id);
 
       console.log(`[transfer-ticket] Transfer cancelled: ${transfer_id}`);
+
+      // Notify recipient — the transfer was cancelled by sender
+      const { data: cancelTransferRow } = await supabase
+        .from("ticket_transfers")
+        .select("from_user_id, to_user_id")
+        .eq("id", transfer_id)
+        .single();
+      if (cancelTransferRow) {
+        const senderApp = await lookupAppUser(
+          supabase,
+          cancelTransferRow.from_user_id,
+        );
+        const recipientApp = await lookupAppUser(
+          supabase,
+          cancelTransferRow.to_user_id,
+        );
+        if (senderApp && recipientApp) {
+          const senderHandle = senderApp.username
+            ? `@${senderApp.username}`
+            : "Someone";
+          await notifyTransfer(supabase, {
+            recipientIntId: recipientApp.id,
+            senderIntId: senderApp.id,
+            senderUsername: senderApp.username,
+            senderAvatar: senderApp.avatar,
+            title: "Ticket transfer cancelled",
+            body: `${senderHandle} cancelled the ticket transfer.`,
+            notificationType: "ticket_transfer_cancelled",
+            entityId: String(transfer_id),
+          });
+        }
+      }
 
       return json({ success: true });
     }
