@@ -555,12 +555,12 @@ export const eventsApi = {
 
         if (error) throw error;
 
-        // Increment attendees if going
-        if (status === "going") {
-          await supabase.rpc("increment_event_attendees", {
-            event_id: parseInt(eventId),
-          });
-        }
+        // Attendee counter is maintained by the trg_maintain_event_total_attendees
+        // trigger on the `tickets` table — every "going" RSVP in this app issues
+        // a ticket via issueRsvpTicket() right after rsvpEvent(), and the trigger
+        // increments `events.total_attendees` on the ticket insert. The previous
+        // `supabase.rpc("increment_event_attendees", …)` call here ran ALSO,
+        // resulting in double-counting on every free RSVP. Removed per V2-DB-05b.
       }
 
       return { success: true };
