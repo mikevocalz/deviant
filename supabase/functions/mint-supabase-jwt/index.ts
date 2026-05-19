@@ -15,10 +15,11 @@
  * client can attach to supabase-js calls to upgrade from `anon` to
  * `authenticated` and unlock the host-id-checking RLS policies.
  *
- * If SUPABASE_JWT_SECRET is not configured (the bridge hasn't been
+ * If DVNT_JWT_SECRET is not configured (the bridge hasn't been
  * enabled yet), the function returns 503 — the client is built to
  * fall back to anon-only when minting fails, so the app keeps working
- * during the rollout window before the secret is set.
+ * during the rollout window before the secret is set. The Supabase
+ * CLI reserves the SUPABASE_ prefix, hence the DVNT_ name.
  *
  * Returns:
  *   { ok: true, data: { access_token, expires_at } }
@@ -33,7 +34,13 @@ import {
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-const SUPABASE_JWT_SECRET = Deno.env.get("SUPABASE_JWT_SECRET") || "";
+// Supabase CLI reserves the SUPABASE_ prefix for its own env vars and
+// refuses `secrets set SUPABASE_*`. We use DVNT_JWT_SECRET as the
+// operator-set name and read both for backwards-compatibility.
+const SUPABASE_JWT_SECRET =
+  Deno.env.get("DVNT_JWT_SECRET") ||
+  Deno.env.get("SUPABASE_JWT_SECRET") ||
+  "";
 
 const EXPIRY_SECONDS = 60 * 60; // 1 hour — matches Supabase default
 
@@ -131,6 +138,55 @@ Deno.serve(async (req: Request) => {
     };
 
     const access_token = await signHs256(payload, SUPABASE_JWT_SECRET);
+
+    // Self-test: confirm PostgREST accepts our signature before we
+    // hand the token back to the client. If the operator set the
+    // wrong value as DVNT_JWT_SECRET (e.g. an `sb_secret_*` publishable
+    // API key instead of the legacy HS256 JWT secret), PostgREST
+    // returns 401 with code PGRST301 / "No suitable key or wrong key
+    // type". We catch that here and return 503 so the client stays
+    // in anon-only fallback rather than attaching a token that will
+    // 401 every subsequent request and effectively brick reads.
+    try {
+      const anonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
+      const probeRes = await fetch(`${SUPABASE_URL}/rest/v1/?select=*`, {
+        method: "HEAD",
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+          apikey: anonKey,
+        },
+      });
+      if (probeRes.status === 401) {
+        const wwwAuth = probeRes.headers.get("www-authenticate") || "";
+        const isSignatureProblem =
+          wwwAuth.includes("invalid_token") ||
+          wwwAuth.includes("No suitable key");
+        if (isSignatureProblem) {
+          console.error(
+            "[mint-supabase-jwt] PostgREST rejected our signature — DVNT_JWT_SECRET is the wrong value. Probe response:",
+            wwwAuth,
+          );
+          return json(
+            {
+              ok: false,
+              error: {
+                code: "wrong_jwt_secret",
+                message:
+                  "Bridge is disabled because the configured DVNT_JWT_SECRET is not the legacy HS256 JWT signing secret. Set the value from Project Settings → API → JWT Settings → Legacy JWT secret.",
+              },
+            },
+            503,
+            req,
+          );
+        }
+        // Some other 401 (RLS denial on the root endpoint, etc.) —
+        // signature is still considered valid; let the client proceed.
+      }
+    } catch (probeErr) {
+      // Probe network error — fail open. The client's existing 401
+      // handling will catch any real downstream problem.
+      console.warn("[mint-supabase-jwt] probe error (non-fatal):", probeErr);
+    }
 
     return json(
       {
