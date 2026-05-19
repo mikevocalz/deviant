@@ -351,6 +351,58 @@ export async function cancelEvent(
 }
 
 /**
+ * Co-organizer (staff) management. Each event has one owner
+ * (events.host_id) plus optional invited co-organizers stored in
+ * event_co_organizers with a role enum: scanner / editor / admin.
+ *
+ * - scanner: can check in tickets at the door, sees PII-redacted roster
+ * - editor:  scanner + full roster + analytics + refunds
+ * - admin:   editor + can manage other staff (invite/revoke scanner+editor)
+ * - owner:   admin + can grant admin role, transfer ownership
+ */
+export type CoOrgRole = "scanner" | "editor" | "admin";
+
+export async function inviteCoOrganizer(
+  eventId: number,
+  username: string,
+  role: CoOrgRole,
+): Promise<{ ok: boolean; invite_id?: string; reinvited?: boolean }> {
+  return invokeEdgeFunction("invite-co-organizer", {
+    action: "invite",
+    event_id: eventId,
+    username,
+    role,
+  });
+}
+
+export async function acceptCoOrganizerInvite(
+  inviteId: string,
+): Promise<{ ok: boolean; alreadyAccepted?: boolean }> {
+  return invokeEdgeFunction("invite-co-organizer", {
+    action: "accept",
+    invite_id: inviteId,
+  });
+}
+
+export async function declineCoOrganizerInvite(
+  inviteId: string,
+): Promise<{ ok: boolean }> {
+  return invokeEdgeFunction("invite-co-organizer", {
+    action: "decline",
+    invite_id: inviteId,
+  });
+}
+
+export async function revokeCoOrganizer(
+  inviteId: string,
+): Promise<{ ok: boolean }> {
+  return invokeEdgeFunction("invite-co-organizer", {
+    action: "revoke",
+    invite_id: inviteId,
+  });
+}
+
+/**
  * RSVP to an event.
  */
 export async function rsvpEvent(input: RsvpEventInput): Promise<{ rsvp: any }> {
