@@ -21,7 +21,20 @@ export type ActivityType =
   | "mention"
   | "tag"
   | "event_invite"
-  | "event_update";
+  | "event_update"
+  // Co-organizer staff invite/role flow (server: invite-co-organizer)
+  | "event_co_organizer_invited"
+  | "event_co_organizer_accepted"
+  | "event_co_organizer_declined"
+  | "event_co_organizer_revoked"
+  // Event lifecycle (server: cancel-event + notify-event-change)
+  | "event_cancelled"
+  | "event_changed"
+  // Ticket transfer flow (server: transfer-ticket)
+  | "ticket_transfer_initiated"
+  | "ticket_transfer_accepted"
+  | "ticket_transfer_declined"
+  | "ticket_transfer_cancelled";
 
 export interface Activity {
   id: string;

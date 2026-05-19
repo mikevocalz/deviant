@@ -44,6 +44,7 @@ import { useUnreadCountsStore } from "@/lib/stores/unread-counts-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usersApi } from "@/lib/api/users";
 import { eventsApi } from "@/lib/api/events";
+import * as privileged from "@/lib/api/privileged";
 
 const TABS = [
   "All",
@@ -69,6 +70,16 @@ const ActivityIcon = memo(({ type }: { type: Activity["type"] }) => {
       return <UserPlus size={16} color="#FF5BFC" />;
     case "event_invite":
     case "event_update":
+    case "event_co_organizer_invited":
+    case "event_co_organizer_accepted":
+    case "event_co_organizer_declined":
+    case "event_co_organizer_revoked":
+    case "event_cancelled":
+    case "event_changed":
+    case "ticket_transfer_initiated":
+    case "ticket_transfer_accepted":
+    case "ticket_transfer_declined":
+    case "ticket_transfer_cancelled":
       return <Calendar size={16} color="#10B981" />;
     default:
       return null;
@@ -95,6 +106,26 @@ function getActivityText(activity: Activity): string {
       return ` invited you to ${activity.event?.title || "an event"}.`;
     case "event_update":
       return ` updated ${activity.event?.title || "an event"}.`;
+    case "event_co_organizer_invited":
+      return ` invited you to staff ${activity.event?.title || "an event"}.`;
+    case "event_co_organizer_accepted":
+      return ` accepted your staff invite.`;
+    case "event_co_organizer_declined":
+      return ` declined your staff invite.`;
+    case "event_co_organizer_revoked":
+      return ` removed your staff access.`;
+    case "event_cancelled":
+      return ` cancelled ${activity.event?.title || "an event"} you have a ticket to.`;
+    case "event_changed":
+      return ` updated details for ${activity.event?.title || "your event"}.`;
+    case "ticket_transfer_initiated":
+      return ` sent you a ticket transfer. Tap to accept or decline.`;
+    case "ticket_transfer_accepted":
+      return ` accepted your ticket transfer.`;
+    case "ticket_transfer_declined":
+      return ` declined your ticket transfer. It's back in your wallet.`;
+    case "ticket_transfer_cancelled":
+      return ` cancelled the ticket transfer.`;
     default:
       return "";
   }
@@ -158,6 +189,88 @@ function EventInviteAcceptButton({ entityId }: { entityId: string }) {
         {accepted ? "Joined" : loading ? "..." : "Accept"}
       </Text>
     </Pressable>
+  );
+}
+
+/**
+ * New 4-action co-organizer invite buttons. entityId here is the
+ * event_co_organizers row uuid (the invite_id), set by the new
+ * invite-co-organizer edge fn — different from the OLD
+ * EventInviteAcceptButton above which uses entityId=event_id +
+ * direct supabase upsert.
+ *
+ * Calls the privileged wrappers in lib/api/privileged/index.ts which
+ * route through the edge fn (notifications fire, audit-safe).
+ */
+function CoOrgInviteActions({ inviteId }: { inviteId: string }) {
+  const [resolved, setResolved] = useState<null | "accepted" | "declined">(
+    null,
+  );
+  const [loading, setLoading] = useState<null | "accept" | "decline">(null);
+  const showToast = useUIStore((s) => s.showToast);
+
+  const handle = async (action: "accept" | "decline") => {
+    if (loading || resolved) return;
+    setLoading(action);
+    try {
+      const fn =
+        action === "accept"
+          ? privileged.acceptCoOrganizerInvite
+          : privileged.declineCoOrganizerInvite;
+      const res = await fn(inviteId);
+      if ((res as any)?.error) {
+        throw new Error(String((res as any).error));
+      }
+      setResolved(action === "accept" ? "accepted" : "declined");
+      showToast(
+        "success",
+        action === "accept" ? "Accepted" : "Declined",
+        "",
+      );
+    } catch (err: any) {
+      showToast(
+        "error",
+        action === "accept" ? "Couldn't accept" : "Couldn't decline",
+        err?.message || "Try again.",
+      );
+    } finally {
+      setLoading(null);
+    }
+  };
+
+  if (resolved) {
+    return (
+      <View className="ml-3 px-3 py-2 rounded-lg border border-border">
+        <Text className="text-[12px] font-semibold text-muted-foreground">
+          {resolved === "accepted" ? "Accepted" : "Declined"}
+        </Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="flex-row ml-3 gap-2">
+      <Pressable
+        onPress={() => handle("decline")}
+        disabled={!!loading}
+        className="px-3 py-2 rounded-lg border border-border"
+        style={loading === "decline" ? { opacity: 0.6 } : undefined}
+      >
+        <Text className="text-[12px] font-semibold text-muted-foreground">
+          {loading === "decline" ? "…" : "Decline"}
+        </Text>
+      </Pressable>
+      <Pressable
+        onPress={() => handle("accept")}
+        disabled={!!loading}
+        className="px-3 py-2 rounded-lg bg-emerald-600"
+        style={loading === "accept" ? { opacity: 0.6 } : undefined}
+      >
+        <Text className="text-[12px] font-semibold text-white">
+          {loading === "accept" ? "…" : "Accept"}
+        </Text>
+      </Pressable>
+    </View>
   );
 }
 
@@ -257,6 +370,10 @@ const ActivityItem = memo(
 
       {activity.type === "event_invite" && activity.entityId && (
         <EventInviteAcceptButton entityId={activity.entityId} />
+      )}
+
+      {activity.type === "event_co_organizer_invited" && activity.entityId && (
+        <CoOrgInviteActions inviteId={activity.entityId} />
       )}
     </Pressable>
   ),

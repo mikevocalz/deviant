@@ -30,7 +30,17 @@ export type ActivityType =
   | "mention"
   | "tag"
   | "event_invite"
-  | "event_update";
+  | "event_update"
+  | "event_co_organizer_invited"
+  | "event_co_organizer_accepted"
+  | "event_co_organizer_declined"
+  | "event_co_organizer_revoked"
+  | "event_cancelled"
+  | "event_changed"
+  | "ticket_transfer_initiated"
+  | "ticket_transfer_accepted"
+  | "ticket_transfer_declined"
+  | "ticket_transfer_cancelled";
 
 export interface Activity {
   id: string;
