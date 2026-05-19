@@ -780,76 +780,11 @@ function CreateScreenContent() {
           </View>
         </View>
 
-        {isTextPost && (
-          <TextPostSlidesComposer
-            slides={textSlides}
-            activeIndex={activeTextSlideIndex}
-            theme={textTheme}
-            onSelectSlide={setActiveTextSlideIndex}
-            onSlideChange={updateTextSlide}
-            onAddSlide={addTextSlide}
-            onRemoveSlide={removeTextSlide}
-            onThemeChange={setTextTheme}
-          />
-        )}
-
-        {/*
-          Tag People + Location + photos sections render BELOW the primary
-          content area so the order matches the text-mode layout (content
-          → metadata). The Tag People button still gates on selected media
-          since photo-tagging requires photos.
-        */}
-
-        {/* Tag People Button */}
-        {!isTextPost && selectedMedia.length > 0 && (
-          <Pressable
-            onPress={() => setShowTagSheet(true)}
-            style={{
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 10,
-              paddingHorizontal: 16,
-              paddingVertical: 14,
-              marginHorizontal: 16,
-              marginBottom: 16,
-              backgroundColor: "#111",
-              borderRadius: 12,
-              borderWidth: 1,
-              borderColor: placedTags.length > 0 ? "#FF5BFC" : "#333",
-            }}
-          >
-            <UserPlus
-              size={18}
-              color={placedTags.length > 0 ? "#FF5BFC" : "#999"}
-            />
-            <Text
-              style={{
-                color: "#fff",
-                fontSize: 15,
-                fontWeight: "500",
-                flex: 1,
-              }}
-            >
-              {placedTags.length > 0
-                ? `${placedTags.length} ${placedTags.length === 1 ? "person" : "people"} tagged`
-                : "Tag People"}
-            </Text>
-            {placedTags.length > 0 && (
-              <Pressable
-                onPress={() => {
-                  setPlacedTags([]);
-                  setSelectedTagUsers([]);
-                }}
-                hitSlop={12}
-              >
-                <X size={16} color="#999" />
-              </Pressable>
-            )}
-          </Pressable>
-        )}
-
-        {/* Tags Input */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+        {/* Meta block — Add tag, Add Photos/Camera, Add location.
+            Lifted above the per-mode content (text composer / media
+            preview / caption) so this stays in the same spot whether
+            the user is on the Media tab or the Text tab. */}
+        <View style={{ paddingHorizontal: 16, paddingTop: 16 }}>
           <View
             style={{
               flexDirection: "row",
@@ -956,6 +891,136 @@ function CreateScreenContent() {
           )}
         </View>
 
+        {!isTextPost && selectedMedia.length === 0 && (
+          <View
+            style={{
+              flexDirection: "row",
+              paddingHorizontal: 16,
+              paddingTop: 12,
+              gap: 8,
+            }}
+          >
+            <Pressable
+              onPress={handlePickLibrary}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                backgroundColor: "#3EA4E5",
+                paddingVertical: 14,
+                borderRadius: 12,
+              }}
+            >
+              <ImageIcon size={20} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "600" }}>
+                Add Photos
+              </Text>
+            </Pressable>
+            <Pressable
+              onPress={handleOpenCamera}
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 8,
+                backgroundColor: "#1a1a1a",
+                borderWidth: 1,
+                borderColor: "#333",
+                paddingVertical: 14,
+                borderRadius: 12,
+              }}
+            >
+              <Camera size={20} color="#fff" />
+              <Text style={{ color: "#fff", fontWeight: "600" }}>Camera</Text>
+            </Pressable>
+          </View>
+        )}
+
+        <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
+          <LocationAutocompleteInstagram
+            value={location}
+            placeholder="Add location"
+            onLocationSelect={(data: LocationData) => setLocationData(data)}
+            onClear={() => setLocationData(null)}
+            onTextChange={(text) => {
+              if (!text) {
+                setLocationData(null);
+              }
+            }}
+          />
+        </View>
+
+        {isTextPost && (
+          <TextPostSlidesComposer
+            slides={textSlides}
+            activeIndex={activeTextSlideIndex}
+            theme={textTheme}
+            onSelectSlide={setActiveTextSlideIndex}
+            onSlideChange={updateTextSlide}
+            onAddSlide={addTextSlide}
+            onRemoveSlide={removeTextSlide}
+            onThemeChange={setTextTheme}
+          />
+        )}
+
+        {/*
+          Tag People + Location + photos sections render BELOW the primary
+          content area so the order matches the text-mode layout (content
+          → metadata). The Tag People button still gates on selected media
+          since photo-tagging requires photos.
+        */}
+
+        {/* Tag People Button */}
+        {!isTextPost && selectedMedia.length > 0 && (
+          <Pressable
+            onPress={() => setShowTagSheet(true)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              gap: 10,
+              paddingHorizontal: 16,
+              paddingVertical: 14,
+              marginHorizontal: 16,
+              marginBottom: 16,
+              backgroundColor: "#111",
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: placedTags.length > 0 ? "#FF5BFC" : "#333",
+            }}
+          >
+            <UserPlus
+              size={18}
+              color={placedTags.length > 0 ? "#FF5BFC" : "#999"}
+            />
+            <Text
+              style={{
+                color: "#fff",
+                fontSize: 15,
+                fontWeight: "500",
+                flex: 1,
+              }}
+            >
+              {placedTags.length > 0
+                ? `${placedTags.length} ${placedTags.length === 1 ? "person" : "people"} tagged`
+                : "Tag People"}
+            </Text>
+            {placedTags.length > 0 && (
+              <Pressable
+                onPress={() => {
+                  setPlacedTags([]);
+                  setSelectedTagUsers([]);
+                }}
+                hitSlop={12}
+              >
+                <X size={16} color="#999" />
+              </Pressable>
+            )}
+          </Pressable>
+        )}
+
         {/* Content Rating Toggle */}
         {!isTextPost && selectedMedia.length > 0 && (
           <View
@@ -1002,53 +1067,6 @@ function CreateScreenContent() {
               trackColor={{ false: "#333", true: "#ef4444" }}
               thumbColor={isNSFW ? "#fff" : "#888"}
             />
-          </View>
-        )}
-
-        {!isTextPost && selectedMedia.length === 0 && (
-          <View
-            style={{
-              flexDirection: "row",
-              paddingHorizontal: 16,
-              gap: 8,
-              marginBottom: 20,
-            }}
-          >
-            <Pressable
-              onPress={handlePickLibrary}
-              style={{
-                flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                backgroundColor: "#3EA4E5",
-                paddingVertical: 14,
-                borderRadius: 12,
-              }}
-            >
-              <ImageIcon size={20} color="#fff" />
-              <Text style={{ color: "#fff", fontWeight: "600" }}>
-                Add Photos
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={handleOpenCamera}
-              style={{
-                flex: 1,
-                flexDirection: "row",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: 8,
-                backgroundColor: "#1a1a1a",
-                paddingVertical: 14,
-                borderRadius: 12,
-              }}
-            >
-              <Camera size={20} color="#fff" />
-              <Text style={{ color: "#fff", fontWeight: "600" }}>Camera</Text>
-            </Pressable>
           </View>
         )}
 
@@ -1182,22 +1200,6 @@ function CreateScreenContent() {
             </View>
           </View>
         )}
-
-        {/* Location — always rendered, sits below the content section so
-            it lives in the same vertical slot on text + media modes. */}
-        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
-          <LocationAutocompleteInstagram
-            value={location}
-            placeholder="Add location"
-            onLocationSelect={(data: LocationData) => setLocationData(data)}
-            onClear={() => setLocationData(null)}
-            onTextChange={(text) => {
-              if (!text) {
-                setLocationData(null);
-              }
-            }}
-          />
-        </View>
 
         {/* Caption — below media for media posts */}
         {!isTextPost && (
