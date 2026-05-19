@@ -2219,6 +2219,14 @@ function EventDetailScreenContent() {
                 )
             : undefined
         }
+        onAttendees={
+          isHost
+            ? () =>
+                router.push(
+                  `/(protected)/events/${eventId}/attendees` as any,
+                )
+            : undefined
+        }
       />
     </View>
   );
