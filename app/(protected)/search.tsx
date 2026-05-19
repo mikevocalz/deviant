@@ -542,6 +542,8 @@ function SearchScreenContent() {
         <Pressable
           onPress={() => navigation.goBack()}
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
         >
           <ArrowLeft size={24} color="#fff" />
         </Pressable>

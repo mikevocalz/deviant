@@ -1526,13 +1526,23 @@ function PostDetailScreenContent() {
           paddingVertical: 10,
         }}
       >
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <DVNTLiquidGlassIconButton size={40}>
             <ArrowLeft size={20} color="#fff" />
           </DVNTLiquidGlassIconButton>
         </Pressable>
         <Text className="text-lg font-semibold text-foreground">Post</Text>
-        <Pressable onPress={() => setShowActionSheet(true)} hitSlop={12}>
+        <Pressable
+          onPress={() => setShowActionSheet(true)}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="More options"
+        >
           <DVNTLiquidGlassIconButton size={40}>
             <MoreHorizontal size={20} color="#fff" />
           </DVNTLiquidGlassIconButton>

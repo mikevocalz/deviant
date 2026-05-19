@@ -129,7 +129,12 @@ function NewGroupScreenContent() {
     <SafeAreaView edges={["top"]} className="flex-1 bg-background">
       {/* Header */}
       <View className="flex-row items-center gap-3 border-b border-border px-4 py-3">
-        <Pressable onPress={() => router.back()} hitSlop={12}>
+        <Pressable
+          onPress={() => router.back()}
+          hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Back"
+        >
           <ArrowLeft size={24} color="#fff" />
         </Pressable>
         <Text className="flex-1 text-lg font-bold text-foreground">

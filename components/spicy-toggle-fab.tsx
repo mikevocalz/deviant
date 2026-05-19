@@ -94,7 +94,7 @@ export function SpicyToggleFAB({ accessoryPlacement }: SpicyToggleFABProps) {
       onPress={doToggle}
       hitSlop={12}
       accessibilityRole="switch"
-      accessibilityLabel="Spicy content toggle"
+      accessibilityLabel="Spicy toggle"
       accessibilityState={{ checked: nsfwEnabled }}
       testID="feed-spicy-toggle"
       style={

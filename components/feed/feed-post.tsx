@@ -670,6 +670,8 @@ function FeedPostComponent({
                 <Pressable
                   onPress={handleMorePress}
                   hitSlop={12}
+                  accessibilityRole="button"
+                  accessibilityLabel="More options"
                   style={{
                     width: 38,
                     height: 38,
@@ -1070,6 +1072,8 @@ function FeedPostComponent({
               onPress={handleMorePress}
               style={{ position: "absolute", top: 0, right: 0, zIndex: 50 }}
               hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="More options"
             >
               <DVNTLiquidGlassIconButton size={44} style={{ borderRadius: 12 }}>
                 <MoreHorizontal size={26} color="#fff" />
@@ -1082,6 +1086,8 @@ function FeedPostComponent({
                 onPress={toggleMute}
                 style={{ position: "absolute", top: 56, right: 12, zIndex: 50 }}
                 hitSlop={12}
+                accessibilityRole="button"
+                accessibilityLabel={isMuted ? "Unmute video" : "Mute video"}
               >
                 <DVNTLiquidGlassIconButton size={34}>
                   {isMuted ? (
@@ -1172,7 +1178,12 @@ function FeedPostComponent({
                 />
 
                 {/* Share */}
-                <Pressable hitSlop={8} onPress={handleSharePress}>
+                <Pressable
+                  hitSlop={8}
+                  onPress={handleSharePress}
+                  accessibilityRole="button"
+                  accessibilityLabel="Share post"
+                >
                   <Send size={22} color="#fff" />
                 </Pressable>
 
@@ -1186,7 +1197,13 @@ function FeedPostComponent({
                 />
 
                 {/* Bookmark */}
-                <Pressable onPress={handleSave} hitSlop={8}>
+                <Pressable
+                  onPress={handleSave}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel={isBookmarked ? "Remove bookmark" : "Save post"}
+                  accessibilityState={{ selected: isBookmarked }}
+                >
                   <Bookmark
                     size={22}
                     color={isBookmarked ? "#3FDCFF" : "#fff"}

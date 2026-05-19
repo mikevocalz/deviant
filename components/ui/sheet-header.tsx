@@ -14,13 +14,25 @@ export function SheetHeader({ title, onClose, onBack }: SheetHeaderProps) {
     <View style={styles.container}>
       <View style={styles.leading}>
         {onBack ? (
-          <Pressable onPress={onBack} hitSlop={12} style={styles.backButton}>
+          <Pressable
+            onPress={onBack}
+            hitSlop={12}
+            accessibilityRole="button"
+            accessibilityLabel="Back"
+            style={styles.backButton}
+          >
             <ChevronLeft size={22} color="#fff" />
           </Pressable>
         ) : null}
         <Text style={styles.title}>{title}</Text>
       </View>
-      <Pressable onPress={onClose} hitSlop={12} style={styles.closeButton}>
+      <Pressable
+        onPress={onClose}
+        hitSlop={12}
+        accessibilityRole="button"
+        accessibilityLabel="Close"
+        style={styles.closeButton}
+      >
         <X size={22} color={DVNT_FUCHSIA} />
       </Pressable>
     </View>
