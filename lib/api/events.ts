@@ -700,6 +700,18 @@ export const eventsApi = {
       const canEdit = await this.canEditEvent(eventId, authId);
       if (!canEdit) throw new Error("Not authorized to edit this event");
 
+      // V2-EVT-02: pre-fetch the event so we can detect material changes
+      // (date / venue / age restriction) and fire notify-event-change to
+      // attendees in the background after a successful save. The diff
+      // happens client-side; the edge fn re-verifies host and pushes.
+      const { data: beforeEvent } = await supabase
+        .from(DB.events.table)
+        .select(
+          "id, start_date, end_date, location, location_name, age_restriction",
+        )
+        .eq(DB.events.id, parseInt(eventId))
+        .maybeSingle();
+
       const updateData: any = {};
       if (updates.title) updateData[DB.events.title] = updates.title;
       if (updates.description !== undefined)
@@ -752,6 +764,68 @@ export const eventsApi = {
         .select();
 
       if (error) throw error;
+
+      // V2-EVT-02: detect material changes and fire notify-event-change
+      // best-effort. Don't block the save flow on push delivery.
+      if (beforeEvent) {
+        const materialChanges: string[] = [];
+        const normIso = (v: unknown) => {
+          if (!v) return null;
+          try {
+            return new Date(String(v)).toISOString();
+          } catch {
+            return String(v);
+          }
+        };
+        if (
+          updates.startDate !== undefined &&
+          normIso(updates.startDate) !== normIso(beforeEvent.start_date)
+        ) {
+          materialChanges.push("start_date");
+        }
+        if (
+          updates.endDate !== undefined &&
+          normIso(updates.endDate || null) !== normIso(beforeEvent.end_date)
+        ) {
+          materialChanges.push("end_date");
+        }
+        if (
+          (updates.location !== undefined &&
+            (updates.location || null) !== (beforeEvent.location || null)) ||
+          (updates.locationName !== undefined &&
+            (updates.locationName || null) !==
+              (beforeEvent.location_name || null))
+        ) {
+          materialChanges.push("location");
+        }
+        if (
+          updates.ageRestriction !== undefined &&
+          (updates.ageRestriction || null) !==
+            (beforeEvent.age_restriction || null)
+        ) {
+          materialChanges.push("age_restriction");
+        }
+
+        if (materialChanges.length > 0) {
+          // Fire-and-forget so the host's save flow doesn't wait on push
+          // delivery. The edge fn handles failures internally.
+          (async () => {
+            try {
+              const { invokeEdge } = await import("./invoke-edge");
+              await invokeEdge("notify-event-change", {
+                eventId: parseInt(eventId),
+                changes: materialChanges,
+              });
+            } catch (notifyErr) {
+              console.warn(
+                "[Events] notify-event-change failed (non-fatal):",
+                notifyErr,
+              );
+            }
+          })();
+        }
+      }
+
       return data?.[0] ?? null;
     } catch (error) {
       console.error("[Events] updateEvent error:", error);
