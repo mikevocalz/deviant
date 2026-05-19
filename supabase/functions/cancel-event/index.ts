@@ -212,7 +212,7 @@ Deno.serve(async (req: Request) => {
           await supabase.from("notifications").insert(
             intIds.map((uid: number) => ({
               recipient_id: uid,
-              sender_id: null,
+              actor_id: null,
               type: "event_cancelled",
               entity_type: "event",
               entity_id: String(eventId),

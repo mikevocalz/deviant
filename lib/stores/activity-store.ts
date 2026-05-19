@@ -30,6 +30,7 @@ export type ActivityType =
   // Event lifecycle (server: cancel-event + notify-event-change)
   | "event_cancelled"
   | "event_changed"
+  | "event_broadcast"
   // Ticket transfer flow (server: transfer-ticket)
   | "ticket_transfer_initiated"
   | "ticket_transfer_accepted"

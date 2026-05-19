@@ -79,9 +79,9 @@ async function notify(
   try {
     await supabase.from("notifications").insert({
       recipient_id: params.recipientIntId,
-      sender_id: params.senderIntId,
+      actor_id: params.senderIntId,
       type: params.notificationType,
-      entity_type: "event_co_organizer",
+      entity_type: "event",
       entity_id: params.entityId,
     });
 

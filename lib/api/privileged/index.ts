@@ -441,6 +441,27 @@ export async function exportEventAttendeesCsv(eventId: number): Promise<{
   return { csv, filename };
 }
 
+export type BroadcastAudience = "all" | "scanned" | "unscanned";
+
+/**
+ * Send a push + activity-feed broadcast to every attendee of an event.
+ * Owner or accepted admin only. Editors and scanners are denied
+ * server-side. Rate-limited to 3 per 5 minutes per (sender, event).
+ */
+export async function sendEventBroadcast(
+  eventId: number,
+  message: string,
+  audience: BroadcastAudience = "all",
+  title?: string,
+): Promise<{ notified: number; pushed: number; audience: BroadcastAudience }> {
+  return invokeEdgeFunction("event-broadcast-message", {
+    event_id: eventId,
+    body: message,
+    audience,
+    title,
+  });
+}
+
 export interface StaffEntry {
   inviteId: string | null;
   authId: string;

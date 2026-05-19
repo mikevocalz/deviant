@@ -76,6 +76,7 @@ const ActivityIcon = memo(({ type }: { type: Activity["type"] }) => {
     case "event_co_organizer_revoked":
     case "event_cancelled":
     case "event_changed":
+    case "event_broadcast":
     case "ticket_transfer_initiated":
     case "ticket_transfer_accepted":
     case "ticket_transfer_declined":
@@ -118,6 +119,8 @@ function getActivityText(activity: Activity): string {
       return ` cancelled ${activity.event?.title || "an event"} you have a ticket to.`;
     case "event_changed":
       return ` updated details for ${activity.event?.title || "your event"}.`;
+    case "event_broadcast":
+      return ` sent a message to attendees of ${activity.event?.title || "an event"}.`;
     case "ticket_transfer_initiated":
       return ` sent you a ticket transfer. Tap to accept or decline.`;
     case "ticket_transfer_accepted":

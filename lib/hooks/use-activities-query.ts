@@ -37,6 +37,7 @@ export type ActivityType =
   | "event_co_organizer_revoked"
   | "event_cancelled"
   | "event_changed"
+  | "event_broadcast"
   | "ticket_transfer_initiated"
   | "ticket_transfer_accepted"
   | "ticket_transfer_declined"

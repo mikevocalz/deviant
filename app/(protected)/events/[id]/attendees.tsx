@@ -37,6 +37,7 @@ import {
   ArrowLeftRight,
   Ban,
   Download,
+  MessageSquare,
 } from "lucide-react-native";
 import { ticketsApi } from "@/lib/api/tickets";
 import { tierAccent } from "@/lib/theme/tier-colors";
@@ -44,6 +45,7 @@ import { exportEventAttendeesCsv } from "@/lib/api/privileged";
 import { useUIStore } from "@/lib/stores/ui-store";
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+import { BroadcastModal } from "@/components/events/broadcast-modal";
 
 type StatusFilter =
   | "all"
@@ -125,7 +127,9 @@ export default function EventAttendeesScreen() {
   const role = query.data?.pages[0]?.role ?? null;
   const canExport =
     role === "owner" || role === "admin" || role === "editor";
+  const canBroadcast = role === "owner" || role === "admin";
   const [exporting, setExporting] = useState(false);
+  const [broadcastOpen, setBroadcastOpen] = useState(false);
   const showToast = useUIStore((s) => s.showToast);
 
   const handleExport = useCallback(async () => {
@@ -238,22 +242,41 @@ export default function EventAttendeesScreen() {
             </Text>
           )}
         </View>
-        {canExport && (
-          <Pressable
-            onPress={handleExport}
-            hitSlop={12}
-            disabled={exporting}
-            style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
-            accessibilityLabel="Export attendees as CSV"
-          >
-            {exporting ? (
-              <ActivityIndicator size="small" color="#C084FC" />
-            ) : (
-              <Download size={18} color="#C084FC" />
-            )}
-          </Pressable>
-        )}
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {canBroadcast && (
+            <Pressable
+              onPress={() => setBroadcastOpen(true)}
+              hitSlop={12}
+              style={styles.exportBtn}
+              accessibilityLabel="Message attendees"
+            >
+              <MessageSquare size={18} color="#C084FC" />
+            </Pressable>
+          )}
+          {canExport && (
+            <Pressable
+              onPress={handleExport}
+              hitSlop={12}
+              disabled={exporting}
+              style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
+              accessibilityLabel="Export attendees as CSV"
+            >
+              {exporting ? (
+                <ActivityIndicator size="small" color="#C084FC" />
+              ) : (
+                <Download size={18} color="#C084FC" />
+              )}
+            </Pressable>
+          )}
+        </View>
       </View>
+
+      <BroadcastModal
+        visible={broadcastOpen}
+        onClose={() => setBroadcastOpen(false)}
+        eventId={eventId}
+        attendeeCount={total}
+      />
 
       <View style={styles.searchWrap}>
         <Search size={16} color="rgba(255,255,255,0.45)" />
