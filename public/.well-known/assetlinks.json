@@ -5,8 +5,7 @@
       "namespace": "android_app",
       "package_name": "com.dvnt.app",
       "sha256_cert_fingerprints": [
-        "<DEBUG_SHA256_FINGERPRINT>",
-        "<RELEASE_SHA256_FINGERPRINT>"
+        "4A:81:7F:CC:09:94:7C:FC:04:39:23:0D:A6:99:6B:F9:D4:F1:71:8F:7A:35:FE:AC:9C:58:75:3D:FE:7B:8F:72"
       ]
     }
   }
