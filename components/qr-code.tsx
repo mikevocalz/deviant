@@ -14,7 +14,7 @@
 
 import React from "react";
 import RealQRCode from "react-native-qrcode-svg";
-import Logo from "./logo";
+import DvntGlyph from "./dvnt-glyph";
 
 interface QRCodeProps {
   value: string;
@@ -47,7 +47,7 @@ export default function QRCode({
       ecl="H"
       {...(logo
         ? {
-            logoSVG: Logo,
+            logoSVG: DvntGlyph,
             logoSize,
             logoBackgroundColor,
             logoMargin: 4,
