@@ -210,21 +210,28 @@ Deno.serve(async (req: Request) => {
     return json(
       {
         ok: true,
-        stats: {
-          monthSold,
-          monthRevenueCents,
-          scanRate, // null if no past events
+        data: {
+          ok: true,
+          stats: {
+            monthSold,
+            monthRevenueCents,
+            scanRate, // null if no past events
+          },
+          tonight,
+          upcoming,
+          drafts,
+          past: pastTruncated,
         },
-        tonight,
-        upcoming,
-        drafts,
-        past: pastTruncated,
       },
       200,
       req,
     );
   } catch (err: any) {
     console.error("[get-host-dashboard] Unexpected:", err);
-    return json({ error: err.message || "Internal error" }, 500, req);
+    return json(
+      { ok: false, error: { message: err.message || "Internal error" } },
+      500,
+      req,
+    );
   }
 });
