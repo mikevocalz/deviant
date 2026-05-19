@@ -13,8 +13,14 @@
  */
 
 import React from "react";
+import type { SvgProps } from "react-native-svg";
 import RealQRCode from "react-native-qrcode-svg";
 import DvntGlyph from "./dvnt-glyph";
+
+// react-native-qrcode-svg's `logoSVG` typing only accepts an FC<SvgProps>
+// while our DvntGlyph accepts the same SvgProps but TS narrows the inferred
+// type. Cast to satisfy the prop without changing runtime behavior.
+const DvntGlyphForLogo = DvntGlyph as unknown as React.FC<SvgProps>;
 
 interface QRCodeProps {
   value: string;
@@ -47,7 +53,7 @@ export default function QRCode({
       ecl="H"
       {...(logo
         ? {
-            logoSVG: DvntGlyph,
+            logoSVG: DvntGlyphForLogo,
             logoSize,
             logoBackgroundColor,
             logoMargin: 4,
