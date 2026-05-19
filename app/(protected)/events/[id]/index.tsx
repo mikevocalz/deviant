@@ -70,7 +70,11 @@ import {
 import { ticketsApi } from "@/lib/api/tickets";
 import { ticketKeys } from "@/lib/hooks/use-tickets";
 import * as WebBrowser from "expo-web-browser";
-import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
+import {
+  deleteEvent as deleteEventPrivileged,
+  cancelEvent as cancelEventPrivileged,
+} from "@/lib/api/privileged";
+import { propagateEntity } from "@/lib/cache/propagate";
 import { useCreateEventReview } from "@/lib/hooks/use-event-reviews";
 import { EventRatingModal } from "@/components/event-rating-modal";
 import { StarRatingDisplay } from "react-native-star-rating-widget";
@@ -978,23 +982,72 @@ function EventDetailScreenContent() {
   }, [user?.id, eventData?.host?.id]);
 
   const handleDeleteEvent = useCallback(() => {
+    // V2-EVT-01: route through cancel-event when tickets exist; the
+    // server cascades Stripe refunds + notifies attendees + marks the
+    // event status='cancelled' (preserves the row). delete-event is
+    // only safe for never-sold events and the server enforces that
+    // with a `tickets_exist` 409 guard.
     Alert.alert(
-      "Delete Event",
-      "Are you sure you want to delete this event? This action cannot be undone.",
+      "Cancel Event",
+      "All ticket holders will be refunded and notified. The event will be marked Cancelled. This can't be undone.",
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "Keep Event", style: "cancel" },
         {
-          text: "Delete",
+          text: "Cancel Event",
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteEventPrivileged(parseInt(eventId));
+              const result = await cancelEventPrivileged(parseInt(eventId));
+
+              if (result.affectedTickets === 0) {
+                // No buyers → safe to hard-delete the row instead of
+                // leaving an orphan "cancelled" row in lists. cancel-
+                // event already marked it cancelled, but we'd rather
+                // remove it entirely since no audit trail is needed.
+                try {
+                  await deleteEventPrivileged(parseInt(eventId));
+                } catch (delErr) {
+                  // delete-event refused (likely a race where a buyer
+                  // came in between calls). Leave it cancelled and
+                  // continue — the cancellation already took effect.
+                  console.warn(
+                    "[EventDetail] follow-up delete refused (race):",
+                    delErr,
+                  );
+                }
+              } else {
+                // Propagate the cancelled status across every cache
+                // (event detail, lists, tickets that nest event copy)
+                // so the UI updates instantly without waiting on a refetch.
+                propagateEntity(queryClient, "event", eventId, {
+                  status: "cancelled",
+                  cancelled_at: new Date().toISOString(),
+                });
+              }
+
               queryClient.invalidateQueries({ queryKey: eventKeys.all });
-              showToast("success", "Deleted", "Event has been deleted.");
+
+              const refundLine =
+                result.refundsIssued > 0
+                  ? `${result.refundsIssued} refund${result.refundsIssued === 1 ? "" : "s"} issued.`
+                  : "";
+              const failedLine =
+                result.refundsFailed > 0
+                  ? ` ${result.refundsFailed} refund${result.refundsFailed === 1 ? "" : "s"} still processing — check host dashboard.`
+                  : "";
+              showToast(
+                result.refundsFailed > 0 ? "warning" : "success",
+                "Event cancelled",
+                `${refundLine}${failedLine}`.trim() || "Done.",
+              );
               router.back();
-            } catch (err) {
-              console.error("[EventDetail] Delete error:", err);
-              showToast("error", "Error", "Failed to delete event.");
+            } catch (err: any) {
+              console.error("[EventDetail] Cancel error:", err);
+              showToast(
+                "error",
+                "Couldn't cancel",
+                err?.message || "Try again in a moment.",
+              );
             }
           },
         },

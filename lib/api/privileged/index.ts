@@ -320,6 +320,37 @@ export async function deleteEvent(
 }
 
 /**
+ * Cancel a published event. Use this instead of deleteEvent when the
+ * event has active ticket buyers — the server cascades Stripe refunds
+ * (one idempotent call per unique payment_intent), voids free tickets,
+ * pushes notifications to every affected user, and marks the event
+ * `status='cancelled'`. The event row is preserved for the audit trail.
+ *
+ * delete-event will REJECT with `tickets_exist` if you try to hard-
+ * delete an event that has any non-terminal tickets. Use this fn first;
+ * fall back to deleteEvent only when this returns affectedTickets=0.
+ */
+export interface CancelEventResult {
+  ok: boolean;
+  eventId: number;
+  refundsIssued: number;
+  refundsFailed: number;
+  freeTicketsVoided: number;
+  affectedTickets: number;
+  alreadyCancelled?: boolean;
+}
+export async function cancelEvent(
+  eventId: number,
+  reason?: string,
+): Promise<CancelEventResult> {
+  console.log("[Privileged] cancelEvent:", eventId, "reason:", reason ?? "—");
+  return invokeEdgeFunction<CancelEventResult>("cancel-event", {
+    eventId,
+    reason: reason || undefined,
+  });
+}
+
+/**
  * RSVP to an event.
  */
 export async function rsvpEvent(input: RsvpEventInput): Promise<{ rsvp: any }> {

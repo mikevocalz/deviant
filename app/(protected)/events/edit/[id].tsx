@@ -20,7 +20,10 @@ import { ArrowLeft, Loader2, Calendar, Clock } from "lucide-react-native";
 import { useColorScheme } from "@/lib/hooks";
 import { useState, useEffect } from "react";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { deleteEvent as deleteEventPrivileged } from "@/lib/api/privileged";
+import {
+  deleteEvent as deleteEventPrivileged,
+  cancelEvent as cancelEventPrivileged,
+} from "@/lib/api/privileged";
 
 function EditEventScreenContent() {
   const router = useRouter();
@@ -109,27 +112,46 @@ function EditEventScreenContent() {
   };
 
   const handleDelete = () => {
+    // V2-EVT-01: route through cancel-event when tickets exist;
+    // cascades refunds + notifies attendees. delete-event is only
+    // safe for never-sold events (server enforces with tickets_exist 409).
     Alert.alert(
-      "Delete Event",
-      "Are you sure you want to delete this event? This action cannot be undone.",
+      "Cancel Event",
+      "All ticket holders will be refunded and notified. The event will be marked Cancelled. This can't be undone.",
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "Keep Event", style: "cancel" },
         {
-          text: "Delete",
+          text: "Cancel Event",
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteEventPrivileged(parseInt(eventId));
-              showToast("success", "Success", "Event deleted successfully!");
+              const result = await cancelEventPrivileged(parseInt(eventId));
+              if (result.affectedTickets === 0) {
+                try {
+                  await deleteEventPrivileged(parseInt(eventId));
+                } catch (delErr) {
+                  console.warn(
+                    "[EditEvent] follow-up delete refused (race):",
+                    delErr,
+                  );
+                }
+              }
+              showToast(
+                result.refundsFailed > 0 ? "warning" : "success",
+                "Event cancelled",
+                result.refundsIssued > 0
+                  ? `${result.refundsIssued} refund${result.refundsIssued === 1 ? "" : "s"} issued.`
+                  : "Done.",
+              );
               router.replace("/(protected)/(tabs)/events");
             } catch (error) {
-              console.error("[EditEvent] Delete error:", error);
+              console.error("[EditEvent] Cancel error:", error);
               showToast(
                 "error",
-                "Error",
+                "Couldn't cancel",
                 error instanceof Error
                   ? error.message
-                  : "Failed to delete event",
+                  : "Try again in a moment.",
               );
             }
           },
