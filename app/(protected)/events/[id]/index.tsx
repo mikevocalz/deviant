@@ -1336,16 +1336,32 @@ function EventDetailScreenContent() {
       >
         {/* ── 1. HERO SECTION ──────────────────────────────────── */}
         <View style={s.heroWrapper}>
-          {/* Parallax hero image */}
+          {/* Parallax hero image — branded gradient fallback when the
+              event hasn't been given a cover image yet. Without this
+              the hero is just black behind the existing overlay
+              gradient, which makes the screen look unfinished. */}
           <View style={s.heroImageContainer}>
             <Animated.View style={[s.heroImageContainer, heroParallaxStyle]}>
-              <Image
-                source={{ uri: event.image }}
-                style={s.heroImage}
-                contentFit="cover"
-                transition={200}
-                cachePolicy="memory-disk"
-              />
+              {event.image ? (
+                <Image
+                  source={{ uri: event.image }}
+                  style={s.heroImage}
+                  contentFit="cover"
+                  transition={200}
+                  cachePolicy="memory-disk"
+                />
+              ) : (
+                <LinearGradient
+                  colors={[
+                    "rgba(138,64,207,0.6)",
+                    "rgba(255,91,252,0.25)",
+                    "rgba(63,220,255,0.15)",
+                  ]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={s.heroImage}
+                />
+              )}
             </Animated.View>
           </View>
 

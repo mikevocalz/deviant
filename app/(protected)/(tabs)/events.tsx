@@ -128,7 +128,9 @@ function EventCard({
             onPress={() => router.push(`/(protected)/events/${event.id}` as any)}
           >
             <View style={{ height: cardHeight }} className="w-full">
-              {/* Parallax image layer */}
+              {/* Parallax image layer — branded gradient fallback when
+                  the host hasn't uploaded a cover yet, so the card
+                  still feels like an event tile instead of a dark void. */}
               <Animated.View
                 style={{
                   width: "100%",
@@ -137,13 +139,26 @@ function EventCard({
                   top: -50,
                 }}
               >
-                <Image
-                  source={{ uri: event.image }}
-                  style={{ width: "100%", height: "100%" }}
-                  contentFit="cover"
-                  transition={200}
-                  cachePolicy="memory-disk"
-                />
+                {event.image ? (
+                  <Image
+                    source={{ uri: event.image }}
+                    style={{ width: "100%", height: "100%" }}
+                    contentFit="cover"
+                    transition={200}
+                    cachePolicy="memory-disk"
+                  />
+                ) : (
+                  <LinearGradient
+                    colors={[
+                      "rgba(138,64,207,0.55)",
+                      "rgba(63,220,255,0.25)",
+                      "rgba(0,0,0,0.0)",
+                    ]}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={{ width: "100%", height: "100%" }}
+                  />
+                )}
               </Animated.View>
               <LinearGradient
                 colors={["transparent", "rgba(0,0,0,0.4)", "rgba(0,0,0,0.8)"]}
