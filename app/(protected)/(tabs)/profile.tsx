@@ -871,6 +871,12 @@ function ProfileScreenContent() {
           <Pressable
             onPress={() => setActiveTab("posts")}
             className="flex-row items-center justify-center gap-1 flex-1"
+            style={{
+              backgroundColor:
+                activeTab === "posts" ? "rgba(255,255,255,0.10)" : undefined,
+              paddingVertical: 6,
+              borderRadius: 8,
+            }}
           >
             <Album
               size={14}
@@ -889,6 +895,12 @@ function ProfileScreenContent() {
           <Pressable
             onPress={() => setActiveTab("video")}
             className="flex-row items-center justify-center gap-1 flex-1"
+            style={{
+              backgroundColor:
+                activeTab === "video" ? "rgba(255,255,255,0.10)" : undefined,
+              paddingVertical: 6,
+              borderRadius: 8,
+            }}
           >
             <Film
               size={14}
@@ -907,6 +919,12 @@ function ProfileScreenContent() {
           <Pressable
             onPress={() => setActiveTab("events")}
             className="flex-row items-center justify-center gap-1 flex-1"
+            style={{
+              backgroundColor:
+                activeTab === "events" ? "rgba(255,255,255,0.10)" : undefined,
+              paddingVertical: 6,
+              borderRadius: 8,
+            }}
           >
             <CalendarDays
               size={14}
@@ -925,6 +943,12 @@ function ProfileScreenContent() {
           <Pressable
             onPress={() => setActiveTab("saved")}
             className="flex-row items-center justify-center gap-1 flex-1"
+            style={{
+              backgroundColor:
+                activeTab === "saved" ? "rgba(255,255,255,0.10)" : undefined,
+              paddingVertical: 6,
+              borderRadius: 8,
+            }}
           >
             <Bookmark
               size={14}
@@ -943,6 +967,12 @@ function ProfileScreenContent() {
           <Pressable
             onPress={() => setActiveTab("tagged")}
             className="flex-row items-center justify-center gap-1 flex-1"
+            style={{
+              backgroundColor:
+                activeTab === "tagged" ? "rgba(255,255,255,0.10)" : undefined,
+              paddingVertical: 6,
+              borderRadius: 8,
+            }}
           >
             <Tag
               size={14}
@@ -1064,12 +1094,17 @@ function ProfileScreenContent() {
                                 width: 56,
                                 height: 56,
                                 borderRadius: 10,
-                                backgroundColor: "#1a1a1a",
+                                backgroundColor: "rgba(63,220,255,0.08)",
+                                borderWidth: 1,
+                                borderColor: "rgba(63,220,255,0.18)",
                                 alignItems: "center",
                                 justifyContent: "center",
                               }}
                             >
-                              <CalendarDays size={24} color="#737373" />
+                              <CalendarDays
+                                size={22}
+                                color="rgba(63,220,255,0.65)"
+                              />
                             </View>
                           )}
                           <View className="flex-1">

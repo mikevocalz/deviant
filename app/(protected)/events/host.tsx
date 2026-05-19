@@ -121,9 +121,12 @@ function EventRow({
         <View
           style={[
             styles.eventThumb,
-            { backgroundColor: "rgba(255,255,255,0.06)" },
+            styles.eventThumbFallback,
+            prominent && { borderColor: "rgba(255,91,252,0.35)" },
           ]}
-        />
+        >
+          <Calendar size={20} color="rgba(63,220,255,0.65)" />
+        </View>
       )}
       <View style={styles.eventBody}>
         <Text style={styles.eventTitle} numberOfLines={1}>
@@ -234,7 +237,7 @@ export default function HostDashboardScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <ArrowLeft size={22} color="#fff" />
           </Pressable>
-          <Text style={styles.headerTitle}>Host dashboard</Text>
+          <Text style={styles.headerTitle}>Host Dashboard</Text>
         </View>
         <View style={styles.loadingWrap}>
           <ActivityIndicator color="rgba(255,255,255,0.4)" />
@@ -250,7 +253,7 @@ export default function HostDashboardScreen() {
           <Pressable onPress={() => router.back()} hitSlop={12}>
             <ArrowLeft size={22} color="#fff" />
           </Pressable>
-          <Text style={styles.headerTitle}>Host dashboard</Text>
+          <Text style={styles.headerTitle}>Host Dashboard</Text>
         </View>
         <ScrollView
           contentContainerStyle={styles.errorWrap}
@@ -284,7 +287,7 @@ export default function HostDashboardScreen() {
         <Pressable onPress={() => router.back()} hitSlop={12}>
           <ArrowLeft size={22} color="#fff" />
         </Pressable>
-        <Text style={styles.headerTitle}>Host dashboard</Text>
+        <Text style={styles.headerTitle}>Host Dashboard</Text>
       </View>
 
       <ScrollView
@@ -493,6 +496,13 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 12,
+  },
+  eventThumbFallback: {
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(63,220,255,0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(63,220,255,0.18)",
   },
   eventBody: { flex: 1, minWidth: 0 },
   eventTitle: { color: "#fff", fontSize: 15, fontWeight: "600" },
