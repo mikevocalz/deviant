@@ -36,9 +36,14 @@ import {
   XCircle,
   ArrowLeftRight,
   Ban,
+  Download,
 } from "lucide-react-native";
 import { ticketsApi } from "@/lib/api/tickets";
 import { tierAccent } from "@/lib/theme/tier-colors";
+import { exportEventAttendeesCsv } from "@/lib/api/privileged";
+import { useUIStore } from "@/lib/stores/ui-store";
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
 
 type StatusFilter =
   | "all"
@@ -118,6 +123,45 @@ export default function EventAttendeesScreen() {
   const total =
     query.data?.pages[query.data.pages.length - 1]?.total ?? null;
   const role = query.data?.pages[0]?.role ?? null;
+  const canExport =
+    role === "owner" || role === "admin" || role === "editor";
+  const [exporting, setExporting] = useState(false);
+  const showToast = useUIStore((s) => s.showToast);
+
+  const handleExport = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const { csv, filename } = await exportEventAttendeesCsv(eventId);
+      const tmpUri = `${FileSystem.cacheDirectory}${filename}`;
+      await FileSystem.writeAsStringAsync(tmpUri, csv, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+      const canShare = await Sharing.isAvailableAsync();
+      if (!canShare) {
+        showToast(
+          "error",
+          "Sharing unavailable",
+          "This device can't open a share sheet.",
+        );
+        return;
+      }
+      await Sharing.shareAsync(tmpUri, {
+        mimeType: "text/csv",
+        UTI: "public.comma-separated-values-text",
+        dialogTitle: "Export attendees",
+      });
+    } catch (err: any) {
+      console.error("[attendees] export failed:", err);
+      showToast(
+        "error",
+        "Export failed",
+        err?.message || "Couldn't generate the CSV.",
+      );
+    } finally {
+      setExporting(false);
+    }
+  }, [eventId, exporting, showToast]);
 
   const renderItem = useCallback(
     ({ item }: { item: any }) => {
@@ -194,6 +238,21 @@ export default function EventAttendeesScreen() {
             </Text>
           )}
         </View>
+        {canExport && (
+          <Pressable
+            onPress={handleExport}
+            hitSlop={12}
+            disabled={exporting}
+            style={[styles.exportBtn, exporting && { opacity: 0.5 }]}
+            accessibilityLabel="Export attendees as CSV"
+          >
+            {exporting ? (
+              <ActivityIndicator size="small" color="#C084FC" />
+            ) : (
+              <Download size={18} color="#C084FC" />
+            )}
+          </Pressable>
+        )}
       </View>
 
       <View style={styles.searchWrap}>
@@ -296,6 +355,16 @@ const styles = StyleSheet.create({
     color: "rgba(255,255,255,0.45)",
     fontSize: 12,
     marginTop: 2,
+  },
+  exportBtn: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(138,64,207,0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(138,64,207,0.32)",
   },
   searchWrap: {
     flexDirection: "row",

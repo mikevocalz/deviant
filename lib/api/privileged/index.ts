@@ -393,6 +393,54 @@ export async function getHostDashboard(): Promise<HostDashboard> {
   return invokeEdgeFunction<HostDashboard>("get-host-dashboard", {});
 }
 
+/**
+ * Download the event attendee roster as a CSV. Returns raw CSV text +
+ * the server-suggested filename. Server enforces owner / admin / editor
+ * role — scanners are denied. Callers should save the CSV to a file and
+ * hand it to expo-sharing for a system share sheet.
+ */
+export async function exportEventAttendeesCsv(eventId: number): Promise<{
+  csv: string;
+  filename: string;
+}> {
+  const token = await requireBetterAuthToken();
+  const supabaseUrl =
+    process.env.EXPO_PUBLIC_SUPABASE_URL ||
+    "https://npfjanxturvmjyevoyfo.supabase.co";
+  const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
+
+  const res = await fetch(
+    `${supabaseUrl}/functions/v1/export-event-attendees`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        apikey: anonKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ event_id: eventId }),
+    },
+  );
+
+  if (!res.ok) {
+    let message = `Export failed (${res.status})`;
+    try {
+      const body = await res.json();
+      message = body?.error?.message || message;
+    } catch {
+      // non-JSON error body — swallow
+    }
+    throw new Error(message);
+  }
+
+  const csv = await res.text();
+  // Pull filename from Content-Disposition if present.
+  const cd = res.headers.get("content-disposition") || "";
+  const match = cd.match(/filename="?([^";]+)"?/i);
+  const filename = match?.[1] || `event-${eventId}-attendees.csv`;
+  return { csv, filename };
+}
+
 export interface StaffEntry {
   inviteId: string | null;
   authId: string;
