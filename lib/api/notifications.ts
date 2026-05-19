@@ -418,6 +418,7 @@ export const notificationsApi = {
           type,
           entity_type,
           entity_id,
+          entity_payload,
           actor_id,
           read_at,
           created_at,
