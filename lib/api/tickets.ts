@@ -35,19 +35,97 @@ export interface TicketRecord {
 
 export const ticketsApi = {
   /**
-   * Get all tickets for an event (host-only view) via the
-   * get-event-tickets edge function.
+   * Get all tickets for an event via the get-event-tickets edge fn.
+   * Backwards-compat wrapper around the paginated variant — returns
+   * the first 200 rows in one shot.
+   *
+   * For rosters > 200 attendees, callers should switch to
+   * `getEventTicketsPaginated` which supports server-side pagination,
+   * status filter, and qr_token prefix search.
    */
   async getEventTickets(eventId: string): Promise<TicketRecord[]> {
+    const page = await ticketsApi.getEventTicketsPaginated(eventId, {
+      page: 1,
+      pageSize: 200,
+    });
+    return page.tickets;
+  },
+
+  /**
+   * Paginated + filtered roster fetch. Hits the same edge function but
+   * passes the new (V2-SEC-02b) pagination + filter + search params.
+   *
+   * Status options:
+   *   'all' (default) | 'active' | 'scanned' | 'refunded'
+   *   'transfer_pending' | 'void'
+   *
+   * Search currently matches qr_token prefix (case-insensitive). The
+   * server escapes %, _, \ so any raw input is safe to pass.
+   *
+   * Returns { tickets, page, pageSize, total, hasMore, role } where
+   * `role` is the caller's effective role ('owner' | 'admin' | 'editor'
+   * | 'scanner'). Scanner-role responses are PII-redacted server-side.
+   */
+  async getEventTicketsPaginated(
+    eventId: string,
+    opts: {
+      page?: number;
+      pageSize?: number;
+      status?:
+        | "all"
+        | "active"
+        | "scanned"
+        | "refunded"
+        | "transfer_pending"
+        | "void";
+      search?: string;
+    } = {},
+  ): Promise<{
+    tickets: TicketRecord[];
+    page: number;
+    pageSize: number;
+    total: number | null;
+    hasMore: boolean;
+    role: "owner" | "admin" | "editor" | "scanner" | null;
+  }> {
     const { data, error } = await invokeEdge<{
       ok: boolean;
       tickets: TicketRecord[];
-    }>("get-event-tickets", { event_id: parseInt(eventId) });
+      page?: number;
+      pageSize?: number;
+      total?: number | null;
+      hasMore?: boolean;
+      role?: "owner" | "admin" | "editor" | "scanner";
+    }>("get-event-tickets", {
+      event_id: parseInt(eventId),
+      page: opts.page ?? 1,
+      pageSize: opts.pageSize ?? 50,
+      status: opts.status ?? "all",
+      search: opts.search ?? "",
+    });
     if (error) {
-      console.error("[Tickets] getEventTickets error:", error.message);
-      return [];
+      console.error(
+        "[Tickets] getEventTicketsPaginated error:",
+        error.message,
+      );
+      return {
+        tickets: [],
+        page: opts.page ?? 1,
+        pageSize: opts.pageSize ?? 50,
+        total: null,
+        hasMore: false,
+        role: null,
+      };
     }
-    return data?.ok ? (data.tickets ?? []) : [];
+    const tickets = data?.ok ? (data.tickets ?? []) : [];
+    return {
+      tickets,
+      page: data?.page ?? opts.page ?? 1,
+      pageSize: data?.pageSize ?? opts.pageSize ?? 50,
+      total: data?.total ?? null,
+      hasMore: data?.hasMore ?? false,
+      role: data?.role ?? null,
+    };
   },
 
   /**
