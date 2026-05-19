@@ -1,26 +1,25 @@
 /**
- * Real QR code wrapper around react-native-qrcode-svg.
+ * Real QR code wrapper around react-native-qrcode-svg, preserving the
+ * original wide DVNT wordmark overlay.
  *
- * Previously this file implemented a "fake QR" that drew the finder
- * patterns + hash-based random noise — it looked like a QR but was
- * impossible to decode because the data area was not a real Reed-
- * Solomon-encoded payload. That meant DVNT ticket QRs failed to scan
- * with any QR reader (including our own VisionCamera scanner). Fixed
- * by delegating to the actual encoder.
+ * The previous fake-QR component (now removed) rendered the wordmark
+ * (`./logo`, viewBox 2360×908) as a separate absolutely-positioned
+ * <View> on top of the QR. That gave the wordmark its natural wide
+ * aspect ratio. The QR library's built-in `logoSVG` slot forces a
+ * square aspect (width = height = logoSize), so we keep the overlay
+ * approach for visual parity.
  *
- * API preserved so existing callers (TicketQRCode, ticket-modal,
- * guest-ticket screen) keep working with their original props.
+ * The QR itself is now a real Reed-Solomon-encoded code (the old
+ * generator produced a hash-based random pattern that looked like a
+ * QR but was undecodable by any reader, including our own scanner).
+ * `ecl="H"` lets the QR tolerate ~30% obscuration so the wordmark
+ * overlay doesn't break decoding.
  */
 
 import React from "react";
-import type { SvgProps } from "react-native-svg";
+import { View, StyleSheet } from "react-native";
 import RealQRCode from "react-native-qrcode-svg";
-import DvntGlyph from "./dvnt-glyph";
-
-// react-native-qrcode-svg's `logoSVG` typing only accepts an FC<SvgProps>
-// while our DvntGlyph accepts the same SvgProps but TS narrows the inferred
-// type. Cast to satisfy the prop without changing runtime behavior.
-const DvntGlyphForLogo = DvntGlyph as unknown as React.FC<SvgProps>;
+import Logo from "./logo";
 
 interface QRCodeProps {
   value: string;
@@ -42,23 +41,57 @@ export default function QRCode({
   logoSize = 50,
   logoBackgroundColor = "#FFFFFF",
 }: QRCodeProps) {
+  const logoPadding = 8;
+  const overlaySize = logoSize + logoPadding * 2;
+  const overlayOffset = (size - overlaySize) / 2;
+
   return (
-    <RealQRCode
-      value={value || " "}
-      size={size}
-      color={foregroundColor}
-      backgroundColor={backgroundColor}
-      // High error correction lets us embed the DVNT logo without
-      // breaking decodability (tolerates up to ~30% obscuration).
-      ecl="H"
-      {...(logo
-        ? {
-            logoSVG: DvntGlyphForLogo,
-            logoSize,
-            logoBackgroundColor,
-            logoMargin: 4,
-          }
-        : {})}
-    />
+    <View style={[styles.container, { width: size, height: size }]}>
+      <RealQRCode
+        value={value || " "}
+        size={size}
+        color={foregroundColor}
+        backgroundColor={backgroundColor}
+        // High error correction lets the wordmark overlay sit on top
+        // without breaking decode.
+        ecl="H"
+      />
+
+      {logo ? (
+        <View
+          style={[
+            styles.logoOverlay,
+            {
+              width: overlaySize,
+              height: overlaySize,
+              left: overlayOffset,
+              top: overlayOffset,
+              backgroundColor: logoBackgroundColor,
+            },
+          ]}
+        >
+          <Logo
+            width={logoSize}
+            height={logoSize}
+            viewBox="0 0 2360 908"
+            preserveAspectRatio="xMidYMid meet"
+          />
+        </View>
+      ) : null}
+    </View>
   );
 }
+
+const styles = StyleSheet.create({
+  container: {
+    position: "relative",
+    overflow: "hidden",
+    borderRadius: 8,
+  },
+  logoOverlay: {
+    position: "absolute",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 8,
+  },
+});
