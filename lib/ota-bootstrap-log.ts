@@ -6,6 +6,8 @@
  * to the console. Import this as the FIRST side-effect import in _layout.tsx.
  *
  * All expo-updates access is defensive. This module MUST NOT throw.
+ *
+ * Canary marker — 2026-05-18 production pipeline check post 1.0.288.
  */
 
 import { Platform } from "react-native";
