@@ -128,6 +128,25 @@ Deno.serve(async (req) => {
       );
     }
 
+    // V2-EVT-01 guard: refuse hard-delete when ANY ticket exists for
+    // this event in a non-terminal state. Hard-deleting an event with
+    // active tickets orphans the rows + leaves Stripe charges with no
+    // refund path. Hosts must use cancel-event instead, which cascades
+    // refunds + notifies attendees.
+    const { data: nonTerminalTickets, count: nonTerminalCount } =
+      await supabaseAdmin
+        .from("tickets")
+        .select("id", { count: "exact", head: true })
+        .eq("event_id", eventId)
+        .in("status", ["active", "transfer_pending", "scanned"]);
+    if ((nonTerminalCount ?? nonTerminalTickets?.length ?? 0) > 0) {
+      return errorResponse(
+        "tickets_exist",
+        "This event has active tickets. Use Cancel Event instead — it will refund attendees and notify them.",
+        409,
+      );
+    }
+
     // Delete related records (best-effort, in case FK cascade is missing)
     const relatedDeletes = [
       supabaseAdmin.from("event_rsvps").delete().eq("event_id", eventId),
