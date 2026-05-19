@@ -20,6 +20,8 @@ import {
   CalendarDays,
   Heart,
   X,
+  LayoutDashboard,
+  ChevronRight,
 } from "lucide-react-native";
 import { useRouter, useNavigation, Link } from "expo-router";
 import { useColorScheme } from "@/lib/hooks";
@@ -965,6 +967,45 @@ function ProfileScreenContent() {
         >
           {activeTab === "events" ? (
             <View className="px-4 pt-2">
+              {myEvents.length > 0 && (
+                <Pressable
+                  onPress={() =>
+                    router.push("/(protected)/events/host" as any)
+                  }
+                  className="flex-row items-center gap-3 p-3 rounded-xl mb-4"
+                  style={{
+                    backgroundColor: "rgba(138,64,207,0.10)",
+                    borderColor: "rgba(138,64,207,0.35)",
+                    borderWidth: 1,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 21,
+                      backgroundColor: "rgba(138,64,207,0.18)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <LayoutDashboard size={20} color="#C084FC" />
+                  </View>
+                  <View className="flex-1">
+                    <Text
+                      className="text-foreground font-semibold text-sm"
+                      numberOfLines={1}
+                    >
+                      Host Dashboard
+                    </Text>
+                    <Text className="text-muted-foreground text-xs mt-0.5">
+                      Tonight, upcoming, sales & scan rate
+                    </Text>
+                  </View>
+                  <ChevronRight size={18} color="#a3a3a3" />
+                </Pressable>
+              )}
+
               {/* My Events Section */}
               {myEvents.length > 0 && (
                 <View className="mb-4">
