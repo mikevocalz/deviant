@@ -8,6 +8,7 @@ import {
   StyleSheet,
   FlatList,
   Alert,
+  useWindowDimensions,
   type ViewStyle,
   type TextStyle,
 } from "react-native";
@@ -956,6 +957,14 @@ function MessagesScreenContent() {
   const router = useRouter();
   const { tab } = useLocalSearchParams<{ tab?: string }>();
   const insets = useSafeAreaInsets();
+  // BUG REGRESSION GUARD: see /Users/mikevocalz/deviant/app/(protected)/messages.tsx
+  // history (commits b1c33c55..5363c242). The previous revert went back
+  // to className="flex-1 bg-background" but the outer container
+  // collapses to 0 height under the Stack screen presentation in some
+  // device/OS combos, leaving the screen visibly black even though the
+  // accessibility tree shows full content. Forcing explicit window
+  // dimensions on the outer View prevents the collapse.
+  const { width: windowWidth, height: windowHeight } = useWindowDimensions();
   const currentUser = useAuthStore((s) => s.user);
   const setMessagesUnread = useUnreadCountsStore((s) => s.setMessagesUnread);
   const setSpamUnread = useUnreadCountsStore((s) => s.setSpamUnread);
@@ -1280,7 +1289,14 @@ function MessagesScreenContent() {
 
   if (isLoading) {
     return (
-      <View className="flex-1 bg-background" style={{ paddingTop: insets.top }}>
+      <View
+        style={{
+          width: windowWidth,
+          height: windowHeight,
+          backgroundColor: "#000",
+          paddingTop: insets.top,
+        }}
+      >
         <MessagesSkeleton />
       </View>
     );
@@ -1288,8 +1304,13 @@ function MessagesScreenContent() {
 
   return (
     <View
-      className="flex-1 bg-background max-w-3xl w-full self-center"
-      style={{ paddingTop: insets.top }}
+      style={{
+        width: windowWidth,
+        height: windowHeight,
+        backgroundColor: "#000",
+        paddingTop: insets.top,
+        alignSelf: "center",
+      }}
     >
       {/* Header */}
       <View className="flex-row items-center justify-between border-b border-border px-4 py-3">
