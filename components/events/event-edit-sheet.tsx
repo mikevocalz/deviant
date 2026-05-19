@@ -45,7 +45,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useMediaPicker } from "@/lib/hooks";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
 import { useQueryClient } from "@tanstack/react-query";
-import { eventKeys } from "@/lib/hooks/use-events";
+import { eventKeys, useUpdateEvent } from "@/lib/hooks/use-events";
 import {
   isRemoteMediaUri,
   persistLocalMediaSelection,
@@ -83,6 +83,7 @@ export function EventEditSheet({
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => ["92%"], []);
   const queryClient = useQueryClient();
+  const updateEventMutation = useUpdateEvent();
   const showToast = useUIStore((s) => s.showToast);
   const { pickFromLibrary } = useMediaPicker();
   const { uploadMultiple, isUploading } = useMediaUpload({ folder: "events" });
@@ -384,21 +385,23 @@ export function EventEditSheet({
       showToast("success", "Event updated", "");
       onClose();
 
-      // ── Background: persist to server ──
-      eventsApi.updateEvent(eventId, updateData).then(
-        () => {
-          queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
-          queryClient.invalidateQueries({ queryKey: eventKeys.all });
-        },
-        (err) => {
-          console.error("[EventEditSheet] Background save error:", err);
-          rollback(queryClient, snapshot);
-          queryClient.invalidateQueries({ queryKey: eventKeys.all });
-          showToast(
-            "error",
-            "Save failed",
-            err?.message || "Changes could not be saved. Please try again.",
-          );
+      // ── Background: persist to server through the mutation hook so
+      // its own buildEventCachePatch propagation also lands (covers
+      // any cache reference shape the local optimisticPatch missed
+      // and replaces with authoritative server data on success).
+      updateEventMutation.mutate(
+        { eventId, updates: updateData },
+        {
+          onError: (err: any) => {
+            console.error("[EventEditSheet] Background save error:", err);
+            rollback(queryClient, snapshot);
+            queryClient.invalidateQueries({ queryKey: eventKeys.all });
+            showToast(
+              "error",
+              "Save failed",
+              err?.message || "Changes could not be saved. Please try again.",
+            );
+          },
         },
       );
     } catch (error: any) {

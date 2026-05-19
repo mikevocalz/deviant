@@ -8,7 +8,10 @@ import {
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query";
-import { eventsApi as eventsApiClient } from "@/lib/api/events";
+import {
+  eventsApi as eventsApiClient,
+  formatEventDate,
+} from "@/lib/api/events";
 import {
   propagateEntity,
   queryContainsEntity,
@@ -338,6 +341,77 @@ export function useCreateEvent() {
   });
 }
 
+/**
+ * Convert a raw form-update payload into the cache patch we need to
+ * apply to every reference to this event in the query cache.
+ *
+ * The cached event shape varies by surface — the event detail uses
+ * snake_case (`start_date`, `cover_image_url`), the events feed uses
+ * camelCase derived fields (`fullDate`, `date`, `month`, `time`,
+ * `image`). When the host edits the date/time, the feed card's "26
+ * JUN" badge + the time pill on the detail will both stay stale
+ * unless we patch BOTH the raw and the derived fields. This helper
+ * centralizes that derivation so every mutation gets the same patch.
+ */
+function buildEventCachePatch(updates: any): Record<string, unknown> {
+  const patch: Record<string, unknown> = {};
+
+  if (updates.title !== undefined) patch.title = updates.title;
+  if (updates.description !== undefined)
+    patch.description = updates.description;
+  if (updates.location !== undefined) patch.location = updates.location;
+  if (updates.locationName !== undefined)
+    patch.location_name = updates.locationName;
+  if (updates.locationLat !== undefined) {
+    patch.location_lat = updates.locationLat;
+    patch.locationLat = updates.locationLat;
+  }
+  if (updates.locationLng !== undefined) {
+    patch.location_lng = updates.locationLng;
+    patch.locationLng = updates.locationLng;
+  }
+  if (updates.price !== undefined) patch.price = updates.price;
+  if (updates.maxAttendees !== undefined)
+    patch.max_attendees = updates.maxAttendees;
+  if (updates.category !== undefined) patch.category = updates.category;
+  if (updates.visibility !== undefined) patch.visibility = updates.visibility;
+  if (updates.ageRestriction !== undefined)
+    patch.age_restriction = updates.ageRestriction;
+  if (updates.dressCode !== undefined) patch.dress_code = updates.dressCode;
+  if (updates.doorPolicy !== undefined) patch.door_policy = updates.doorPolicy;
+  if (updates.lineup !== undefined) patch.lineup = updates.lineup;
+  if (updates.perks !== undefined) patch.perks = updates.perks;
+  if (updates.youtubeVideoUrl !== undefined)
+    patch.youtube_video_url = updates.youtubeVideoUrl;
+  if (updates.ticketingEnabled !== undefined)
+    patch.ticketing_enabled = updates.ticketingEnabled;
+  if (updates.flyerImageUrl !== undefined)
+    patch.flyer_image_url = updates.flyerImageUrl;
+  if (updates.coverImage !== undefined) {
+    patch.cover_image_url = updates.coverImage;
+    patch.image = updates.coverImage;
+  }
+
+  // Date / time — needs BOTH raw and derived fields so the event feed
+  // card badge, the event detail time pill, and the host dashboard
+  // start_date all update in one pass.
+  const iso = updates.startDate || updates.date;
+  if (iso) {
+    const parts = formatEventDate(iso);
+    patch.start_date = iso;
+    patch.fullDate = parts.fullDate;
+    patch.date = parts.date;
+    patch.month = parts.month;
+    patch.time = parts.time;
+  }
+  if (updates.endDate !== undefined) {
+    patch.end_date = updates.endDate || null;
+    patch.endDate = updates.endDate || null;
+  }
+
+  return patch;
+}
+
 // Update event mutation — optimistic across every cache that references
 // the event (detail + lists + ticket-detail's embedded event copy + …).
 // See `lib/cache/propagate.ts`.
@@ -352,7 +426,14 @@ export function useUpdateEvent() {
       const predicate = queryContainsEntity("event", eventId);
       await queryClient.cancelQueries({ predicate });
       const snapshot = snapshotMatchingQueries(queryClient, predicate);
-      propagateEntity(queryClient, "event", eventId, updates);
+      // Patch with derived fields included so the event card badge
+      // ("26 / JUN") + time pill update instantly along with start_date.
+      propagateEntity(
+        queryClient,
+        "event",
+        eventId,
+        buildEventCachePatch(updates),
+      );
       return { snapshot };
     },
 
@@ -363,11 +444,36 @@ export function useUpdateEvent() {
     onSuccess: (result, { eventId }) => {
       // Replace optimistic with authoritative server data
       if (result) {
+        const r = result as Record<string, unknown>;
         propagateEntity(
           queryClient,
           "event",
           eventId,
-          result as Record<string, unknown>,
+          buildEventCachePatch({
+            // map server snake_case back to the raw-form shape that
+            // buildEventCachePatch expects, so derived fields refresh
+            startDate: r.start_date,
+            endDate: r.end_date,
+            title: r.title,
+            description: r.description,
+            location: r.location,
+            locationName: r.location_name,
+            locationLat: r.location_lat,
+            locationLng: r.location_lng,
+            price: r.price,
+            maxAttendees: r.max_attendees,
+            category: r.category,
+            visibility: r.visibility,
+            ageRestriction: r.age_restriction,
+            dressCode: r.dress_code,
+            doorPolicy: r.door_policy,
+            lineup: r.lineup,
+            perks: r.perks,
+            youtubeVideoUrl: r.youtube_video_url,
+            ticketingEnabled: r.ticketing_enabled,
+            flyerImageUrl: r.flyer_image_url,
+            coverImage: r.cover_image_url,
+          }),
         );
       }
       // Background refresh for any keys the predicate missed

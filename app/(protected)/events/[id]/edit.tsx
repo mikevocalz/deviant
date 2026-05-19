@@ -54,7 +54,7 @@ import { eventsApi } from "@/lib/api/events";
 import { organizerApi } from "@/lib/api/organizer";
 import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { useQueryClient } from "@tanstack/react-query";
-import { eventKeys } from "@/lib/hooks/use-events";
+import { eventKeys, useUpdateEvent } from "@/lib/hooks/use-events";
 import {
   LocationAutocompleteInstagram,
   type LocationData,
@@ -89,6 +89,7 @@ function EditEventScreenContent() {
   const router = useRouter();
   const { colors } = useColorScheme();
   const queryClient = useQueryClient();
+  const updateEventMutation = useUpdateEvent();
   const showToast = useUIStore((s) => s.showToast);
   const currentUser = useAuthStore((state) => state.user);
   const { pickFromLibrary, requestPermissions } = useMediaPicker();
@@ -666,25 +667,30 @@ function EditEventScreenContent() {
         console.error("[EditEvent] Tier sync error:", err),
       );
 
-      // ── Background: persist to server ──
-      eventsApi.updateEvent(id, updateData).then(
-        () => {
-          // Refetch canonical data from server
-          queryClient.invalidateQueries({ queryKey: eventKeys.detail(id) });
-          queryClient.invalidateQueries({ queryKey: eventKeys.all });
-        },
-        (err) => {
-          console.error("[EditEvent] Background save error:", err);
-          // Roll back optimistic update
-          if (previousDetail) {
-            queryClient.setQueryData(detailKey, previousDetail);
-          }
-          queryClient.invalidateQueries({ queryKey: ["events"] });
-          showToast(
-            "error",
-            "Save Failed",
-            err?.message || "Changes could not be saved. Please try again.",
-          );
+      // ── Background: persist to server through the mutation hook
+      // so the cache patch from buildEventCachePatch (date/month/time
+      // derived fields) lands wherever the event is cached. The
+      // hand-rolled optimisticPatch above stays for instant feedback
+      // on this exact detail key; the mutation hook expands that to
+      // every other surface (feed cards, host dashboard, ticket
+      // detail) on both onMutate and onSuccess. ──
+      updateEventMutation.mutate(
+        { eventId: id, updates: updateData },
+        {
+          onError: (err: any) => {
+            console.error("[EditEvent] Background save error:", err);
+            // Roll back the local optimistic detail patch (the
+            // mutation hook rolls back its own predicate snapshot).
+            if (previousDetail) {
+              queryClient.setQueryData(detailKey, previousDetail);
+            }
+            queryClient.invalidateQueries({ queryKey: ["events"] });
+            showToast(
+              "error",
+              "Save Failed",
+              err?.message || "Changes could not be saved. Please try again.",
+            );
+          },
         },
       );
       return; // skip the finally block's setIsSaving

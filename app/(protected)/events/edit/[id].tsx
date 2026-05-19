@@ -14,6 +14,7 @@ import {
   type LocationData,
 } from "@/components/ui/location-autocomplete-instagram";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { useUpdateEvent } from "@/lib/hooks/use-events";
 import { DvntMap } from "@/src/components/map";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowLeft, Loader2, Calendar, Clock } from "lucide-react-native";
@@ -44,6 +45,7 @@ function EditEventScreenContent() {
   const [ticketPrice, setTicketPrice] = useState("");
   const [maxAttendees, setMaxAttendees] = useState("");
   const showToast = useUIStore((s) => s.showToast);
+  const updateEventMutation = useUpdateEvent();
 
   useEffect(() => {
     loadEvent();
@@ -87,14 +89,20 @@ function EditEventScreenContent() {
 
     setIsSaving(true);
     try {
-      const { eventsApi } = await import("@/lib/api/events");
-      await eventsApi.updateEvent(eventId, {
-        title,
-        description,
-        location: locationData?.name || undefined,
-        startDate: eventDate.toISOString(),
-        price: ticketPrice ? parseFloat(ticketPrice) : undefined,
-        maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
+      // Route through the mutation hook so every cache that
+      // references this event (feed cards, detail screen, host
+      // dashboard, ticket detail) gets the optimistic patch — see
+      // useUpdateEvent + buildEventCachePatch.
+      await updateEventMutation.mutateAsync({
+        eventId,
+        updates: {
+          title,
+          description,
+          location: locationData?.name || undefined,
+          startDate: eventDate.toISOString(),
+          price: ticketPrice ? parseFloat(ticketPrice) : undefined,
+          maxAttendees: maxAttendees ? parseInt(maxAttendees, 10) : undefined,
+        },
       });
 
       showToast("success", "Success", "Event updated successfully!");
