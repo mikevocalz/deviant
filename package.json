@@ -133,6 +133,7 @@
     "react-native-nitro-image": "^0.13.1",
     "react-native-nitro-modules": "0.35.6",
     "react-native-pager-view": "^8.0.1",
+    "react-native-qrcode-svg": "6.3.21",
     "react-native-reanimated": "^4.3.0",
     "react-native-safe-area-context": "^5.7.0",
     "react-native-screen-transitions": "^3.3.0",
