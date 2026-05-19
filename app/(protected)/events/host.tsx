@@ -245,9 +245,21 @@ export default function HostDashboardScreen() {
           </Pressable>
           <Text style={styles.headerTitle}>Host dashboard</Text>
         </View>
-        <View style={styles.loadingWrap}>
+        <ScrollView
+          contentContainerStyle={styles.errorWrap}
+          refreshControl={
+            <RefreshControl
+              refreshing={q.isFetching}
+              onRefresh={q.refetch}
+              tintColor="rgba(255,255,255,0.4)"
+            />
+          }
+        >
           <Text style={styles.dim}>Couldn't load. Pull to retry.</Text>
-        </View>
+          <Pressable onPress={() => q.refetch()} style={styles.retryBtn}>
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </Pressable>
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -387,6 +399,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   dim: { color: "rgba(255,255,255,0.4)", fontSize: 13, textAlign: "center" },
+  errorWrap: {
+    flexGrow: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    paddingHorizontal: 24,
+  },
+  retryBtn: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 999,
+    backgroundColor: "rgba(138,64,207,0.18)",
+    borderWidth: 1,
+    borderColor: "rgba(138,64,207,0.4)",
+  },
+  retryBtnText: {
+    color: "#C084FC",
+    fontSize: 14,
+    fontWeight: "600",
+  },
 
   statsRow: {
     flexDirection: "row",
