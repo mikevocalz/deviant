@@ -247,6 +247,25 @@ export default function RootLayout() {
     });
   }, [authStatus, hasSeenOnboarding, isAuthenticated, userId]);
 
+  // Supabase JWT bridge — fire-and-forget, additive only. When auth
+  // resolves with a signed-in user, mint a Supabase access-token so
+  // PostgREST sees us as `authenticated` with the correct `sub`. If
+  // minting fails (bridge disabled, network blip, missing secret),
+  // the client silently keeps using the anon key — current behavior.
+  // Never blocks the auth flow.
+  useEffect(() => {
+    if (authStatus === "loading") return;
+    if (!isAuthenticated) return;
+    (async () => {
+      try {
+        const { ensureSupabaseJwt } = await import("@/lib/auth/supabase-jwt");
+        await ensureSupabaseJwt();
+      } catch {
+        // bridge is additive — failures are silent
+      }
+    })();
+  }, [authStatus, isAuthenticated, userId]);
+
   // ── Share Intent — receive content from other apps ──────────────────
   // Initialize push notifications
   useNotifications();

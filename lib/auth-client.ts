@@ -201,6 +201,16 @@ export async function handleSignOut(reason: SignOutReason = "USER_REQUESTED") {
     );
   }
 
+  // 1b. Drop the Supabase JWT bridge cache so the next signed-in user
+  // doesn't inherit this user's `sub` claim on supabase-js calls.
+  // Best-effort — never blocks sign-out.
+  try {
+    const { clearSupabaseJwt } = await import("./auth/supabase-jwt");
+    await clearSupabaseJwt();
+  } catch {
+    // ignore — bridge is additive, sign-out continues either way
+  }
+
   // 2. Clear all cached data (React Query, MMKV, Zustand stores)
   clearAllCachedData();
 
