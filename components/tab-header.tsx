@@ -88,6 +88,9 @@ export function TabHeaderRight() {
       <Link href="/(protected)/search" asChild>
         <Pressable
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          accessibilityRole="button"
+          accessibilityLabel="Search"
+          accessibilityHint="Opens the search screen"
           style={{ padding: 6 }}
         >
           <Search size={24} color={colors.foreground} />
@@ -96,6 +99,9 @@ export function TabHeaderRight() {
       <Link href="/(protected)/messages" asChild>
         <Pressable
           hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
+          accessibilityRole="button"
+          accessibilityLabel="Messages"
+          accessibilityHint="Opens your messages inbox"
           style={{ padding: 6, position: "relative" }}
         >
           <MessageSquare size={24} color={colors.foreground} />

@@ -108,6 +108,9 @@ function TabsHeader() {
         <Pressable
           onPress={() => router.push("/settings" as any)}
           hitSlop={12}
+          accessibilityRole="button"
+          accessibilityLabel="Settings"
+          accessibilityHint="Opens the settings screen"
           style={{
             width: 44,
             height: 44,
