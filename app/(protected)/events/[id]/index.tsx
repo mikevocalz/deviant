@@ -2211,6 +2211,14 @@ function EventDetailScreenContent() {
                 )
             : undefined
         }
+        onStaff={
+          isHost
+            ? () =>
+                router.push(
+                  `/(protected)/events/${eventId}/staff` as any,
+                )
+            : undefined
+        }
       />
     </View>
   );

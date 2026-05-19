@@ -18,6 +18,7 @@ import {
   LayoutDashboard,
   ScanLine,
   Download,
+  UserPlus,
 } from "lucide-react-native";
 
 interface EventActionSheetProps {
@@ -32,6 +33,7 @@ interface EventActionSheetProps {
   onDelete: () => void;
   onDashboard?: () => void;
   onScanner?: () => void;
+  onStaff?: () => void;
   onPromote?: () => void;
   onDownloadOffline?: () => void;
   offlineTokenCount?: number;
@@ -49,6 +51,7 @@ export function EventActionSheet({
   onDelete,
   onDashboard,
   onScanner,
+  onStaff,
   onPromote,
   onDownloadOffline,
   offlineTokenCount = 0,
@@ -162,6 +165,24 @@ export function EventActionSheet({
                 <View style={styles.rowTextWrap}>
                   <Text style={styles.rowText}>Ticket Scanner</Text>
                   <Text style={styles.rowSubtext}>Scan & check in attendees</Text>
+                </View>
+              </Pressable>
+            )}
+
+            {onStaff && (
+              <Pressable
+                onPress={() => {
+                  onStaff();
+                  onClose();
+                }}
+                style={styles.row}
+              >
+                <View style={[styles.iconCircle, { backgroundColor: "rgba(138,64,207,0.12)" }]}>
+                  <UserPlus size={20} color="#C084FC" />
+                </View>
+                <View style={styles.rowTextWrap}>
+                  <Text style={styles.rowText}>Staff & Scanners</Text>
+                  <Text style={styles.rowSubtext}>Invite co-hosts, managers, door staff</Text>
                 </View>
               </Pressable>
             )}

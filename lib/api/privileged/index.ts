@@ -362,6 +362,27 @@ export async function cancelEvent(
  */
 export type CoOrgRole = "scanner" | "editor" | "admin";
 
+export interface StaffEntry {
+  inviteId: string | null;
+  authId: string;
+  username: string | null;
+  displayName: string | null;
+  avatarUrl: string | null;
+  role: "owner" | "admin" | "editor" | "scanner";
+  accepted: boolean;
+  invitedBy: string | null;
+}
+
+export async function getEventStaff(
+  eventId: number,
+): Promise<{
+  ok: boolean;
+  staff: StaffEntry[];
+  callerRole: "owner" | "admin" | null;
+}> {
+  return invokeEdgeFunction("get-event-staff", { event_id: eventId });
+}
+
 export async function inviteCoOrganizer(
   eventId: number,
   username: string,
