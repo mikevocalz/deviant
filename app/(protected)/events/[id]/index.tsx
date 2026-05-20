@@ -345,8 +345,6 @@ function EventDetailScreenContent() {
   const setShowRatingModal = useEventDetailScreenStore(
     (s) => s.setShowRatingModal,
   );
-  const isLiked = useEventDetailScreenStore((s) => s.isLiked);
-  const setIsLiked = useEventDetailScreenStore((s) => s.setIsLiked);
   const ticketQty = useEventDetailScreenStore((s) => s.ticketQty);
   const setTicketQty = useEventDetailScreenStore((s) => s.setTicketQty);
   const resetEventDetailScreen = useEventDetailScreenStore(
@@ -501,29 +499,30 @@ function EventDetailScreenContent() {
     myTicketData ?? null,
   );
 
-  // Sync isLiked from batch payload
-  useEffect(() => {
-    if (eventData?.isLiked != null) {
-      setIsLiked(eventData.isLiked);
-    }
-  }, [eventData?.isLiked]);
+  // Read like state DIRECTLY from the cached event payload. The
+  // useToggleEventLike mutation already patches `eventKeys.detail(id)`
+  // + every `eventKeys.all` list on onMutate (optimistic) and re-patches
+  // on onSuccess with the authoritative server result, so the cache is
+  // the single source of truth. Mirroring it into a Zustand store +
+  // syncing via useEffect (the previous approach) creates a race when
+  // the user likes from the feed card while the detail screen is
+  // mounted — the mirror lags one render behind the cache. See
+  // CLAUDE.md PREVENTION.md (banned pattern: cache-mirror useState/store).
+  const isLiked = eventData?.isLiked ?? false;
 
   const toggleLikeMutation = useToggleEventLike();
   const handleToggleLike = useCallback(() => {
     if (!eventId) return;
-    const wasLiked = isLiked;
-    setIsLiked(!wasLiked); // local optimistic
+    const wasLiked = eventData?.isLiked ?? false;
     toggleLikeMutation.mutate(
       { eventId, isLiked: wasLiked },
       {
         onSuccess: (result) => {
-          setIsLiked(result.liked);
           if (result.liked && !wasLiked) {
             showToast("success", "Saved", "Event added to your liked events");
           }
         },
         onError: (err: unknown) => {
-          setIsLiked(wasLiked);
           const msg = err instanceof Error ? err.message : String(err || "");
           if (msg.includes("Not authenticated")) {
             showToast(
@@ -537,7 +536,7 @@ function EventDetailScreenContent() {
         },
       },
     );
-  }, [eventId, isLiked, toggleLikeMutation, setIsLiked, showToast]);
+  }, [eventId, eventData?.isLiked, toggleLikeMutation, showToast]);
 
   // NORMALIZATION: Create safeEvent with guaranteed non-null values
   // This prevents crashes if TanStack Query updates eventData to null during render
