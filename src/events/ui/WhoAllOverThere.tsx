@@ -99,6 +99,10 @@ function useMoments(eventId: string) {
 function ViewerVideo({ uri, isActive }: { uri: string; isActive: boolean }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
+    // Start muted so iOS allows autoplay without a user gesture initiating
+    // audio. User can tap the speaker icon (allowsPictureInPicture default
+    // controls) to unmute.
+    p.muted = true;
   });
   useEffect(() => {
     if (isActive) {
@@ -231,20 +235,30 @@ const MomentThumb = memo(function MomentThumb({
   moment: Moment;
   onPress: () => void;
 }) {
-  const thumbUri = moment.media_type === "video" && moment.thumbnail_url
+  const isVideo = moment.media_type === "video";
+  // Videos must use thumbnail_url — Image cannot decode a .mov/.mp4 URL.
+  // Photos use media_url directly.
+  const thumbUri = isVideo
     ? moment.thumbnail_url
     : moment.media_url;
   const dur = formatDuration(moment.duration_sec);
+  const showFallback = isVideo && !thumbUri;
 
   return (
     <Pressable onPress={onPress} style={trayStyles.thumb}>
-      <Image
-        source={{ uri: thumbUri }}
-        style={trayStyles.thumbImg}
-        contentFit="cover"
-        cachePolicy="memory-disk"
-      />
-      {moment.media_type === "video" && (
+      {showFallback ? (
+        <View style={trayStyles.videoFallback}>
+          <Play size={26} color="rgba(255,255,255,0.5)" fill="rgba(255,255,255,0.5)" />
+        </View>
+      ) : (
+        <Image
+          source={{ uri: thumbUri || undefined }}
+          style={trayStyles.thumbImg}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+        />
+      )}
+      {isVideo && !showFallback && (
         <View style={trayStyles.playBadge}>
           <Play size={8} color="#fff" fill="#fff" />
         </View>
@@ -612,6 +626,13 @@ const trayStyles = StyleSheet.create({
   thumbImg: {
     width: "100%",
     height: "100%",
+  },
+  videoFallback: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "rgba(138,64,207,0.18)",
+    alignItems: "center",
+    justifyContent: "center",
   },
   playBadge: {
     position: "absolute",

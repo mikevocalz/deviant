@@ -602,6 +602,25 @@ function EditEventScreenContent() {
         }));
       }
 
+      // Patch ticket tiers too — buyers see the new price immediately
+      // without waiting for a refetch. Existing tiers keep their server
+      // id; new tiers get a temp id until the create promise resolves.
+      const optimisticTiers = ticketTiers.map((t) => ({
+        id: t.id || `temp_${t.name}_${Date.now()}`,
+        event_id: parseInt(id, 10),
+        name: t.name || "General Admission",
+        description: t.description || null,
+        category: t.category || "admission",
+        price_cents: Math.round(parseFloat(t.priceDollars || "0") * 100),
+        currency: "usd",
+        quantity_total: parseInt(t.quantity || "100", 10),
+        quantity_sold: 0,
+        max_per_user: parseInt(t.maxPerOrder || "4", 10),
+        is_active: true,
+        tier: t.tier || "ga",
+      }));
+      optimisticPatch.ticketTiers = optimisticTiers;
+
       // Merge into cached detail
       queryClient.setQueryData(detailKey, (old: any) =>
         old ? { ...old, ...optimisticPatch } : old,
@@ -663,9 +682,20 @@ function EditEventScreenContent() {
         ticketTypesApi.deactivate(tid),
       );
 
-      Promise.all([...tierPromises, ...deactivatePromises]).catch((err) =>
-        console.error("[EditEvent] Tier sync error:", err),
-      );
+      Promise.all([...tierPromises, ...deactivatePromises])
+        .then(() => {
+          // Re-fetch authoritative server state so optimistic temp_* tier
+          // ids get replaced by real ids, and other surfaces (host
+          // dashboard, ticket detail screens) refresh their tier prices.
+          queryClient.invalidateQueries({ queryKey: ["events", "detail", id] });
+          queryClient.invalidateQueries({ queryKey: ["events"] });
+          queryClient.invalidateQueries({
+            queryKey: ["tickets", "types", id],
+          });
+        })
+        .catch((err) =>
+          console.error("[EditEvent] Tier sync error:", err),
+        );
 
       // ── Background: persist to server through the mutation hook
       // so the cache patch from buildEventCachePatch (date/month/time
