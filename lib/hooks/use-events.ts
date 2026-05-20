@@ -644,14 +644,23 @@ export function useToggleEventLike() {
       }
     },
     onSuccess: (result, { eventId }) => {
+      // CRITICAL: eventKeys.all matches BOTH list queries (Event[])
+      // AND the detail query (single Event object). Calling .map() on
+      // the detail object throws "old.map is not a function" and leaves
+      // the cache state corrupt — the optimistic patch reverts and
+      // the heart icon flips back, looking like the like "didn't work".
+      // The onMutate patchEvent helper guards with Array.isArray; this
+      // updater must do the same.
       queryClient.setQueriesData<Event[]>(
         { queryKey: eventKeys.all },
-        (old) =>
-          old?.map((event) =>
+        (old) => {
+          if (!old || !Array.isArray(old)) return old;
+          return old.map((event) =>
             String(event.id) === eventId
               ? { ...event, isLiked: result.liked, likes: result.likes }
               : event,
-          ) ?? old,
+          );
+        },
       );
       queryClient.setQueryData(eventKeys.detail(eventId), (old: any) =>
         old
@@ -659,7 +668,7 @@ export function useToggleEventLike() {
           : old,
       );
 
-      // Refresh liked events list and event detail
+      // Refresh liked events list and activity feed
       const uid = getCurrentUserIdSync();
       if (uid) {
         queryClient.invalidateQueries({ queryKey: eventKeys.liked(uid) });
@@ -669,7 +678,13 @@ export function useToggleEventLike() {
           queryKey: activityKeys.liked(viewerId),
         });
       }
-      queryClient.invalidateQueries({ queryKey: eventKeys.detail(eventId) });
+      // NOTE: deliberately NOT invalidating eventKeys.detail(eventId)
+      // here — the setQueryData call above already wrote the
+      // authoritative values from the server. Invalidating would
+      // trigger an immediate refetch, and during the brief gap before
+      // the refetch resolves, the cache could be considered "stale"
+      // and the heart visibly flicker. The optimistic + setQueryData
+      // path is sufficient for correctness.
     },
   });
 }
