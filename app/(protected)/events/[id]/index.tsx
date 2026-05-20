@@ -731,6 +731,21 @@ function EventDetailScreenContent() {
     // ── Stripe checkout path (only when real DB ticket tiers exist) ──
     const hasDbTiers =
       Array.isArray(eventData.ticketTiers) && eventData.ticketTiers.length > 0;
+
+    // GUARD: ticketing is enabled but no tiers configured (or none picked).
+    // Without this guard we used to fall through to the legacy free-RSVP
+    // path and issue a free ticket on a paid event — a real revenue bug.
+    if (eventData.ticketingEnabled && (!hasDbTiers || !selectedTier?.id)) {
+      showToast(
+        "error",
+        "Tickets unavailable",
+        !hasDbTiers
+          ? "This event has no ticket tiers configured yet."
+          : "Pick a ticket tier first.",
+      );
+      return;
+    }
+
     if (eventData.ticketingEnabled && hasDbTiers && selectedTier?.id) {
       // Billable action — never fire while confirmed offline. The
       // PaymentSheet would open, the card confirm would fail, and the

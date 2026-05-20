@@ -93,6 +93,41 @@ Deno.serve(async (req) => {
       );
     }
 
+    // CRITICAL: refuse to issue a free RSVP ticket when the event has
+    // ticketing enabled. Otherwise a buyer who reaches this endpoint
+    // (e.g. via a misconfigured client falling through to the legacy
+    // RSVP path, or a malicious direct hit) gets a free ticket on an
+    // event that's supposed to charge. Paid events MUST go through
+    // create-payment-intent → Stripe.
+    const { data: ev, error: evErr } = await supabase
+      .from("events")
+      .select("ticketing_enabled, status")
+      .eq("id", eventIdInt)
+      .maybeSingle();
+    if (evErr) {
+      console.error("[Edge:rsvp-issue-ticket] event lookup error:", evErr);
+      return errorResponse(req, "internal_error", "Failed to load event");
+    }
+    if (!ev) {
+      return errorResponse(req, "not_found", "Event not found", 404);
+    }
+    if (ev.status !== "active") {
+      return errorResponse(
+        req,
+        "validation_error",
+        "Event is not active",
+        400,
+      );
+    }
+    if (ev.ticketing_enabled) {
+      return errorResponse(
+        req,
+        "ticketing_enabled",
+        "This event requires a paid ticket. Use the ticket checkout flow.",
+        400,
+      );
+    }
+
     const { data, error } = await supabase.rpc("issue_rsvp_ticket", {
       p_event_id: eventIdInt,
       p_user_auth_id: authUserId,
