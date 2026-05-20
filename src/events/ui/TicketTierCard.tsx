@@ -1,8 +1,17 @@
-import React, { memo, useCallback } from "react";
+import React, { memo, useCallback, useEffect, useRef } from "react";
 import { View, Text, Pressable, StyleSheet } from "react-native";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withSequence,
+  withTiming,
+  Easing,
+} from "react-native-reanimated";
 import { Check } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import type { TicketTier } from "../types";
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface TicketTierCardProps {
   tier: TicketTier;
@@ -32,8 +41,30 @@ export const TicketTierCard = memo(function TicketTierCard({
   const categoryLabel = TIER_CATEGORY[tier.category] ?? "Admission";
   const bgColor = isSelected ? `${tier.glowColor}15` : "rgba(255,255,255,0.04)";
 
+  // Posh polish: when realtime delivers an update to this tier (price,
+  // remaining, sold-out flag), fire a soft glow pulse so the user
+  // visibly registers the change instead of it silently re-rendering.
+  const glow = useSharedValue(0);
+  const prevSig = useRef<string>("");
+  useEffect(() => {
+    const sig = `${tier.price}|${tier.remaining}|${tier.isSoldOut ? 1 : 0}|${tier.name}`;
+    if (prevSig.current && prevSig.current !== sig) {
+      glow.value = withSequence(
+        withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }),
+        withTiming(0, { duration: 900, easing: Easing.in(Easing.cubic) }),
+      );
+    }
+    prevSig.current = sig;
+  }, [tier.price, tier.remaining, tier.isSoldOut, tier.name, glow]);
+
+  const pulseStyle = useAnimatedStyle(() => ({
+    shadowOpacity: 0.0 + glow.value * 0.55,
+    shadowRadius: 0 + glow.value * 18,
+    transform: [{ scale: 1 + glow.value * 0.015 }],
+  }));
+
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={handlePress}
       style={[
         styles.card,
@@ -41,7 +72,10 @@ export const TicketTierCard = memo(function TicketTierCard({
           borderColor,
           backgroundColor: bgColor,
           opacity: tier.isSoldOut ? 0.5 : 1,
+          shadowColor: tier.glowColor,
+          shadowOffset: { width: 0, height: 0 },
         },
+        pulseStyle,
       ]}
     >
       {/* Selected indicator */}
@@ -102,7 +136,7 @@ export const TicketTierCard = memo(function TicketTierCard({
           <Text style={styles.remaining}>{tier.remaining} available</Text>
         )}
       </View>
-    </Pressable>
+    </AnimatedPressable>
   );
 });
 

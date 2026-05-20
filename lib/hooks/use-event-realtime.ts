@@ -62,6 +62,40 @@ export function useEventRealtime(eventId: string | undefined): void {
           });
         },
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "tickets",
+          filter: `event_id=eq.${evIdInt}`,
+        },
+        () => {
+          // A new ticket was issued — quantity_sold + attendee counts
+          // need to refresh. Soft invalidate so animation has fresh
+          // numbers to roll into.
+          queryClient.invalidateQueries({
+            queryKey: eventKeys.detail(eventId),
+          });
+          queryClient.invalidateQueries({
+            queryKey: TICKET_TYPES_KEY(eventId),
+          });
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "event_rsvps",
+          filter: `event_id=eq.${evIdInt}`,
+        },
+        () => {
+          queryClient.invalidateQueries({
+            queryKey: eventKeys.detail(eventId),
+          });
+        },
+      )
       .subscribe();
 
     return () => {
