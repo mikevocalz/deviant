@@ -33,6 +33,8 @@ import { voidWalletPass } from "../_shared/wallet-push.ts";
 import { incrementPromoUsage } from "../_shared/apply-promo-code.ts";
 
 const STRIPE_WEBHOOK_SECRET = Deno.env.get("STRIPE_WEBHOOK_SECRET") || "";
+const STRIPE_WEBHOOK_SECRET_CONNECT =
+  Deno.env.get("STRIPE_WEBHOOK_SECRET_CONNECT") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 
@@ -341,12 +343,12 @@ Deno.serve(async (req: Request) => {
     return new Response("Method not allowed", { status: 405 });
   }
 
-  // Hard-fail if webhook secret is not configured — never skip signature verification.
+  // Hard-fail if no webhook secret is configured — never skip signature verification.
   // A missing secret means anyone could POST fake events and issue tickets, grant access,
   // or trigger refunds without paying.
-  if (!STRIPE_WEBHOOK_SECRET) {
+  if (!STRIPE_WEBHOOK_SECRET && !STRIPE_WEBHOOK_SECRET_CONNECT) {
     console.error(
-      "[stripe-webhook] STRIPE_WEBHOOK_SECRET is not set — rejecting request",
+      "[stripe-webhook] No webhook secret configured (STRIPE_WEBHOOK_SECRET or STRIPE_WEBHOOK_SECRET_CONNECT) — rejecting request",
     );
     return new Response("Webhook secret not configured", { status: 500 });
   }
@@ -354,11 +356,21 @@ Deno.serve(async (req: Request) => {
   const body = await req.text();
   const sigHeader = req.headers.get("stripe-signature") || "";
 
-  const valid = await verifyStripeSignature(
-    body,
-    sigHeader,
-    STRIPE_WEBHOOK_SECRET,
-  );
+  // Two destinations send to this endpoint — one for "Your account" platform
+  // events (payments, refunds, subscriptions), one for "Connected accounts"
+  // events (account.updated, host payouts). Each destination has its own
+  // signing secret, so we try both in order.
+  let valid = false;
+  if (STRIPE_WEBHOOK_SECRET) {
+    valid = await verifyStripeSignature(body, sigHeader, STRIPE_WEBHOOK_SECRET);
+  }
+  if (!valid && STRIPE_WEBHOOK_SECRET_CONNECT) {
+    valid = await verifyStripeSignature(
+      body,
+      sigHeader,
+      STRIPE_WEBHOOK_SECRET_CONNECT,
+    );
+  }
   if (!valid) {
     console.error("[stripe-webhook] Invalid signature");
     return new Response("Invalid signature", { status: 400 });

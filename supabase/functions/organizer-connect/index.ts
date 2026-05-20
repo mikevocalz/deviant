@@ -170,16 +170,18 @@ Deno.serve(async (req: Request) => {
         );
 
         // Step 3: Save to DB
+        // Don't ignoreDuplicates — when a row exists with NULL stripe_account_id
+        // (e.g. after a test→live mode re-onboarding), we MUST overwrite it,
+        // not skip. Otherwise webhook account.updated has nothing to match by.
         const { error: upsertErr } = await supabase
           .from("organizer_accounts")
           .upsert(
             {
               host_id,
               stripe_account_id: stripeAccountId,
-              created_at: new Date().toISOString(),
               updated_at: new Date().toISOString(),
             },
-            { onConflict: "host_id", ignoreDuplicates: true },
+            { onConflict: "host_id" },
           );
         if (upsertErr) {
           console.error("[organizer-connect] DB upsert error:", upsertErr);
