@@ -101,31 +101,49 @@ async function _disableProtection(): Promise<void> {
  */
 export type ScreenshotCallback = () => void;
 
+export interface SneakyLynkCaptureProtectionOptions {
+  enabled?: boolean;
+  onScreenshot?: ScreenshotCallback;
+}
+
 /**
  * Hook to enable screen capture prevention for the duration of the
  * mounting component's lifecycle.
  *
- * @param onScreenshot - Optional callback fired when a screenshot is
- *   detected (iOS only). Use for moderation/analytics.
+ * Accepts either a callback (legacy) or an options object. Pass
+ * `{ enabled: false }` from a pre-rendered tab so protection only
+ * activates when the screen is actually visible — otherwise it
+ * blacks out unrelated sibling screens (messages list, etc.) that
+ * share the same window.
  */
 export function useSneakyLynkCaptureProtection(
-  onScreenshot?: ScreenshotCallback,
+  optionsOrCallback?: SneakyLynkCaptureProtectionOptions | ScreenshotCallback,
 ): void {
-  // Track whether THIS instance already incremented the counter
-  const didMount = useRef(false);
+  const options: SneakyLynkCaptureProtectionOptions =
+    typeof optionsOrCallback === "function"
+      ? { onScreenshot: optionsOrCallback }
+      : (optionsOrCallback ?? {});
+  const { enabled = true, onScreenshot } = options;
+
+  // Track whether THIS instance currently holds a counter slot
+  const isActiveRef = useRef(false);
 
   useEffect(() => {
-    // Guard against double-invocation in React Strict Mode
-    if (didMount.current) return;
-    didMount.current = true;
-
-    _activeCount += 1;
-    if (_activeCount === 1) {
-      // First consumer — enable protection
-      _enableProtection();
+    if (!enabled) {
+      if (isActiveRef.current) {
+        isActiveRef.current = false;
+        _activeCount = Math.max(0, _activeCount - 1);
+        if (_activeCount === 0) _disableProtection();
+      }
+      return;
     }
 
-    // Screenshot detection — iOS only (Android doesn't support this)
+    if (isActiveRef.current) return;
+    isActiveRef.current = true;
+
+    _activeCount += 1;
+    if (_activeCount === 1) _enableProtection();
+
     let screenshotSub: ReturnType<typeof addScreenshotListener> | null = null;
     if (Platform.OS === "ios") {
       try {
@@ -144,14 +162,11 @@ export function useSneakyLynkCaptureProtection(
 
     return () => {
       screenshotSub?.remove();
-      _activeCount = Math.max(0, _activeCount - 1);
-      if (_activeCount === 0) {
-        // Last consumer unmounted — release protection
-        _disableProtection();
+      if (isActiveRef.current) {
+        isActiveRef.current = false;
+        _activeCount = Math.max(0, _activeCount - 1);
+        if (_activeCount === 0) _disableProtection();
       }
-      didMount.current = false;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  // onScreenshot intentionally excluded — callback identity shouldn't
-  // cause protection to toggle; callers should memoize if needed.
+  }, [enabled]); // eslint-disable-line react-hooks/exhaustive-deps
 }

@@ -480,8 +480,12 @@ function SneakyLynkContent({
   router: ReturnType<typeof useRouter>;
   isActive: boolean;
 }) {
-  // Protect live room list (titles, topics, participant counts)
-  useSneakyLynkCaptureProtection();
+  // Protect live room list (titles, topics, participant counts).
+  // Gate on isActive — PagerView pre-renders this component, and
+  // preventScreenCaptureAsync is window-wide on iOS, so leaving it
+  // permanently on blacks out the Messages list and Requests tab for
+  // every screenshot the user takes.
+  useSneakyLynkCaptureProtection({ enabled: isActive });
 
   const localRooms = useLynkHistoryStore((s) => s.rooms);
   const endRoom = useLynkHistoryStore((s) => s.endRoom);
