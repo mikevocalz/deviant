@@ -17,6 +17,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { screenPrefetch } from "@/lib/prefetch";
 import { eventKeys, useToggleEventLike } from "@/lib/hooks/use-events";
+import { useEventRealtime } from "@/lib/hooks/use-event-realtime";
 import {
   getCurrentUserIdSync,
   getCurrentUserAuthId,
@@ -291,6 +292,11 @@ function EventDetailScreenContent() {
     [rawParams.id],
   );
   const eventId = normalizedParams.id || "";
+
+  // Live updates for this event: a host editing the title/date/price on
+  // another device, or another buyer claiming the last tier, reflects
+  // here without a manual refresh.
+  useEventRealtime(eventId);
 
   loopDetection.log("EventDetail", "mount", { eventId });
   const { isRsvped, toggleRsvp } = useEventViewStore();

@@ -36,6 +36,7 @@ import { useRef, useCallback, useMemo } from "react";
 import { Debouncer } from "@tanstack/react-pacer";
 import { EventCardSkeleton } from "@/components/skeletons";
 import { PagerViewWrapper } from "@/components/ui/pager-view";
+import { useEventsFeedRealtime } from "@/lib/hooks/use-event-realtime";
 import {
   useEvents,
   useForYouEvents,
@@ -400,6 +401,11 @@ function EventsScreenContent() {
     deviceLng,
     activeCity,
   ]);
+
+  // Live updates: when any event row changes (title, date, ticketing,
+  // status), patch matching cards in-place so the feed reflects host
+  // edits without a manual refresh.
+  useEventsFeedRealtime();
 
   // Fetch events via single batch RPC with server-side filters
   const { data: events = [], isLoading, error } = useEvents(eventFilters);
