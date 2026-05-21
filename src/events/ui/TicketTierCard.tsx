@@ -37,30 +37,51 @@ export const TicketTierCard = memo(function TicketTierCard({
   }, [tier, onSelect]);
 
   const isVip = tier.tier === "vip" || tier.tier === "table";
-  const borderColor = isSelected ? tier.glowColor : "rgba(255,255,255,0.08)";
   const categoryLabel = TIER_CATEGORY[tier.category] ?? "Admission";
-  const bgColor = isSelected ? `${tier.glowColor}15` : "rgba(255,255,255,0.04)";
 
-  // Posh polish: when realtime delivers an update to this tier (price,
-  // remaining, sold-out flag), fire a soft glow pulse so the user
-  // visibly registers the change instead of it silently re-rendering.
-  const glow = useSharedValue(0);
+  // Hex glow color + alpha pair to keep selected state visually
+  // bold even on dark cards. `${color}40` ≈ 25% alpha, `${color}80`
+  // ≈ 50% alpha — high enough to read.
+  const borderColor = isSelected ? tier.glowColor : "rgba(255,255,255,0.10)";
+  const bgColor = isSelected
+    ? `${tier.glowColor}26`
+    : "rgba(255,255,255,0.04)";
+  const borderWidth = isSelected ? 2.5 : 1;
+
+  // Animated selected lift — runs every time `isSelected` flips so
+  // the user gets clear physical feedback when picking a tier.
+  const selectShared = useSharedValue(isSelected ? 1 : 0);
+  useEffect(() => {
+    selectShared.value = withTiming(isSelected ? 1 : 0, {
+      duration: 220,
+      easing: Easing.out(Easing.cubic),
+    });
+  }, [isSelected, selectShared]);
+
+  // Realtime pulse — fires when the tier's price / remaining / sold-out
+  // changes via Supabase Realtime.
+  const realtimeGlow = useSharedValue(0);
   const prevSig = useRef<string>("");
   useEffect(() => {
     const sig = `${tier.price}|${tier.remaining}|${tier.isSoldOut ? 1 : 0}|${tier.name}`;
     if (prevSig.current && prevSig.current !== sig) {
-      glow.value = withSequence(
+      realtimeGlow.value = withSequence(
         withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }),
         withTiming(0, { duration: 900, easing: Easing.in(Easing.cubic) }),
       );
     }
     prevSig.current = sig;
-  }, [tier.price, tier.remaining, tier.isSoldOut, tier.name, glow]);
+  }, [tier.price, tier.remaining, tier.isSoldOut, tier.name, realtimeGlow]);
 
-  const pulseStyle = useAnimatedStyle(() => ({
-    shadowOpacity: 0.0 + glow.value * 0.55,
-    shadowRadius: 0 + glow.value * 18,
-    transform: [{ scale: 1 + glow.value * 0.015 }],
+  const animatedStyle = useAnimatedStyle(() => ({
+    // Selected: 1.025 scale + persistent soft glow shadow.
+    // Realtime change: extra 1% scale bump + brighter glow.
+    transform: [
+      { scale: 1 + selectShared.value * 0.025 + realtimeGlow.value * 0.015 },
+    ],
+    shadowOpacity:
+      selectShared.value * 0.35 + realtimeGlow.value * 0.55,
+    shadowRadius: selectShared.value * 14 + realtimeGlow.value * 18,
   }));
 
   return (
@@ -70,12 +91,13 @@ export const TicketTierCard = memo(function TicketTierCard({
         styles.card,
         {
           borderColor,
+          borderWidth,
           backgroundColor: bgColor,
           opacity: tier.isSoldOut ? 0.5 : 1,
           shadowColor: tier.glowColor,
           shadowOffset: { width: 0, height: 0 },
         },
-        pulseStyle,
+        animatedStyle,
       ]}
     >
       {/* Selected indicator */}
@@ -144,7 +166,6 @@ const styles = StyleSheet.create({
   card: {
     width: 200,
     borderRadius: 20,
-    borderWidth: 1.5,
     padding: 16,
     marginRight: 12,
     position: "relative",
