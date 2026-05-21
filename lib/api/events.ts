@@ -220,6 +220,10 @@ export const eventsApi = {
           attendees: avatars.length > 0 ? avatars : totalCount,
           totalAttendees: totalCount,
           category: event.category || undefined,
+          // Surface status so the feed card can render the CANCELLED
+          // badge. RPC now returns this; we just pass it through.
+          status: event.status || undefined,
+          cancelledAt: event.cancelled_at || undefined,
           locationLat:
             event.location_lat != null ? Number(event.location_lat) : undefined,
           locationLng:
@@ -287,6 +291,8 @@ export const eventsApi = {
           attendees: avatars.length > 0 ? avatars : totalCount,
           totalAttendees: totalCount,
           category: event.category || undefined,
+          status: event.status || undefined,
+          cancelledAt: event.cancelled_at || undefined,
           friendsGoing: event.friends_going || 0,
           host: {
             username: event.host_username || "unknown",
@@ -358,6 +364,8 @@ export const eventsApi = {
           flyerVideoUrl: resolveFlyerVideoUrl(event),
           price: Number(event[DB.events.price]) || 0,
           attendees: Number(event[DB.events.totalAttendees]) || 0,
+          status: event.status || undefined,
+          cancelledAt: event.cancelled_at || undefined,
         };
       });
       return enrichEventsWithTierPrices(mapped);

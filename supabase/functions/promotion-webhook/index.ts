@@ -106,8 +106,15 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Only handle checkout.session.completed for promotions
-    if (event.type !== "checkout.session.completed") {
+    // Two activation paths:
+    //  - checkout.session.completed   → legacy browser Stripe Checkout
+    //  - payment_intent.succeeded     → native PaymentSheet (in-app)
+    // Both carry the same metadata.campaign_id we set when creating
+    // the PaymentIntent / Session.
+    if (
+      event.type !== "checkout.session.completed" &&
+      event.type !== "payment_intent.succeeded"
+    ) {
       return new Response(JSON.stringify({ received: true }), {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -133,8 +140,8 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const session = event.data.object;
-    const metadata = session.metadata || {};
+    const obj = event.data.object;
+    const metadata = obj.metadata || {};
 
     if (metadata.type !== "promotion") {
       return new Response(JSON.stringify({ received: true, skipped: true }), {
@@ -144,7 +151,10 @@ Deno.serve(async (req: Request) => {
     }
 
     const campaignId = parseInt(metadata.campaign_id);
-    const paymentIntent = session.payment_intent;
+    // For a Checkout Session the PI is `obj.payment_intent`. For a
+    // PaymentIntent event the object itself IS the PI, so we use `obj.id`.
+    const paymentIntent =
+      event.type === "payment_intent.succeeded" ? obj.id : obj.payment_intent;
 
     if (!campaignId) {
       console.error("[promotion-webhook] Missing campaign_id in metadata");

@@ -150,10 +150,23 @@ export const EditorCanvas: React.FC<EditorCanvasProps> = React.memo(
     showDebugOverlay = false,
     hideSelection = false,
   }) => {
-    // Load media
-    const backgroundImage = useImage(
+    // Load media. Skia's useImage briefly resolves to null in a few
+    // edge cases (URI ref change, re-mount after a mode flip). Hold on
+    // to the last good image so a sticker-add re-render never blanks the
+    // canvas for a frame — that visual "image disappeared" report.
+    const liveImage = useImage(
       mediaType === "image" && mediaUri ? mediaUri : undefined,
     );
+    const lastImageRef = useRef<typeof liveImage>(null);
+    const lastUriRef = useRef<string | null>(null);
+    // If the URI changed (user picked a new photo), drop the stale cache
+    // so we don't briefly flash the previous image.
+    if (lastUriRef.current !== mediaUri) {
+      lastUriRef.current = mediaUri;
+      lastImageRef.current = null;
+    }
+    if (liveImage) lastImageRef.current = liveImage;
+    const backgroundImage = liveImage ?? lastImageRef.current;
 
     // For video, use Skia's useVideo hook
     const video =
@@ -880,18 +893,47 @@ const SelectionBorder: React.FC<{
   width: number;
   height: number;
 }> = React.memo(({ x, y, width, height }) => {
-  const PAD = 8;
+  const PAD = 14;
+  const radius = 18;
+  const bx = x - PAD;
+  const by = y - PAD;
+  const bw = width + PAD * 2;
+  const bh = height + PAD * 2;
+  const handleR = 7;
 
   return (
-    <Rect
-      x={x - PAD}
-      y={y - PAD}
-      width={width + PAD * 2}
-      height={height + PAD * 2}
-      color="rgba(255,255,255,0.7)"
-      style="stroke"
-      strokeWidth={3}
-    />
+    <Group>
+      {/* Soft glow halo behind the chrome */}
+      <RoundedRect
+        x={bx - 2}
+        y={by - 2}
+        width={bw + 4}
+        height={bh + 4}
+        r={radius + 2}
+        color="rgba(255,255,255,0.10)"
+      />
+      {/* Crisp rounded border */}
+      <RoundedRect
+        x={bx}
+        y={by}
+        width={bw}
+        height={bh}
+        r={radius}
+        color="rgba(255,255,255,0.92)"
+        style="stroke"
+        strokeWidth={3}
+      />
+      {/* Corner handles — visual affordance that the element is grabbable */}
+      <Circle cx={bx} cy={by} r={handleR} color="rgba(255,255,255,0.92)" />
+      <Circle cx={bx + bw} cy={by} r={handleR} color="rgba(255,255,255,0.92)" />
+      <Circle cx={bx} cy={by + bh} r={handleR} color="rgba(255,255,255,0.92)" />
+      <Circle
+        cx={bx + bw}
+        cy={by + bh}
+        r={handleR}
+        color="rgba(255,255,255,0.92)"
+      />
+    </Group>
   );
 });
 

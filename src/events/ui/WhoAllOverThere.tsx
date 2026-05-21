@@ -4,7 +4,7 @@
  * Expires 24h after the event ends.
  */
 
-import React, { memo, useCallback, useRef, useEffect } from "react";
+import React, { memo, useCallback, useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -95,29 +95,45 @@ function useMoments(eventId: string) {
   });
 }
 
-// Fullscreen video player — only plays when this item is the active page
+// Fullscreen video player — plays whenever this item is the active page.
+// Two reliability fixes from the previous version:
+//  1. `nativeControls` defaults to true (was implicit false) so the user
+//     can scrub + unmute even when our auto-play didn't fire.
+//  2. We retry play() once after a short delay because `useVideoPlayer`
+//     setup callback runs before the player is fully ready — the first
+//     `play()` call could no-op on some Android devices.
 function ViewerVideo({ uri, isActive }: { uri: string; isActive: boolean }) {
   const player = useVideoPlayer(uri, (p) => {
     p.loop = true;
-    // Start muted so iOS allows autoplay without a user gesture initiating
-    // audio. User can tap the speaker icon (allowsPictureInPicture default
-    // controls) to unmute.
     p.muted = true;
   });
   useEffect(() => {
     if (isActive) {
-      player.play();
-    } else {
-      player.pause();
+      try {
+        player.play();
+      } catch (e) {
+        console.warn("[WhoAllOverThere] viewer play() failed:", e);
+      }
+      // Retry once after the player has had a tick to load.
+      const t = setTimeout(() => {
+        try {
+          player.play();
+        } catch {}
+      }, 250);
+      return () => clearTimeout(t);
     }
-  // player ref is stable for the component lifetime; only re-run on isActive change
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    try {
+      player.pause();
+    } catch {}
+    // player ref is stable for the component lifetime; only re-run on isActive change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isActive]);
   return (
     <VideoView
       player={player}
       style={StyleSheet.absoluteFill}
       contentFit="contain"
+      nativeControls
     />
   );
 }
@@ -227,6 +243,31 @@ const MomentViewer = memo(function MomentViewer({
   );
 });
 
+// Paused-frame video thumb. Reliable across iOS + Android because we
+// just hand the URL to expo-video and let it render the first frame.
+// expo-video-thumbnails would silently fail on a chunk of legacy
+// remote videos — this avoids that whole class of bug.
+const VideoFrameThumb = memo(function VideoFrameThumb({ uri }: { uri: string }) {
+  const player = useVideoPlayer(uri, (p) => {
+    p.loop = false;
+    p.muted = true;
+    p.pause();
+  });
+  // Wrapper View takes the pointerEvents prop so taps pass through to
+  // the outer Pressable. VideoView itself doesn't forward pointerEvents
+  // reliably across platforms.
+  return (
+    <View pointerEvents="none" style={trayStyles.thumbImg}>
+      <VideoView
+        player={player}
+        style={StyleSheet.absoluteFill}
+        contentFit="cover"
+        nativeControls={false}
+      />
+    </View>
+  );
+});
+
 // Individual thumbnail in the tray
 const MomentThumb = memo(function MomentThumb({
   moment,
@@ -236,29 +277,35 @@ const MomentThumb = memo(function MomentThumb({
   onPress: () => void;
 }) {
   const isVideo = moment.media_type === "video";
-  // Videos must use thumbnail_url — Image cannot decode a .mov/.mp4 URL.
-  // Photos use media_url directly.
-  const thumbUri = isVideo
-    ? moment.thumbnail_url
-    : moment.media_url;
   const dur = formatDuration(moment.duration_sec);
-  const showFallback = isVideo && !thumbUri;
+  // For videos: prefer the stored thumbnail; otherwise fall back to a
+  // paused VideoView showing frame 0.
+  // For photos: render media_url directly.
+  const photoUri = !isVideo ? moment.media_url : null;
+  const storedThumb = isVideo ? moment.thumbnail_url : null;
 
   return (
     <Pressable onPress={onPress} style={trayStyles.thumb}>
-      {showFallback ? (
-        <View style={trayStyles.videoFallback}>
-          <Play size={26} color="rgba(255,255,255,0.5)" fill="rgba(255,255,255,0.5)" />
-        </View>
-      ) : (
+      {photoUri ? (
         <Image
-          source={{ uri: thumbUri || undefined }}
+          source={{ uri: photoUri }}
           style={trayStyles.thumbImg}
           contentFit="cover"
           cachePolicy="memory-disk"
+          transition={120}
         />
+      ) : storedThumb ? (
+        <Image
+          source={{ uri: storedThumb }}
+          style={trayStyles.thumbImg}
+          contentFit="cover"
+          cachePolicy="memory-disk"
+          transition={120}
+        />
+      ) : (
+        <VideoFrameThumb uri={moment.media_url} />
       )}
-      {isVideo && !showFallback && (
+      {isVideo && (
         <View style={trayStyles.playBadge}>
           <Play size={8} color="#fff" fill="#fff" />
         </View>

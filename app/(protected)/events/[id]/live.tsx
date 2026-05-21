@@ -190,6 +190,29 @@ export default function EventLiveScreen() {
     const channelId = `event-live:${eventId}:${Date.now()}`;
     const channel = supabase
       .channel(channelId)
+      // New ticket issued — bump sold count immediately. Without this,
+      // sold ticks up only on the 30s poll, which feels broken to a
+      // host watching the room fill up in real time.
+      .on(
+        "postgres_changes" as any,
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "tickets",
+          filter: `event_id=eq.${eventId}`,
+        },
+        (payload: any) => {
+          const next = payload?.new;
+          if (!next) return;
+          if (
+            next.status === "active" ||
+            next.status === "transfer_pending" ||
+            next.status === "scanned"
+          ) {
+            setSold((c) => c + 1);
+          }
+        },
+      )
       .on(
         "postgres_changes" as any,
         {

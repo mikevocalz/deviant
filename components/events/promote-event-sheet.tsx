@@ -22,9 +22,13 @@ import Animated, {
   useSharedValue,
   withRepeat,
   withSequence,
+  withSpring,
   withTiming,
   Easing,
+  interpolate,
+  cancelAnimation,
 } from "react-native-reanimated";
+import { LinearGradient } from "expo-linear-gradient";
 import {
   BottomSheetModal,
   BottomSheetBackdrop,
@@ -44,7 +48,8 @@ import {
 } from "lucide-react-native";
 import { GlassSheetBackground } from "@/components/sheets/glass-sheet-background";
 import * as Haptics from "expo-haptics";
-import * as WebBrowser from "expo-web-browser";
+import { initStripe } from "@stripe/stripe-react-native";
+import { useStripeSafe as useStripe } from "@/lib/safe-native-modules";
 import { usePromotionStore } from "@/lib/stores/promotion-store";
 import { useEventCampaigns } from "@/lib/hooks/use-promotions";
 import { promotionsApi } from "@/lib/api/promotions";
@@ -88,6 +93,7 @@ export function PromoteEventSheet() {
   const sheetRef = useRef<BottomSheetModal>(null);
   const queryClient = useQueryClient();
   const showToast = useUIStore((s) => s.showToast);
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
 
   const visible = usePromotionStore((s) => s.visible);
   const eventId = usePromotionStore((s) => s.eventId);
@@ -173,12 +179,15 @@ export function PromoteEventSheet() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
     try {
+      // Backend creates the pending campaign + Stripe PaymentIntent and
+      // returns PaymentSheet params (same shape useTicketCheckout uses).
       const result = await promotionsApi.createPromotionCheckout({
         eventId,
         cityId,
         duration: selectedDuration,
         placement: selectedPlacement,
         startNow: true,
+        mode: "payment_sheet",
       });
 
       if (result.error) {
@@ -186,44 +195,79 @@ export function PromoteEventSheet() {
         return;
       }
 
-      if (result.url) {
-        // openAuthSessionAsync auto-closes when Stripe redirects to dvnt:// deep link
-        const browserResult = await WebBrowser.openAuthSessionAsync(
-          result.url,
-          "dvnt://",
-          {
-            showInRecents: false,
-            preferEphemeralSession: true,
-          },
+      const { paymentIntent, ephemeralKey, customer, publishableKey } = result;
+      if (!paymentIntent || !ephemeralKey || !customer) {
+        showToast(
+          "error",
+          "Checkout Failed",
+          "Missing PaymentSheet parameters from server",
         );
-
-        // After browser closes (success or cancel), invalidate promotion queries
-        queryClient.invalidateQueries({ queryKey: promotionKeys.all });
-
-        const succeeded =
-          browserResult.type === "success" &&
-          browserResult.url?.includes("promoted=true");
-
-        if (succeeded) {
-          Haptics.notificationAsync(
-            Haptics.NotificationFeedbackType.Success,
-          );
-          showToast(
-            "success",
-            "🚀 You're in the Spotlight",
-            `${eventTitle} is live in ${
-              selectedPlacement === "feed"
-                ? "the feed"
-                : selectedPlacement === "spotlight"
-                  ? "the top carousel"
-                  : "Spotlight + feed"
-            } now.`,
-          );
-        } else {
-          showToast("info", "Boost", "Payment flow closed.");
-        }
-        closeSheet();
+        return;
       }
+
+      // Trust the server's publishable key (handles OTAs published before
+      // EAS env was set, mirrors useTicketCheckout).
+      if (publishableKey) {
+        try {
+          await initStripe({ publishableKey });
+        } catch (e) {
+          console.warn("[PromoteEventSheet] initStripe re-init failed:", e);
+        }
+      }
+
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: "DVNT",
+        customerId: customer,
+        customerEphemeralKeySecret: ephemeralKey,
+        paymentIntentClientSecret: paymentIntent,
+        allowsDelayedPaymentMethods: false,
+        defaultBillingDetails: { name: "" },
+        appearance: {
+          colors: {
+            primary: "#F59E0B",
+            background: "#0A0A0B",
+            componentBackground: "#151518",
+            componentText: "#ffffff",
+            secondaryText: "#a1a1aa",
+            placeholderText: "#71717a",
+            icon: "#F59E0B",
+          },
+          shapes: { borderRadius: 12, borderWidth: 1 },
+        },
+        returnURL: "dvnt://events/promoted",
+      });
+
+      if (initError) {
+        throw new Error(initError.message || "Failed to initialize payment");
+      }
+
+      const { error: presentError } = await presentPaymentSheet();
+
+      if (presentError) {
+        if (presentError.code === "Canceled") {
+          // Cancellation is normal — silent, sheet stays open so they
+          // can retry without losing their tier/duration selection.
+          return;
+        }
+        throw new Error(presentError.message || "Payment failed");
+      }
+
+      // Payment succeeded. The webhook will activate the campaign;
+      // invalidate so the "Currently Promoted" status appears on next open.
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      queryClient.invalidateQueries({ queryKey: promotionKeys.all });
+      showToast(
+        "success",
+        "🚀 You're in the Spotlight",
+        `${eventTitle} is live in ${
+          selectedPlacement === "feed"
+            ? "the feed"
+            : selectedPlacement === "spotlight"
+              ? "the top carousel"
+              : "Spotlight + feed"
+        } now.`,
+      );
+      closeSheet();
     } catch (err: any) {
       console.error("[PromoteEventSheet] Checkout error:", err);
       showToast("error", "Error", err.message || "Checkout failed");
@@ -241,6 +285,8 @@ export function PromoteEventSheet() {
     showToast,
     closeSheet,
     queryClient,
+    initPaymentSheet,
+    presentPaymentSheet,
   ]);
 
   return (
@@ -589,24 +635,11 @@ export function PromoteEventSheet() {
           </View>
         </View>
 
-        <Pressable
+        <PremiumBoostCTA
+          isCheckingOut={isCheckingOut}
+          label={isExpiringSoon ? "Extend Promotion" : "Boost Event"}
           onPress={handleCheckout}
-          disabled={isCheckingOut}
-          className={`flex-row items-center justify-center gap-2 py-4 rounded-2xl ${
-            isCheckingOut ? "bg-amber-500/50" : "bg-amber-500"
-          }`}
-        >
-          {isCheckingOut ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <CreditCard size={18} color="#fff" />
-              <Text className="text-white font-bold text-base">
-                {isExpiringSoon ? "Extend Promotion" : "Boost Event"}
-              </Text>
-            </>
-          )}
-        </Pressable>
+        />
 
         <Text className="text-white/30 text-[11px] text-center mt-3">
           Payment is processed securely via Stripe. Promotion starts immediately
@@ -614,6 +647,149 @@ export function PromoteEventSheet() {
         </Text>
       </BottomSheetScrollView>
     </BottomSheetModal>
+  );
+}
+
+// ─── Premium CTA ─────────────────────────────────────────────────────
+// Amber→pink gradient + slow conic-style shimmer sweeping left→right
+// + soft outer glow pulse + scale-on-press. Looks worth the money.
+
+function PremiumBoostCTA({
+  isCheckingOut,
+  label,
+  onPress,
+}: {
+  isCheckingOut: boolean;
+  label: string;
+  onPress: () => void;
+}) {
+  const shimmer = useSharedValue(0);
+  const glow = useSharedValue(0);
+  const press = useSharedValue(1);
+
+  useEffect(() => {
+    shimmer.value = withRepeat(
+      withTiming(1, { duration: 2200, easing: Easing.linear }),
+      -1,
+      false,
+    );
+    glow.value = withRepeat(
+      withSequence(
+        withTiming(1, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
+        withTiming(0, { duration: 1400, easing: Easing.inOut(Easing.quad) }),
+      ),
+      -1,
+      false,
+    );
+    return () => {
+      cancelAnimation(shimmer);
+      cancelAnimation(glow);
+    };
+  }, [shimmer, glow]);
+
+  const shimmerStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: interpolate(shimmer.value, [0, 1], [-220, 320]) }],
+  }));
+  const glowStyle = useAnimatedStyle(() => ({
+    shadowOpacity: interpolate(glow.value, [0, 1], [0.25, 0.55]),
+    shadowRadius: interpolate(glow.value, [0, 1], [12, 22]),
+  }));
+  const pressStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: press.value }],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        {
+          shadowColor: "#f59e0b",
+          shadowOffset: { width: 0, height: 0 },
+          elevation: 12,
+          borderRadius: 18,
+        },
+        glowStyle,
+      ]}
+    >
+      <Animated.View style={pressStyle}>
+        <Pressable
+          onPress={onPress}
+          disabled={isCheckingOut}
+          onPressIn={() => {
+            press.value = withSpring(0.97, { damping: 18, stiffness: 320 });
+          }}
+          onPressOut={() => {
+            press.value = withSpring(1, { damping: 18, stiffness: 320 });
+          }}
+          style={{
+            borderRadius: 18,
+            overflow: "hidden",
+          }}
+        >
+          <LinearGradient
+            colors={
+              isCheckingOut
+                ? ["rgba(245,158,11,0.5)", "rgba(245,158,11,0.5)"]
+                : ["#FBBF24", "#F59E0B", "#FB7185"]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{
+              paddingVertical: 18,
+              alignItems: "center",
+              justifyContent: "center",
+              flexDirection: "row",
+              gap: 10,
+            }}
+          >
+            {isCheckingOut ? (
+              <ActivityIndicator size="small" color="#fff" />
+            ) : (
+              <>
+                <Zap size={18} color="#fff" fill="#fff" />
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontSize: 16,
+                    fontFamily: "InterBold",
+                    letterSpacing: 0.3,
+                  }}
+                >
+                  {label}
+                </Text>
+              </>
+            )}
+          </LinearGradient>
+
+          {/* Shimmer sweep — masked to button via parent overflow hidden */}
+          {!isCheckingOut && (
+            <Animated.View
+              pointerEvents="none"
+              style={[
+                {
+                  position: "absolute",
+                  top: 0,
+                  bottom: 0,
+                  width: 90,
+                  transform: [{ skewX: "-22deg" }],
+                },
+                shimmerStyle,
+              ]}
+            >
+              <LinearGradient
+                colors={[
+                  "rgba(255,255,255,0)",
+                  "rgba(255,255,255,0.45)",
+                  "rgba(255,255,255,0)",
+                ]}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={{ flex: 1 }}
+              />
+            </Animated.View>
+          )}
+        </Pressable>
+      </Animated.View>
+    </Animated.View>
   );
 }
 

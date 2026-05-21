@@ -18,6 +18,7 @@ import {
   saveVoipTokenToBackend,
 } from "@/src/services/callkeep/voipPushService";
 import { useBootPrefetch } from "@/lib/hooks/use-boot-prefetch";
+import { useEventsFeedRealtime } from "@/lib/hooks/use-event-realtime";
 import { useAppResume } from "@/lib/hooks/use-app-resume";
 import { useCartPaymentRecovery } from "@/lib/hooks/use-cart-payment-recovery";
 import { useBootLocation } from "@/lib/hooks/use-boot-location";
@@ -143,6 +144,12 @@ export default function ProtectedLayout() {
   useBootLocation();
   // Track Events tab focus → drives WeatherGPUEngine visibility + audio fade
   useEventsTabVisibility();
+  // App-wide realtime UPDATE subscription on the events table — patches
+  // every list cache in place when ANY event the user has loaded gets
+  // edited (by them or by a co-organizer on another device). Mounted at
+  // the layout level so feed cards, profile lists, and the events tab
+  // all stay fresh without each screen needing its own subscription.
+  useEventsFeedRealtime();
 
   const user = useAuthStore((s) => s.user);
 

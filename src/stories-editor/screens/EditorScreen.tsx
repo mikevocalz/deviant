@@ -830,14 +830,12 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
       },
     ) => {
       updateElement(id, { transform } as any);
-      const element = useEditorStore
-        .getState()
-        .elements.find((candidate) => candidate.id === id);
-      if (element?.type === "sticker") {
-        selectElement(null);
-      }
+      // Keep the element selected after pinch/rotate so the user retains
+      // control (Instagram/Snap behavior). Tapping the canvas background
+      // deselects via `deselectTap` — that's the right release point, not
+      // every gesture end.
     },
-    [selectElement, updateElement],
+    [updateElement],
   );
 
   const handleElementDoubleTap = useCallback(
@@ -926,6 +924,7 @@ export const EditorScreen: React.FC<EditorScreenProps> = ({
               onSelect={selectElement}
               onTransformEnd={handleElementTransformEnd}
               onDoubleTap={handleElementDoubleTap}
+              onDelete={removeElement}
             />
           );
         })}

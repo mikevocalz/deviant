@@ -50,7 +50,7 @@ import { useColorScheme, useMediaPicker } from "@/lib/hooks";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAuthStore } from "@/lib/stores/auth-store";
 import { useMediaUpload } from "@/lib/hooks/use-media-upload";
-import { eventsApi } from "@/lib/api/events";
+import { eventsApi, formatEventDate } from "@/lib/api/events";
 import { organizerApi } from "@/lib/api/organizer";
 import { getCurrentUserAuthId } from "@/lib/api/auth-helper";
 import { useQueryClient } from "@tanstack/react-query";
@@ -563,7 +563,13 @@ function EditEventScreenContent() {
       const detailKey = ["events", "detail", id];
       const previousDetail = queryClient.getQueryData(detailKey);
 
-      // Build optimistic patch matching EventDetail shape
+      // Build optimistic patch matching EventDetail shape.
+      // Includes derived date/month/time so the detail screen's date
+      // pill updates the instant the user taps back — without waiting
+      // on the useUpdateEvent mutation's onMutate to compute them.
+      const dateParts = updateData.startDate
+        ? formatEventDate(updateData.startDate as string)
+        : null;
       const optimisticPatch: Record<string, unknown> = {
         title: updateData.title,
         description: updateData.description,
@@ -588,6 +594,13 @@ function EditEventScreenContent() {
           : null,
         youtubeVideoUrl: updateData.youtubeVideoUrl || null,
         ticketingEnabled: updateData.ticketingEnabled,
+        ...(dateParts
+          ? {
+              date: dateParts.date,
+              month: dateParts.month,
+              time: dateParts.time,
+            }
+          : {}),
       };
       if (updateData.locationLat != null) {
         optimisticPatch.locationLat = updateData.locationLat;

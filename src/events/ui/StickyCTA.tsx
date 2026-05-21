@@ -25,6 +25,8 @@ interface StickyCTAProps {
   onJoinWaitlist?: () => void;
   onLeaveWaitlist?: () => void;
   isWaitlistBusy?: boolean;
+  /** Organizer enabled ticketing but no tiers configured yet. */
+  tiersUnavailable?: boolean;
 }
 
 export const StickyCTA = memo(function StickyCTA({
@@ -39,6 +41,7 @@ export const StickyCTA = memo(function StickyCTA({
   onJoinWaitlist,
   onLeaveWaitlist,
   isWaitlistBusy = false,
+  tiersUnavailable = false,
 }: StickyCTAProps) {
   const insets = useSafeAreaInsets();
   const glowPulse = useSharedValue(0);
@@ -70,6 +73,23 @@ export const StickyCTA = memo(function StickyCTA({
   const tierName = selectedTier?.name ?? "General";
   const glowColor = selectedTier?.glowColor ?? "rgb(62, 164, 229)";
   const totalPrice = price * ticketQty;
+
+  if (tiersUnavailable && !hasTicket) {
+    return (
+      <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
+        <View style={styles.inner}>
+          <View
+            style={[styles.ctaButton, { backgroundColor: "#1a1a1a", flex: 1, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }]}
+          >
+            <Ticket size={18} color="rgba(255,255,255,0.5)" />
+            <Text style={[styles.ctaText, { color: "rgba(255,255,255,0.5)" }]}>
+              Tickets coming soon
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   if (isPast && !hasTicket) {
     return (

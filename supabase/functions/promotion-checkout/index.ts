@@ -14,6 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { verifySession as sharedVerifySession } from "../_shared/verify-session.ts";
 
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") || "";
+const STRIPE_PUBLISHABLE_KEY = Deno.env.get("STRIPE_PUBLISHABLE_KEY") || "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") || "";
 const SUPABASE_SERVICE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
 const APP_SCHEME = "dvnt";
@@ -56,18 +57,59 @@ function computeEndDate(startDate: Date, duration: string): Date {
 async function stripeRequest(
   endpoint: string,
   body: Record<string, string>,
+  extraHeaders: Record<string, string> = {},
 ): Promise<any> {
   const res = await fetch(`https://api.stripe.com/v1${endpoint}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
       "Content-Type": "application/x-www-form-urlencoded",
+      ...extraHeaders,
     },
     body: new URLSearchParams(body).toString(),
   });
   const data = await res.json();
   if (data.error) throw new Error(data.error.message);
   return data;
+}
+
+/**
+ * Get or create a Stripe Customer for a DVNT user.
+ * Mirrors the create-payment-intent implementation so the same
+ * stripe_customers row is reused across ticket + promotion checkouts.
+ */
+async function getOrCreateCustomer(
+  supabase: any,
+  userId: string,
+): Promise<string> {
+  const { data: existing } = await supabase
+    .from("stripe_customers")
+    .select("stripe_customer_id")
+    .eq("user_id", userId)
+    .single();
+
+  if (existing?.stripe_customer_id) return existing.stripe_customer_id;
+
+  const { data: authUser } = await supabase
+    .from("user")
+    .select("id, name, email")
+    .eq("id", userId)
+    .single();
+
+  const params: Record<string, string> = {
+    "metadata[dvnt_user_id]": userId,
+  };
+  if (authUser?.email) params.email = authUser.email;
+  if (authUser?.name) params.name = authUser.name;
+
+  const customer = await stripeRequest("/customers", params);
+
+  await supabase.from("stripe_customers").upsert({
+    user_id: userId,
+    stripe_customer_id: customer.id,
+  });
+
+  return customer.id;
 }
 
 Deno.serve(async (req: Request) => {
@@ -108,6 +150,11 @@ Deno.serve(async (req: Request) => {
       placement = "spotlight+feed",
       start_now = true,
       organizer_id,
+      // "payment_sheet" → return PaymentIntent client_secret + ephemeralKey
+      // for the in-app native Stripe PaymentSheet (default for new clients).
+      // "checkout_session" → return a Stripe Checkout Session URL for the
+      // older browser-redirect flow (kept for backward compat).
+      mode = "payment_sheet",
     } = await req.json();
 
     if (!event_id || !duration || !organizer_id) {
@@ -236,7 +283,6 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Create Stripe Checkout Session (payment goes to DVNT platform)
     const durationLabel =
       duration === "24h"
         ? "24 Hours"
@@ -244,6 +290,74 @@ Deno.serve(async (req: Request) => {
           ? "7 Days"
           : "Weekend";
 
+    if (mode === "payment_sheet") {
+      // ── Native PaymentSheet flow (same UX as ticket purchase) ──
+      // Use a Stripe Customer + ephemeral key so the sheet can show
+      // saved cards and Apple/Google Pay when the merchant cert is set.
+      const customerId = await getOrCreateCustomer(supabase, organizer_id);
+
+      const idempotencyKey = `promo_${campaign.id}_${Date.now()}`;
+      const pi = await stripeRequest(
+        "/payment_intents",
+        {
+          amount: String(priceCents),
+          currency: "usd",
+          customer: customerId,
+          "automatic_payment_methods[enabled]": "true",
+          description: `Event Spotlight: ${event.title} (${durationLabel} · ${placement})`,
+          "metadata[campaign_id]": String(campaign.id),
+          "metadata[event_id]": String(event_id),
+          "metadata[organizer_id]": organizer_id,
+          "metadata[type]": "promotion",
+          "metadata[duration]": String(duration),
+          "metadata[placement]": String(placement),
+        },
+        { "Idempotency-Key": idempotencyKey },
+      );
+
+      const ephemeralRes = await fetch(
+        "https://api.stripe.com/v1/ephemeral_keys",
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${STRIPE_SECRET_KEY}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+            "Stripe-Version": "2026-02-25.clover",
+          },
+          body: new URLSearchParams({ customer: customerId }).toString(),
+        },
+      );
+      const ephemeralKey = await ephemeralRes.json();
+      if (ephemeralKey?.error) {
+        throw new Error(
+          ephemeralKey.error.message || "Failed to mint ephemeral key",
+        );
+      }
+
+      // Persist the PI on the pending campaign so the webhook can match it.
+      await supabase
+        .from("event_spotlight_campaigns")
+        .update({ stripe_payment_intent_id: pi.id })
+        .eq("id", campaign.id);
+
+      return new Response(
+        JSON.stringify({
+          campaign_id: campaign.id,
+          paymentIntent: pi.client_secret,
+          paymentIntentId: pi.id,
+          ephemeralKey: ephemeralKey.secret,
+          customer: customerId,
+          publishableKey: STRIPE_PUBLISHABLE_KEY,
+        }),
+        {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+
+    // ── Legacy Stripe Checkout Session flow (browser redirect) ──
+    // Kept so old clients on stale OTAs don't break the moment we ship.
     const session = await stripeRequest("/checkout/sessions", {
       mode: "payment",
       "line_items[0][price_data][currency]": "usd",
@@ -261,7 +375,6 @@ Deno.serve(async (req: Request) => {
       cancel_url: `${APP_SCHEME}://events/${event_id}?promoted=cancelled`,
     });
 
-    // Update campaign with stripe PI
     await supabase
       .from("event_spotlight_campaigns")
       .update({ stripe_payment_intent_id: session.payment_intent })

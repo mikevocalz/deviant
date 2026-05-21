@@ -29,6 +29,7 @@ import { ErrorBoundary } from "@/components/error-boundary";
 import { Motion } from "@legendapp/motion";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTicketStore } from "@/lib/stores/ticket-store";
+import { useEventRealtime } from "@/lib/hooks/use-event-realtime";
 import type { Ticket, TicketTierLevel } from "@/lib/stores/ticket-store";
 import { useMyTicketForEvent } from "@/lib/hooks/use-tickets";
 import { ticketKeys } from "@/lib/hooks/use-tickets";
@@ -97,6 +98,12 @@ function ViewTicketScreenContent() {
 
   const eventId = Array.isArray(id) ? (id[0] ?? "") : (id ?? "");
   const { data: dbTicket, isLoading, isError } = useMyTicketForEvent(eventId);
+
+  // Live updates: if the host edits the event (date, location, image)
+  // while a ticket holder is staring at this screen, refetch the event
+  // detail cache the ticket uses. The shared `useEventRealtime` hook
+  // already debounces and invalidates the relevant keys.
+  useEventRealtime(eventId);
 
   // Location for weather strip
   const activeCity = useEventsLocationStore((s) => s.activeCity);

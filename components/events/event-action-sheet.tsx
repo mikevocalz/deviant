@@ -62,6 +62,20 @@ export function EventActionSheet({
   onDownloadOffline,
   offlineTokenCount = 0,
 }: EventActionSheetProps) {
+  // Close the sheet first, then run the action on the next frame. Doing both
+  // at once means the sheet's close animation races with a router.push() and
+  // on iOS the new screen can mount UNDER a still-visible BottomSheet — which
+  // looks identical to "the option screen never opened."
+  const runAfterClose = useCallback(
+    (action: (() => void) | undefined) => {
+      if (!action) return;
+      onClose();
+      requestAnimationFrame(() => {
+        setTimeout(action, 0);
+      });
+    },
+    [onClose],
+  );
   const bottomSheetRef = useRef<BottomSheet>(null);
   const snapPoints = useMemo(() => [isHost ? "72%" : "45%"], [isHost]);
 
@@ -93,12 +107,16 @@ export function EventActionSheet({
     [],
   );
 
-  if (!visible) return null;
-
+  // NOTE: do not `return null` on !visible. The bottom sheet has its own
+  // open/close animation driven by the imperative ref above. Unmounting it
+  // while `visible` is still flipping cancels the close animation AND drops
+  // the underlying pointer handlers, which has been mistaken for "the
+  // option screens don't open" — the press registered, but the unmount
+  // raced with the navigation.
   return (
     <BottomSheet
       ref={bottomSheetRef}
-      index={0}
+      index={visible ? 0 : -1}
       snapPoints={snapPoints}
       enablePanDownToClose
       enableOverDrag={false}
@@ -124,10 +142,7 @@ export function EventActionSheet({
         {isHost && (
           <>
             <Pressable
-              onPress={() => {
-                onEdit();
-                onClose();
-              }}
+              onPress={() => runAfterClose(onEdit)}
               style={styles.row}
             >
               <View style={[styles.iconCircle, { backgroundColor: "rgba(63,220,255,0.12)" }]}>
@@ -141,10 +156,7 @@ export function EventActionSheet({
 
             {onDashboard && (
               <Pressable
-                onPress={() => {
-                  onDashboard();
-                  onClose();
-                }}
+                onPress={() => runAfterClose(onDashboard)}
                 style={styles.row}
               >
                 <View style={[styles.iconCircle, { backgroundColor: "rgba(138,64,207,0.12)" }]}>
@@ -159,10 +171,7 @@ export function EventActionSheet({
 
             {onLive && (
               <Pressable
-                onPress={() => {
-                  onLive();
-                  onClose();
-                }}
+                onPress={() => runAfterClose(onLive)}
                 style={styles.row}
               >
                 <View style={[styles.iconCircle, { backgroundColor: "rgba(34,197,94,0.14)" }]}>
@@ -177,10 +186,7 @@ export function EventActionSheet({
 
             {onScanner && (
               <Pressable
-                onPress={() => {
-                  onScanner();
-                  onClose();
-                }}
+                onPress={() => runAfterClose(onScanner)}
                 style={styles.row}
               >
                 <View style={[styles.iconCircle, { backgroundColor: "rgba(34,197,94,0.12)" }]}>
@@ -195,10 +201,7 @@ export function EventActionSheet({
 
             {onAttendees && (
               <Pressable
-                onPress={() => {
-                  onAttendees();
-                  onClose();
-                }}
+                onPress={() => runAfterClose(onAttendees)}
                 style={styles.row}
               >
                 <View style={[styles.iconCircle, { backgroundColor: "rgba(63,220,255,0.12)" }]}>
@@ -213,10 +216,7 @@ export function EventActionSheet({
 
             {onStaff && (
               <Pressable
-                onPress={() => {
-                  onStaff();
-                  onClose();
-                }}
+                onPress={() => runAfterClose(onStaff)}
                 style={styles.row}
               >
                 <View style={[styles.iconCircle, { backgroundColor: "rgba(138,64,207,0.12)" }]}>
@@ -231,10 +231,7 @@ export function EventActionSheet({
 
             {onPromote && (
               <Pressable
-                onPress={() => {
-                  onPromote();
-                  onClose();
-                }}
+                onPress={() => runAfterClose(onPromote)}
                 style={styles.row}
               >
                 <View style={[styles.iconCircle, { backgroundColor: "rgba(245,158,11,0.12)" }]}>
@@ -249,10 +246,7 @@ export function EventActionSheet({
 
             {onDownloadOffline && (
               <Pressable
-                onPress={() => {
-                  onDownloadOffline();
-                  onClose();
-                }}
+                onPress={() => runAfterClose(onDownloadOffline)}
                 style={styles.row}
               >
                 <View style={[styles.iconCircle, { backgroundColor: "rgba(59,130,246,0.12)" }]}>
@@ -275,10 +269,7 @@ export function EventActionSheet({
 
         {/* Common actions */}
         <Pressable
-          onPress={() => {
-            onShare();
-            onClose();
-          }}
+          onPress={() => runAfterClose(onShare)}
           style={styles.row}
         >
           <View style={[styles.iconCircle, { backgroundColor: "rgba(255,255,255,0.06)" }]}>
@@ -290,10 +281,7 @@ export function EventActionSheet({
         </Pressable>
 
         <Pressable
-          onPress={() => {
-            onToggleLike();
-            onClose();
-          }}
+          onPress={() => runAfterClose(onToggleLike)}
           style={styles.row}
         >
           <View style={[styles.iconCircle, { backgroundColor: isLiked ? "rgba(255,91,252,0.12)" : "rgba(255,255,255,0.06)" }]}>
@@ -311,10 +299,7 @@ export function EventActionSheet({
         </Pressable>
 
         <Pressable
-          onPress={() => {
-            onAddToCalendar();
-            onClose();
-          }}
+          onPress={() => runAfterClose(onAddToCalendar)}
           style={styles.row}
         >
           <View style={[styles.iconCircle, { backgroundColor: "rgba(255,255,255,0.06)" }]}>
@@ -330,10 +315,7 @@ export function EventActionSheet({
           <>
             <View style={styles.divider} />
             <Pressable
-              onPress={() => {
-                onDelete();
-                onClose();
-              }}
+              onPress={() => runAfterClose(onDelete)}
               style={styles.row}
             >
               <View style={[styles.iconCircle, { backgroundColor: "rgba(239,68,68,0.12)" }]}>

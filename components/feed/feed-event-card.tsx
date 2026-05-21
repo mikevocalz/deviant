@@ -147,7 +147,31 @@ export const FeedEventCard = memo(function FeedEventCard({
               alignItems: "flex-start",
             }}
           >
-            {event.category ? (
+            {(event as any).status === "cancelled" ? (
+              // CANCELLED — replaces the category pill. The cancel-event
+              // edge function already notified ticket holders + refunded
+              // them; this is the visual cue for the rest of the feed.
+              <View
+                style={{
+                  backgroundColor: "rgba(239,68,68,0.85)",
+                  paddingHorizontal: 10,
+                  paddingVertical: 4,
+                  borderRadius: 10,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: "800",
+                    letterSpacing: 1,
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Cancelled
+                </Text>
+              </View>
+            ) : event.category ? (
               <View
                 style={{
                   backgroundColor: "rgba(138,64,207,0.7)",

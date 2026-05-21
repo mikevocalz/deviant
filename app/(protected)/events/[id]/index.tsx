@@ -42,6 +42,7 @@ import {
   Pencil,
   MoreHorizontal,
   Send,
+  Ticket,
 } from "lucide-react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -585,7 +586,13 @@ function EventDetailScreenContent() {
   const ticketTiers = useMemo(() => {
     if (!eventData) return [];
     const dbTiers = eventData.ticketTiers;
-    if (Array.isArray(dbTiers) && dbTiers.length > 0) {
+    const hasDbTiers = Array.isArray(dbTiers) && dbTiers.length > 0;
+    // If the organizer turned ticketing ON but never configured tiers, don't
+    // fabricate a synthetic GA card — it can't actually be sold (no real
+    // ticket_type_id for Stripe) and tapping Get Tickets would just toast an
+    // error. Better: show an empty state and disable the CTA.
+    if (eventData.ticketingEnabled && !hasDbTiers) return [];
+    if (hasDbTiers) {
       const glowColors = ["#34A2DF", "#8A40CF", "#FF5BFC", "#f59e0b"];
       return dbTiers.map((t: any, i: number) => {
         // remaining may be pre-computed by RPC or we derive it from qty fields
@@ -1046,31 +1053,45 @@ function EventDetailScreenContent() {
               const result = await cancelEventPrivileged(parseInt(eventId));
 
               if (result.affectedTickets === 0) {
-                // No buyers → safe to hard-delete the row instead of
-                // leaving an orphan "cancelled" row in lists. cancel-
-                // event already marked it cancelled, but we'd rather
-                // remove it entirely since no audit trail is needed.
+                // No buyers → safe to hard-delete the row + remove from
+                // every list cache. Nothing to communicate to attendees
+                // because there are none.
+                queryClient.setQueriesData<any[]>(
+                  { queryKey: eventKeys.all },
+                  (old) => {
+                    if (!old || !Array.isArray(old)) return old;
+                    return old.filter(
+                      (e: any) => String(e?.id) !== String(eventId),
+                    );
+                  },
+                );
                 try {
                   await deleteEventPrivileged(parseInt(eventId));
                 } catch (delErr) {
-                  // delete-event refused (likely a race where a buyer
-                  // came in between calls). Leave it cancelled and
-                  // continue — the cancellation already took effect.
                   console.warn(
                     "[EventDetail] follow-up delete refused (race):",
                     delErr,
                   );
                 }
+                queryClient.removeQueries({
+                  queryKey: eventKeys.detail(eventId),
+                });
               } else {
-                // Propagate the cancelled status across every cache
-                // (event detail, lists, tickets that nest event copy)
-                // so the UI updates instantly without waiting on a refetch.
+                // BUYERS EXIST — keep the row visible in every list with
+                // a status='cancelled' label so ticket holders see the
+                // cancellation in context (instead of the event quietly
+                // disappearing from their feed). The cancel-event edge
+                // function already issued refunds + push notifications
+                // to attendees server-side.
                 propagateEntity(queryClient, "event", eventId, {
                   status: "cancelled",
                   cancelled_at: new Date().toISOString(),
                 });
               }
 
+              // Background invalidate so next list focus refetches
+              // authoritative server state (in case anything else changed
+              // server-side as part of the cancel cascade).
               queryClient.invalidateQueries({ queryKey: eventKeys.all });
 
               const refundLine =
@@ -1461,6 +1482,45 @@ function EventDetailScreenContent() {
 
         {/* ── 2. CORE INFO BLOCK ───────────────────────────────── */}
         <View style={s.content}>
+          {/* ── TICKETS NOT YET CONFIGURED — inline empty state ── */}
+          {eventData.ticketingEnabled && ticketTiers.length === 0 && (
+            <View style={s.section}>
+              <View
+                style={{
+                  borderRadius: 16,
+                  padding: 18,
+                  backgroundColor: "rgba(255,255,255,0.04)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.08)",
+                  flexDirection: "row",
+                  alignItems: "center",
+                  gap: 12,
+                }}
+              >
+                <Ticket size={22} color="rgba(255,255,255,0.55)" />
+                <View style={{ flex: 1 }}>
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontSize: 15,
+                      fontFamily: "InterSemiBold",
+                    }}
+                  >
+                    Tickets not on sale yet
+                  </Text>
+                  <Text
+                    style={{
+                      color: "rgba(255,255,255,0.55)",
+                      fontSize: 13,
+                      marginTop: 2,
+                    }}
+                  >
+                    The organizer is still setting up tiers — check back soon.
+                  </Text>
+                </View>
+              </View>
+            </View>
+          )}
           {/* ── TICKET TIERS — directly beneath hero ──────────── */}
           {ticketTiers.length > 0 && (
             <View style={s.section}>
@@ -2204,6 +2264,9 @@ function EventDetailScreenContent() {
         onJoinWaitlist={handleJoinWaitlist}
         onLeaveWaitlist={handleLeaveWaitlist}
         isWaitlistBusy={isWaitlistBusy}
+        tiersUnavailable={
+          !!eventData.ticketingEnabled && ticketTiers.length === 0
+        }
       />
 
       {/* Rating Modal */}

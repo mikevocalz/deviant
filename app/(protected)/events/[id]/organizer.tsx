@@ -8,6 +8,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from "react";
+import { useFocusEffect } from "expo-router";
 import { ErrorBoundary } from "@/components/error-boundary";
 import {
   View,
@@ -38,7 +39,6 @@ import { organizerApi } from "@/lib/api/organizer";
 import { useColorScheme } from "@/lib/hooks";
 import { tickets } from "@/lib/api/tickets";
 import { ticketsApi } from "@/lib/api/tickets";
-import { TicketQRScanner } from "@/components/ticket-qr-scanner";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
 
@@ -62,7 +62,8 @@ function EventOrganizerScreenContent() {
   const [eventTickets, setEventTickets] = useState<Ticket[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showScanner, setShowScanner] = useState(false);
+  // Dashboard now defers to the dedicated full-screen scanner route
+  // so we don't ship two different scanner UIs for the same job.
 
   const eventId = id || "";
 
@@ -145,14 +146,18 @@ function EventOrganizerScreenContent() {
     loadTickets();
   }, [eventId]);
 
+  // Refresh tickets every time the dashboard regains focus — covers the
+  // "scanner just checked someone in" case now that the scanner is a
+  // separate route instead of an inline view.
+  useFocusEffect(
+    useCallback(() => {
+      loadTickets();
+    }, [eventId]),
+  );
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await loadTickets();
-  };
-
-  const handleCheckInSuccess = () => {
-    // Reload tickets after successful check-in
-    loadTickets();
   };
 
   // ── Refund a ticket (host-initiated) ──
@@ -216,16 +221,6 @@ function EventOrganizerScreenContent() {
     (t) => t.status === "checked_in",
   ).length;
   const totalCount = eventTickets.length;
-
-  if (showScanner) {
-    return (
-      <TicketQRScanner
-        eventId={eventId}
-        onClose={() => setShowScanner(false)}
-        onCheckInSuccess={handleCheckInSuccess}
-      />
-    );
-  }
 
   return (
     <SafeAreaView
@@ -334,9 +329,12 @@ function EventOrganizerScreenContent() {
 
       {/* Action Buttons */}
       <View style={{ padding: 16, gap: 10 }}>
-        {/* Scan Button */}
+        {/* Scan Button — opens the same full-screen scanner the
+            "Ticket Scanner" option opens, so there's a single scanner UI. */}
         <Pressable
-          onPress={() => setShowScanner(true)}
+          onPress={() =>
+            router.push(`/(protected)/events/${eventId}/scanner` as any)
+          }
           style={{
             backgroundColor: colors.primary,
             paddingVertical: 16,

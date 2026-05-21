@@ -118,8 +118,15 @@ export const promotionsApi = {
   },
 
   /**
-   * Create a promotion checkout session via Edge Function.
-   * Returns a Stripe Checkout URL for the organizer to complete payment.
+   * Create a promotion checkout via Edge Function.
+   *
+   * Default `mode: "payment_sheet"` returns PaymentSheet params
+   * (paymentIntent / ephemeralKey / customer / publishableKey) so the
+   * client can present the in-app native Stripe PaymentSheet — the same
+   * UX the ticket purchase flow uses.
+   *
+   * `mode: "checkout_session"` is the legacy browser-redirect path,
+   * still supported by the edge function for backward compat.
    */
   async createPromotionCheckout(params: {
     eventId: string;
@@ -127,7 +134,20 @@ export const promotionsApi = {
     duration: PromotionDuration;
     placement: CampaignPlacement;
     startNow: boolean;
-  }): Promise<{ url?: string; error?: string; campaign_id?: number }> {
+    mode?: "payment_sheet" | "checkout_session";
+  }): Promise<{
+    // payment_sheet response
+    paymentIntent?: string;
+    paymentIntentId?: string;
+    ephemeralKey?: string;
+    customer?: string;
+    publishableKey?: string;
+    // checkout_session response
+    url?: string;
+    // common
+    campaign_id?: number;
+    error?: string;
+  }> {
     try {
       const authId = await getCurrentUserAuthId();
       if (!authId) return { error: "Not authenticated" };
@@ -143,6 +163,7 @@ export const promotionsApi = {
             placement: params.placement,
             start_now: params.startNow,
             organizer_id: authId,
+            mode: params.mode ?? "payment_sheet",
           },
           headers: {
             Authorization: `Bearer ${token}`,

@@ -9,12 +9,18 @@
 // ============================================================
 
 import React, { useCallback } from "react";
+import { Pressable, View } from "react-native";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   runOnJS,
+  FadeIn,
+  FadeOut,
+  ZoomIn,
 } from "react-native-reanimated";
+import * as Haptics from "expo-haptics";
+import { X } from "lucide-react-native";
 import type { RenderSurface } from "../../utils/geometry";
 import { liveTransformRegistry } from "./shared-element-transforms";
 
@@ -42,6 +48,7 @@ interface ElementGestureOverlayProps {
     },
   ) => void;
   onDoubleTap?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 export const ElementGestureOverlay: React.FC<ElementGestureOverlayProps> =
@@ -57,6 +64,7 @@ export const ElementGestureOverlay: React.FC<ElementGestureOverlayProps> =
       onSelect,
       onTransformEnd,
       onDoubleTap,
+      onDelete,
     }) => {
       // Get the shared values from the registry (created by useElementTransform in Skia renderer)
       const live = liveTransformRegistry.get(elementId);
@@ -192,12 +200,112 @@ export const ElementGestureOverlay: React.FC<ElementGestureOverlayProps> =
         };
       });
 
+      const handleDeletePress = useCallback(() => {
+        if (!onDelete) return;
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        onDelete(elementId);
+      }, [elementId, onDelete]);
+
       return (
-        <GestureDetector gesture={gesture}>
-          <Animated.View style={animatedStyle} collapsable={false} />
-        </GestureDetector>
+        <>
+          <GestureDetector gesture={gesture}>
+            <Animated.View style={animatedStyle} collapsable={false} />
+          </GestureDetector>
+          {/* Floating delete handle — only when this element is selected.
+              Sits at the top-right of the gesture box and follows pan/scale/
+              rotate via the same animated style + an offset. Rendered as a
+              sibling (not a child) so it doesn't sit inside the rotated
+              container, which would make the X tilt with the sticker. */}
+          {isSelected && onDelete ? (
+            <DeleteHandle
+              tx={tx}
+              ty={ty}
+              sc={sc}
+              elementWidth={elementWidth}
+              elementHeight={elementHeight}
+              surface={surface}
+              onPress={handleDeletePress}
+            />
+          ) : null}
+        </>
       );
     },
   );
+
+interface DeleteHandleProps {
+  tx: { value: number };
+  ty: { value: number };
+  sc: { value: number };
+  elementWidth: number;
+  elementHeight: number;
+  surface: RenderSurface;
+  onPress: () => void;
+}
+
+function DeleteHandle({
+  tx,
+  ty,
+  sc,
+  elementWidth,
+  elementHeight,
+  surface,
+  onPress,
+}: DeleteHandleProps) {
+  const SIZE = 30;
+  const animatedStyle = useAnimatedStyle(() => {
+    // Mirror the gesture overlay's screen position so the delete X tracks
+    // the element while it's being moved/scaled. Use the unrotated box;
+    // we DO follow scale so the X stays visually anchored to the corner.
+    const scaledW = Math.max(
+      elementWidth * (sc as any).value * surface.scale,
+      120,
+    );
+    const scaledH = Math.max(
+      elementHeight * (sc as any).value * surface.scale,
+      120,
+    );
+    const centerScreenX =
+      (tx as any).value * surface.scale + surface.offsetX;
+    const centerScreenY =
+      (ty as any).value * surface.scale + surface.offsetY;
+    return {
+      position: "absolute" as const,
+      left: centerScreenX + scaledW / 2 - SIZE / 2,
+      top: centerScreenY - scaledH / 2 - SIZE / 2,
+      width: SIZE,
+      height: SIZE,
+    };
+  });
+  return (
+    <Animated.View
+      style={animatedStyle}
+      entering={ZoomIn.duration(180)}
+      exiting={FadeOut.duration(120)}
+      pointerEvents="box-none"
+    >
+      <Pressable
+        onPress={onPress}
+        hitSlop={10}
+        style={{
+          width: SIZE,
+          height: SIZE,
+          borderRadius: SIZE / 2,
+          backgroundColor: "rgba(0,0,0,0.78)",
+          borderWidth: 1.5,
+          borderColor: "rgba(255,255,255,0.85)",
+          alignItems: "center",
+          justifyContent: "center",
+          shadowColor: "#000",
+          shadowOpacity: 0.35,
+          shadowRadius: 6,
+          shadowOffset: { width: 0, height: 2 },
+          elevation: 6,
+        }}
+      >
+        <X size={16} color="#fff" strokeWidth={2.5} />
+      </Pressable>
+    </Animated.View>
+  );
+}
 
 ElementGestureOverlay.displayName = "ElementGestureOverlay";

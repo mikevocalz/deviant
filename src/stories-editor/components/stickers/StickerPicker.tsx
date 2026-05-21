@@ -8,9 +8,9 @@ import {
   Pressable,
   Text,
   TextInput,
-  FlatList,
   useWindowDimensions,
 } from "react-native";
+import { LegendList } from "@/components/list";
 import { useQuery } from "@tanstack/react-query";
 import { Image } from "expo-image";
 import { Search } from "lucide-react-native";
@@ -312,11 +312,13 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
   return (
     <View className="flex-1" style={{ minHeight: 0 }}>
       {activeImagePack ? (
-        <FlatList
+        <LegendList
           key={`image-${activeImagePack.id}`}
           data={activeImageStickers}
           style={{ flex: 1 }}
           numColumns={3}
+          recycleItems
+          estimatedItemSize={imageStickerSize}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <Pressable
@@ -354,20 +356,19 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             "Try another search term.",
           )}
           ListFooterComponent={<View style={{ height: 28 }} />}
-          contentContainerStyle={{ paddingBottom: 20 }}
-          columnWrapperStyle={{ paddingHorizontal: 12 }}
+          contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 12 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          contentInsetAdjustmentBehavior="automatic"
-          automaticallyAdjustKeyboardInsets
         />
       ) : isTwemojiTab ? (
-        <FlatList
+        <LegendList
           key={`emoji-${activeTab}`}
           data={twemojiStickers}
           style={{ flex: 1 }}
           numColumns={5}
+          recycleItems
+          estimatedItemSize={twemojiStickerSize}
           keyExtractor={(item: string, index: number) => `${item}-${index}`}
           renderItem={({ item }: { item: string }) => (
             <Pressable
@@ -395,16 +396,13 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
             "Try another tab or clear your search.",
           )}
           ListFooterComponent={<View style={{ height: 28 }} />}
-          contentContainerStyle={{ paddingBottom: 20 }}
-          columnWrapperStyle={{ paddingHorizontal: 12 }}
+          contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 12 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          contentInsetAdjustmentBehavior="automatic"
-          automaticallyAdjustKeyboardInsets
         />
       ) : (
-        <FlatList
+        <LegendList
           key="gif"
           style={{ flex: 1 }}
           data={
@@ -413,6 +411,8 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
               : gifItems
           }
           numColumns={3}
+          recycleItems
+          estimatedItemSize={imageStickerSize}
           keyExtractor={(item: string | KlipyItem, index: number) =>
             typeof item === "string" ? item : `${item.id}-${index}`
           }
@@ -459,13 +459,10 @@ export const StickerPicker: React.FC<StickerPickerProps> = ({
               </Text>
             </View>
           }
-          contentContainerStyle={{ paddingBottom: 20 }}
-          columnWrapperStyle={{ gap: 10, paddingHorizontal: 4 }}
+          contentContainerStyle={{ paddingBottom: 20, paddingHorizontal: 4 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="interactive"
-          contentInsetAdjustmentBehavior="automatic"
-          automaticallyAdjustKeyboardInsets
         />
       )}
     </View>
