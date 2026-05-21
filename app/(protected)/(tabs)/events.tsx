@@ -186,12 +186,23 @@ function EventCard({
               style={{ padding: compact ? 16 : 24 }}
             >
               <View className="flex-row items-center gap-1.5 mb-2">
-                <View className="bg-white/20 px-3 py-1.5 rounded-xl">
-                  <Text className="text-white text-xs font-medium">
-                    {event.category}
-                  </Text>
-                </View>
-                {event.isPromoted && (
+                {(event as any).status === "cancelled" ? (
+                  <View
+                    className="px-3 py-1.5 rounded-xl"
+                    style={{ backgroundColor: "rgba(239,68,68,0.9)" }}
+                  >
+                    <Text className="text-white text-xs font-bold uppercase tracking-wider">
+                      Cancelled
+                    </Text>
+                  </View>
+                ) : event.category ? (
+                  <View className="bg-white/20 px-3 py-1.5 rounded-xl">
+                    <Text className="text-white text-xs font-medium">
+                      {event.category}
+                    </Text>
+                  </View>
+                ) : null}
+                {event.isPromoted && (event as any).status !== "cancelled" && (
                   <View className="bg-amber-500/90 px-2.5 py-1.5 rounded-xl flex-row items-center gap-1">
                     <Zap size={10} color="#fff" fill="#fff" />
                     <Text className="text-white text-[10px] font-bold uppercase tracking-wider">
