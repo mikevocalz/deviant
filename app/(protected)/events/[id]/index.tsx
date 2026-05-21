@@ -160,72 +160,98 @@ type CalendarRecord = {
   source?: { name?: string };
 };
 
+// Brand-aligned default glow per tier level. Used only when the DB
+// row has no glow_color override.
+const DEFAULT_TIER_GLOW: Record<string, string> = {
+  free: "#3FDCFF",
+  ga: "#34A2DF",
+  vip: "#8A40CF",
+  table: "#FF5BFC",
+};
+
+const VALID_TIER_LEVELS = new Set(["free", "ga", "vip", "table"]);
+const VALID_CATEGORIES = new Set(["admission", "product", "service"]);
+
 function buildTicketTiers(event: EventDetail): TicketTier[] {
+  // PREFERRED PATH: use the authoritative ticket_types rows the server
+  // returned via get_event_detail. Each row carries the real UUID id
+  // that create-payment-intent expects.
+  const dbTiers = (event as any).ticketTiers as
+    | Array<Record<string, any>>
+    | undefined;
+
+  if (Array.isArray(dbTiers) && dbTiers.length > 0) {
+    return dbTiers
+      .filter((t) => t.is_active !== false)
+      .map((t) => {
+        const level = VALID_TIER_LEVELS.has(t.tier) ? t.tier : "ga";
+        const category = VALID_CATEGORIES.has(t.category)
+          ? t.category
+          : "admission";
+        const priceCents = Number(t.price_cents ?? 0);
+        const originalCents = t.original_price_cents
+          ? Number(t.original_price_cents)
+          : null;
+        const remaining =
+          typeof t.remaining === "number"
+            ? t.remaining
+            : Math.max(
+                0,
+                Number(t.quantity_total ?? 0) - Number(t.quantity_sold ?? 0),
+              );
+        const perks = Array.isArray(t.perks)
+          ? t.perks
+              .map((p: any) =>
+                typeof p === "string" ? p : (p?.label ?? p?.text ?? ""),
+              )
+              .filter(Boolean)
+          : [];
+        return {
+          id: String(t.id),
+          name: String(t.name ?? "").trim() || "General Admission",
+          description: t.description || undefined,
+          price: priceCents / 100,
+          originalPrice:
+            originalCents != null && originalCents > priceCents
+              ? originalCents / 100
+              : undefined,
+          perks,
+          category: category as TicketTier["category"],
+          remaining,
+          maxPerOrder: Number(t.max_per_order ?? 4),
+          isSoldOut: !!t.is_sold_out || remaining === 0,
+          tier: level as TicketTier["tier"],
+          glowColor: t.glow_color || DEFAULT_TIER_GLOW[level] || "#34A2DF",
+        };
+      })
+      .sort((a, b) => a.price - b.price);
+  }
+
+  // LEGACY FALLBACK: event has no DB tiers configured (older row, or
+  // a free event). Synthesize a single tier from the event's base price
+  // so the UI still functions. Do NOT fabricate VIP/Table here — those
+  // would have fake ids that fail at checkout. The "Tickets unavailable"
+  // guard in handleGetTickets catches the mismatch upstream.
   const price = event.price || 0;
   const maxAttendees = event.maxAttendees || 200;
   const currentAttendees = event.attendees || 0;
   const remaining = Math.max(0, maxAttendees - currentAttendees);
 
-  if (price === 0) {
-    return [
-      {
-        id: "free",
-        name: "Free Entry",
-        price: 0,
-        perks: ["General admission", "Access to all areas"],
-        category: "admission",
-        remaining,
-        maxPerOrder: 4,
-        isSoldOut: remaining === 0,
-        tier: "free",
-        glowColor: "#3FDCFF",
-      },
-    ];
-  }
-
   return [
     {
-      id: "ga",
-      name: "General Admission",
+      id: price === 0 ? "free" : "ga",
+      name: price === 0 ? "Free Entry" : "General Admission",
       price,
-      originalPrice: Math.round(price * 1.4),
-      perks: ["Standard entry", "Access to main floor"],
+      perks:
+        price === 0
+          ? ["General admission", "Access to all areas"]
+          : ["Standard entry", "Access to main floor"],
       category: "admission",
-      remaining: Math.max(0, Math.floor(remaining * 0.6)),
-      maxPerOrder: 6,
+      remaining,
+      maxPerOrder: price === 0 ? 4 : 6,
       isSoldOut: remaining === 0,
-      tier: "ga",
-      glowColor: "#34A2DF",
-    },
-    {
-      id: "vip",
-      name: "VIP Access",
-      price: Math.round(price * 2.5),
-      originalPrice: Math.round(price * 3.5),
-      perks: ["Priority entry", "VIP lounge access", "Complimentary drink"],
-      category: "admission",
-      remaining: Math.max(0, Math.floor(remaining * 0.25)),
-      maxPerOrder: 4,
-      isSoldOut: remaining === 0,
-      tier: "vip",
-      glowColor: "#8A40CF",
-    },
-    {
-      id: "table",
-      name: "Table Service",
-      price: Math.round(price * 8),
-      originalPrice: Math.round(price * 10),
-      perks: [
-        "Reserved table for 6",
-        "Bottle service included",
-        "Dedicated host",
-      ],
-      category: "service",
-      remaining: Math.max(0, Math.floor(remaining * 0.05)),
-      maxPerOrder: 2,
-      isSoldOut: remaining === 0,
-      tier: "table",
-      glowColor: "#FF5BFC",
+      tier: price === 0 ? "free" : "ga",
+      glowColor: price === 0 ? "#3FDCFF" : "#34A2DF",
     },
   ];
 }
