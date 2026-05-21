@@ -142,14 +142,27 @@ function ViewerVideo({ uri, isActive }: { uri: string; isActive: boolean }) {
 const ViewerItem = memo(function ViewerItem({
   moment,
   width,
+  height,
   isActive,
 }: {
   moment: Moment;
   width: number;
+  height: number;
   isActive: boolean;
 }) {
+  // Use explicit width AND height. In a horizontal LegendList, `flex: 1`
+  // on an inner View doesn't reliably give a vertical height — it
+  // collapses to 0 on some iOS layouts which is why the video player
+  // would mount without a viewport and render an all-black frame.
   return (
-    <View style={{ width, flex: 1, backgroundColor: "#000", justifyContent: "center" }}>
+    <View
+      style={{
+        width,
+        height,
+        backgroundColor: "#000",
+        justifyContent: "center",
+      }}
+    >
       {moment.media_type === "video" ? (
         <ViewerVideo uri={moment.media_url} isActive={isActive} />
       ) : (
@@ -179,7 +192,7 @@ const MomentViewer = memo(function MomentViewer({
   onIndexChange: (index: number) => void;
   onFlag: () => void;
 }) {
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const { top: safeTop } = useSafeAreaInsets();
   const listRef = useRef<LegendListRef>(null);
 
@@ -215,7 +228,12 @@ const MomentViewer = memo(function MomentViewer({
           initialScrollIndex={initialIndex}
           keyExtractor={(m) => String(m.id)}
           renderItem={({ item, index }) => (
-            <ViewerItem moment={item} width={width} isActive={index === currentIndex} />
+            <ViewerItem
+              moment={item}
+              width={width}
+              height={height}
+              isActive={index === currentIndex}
+            />
           )}
           onViewableItemsChanged={handleViewable}
           viewabilityConfig={{ itemVisiblePercentThreshold: 51 }}
