@@ -757,6 +757,18 @@ export const eventsApi = {
       if (updates.flyerImageUrl !== undefined)
         updateData[DB.events.flyerImageUrl] = updates.flyerImageUrl || null;
 
+      // Ensure the Supabase JWT bridge is attached so PostgREST sees
+      // us as `authenticated` (not `anon`) — RLS on events_update_own
+      // only applies to the authenticated role, and a missing JWT
+      // produces a SILENT zero-row update that previously looked like
+      // a successful save.
+      try {
+        const { ensureSupabaseJwt } = await import("../auth/supabase-jwt");
+        await ensureSupabaseJwt();
+      } catch {
+        // Non-fatal: continue with whatever session the client has.
+      }
+
       const { data, error } = await supabase
         .from(DB.events.table)
         .update(updateData)
@@ -764,6 +776,14 @@ export const eventsApi = {
         .select();
 
       if (error) throw error;
+      if (!Array.isArray(data) || data.length === 0) {
+        // PostgREST returns 200 with [] when RLS blocks. Treat as a
+        // hard failure so the UI rolls back the optimistic patch and
+        // shows the user a real error instead of a silent no-op.
+        throw new Error(
+          "Save blocked. Sign out and back in, then try again — your session may have expired.",
+        );
+      }
 
       // V2-EVT-02: detect material changes and fire notify-event-change
       // best-effort. Don't block the save flow on push delivery.
