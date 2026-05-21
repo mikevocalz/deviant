@@ -497,6 +497,10 @@ export const eventsApi = {
         ageRestriction: ev.age_restriction || undefined,
         nsfw: ev.nsfw || false,
         shareSlug: ev.share_slug || undefined,
+        // Surface lifecycle status so the detail screen can render the
+        // cancelled-event takeover (banner + suppressed purchase CTAs).
+        status: ev.status || undefined,
+        cancelledAt: ev.cancelled_at || undefined,
         // Enrichment fields
         endDate: ev.end_date || undefined,
         dressCode: ev.dress_code || undefined,
