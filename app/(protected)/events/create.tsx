@@ -1,4 +1,5 @@
 import { useEffect, useCallback, useMemo } from "react";
+import * as Haptics from "expo-haptics";
 import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import {
   View,
@@ -655,15 +656,26 @@ function CreateEventScreenContent() {
             }
           }
 
-          // Invite co-organizers (best-effort, non-blocking)
+          // Invite co-organizers (best-effort, non-blocking). The
+          // invite-co-organizer edge function fires a push + in-app
+          // notification to each invitee.
           if (coOrganizers.length > 0 && data?.id) {
+            let invitedCount = 0;
             for (const org of coOrganizers) {
+              if (!org.username) {
+                console.warn(
+                  "[CreateEvent] Skipping co-organizer with no username",
+                  org,
+                );
+                continue;
+              }
               try {
                 await eventsApi.addCoOrganizer(
                   String(data.id),
-                  org.authId || org.id,
+                  org.username,
                   "editor",
                 );
+                invitedCount += 1;
               } catch (coOrgErr) {
                 console.error(
                   "[CreateEvent] Failed to invite co-organizer:",
@@ -672,11 +684,15 @@ function CreateEventScreenContent() {
                 );
               }
             }
-            console.log(
-              "[CreateEvent] Invited",
-              coOrganizers.length,
-              "co-organizer(s)",
-            );
+            if (invitedCount > 0) {
+              showToast(
+                "success",
+                invitedCount === 1 ? "Invited" : `Invited ${invitedCount}`,
+                invitedCount === 1
+                  ? `@${coOrganizers[0]?.username} has been notified`
+                  : `${invitedCount} co-organizers were notified`,
+              );
+            }
           }
 
           setUploadProgress(100);
@@ -1785,14 +1801,19 @@ function CreateEventScreenContent() {
                       .map((user) => (
                         <Pressable
                           key={user.id}
-                          onPress={() =>
+                          onPress={() => {
+                            Haptics.impactAsync(
+                              Haptics.ImpactFeedbackStyle.Light,
+                            );
                             addCoOrganizer({
                               id: user.id,
                               authId: user.authId,
                               username: user.username,
                               avatar: user.avatar,
-                            })
-                          }
+                            });
+                            setCoOrganizerSearch("");
+                            setCoOrganizerResults([]);
+                          }}
                           className="flex-row items-center gap-3 py-2.5"
                         >
                           <Avatar

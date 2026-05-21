@@ -1004,13 +1004,18 @@ export const eventsApi = {
   },
 
   /**
-   * Add co-organizer to event (only host can add).
-   * Calls invite-co-organizer edge function which also sends push notification.
+   * Add co-organizer to event (only host or admin co-organizer can add).
+   * Calls invite-co-organizer edge function which sends push + in-app
+   * notification to the invitee.
+   *
+   * The edge function expects { action: 'invite', event_id, username, role }
+   * — the `username` is what powers the recipient lookup against the
+   * Better Auth user table.
    */
   async addCoOrganizer(
     eventId: string,
-    coOrganizerUserId: string,
-    role: "viewer" | "scanner" | "editor" | "admin" = "editor",
+    username: string,
+    role: "scanner" | "editor" | "admin" = "editor",
   ) {
     try {
       const { requireBetterAuthToken } = await import("../auth/identity");
@@ -1020,8 +1025,9 @@ export const eventsApi = {
         "invite-co-organizer",
         {
           body: {
-            event_id: parseInt(eventId),
-            invitee_auth_id: coOrganizerUserId,
+            action: "invite",
+            event_id: parseInt(eventId, 10),
+            username,
             role,
           },
           headers: { "x-auth-token": token },
@@ -1030,7 +1036,7 @@ export const eventsApi = {
 
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-      return true;
+      return data;
     } catch (err) {
       console.error("[Events] addCoOrganizer error:", err);
       throw err;

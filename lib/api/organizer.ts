@@ -19,7 +19,16 @@ export type OrganizerStatus = {
   payouts_enabled?: boolean;
   details_submitted?: boolean;
   stripe_account_id?: string;
+  /** Fields Stripe is still waiting on from the user (action required) */
+  currently_due?: string[];
+  /** Fields Stripe is internally reviewing (no user action) */
   pending_verification?: string[];
+  /** Past-due requirements that will disable the account */
+  past_due?: string[];
+  /** Stripe's short code (requirements.disabled_reason) for why charges/payouts are off */
+  disabled_reason?: string | null;
+  /** Per-capability status from Stripe (e.g. { card_payments: "active" }) */
+  capabilities?: Record<string, string>;
 };
 
 /** Validate that a value is a usable HTTPS URL */

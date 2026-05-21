@@ -287,13 +287,25 @@ Deno.serve(async (req: Request) => {
         })
         .eq("host_id", host_id);
 
+      const reqs = stripeAccount.requirements || {};
       return json({
         connected: true,
         charges_enabled: stripeAccount.charges_enabled,
         payouts_enabled: stripeAccount.payouts_enabled,
         details_submitted: stripeAccount.details_submitted,
         stripe_account_id: account.stripe_account_id,
-        pending_verification: stripeAccount.requirements?.currently_due || [],
+        // Fields Stripe is still waiting on from the user.
+        currently_due: reqs.currently_due || [],
+        // Fields Stripe is internally reviewing (ID upload, address, etc).
+        // Account is otherwise complete; this is the "waiting on Stripe" set.
+        pending_verification: reqs.pending_verification || [],
+        // Past-due requirements that will disable the account if not fixed.
+        past_due: reqs.past_due || [],
+        // Stripe's short code for why the account isn't fully active.
+        disabled_reason: reqs.disabled_reason || null,
+        // Per-capability status. card_payments + transfers are the two we
+        // need active for the ticket flow.
+        capabilities: stripeAccount.capabilities || {},
       });
     }
 

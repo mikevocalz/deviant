@@ -12,7 +12,7 @@ import { FeedPost } from "./feed-post";
 import { FeedEventCard } from "./feed-event-card";
 import { shouldRenderInFeed } from "./renderable-posts";
 import { useInfiniteFeedPosts, useSyncLikedPosts } from "@/lib/hooks/use-posts";
-import { useForYouEvents } from "@/lib/hooks/use-events";
+import { useEvents } from "@/lib/hooks/use-events";
 import type { Event } from "@/lib/hooks/use-events";
 import { FeedSkeleton } from "@/components/skeletons";
 import { useAppStore } from "@/lib/stores/app-store";
@@ -424,11 +424,13 @@ export function Feed({
   }, [allPosts, effectiveNsfwEnabled]);
 
   // Fetch events for inline feed cards
+  // Interleave upcoming events in chronological (soonest-first) order
+  // rather than For-You personalization rank.
   const {
     data: forYouEvents,
     isFetched: eventsFetched,
     isError: eventsErrored,
-  } = useForYouEvents();
+  } = useEvents();
 
   // Interleave event cards every EVENT_INTERVAL posts
   const feedItems: FeedItem[] = useMemo(() => {

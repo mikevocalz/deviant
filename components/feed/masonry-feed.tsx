@@ -52,7 +52,7 @@ import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView"
 import { DVNTLivePhotoView } from "@/components/media/DVNTLivePhotoView";
 import { FeedEventCard } from "./feed-event-card";
 import { shouldRenderInFeed } from "./renderable-posts";
-import { useForYouEvents } from "@/lib/hooks/use-events";
+import { useEvents } from "@/lib/hooks/use-events";
 import type { Event } from "@/lib/hooks/use-events";
 import type { Post } from "@/lib/types";
 import { useFeedScrollStore } from "@/lib/stores/feed-scroll-store";
@@ -667,11 +667,14 @@ export function MasonryFeed() {
     return allPosts.filter((post) => post.isNSFW !== true);
   }, [allPosts, nsfwEnabled]);
 
+  // Interleave upcoming events in chronological (soonest-first) order
+  // rather than the For-You personalization rank. Users expect "next on
+  // the calendar" when scanning the home feed.
   const {
     data: forYouEvents,
     isFetched: eventsFetched,
     isError: eventsErrored,
-  } = useForYouEvents();
+  } = useEvents();
 
   const [firstPageMediaPrefetched, setFirstPageMediaPrefetched] =
     useState(false);
