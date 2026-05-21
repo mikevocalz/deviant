@@ -7,7 +7,7 @@
  *
  * All expo-updates access is defensive. This module MUST NOT throw.
  *
- * Canary marker — 2026-05-18 production pipeline check post 1.0.288.
+ * Canary marker — 2026-05-21 cross-cutting events/stories/boost fix bundle.
  */
 
 import { Platform } from "react-native";
