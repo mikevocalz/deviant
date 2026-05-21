@@ -752,6 +752,17 @@ function EventDetailScreenContent() {
   const handleGetTickets = useCallback(async () => {
     if (!eventData || isCheckingOut) return;
     loopDetection.log("EventDetail", "checkout:start", { eventId });
+    // Block ticket purchase for cancelled events. The UI already hides
+    // the CTA when cancelled, but a stale render or a deep-link tap
+    // could still fire this — fail loudly instead of silently charging.
+    if ((eventData as any).status === "cancelled") {
+      showToast(
+        "warning",
+        "Event Cancelled",
+        "This event has been cancelled. Tickets are no longer available.",
+      );
+      return;
+    }
     // Block ticket purchase for past events
     const now = new Date();
     if (eventData.endDate && new Date(eventData.endDate) < now) {
@@ -1339,6 +1350,14 @@ function EventDetailScreenContent() {
     }
   }, [eventData]);
 
+  // Server flips events.status to "cancelled" via the cancel-event edge
+  // function (refunds + push notifications already handled there). All
+  // ticket-purchase paths must be suppressed when the event is cancelled.
+  const isCancelled = useMemo(
+    () => (eventData as any)?.status === "cancelled",
+    [eventData],
+  );
+
   // Rating eligibility: event ended + user has ticket/RSVP + not the host
   const isHostUser = isHost;
 
@@ -1482,8 +1501,69 @@ function EventDetailScreenContent() {
 
         {/* ── 2. CORE INFO BLOCK ───────────────────────────────── */}
         <View style={s.content}>
+          {/* ── CANCELLED — premium full-bleed banner that replaces
+                 the entire ticketing surface. The cancel-event edge
+                 function already refunded buyers + sent push notifs;
+                 this is the visible takeover for the detail screen. */}
+          {isCancelled && (
+            <View style={s.section}>
+              <LinearGradient
+                colors={["rgba(239,68,68,0.18)", "rgba(239,68,68,0.06)"]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={{
+                  borderRadius: 20,
+                  padding: 20,
+                  borderWidth: 1,
+                  borderColor: "rgba(239,68,68,0.45)",
+                  gap: 10,
+                }}
+              >
+                <View
+                  style={{ flexDirection: "row", alignItems: "center", gap: 10 }}
+                >
+                  <View
+                    style={{
+                      width: 36,
+                      height: 36,
+                      borderRadius: 18,
+                      backgroundColor: "rgba(239,68,68,0.25)",
+                      alignItems: "center",
+                      justifyContent: "center",
+                    }}
+                  >
+                    <Trash2 size={18} color="#ef4444" />
+                  </View>
+                  <Text
+                    style={{
+                      color: "#fff",
+                      fontSize: 20,
+                      fontFamily: "InterBold",
+                      letterSpacing: 0.2,
+                    }}
+                  >
+                    Event Cancelled
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.78)",
+                    fontSize: 14,
+                    lineHeight: 20,
+                  }}
+                >
+                  {hasTicket
+                    ? "The organizer cancelled this event. A refund has been issued to your original payment method — it can take up to 10 business days to appear."
+                    : "The organizer cancelled this event. Tickets are no longer available."}
+                </Text>
+              </LinearGradient>
+            </View>
+          )}
+
           {/* ── TICKETS NOT YET CONFIGURED — inline empty state ── */}
-          {eventData.ticketingEnabled && ticketTiers.length === 0 && (
+          {!isCancelled &&
+            eventData.ticketingEnabled &&
+            ticketTiers.length === 0 && (
             <View style={s.section}>
               <View
                 style={{
@@ -1521,8 +1601,8 @@ function EventDetailScreenContent() {
               </View>
             </View>
           )}
-          {/* ── TICKET TIERS — directly beneath hero ──────────── */}
-          {ticketTiers.length > 0 && (
+          {/* ── TICKET TIERS — hidden once cancelled ───────────── */}
+          {!isCancelled && ticketTiers.length > 0 && (
             <View style={s.section}>
               <Text style={s.sectionTitle}>Select Your Tier</Text>
               <LegendList
@@ -2267,6 +2347,7 @@ function EventDetailScreenContent() {
         tiersUnavailable={
           !!eventData.ticketingEnabled && ticketTiers.length === 0
         }
+        isCancelled={isCancelled}
       />
 
       {/* Rating Modal */}

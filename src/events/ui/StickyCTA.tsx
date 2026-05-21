@@ -27,6 +27,8 @@ interface StickyCTAProps {
   isWaitlistBusy?: boolean;
   /** Organizer enabled ticketing but no tiers configured yet. */
   tiersUnavailable?: boolean;
+  /** Event has been cancelled by the organizer. */
+  isCancelled?: boolean;
 }
 
 export const StickyCTA = memo(function StickyCTA({
@@ -42,6 +44,7 @@ export const StickyCTA = memo(function StickyCTA({
   onLeaveWaitlist,
   isWaitlistBusy = false,
   tiersUnavailable = false,
+  isCancelled = false,
 }: StickyCTAProps) {
   const insets = useSafeAreaInsets();
   const glowPulse = useSharedValue(0);
@@ -73,6 +76,60 @@ export const StickyCTA = memo(function StickyCTA({
   const tierName = selectedTier?.name ?? "General";
   const glowColor = selectedTier?.glowColor ?? "rgb(62, 164, 229)";
   const totalPrice = price * ticketQty;
+
+  // Cancelled takes priority over every other CTA state.
+  // Holders see "View Ticket" (still useful for the receipt + refund
+  // record). Non-holders see a disabled, dimmed "Event Cancelled" pill.
+  if (isCancelled) {
+    if (hasTicket) {
+      return (
+        <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
+          <View style={styles.inner}>
+            <Pressable
+              onPress={onViewTicket}
+              style={[
+                styles.ticketButton,
+                {
+                  flex: 1,
+                  backgroundColor: "rgba(239,68,68,0.12)",
+                  borderColor: "rgba(239,68,68,0.45)",
+                },
+              ]}
+            >
+              <Check size={18} color="#ef4444" />
+              <Text style={[styles.ticketButtonText, { color: "#ef4444" }]}>
+                View Ticket · Refunded
+              </Text>
+            </Pressable>
+          </View>
+        </View>
+      );
+    }
+    return (
+      <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
+        <View style={styles.inner}>
+          <View
+            style={[
+              styles.ctaButton,
+              {
+                flex: 1,
+                backgroundColor: "rgba(239,68,68,0.12)",
+                borderWidth: 1,
+                borderColor: "rgba(239,68,68,0.35)",
+              },
+            ]}
+          >
+            <Clock size={18} color="rgba(239,68,68,0.85)" />
+            <Text
+              style={[styles.ctaText, { color: "rgba(239,68,68,0.85)" }]}
+            >
+              Event Cancelled
+            </Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
 
   if (tiersUnavailable && !hasTicket) {
     return (
