@@ -10,6 +10,7 @@ import com.google.mlkit.nl.translate.Translation
 import com.google.mlkit.nl.translate.TranslatorOptions
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -20,45 +21,47 @@ class DVNTTranslationModule : Module() {
 
     // ── translateText ──────────────────────────────────────────────────────
     AsyncFunction("translateText") { text: String, sourceLanguage: String, targetLanguage: String ->
-      if (text.isBlank()) {
-        return@AsyncFunction mapOf(
-          "translatedText" to text,
-          "detectedSourceLanguage" to "",
-        )
-      }
+      runBlocking {
+        if (text.isBlank()) {
+          return@runBlocking mapOf(
+            "translatedText" to text,
+            "detectedSourceLanguage" to "",
+          )
+        }
 
-      val resolvedSource: String = if (sourceLanguage == "auto" || sourceLanguage.isEmpty()) {
-        detectLanguageCode(text) ?: TranslateLanguage.ENGLISH
-      } else {
-        mapLanguageCode(sourceLanguage)
-      }
+        val resolvedSource: String = if (sourceLanguage == "auto" || sourceLanguage.isEmpty()) {
+          detectLanguageCode(text) ?: TranslateLanguage.ENGLISH
+        } else {
+          mapLanguageCode(sourceLanguage)
+        }
 
-      val targetLang = mapLanguageCode(targetLanguage)
+        val targetLang = mapLanguageCode(targetLanguage)
 
-      if (resolvedSource == targetLang) {
-        return@AsyncFunction mapOf(
-          "translatedText" to text,
-          "detectedSourceLanguage" to resolvedSource,
-        )
-      }
+        if (resolvedSource == targetLang) {
+          return@runBlocking mapOf(
+            "translatedText" to text,
+            "detectedSourceLanguage" to resolvedSource,
+          )
+        }
 
-      val options = TranslatorOptions.Builder()
-        .setSourceLanguage(resolvedSource)
-        .setTargetLanguage(targetLang)
-        .build()
+        val options = TranslatorOptions.Builder()
+          .setSourceLanguage(resolvedSource)
+          .setTargetLanguage(targetLang)
+          .build()
 
-      val translator = Translation.getClient(options)
-      try {
-        val conditions = DownloadConditions.Builder().requireWifi().build()
-        translator.downloadModelIfNeeded(conditions).await()
-        val result = translator.translate(text).await()
+        val translator = Translation.getClient(options)
+        try {
+          val conditions = DownloadConditions.Builder().requireWifi().build()
+          translator.downloadModelIfNeeded(conditions).await()
+          val result = translator.translate(text).await()
 
-        mapOf(
-          "translatedText" to result,
-          "detectedSourceLanguage" to resolvedSource,
-        )
-      } finally {
-        translator.close()
+          mapOf(
+            "translatedText" to result,
+            "detectedSourceLanguage" to resolvedSource,
+          )
+        } finally {
+          translator.close()
+        }
       }
     }
 
@@ -80,15 +83,17 @@ class DVNTTranslationModule : Module() {
 
     // ── detectLanguage ─────────────────────────────────────────────────────
     AsyncFunction("detectLanguage") { text: String ->
-      detectLanguageCode(text) ?: "und"
+      runBlocking { detectLanguageCode(text) } ?: "und"
     }
 
     // ── downloadLanguagePack ───────────────────────────────────────────────
     AsyncFunction("downloadLanguagePack") { language: String ->
-      val langCode = mapLanguageCode(language)
-      val model = TranslateRemoteModel.Builder(langCode).build()
-      val conditions = DownloadConditions.Builder().build()
-      RemoteModelManager.getInstance().download(model, conditions).await()
+      runBlocking {
+        val langCode = mapLanguageCode(language)
+        val model = TranslateRemoteModel.Builder(langCode).build()
+        val conditions = DownloadConditions.Builder().build()
+        RemoteModelManager.getInstance().download(model, conditions).await()
+      }
     }
 
     // ── getAvailableLanguages ──────────────────────────────────────────────
