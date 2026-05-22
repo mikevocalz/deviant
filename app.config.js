@@ -144,7 +144,11 @@ export default {
       [
         "@stripe/stripe-react-native",
         {
-          merchantIdentifier: "merchant.com.deviant",
+          // Apple Pay merchant ID only on production builds — dev/preview
+          // provisioning profiles don't include the Apple Pay capability,
+          // and including merchantIdentifier here adds the entitlement
+          // unconditionally, which fails xcodebuild signing.
+          ...(isProd ? { merchantIdentifier: "merchant.com.deviant" } : {}),
           enableGooglePay: true,
         },
       ],
