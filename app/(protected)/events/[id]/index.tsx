@@ -657,10 +657,11 @@ function EventDetailScreenContent() {
     [router, queryClient],
   );
 
-  // Auto-select first tier
+  // Auto-select first paid tier when paid tiers exist; fall back to first tier
   useEffect(() => {
     if (ticketTiers.length > 0 && !selectedTier) {
-      setSelectedTier(ticketTiers[0]);
+      const firstPaid = ticketTiers.find((t: any) => (t.price ?? 0) > 0);
+      setSelectedTier(firstPaid || ticketTiers[0]);
     }
   }, [ticketTiers, selectedTier]);
 
