@@ -97,17 +97,16 @@ export function useTicketCheckout() {
         // we always trust the server's response which reads from the
         // edge-function secret store at request time.
         //
-        // NOTE: we deliberately do NOT pass merchantIdentifier here.
-        // The Apple Pay processing certificate for merchant.com.dvnt.app
-        // is not yet registered with Stripe, and an unregistered merchant
-        // ID makes presentPaymentSheet bail out with STPGenericConnection
-        // Error ('There was an unexpected error -- try again in a few
-        // seconds'). Disabling Apple Pay surfaces clears the error so
-        // card-entry works. Re-enable once the Apple Pay processing
-        // certificate is generated + uploaded to Stripe.
+        // Apple Pay merchantIdentifier is included now (was previously
+        // suppressed while the processing certificate at Stripe was
+        // pending). If the cert is not yet uploaded at Stripe, the sheet
+        // simply won't surface Apple Pay — it will not error.
         if (publishableKey) {
           try {
-            await initStripe({ publishableKey });
+            await initStripe({
+              publishableKey,
+              merchantIdentifier: "merchant.com.dvnt.app",
+            });
           } catch (e) {
             console.warn(
               "[useTicketCheckout] initStripe re-init failed (continuing):",
@@ -123,6 +122,18 @@ export function useTicketCheckout() {
           paymentIntentClientSecret: paymentIntent,
           allowsDelayedPaymentMethods: false,
           defaultBillingDetails: { name: "" },
+          // Apple Pay: shows the native sheet button on iOS when the
+          // user has cards in Wallet AND Stripe has the processing cert
+          // for our merchantIdentifier. merchantCountryCode is required
+          // by Stripe SDK; US is correct for the production account.
+          applePay: { merchantCountryCode: "US" },
+          // Google Pay: shows on Android. testEnv mirrors the
+          // STRIPE_SECRET_KEY mode so live keys → real GPay flow.
+          googlePay: {
+            merchantCountryCode: "US",
+            currencyCode: "USD",
+            testEnv: !!publishableKey?.startsWith("pk_test_"),
+          },
           appearance: {
             colors: {
               primary: "#8A40CF",
