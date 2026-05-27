@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useMemo } from "react";
+import { useEffect, useCallback, useMemo, useState } from "react";
 import * as Haptics from "expo-haptics";
 import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import {
@@ -156,6 +156,11 @@ function CreateEventScreenContent() {
   const { pickFromLibrary, requestPermissions } = useMediaPicker();
   const createEvent = useCreateEvent();
   const showToast = useUIStore((s) => s.showToast);
+  // Transient UI state: which tier currently has its "Sale starts" picker
+  // open. Kept outside the draft store because it's not persisted.
+  const [openSalePickerTierId, setOpenSalePickerTierId] = useState<
+    string | null
+  >(null);
   const {
     uploadMultiple,
     isUploading: isUploadingMedia,
@@ -2108,6 +2113,93 @@ function CreateEventScreenContent() {
                           />
                         </View>
                       </View>
+
+                      {/* Sale-start: organizer schedules when this tier
+                          becomes purchasable. Empty = opens immediately when
+                          the event is published. */}
+                      <Pressable
+                        onPress={() =>
+                          setOpenSalePickerTierId(
+                            openSalePickerTierId === tier.id ? null : tier.id,
+                          )
+                        }
+                        className="flex-row items-center bg-muted rounded-xl px-3 py-3 gap-2"
+                      >
+                        <Calendar size={14} color={colors.mutedForeground} />
+                        <View className="flex-1">
+                          <Text className="text-[11px] uppercase tracking-wider text-muted-foreground">
+                            Sale starts
+                          </Text>
+                          <Text className="text-sm font-semibold text-foreground">
+                            {tier.saleStart
+                              ? new Date(tier.saleStart).toLocaleString(
+                                  "en-US",
+                                  {
+                                    weekday: "short",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "numeric",
+                                    minute: "2-digit",
+                                  },
+                                )
+                              : "Immediately on publish"}
+                          </Text>
+                        </View>
+                        {tier.saleStart ? (
+                          <Pressable
+                            onPress={(e) => {
+                              e.stopPropagation();
+                              setTicketTiers((prev) =>
+                                prev.map((t) =>
+                                  t.id === tier.id ? { ...t, saleStart: "" } : t,
+                                ),
+                              );
+                              setOpenSalePickerTierId(null);
+                            }}
+                            hitSlop={10}
+                          >
+                            <Text className="text-xs font-semibold text-primary">
+                              Clear
+                            </Text>
+                          </Pressable>
+                        ) : null}
+                      </Pressable>
+
+                      {openSalePickerTierId === tier.id && (
+                        <View className="bg-card rounded-xl mt-2 overflow-hidden">
+                          <DateTimePicker
+                            value={
+                              tier.saleStart
+                                ? new Date(tier.saleStart)
+                                : new Date()
+                            }
+                            mode="datetime"
+                            display={
+                              Platform.OS === "ios" ? "spinner" : "default"
+                            }
+                            minimumDate={new Date()}
+                            themeVariant="dark"
+                            style={{ width: "100%" }}
+                            onChange={(_, picked) => {
+                              if (Platform.OS === "android") {
+                                setOpenSalePickerTierId(null);
+                              }
+                              if (picked) {
+                                setTicketTiers((prev) =>
+                                  prev.map((t) =>
+                                    t.id === tier.id
+                                      ? {
+                                          ...t,
+                                          saleStart: picked.toISOString(),
+                                        }
+                                      : t,
+                                  ),
+                                );
+                              }
+                            }}
+                          />
+                        </View>
+                      )}
                     </View>
                   ))}
 

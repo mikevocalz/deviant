@@ -1242,10 +1242,12 @@ function EventDetailScreenContent() {
     }
   }, [eventData, showToast]);
 
-  // Toggle sale-open notification subscription. Persisted via MMKV-backed
-  // store so it survives restarts; backend cron is responsible for actually
-  // firing the push at sale_start.
-  const handleToggleSaleNotify = useCallback(() => {
+  // Toggle sale-open notification subscription. Flip local store first
+  // for snappy UX, then sync to the backend so the cron dispatcher
+  // (notify-sale-open) can deliver an Expo push at sale_start. Rolls
+  // back local state if the backend call fails so the on-device truth
+  // never disagrees with what the server will actually deliver on.
+  const handleToggleSaleNotify = useCallback(async () => {
     if (!eventData) return;
     const nowSubscribed = toggleSaleSubscription(eventId);
     if (nowSubscribed) {
@@ -1259,6 +1261,33 @@ function EventDetailScreenContent() {
         "info",
         "Reminder removed",
         "You won't be notified when sales open.",
+      );
+    }
+    try {
+      const { supabase: sb } = await import("@/lib/supabase/client");
+      const { getAuthToken } = await import("@/lib/auth-client");
+      const token = await getAuthToken();
+      if (!token) return; // local-only is fine if signed out
+      const { error } = await sb.functions.invoke("toggle-sale-notify", {
+        body: { event_id: Number(eventId), enabled: nowSubscribed },
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (error) {
+        console.error("[EventDetail] sale-notify sync error:", error);
+        toggleSaleSubscription(eventId); // roll back
+        showToast(
+          "error",
+          "Reminder failed",
+          "Couldn't save your reminder. Try again.",
+        );
+      }
+    } catch (e) {
+      console.error("[EventDetail] sale-notify sync exception:", e);
+      toggleSaleSubscription(eventId); // roll back
+      showToast(
+        "error",
+        "Reminder failed",
+        "Couldn't save your reminder. Try again.",
       );
     }
   }, [eventData, eventId, toggleSaleSubscription, showToast]);
