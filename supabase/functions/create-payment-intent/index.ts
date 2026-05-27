@@ -71,7 +71,13 @@ async function stripeGet(endpoint: string): Promise<any> {
 
 /**
  * Get or create a Stripe Customer for a DVNT user.
- * Uses stripe_customers table as the mapping cache.
+ *
+ * Uses stripe_customers as a mapping cache, but VALIDATES the cached
+ * customer exists in the current Stripe mode before reusing it. If the
+ * project ever switches between test and live keys, the cached id from
+ * the prior mode will fail with "No such customer: ...; a similar
+ * object exists in test mode, but a live mode key was used" — caught
+ * here, evicted, and a fresh customer is created on the spot.
  */
 async function getOrCreateCustomer(
   supabase: any,
@@ -82,9 +88,31 @@ async function getOrCreateCustomer(
     .from("stripe_customers")
     .select("stripe_customer_id")
     .eq("user_id", userId)
-    .single();
+    .maybeSingle();
 
-  if (existing?.stripe_customer_id) return existing.stripe_customer_id;
+  if (existing?.stripe_customer_id) {
+    // Verify the cached customer still exists in the current Stripe
+    // mode (live vs test). A 404 / wrong-mode response means we need
+    // to evict the cache row and create a fresh customer below.
+    const verifyRes = await fetch(
+      `https://api.stripe.com/v1/customers/${existing.stripe_customer_id}`,
+      { headers: { Authorization: `Bearer ${STRIPE_SECRET_KEY}` } },
+    );
+    if (verifyRes.ok) {
+      return existing.stripe_customer_id;
+    }
+    // Cache miss disguised as a hit — evict and fall through to create.
+    console.warn(
+      "[create-payment-intent] Stale stripe_customers cache for",
+      userId,
+      "→ evicting",
+      existing.stripe_customer_id,
+    );
+    await supabase
+      .from("stripe_customers")
+      .delete()
+      .eq("user_id", userId);
+  }
 
   // Fetch user info for Stripe Customer creation
   const { data: authUser } = await supabase
