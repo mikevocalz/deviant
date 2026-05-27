@@ -797,6 +797,20 @@ function EventDetailScreenContent() {
       return;
     }
 
+    // GUARD: organizer set a price but never enabled ticketing/created tiers.
+    // The legacy RSVP path would silently issue a free ticket — also a real
+    // revenue bug. NOLA Red Dress Run (event 44) hit this in production:
+    // price="30", ticketing_enabled=false, no tier rows.
+    const eventPriceNum = Number((eventData as any).price) || 0;
+    if (!eventData.ticketingEnabled && eventPriceNum > 0) {
+      showToast(
+        "error",
+        "Tickets unavailable",
+        "Ticket sales aren't open for this event yet.",
+      );
+      return;
+    }
+
     if (eventData.ticketingEnabled && hasDbTiers && selectedTier?.id) {
       // Billable action — never fire while confirmed offline. The
       // PaymentSheet would open, the card confirm would fail, and the
