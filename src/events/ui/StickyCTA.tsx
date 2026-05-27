@@ -1,4 +1,4 @@
-import React, { memo, useEffect } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 import { View, Text, Pressable, StyleSheet, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ticket, Check, Clock, BellRing, BellOff } from "lucide-react-native";
@@ -29,6 +29,13 @@ interface StickyCTAProps {
   tiersUnavailable?: boolean;
   /** Event has been cancelled by the organizer. */
   isCancelled?: boolean;
+  /** ISO string for when ticket sales open. Renders a countdown pill instead
+   * of the disabled "coming soon" pill when set. */
+  ticketSaleStart?: string | null;
+  /** User opted in to be notified when sales open. */
+  notifyEnabled?: boolean;
+  /** Toggle sale-open notification subscription. */
+  onToggleNotify?: () => void;
 }
 
 export const StickyCTA = memo(function StickyCTA({
@@ -45,9 +52,44 @@ export const StickyCTA = memo(function StickyCTA({
   isWaitlistBusy = false,
   tiersUnavailable = false,
   isCancelled = false,
+  ticketSaleStart = null,
+  notifyEnabled = false,
+  onToggleNotify,
 }: StickyCTAProps) {
   const insets = useSafeAreaInsets();
   const glowPulse = useSharedValue(0);
+
+  // Live countdown when sale_start is set (drives the "Sale starts in 3d 14h"
+  // pill in place of the disabled "Tickets coming soon").
+  const [saleCountdown, setSaleCountdown] = useState<string | null>(null);
+  useEffect(() => {
+    if (!ticketSaleStart) {
+      setSaleCountdown(null);
+      return;
+    }
+    const tick = () => {
+      const t = new Date(ticketSaleStart).getTime();
+      if (isNaN(t)) {
+        setSaleCountdown(null);
+        return;
+      }
+      const diff = t - Date.now();
+      if (diff <= 0) {
+        setSaleCountdown("now");
+        return;
+      }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff / 3600000) % 24);
+      const m = Math.floor((diff / 60000) % 60);
+      const s = Math.floor((diff / 1000) % 60);
+      if (d > 0) setSaleCountdown(`${d}d ${h}h ${m}m`);
+      else if (h > 0) setSaleCountdown(`${h}h ${m}m ${s}s`);
+      else setSaleCountdown(`${m}m ${s}s`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [ticketSaleStart]);
 
   useEffect(() => {
     if (!hasTicket && selectedTier && !selectedTier.isSoldOut) {
@@ -132,17 +174,65 @@ export const StickyCTA = memo(function StickyCTA({
   }
 
   if (tiersUnavailable && !hasTicket) {
+    // Premium "Sale Starts" pill — countdown when known, plain coming-soon
+    // when not. Whole pill is tappable to toggle the notify subscription so
+    // the user has an action without us hijacking the disabled affordance.
+    const showCountdown = !!saleCountdown && saleCountdown !== "now";
+    const eyebrow = showCountdown
+      ? "SALE STARTS IN"
+      : saleCountdown === "now"
+        ? "TICKETS ON SALE"
+        : "TICKETS COMING SOON";
+    const value = showCountdown
+      ? saleCountdown
+      : saleCountdown === "now"
+        ? "Tap to refresh"
+        : null;
+    const Pill: any = onToggleNotify ? Pressable : View;
     return (
       <View style={[styles.container, { paddingBottom: insets.bottom + 8 }]}>
         <View style={styles.inner}>
-          <View
-            style={[styles.ctaButton, { backgroundColor: "#1a1a1a", flex: 1, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)" }]}
+          <Pill
+            onPress={onToggleNotify}
+            accessibilityRole={onToggleNotify ? "button" : undefined}
+            accessibilityLabel={
+              notifyEnabled
+                ? "Turn off sale reminder"
+                : "Remind me when sales open"
+            }
+            style={[styles.saleSoonPill]}
           >
-            <Ticket size={18} color="rgba(255,255,255,0.5)" />
-            <Text style={[styles.ctaText, { color: "rgba(255,255,255,0.5)" }]}>
-              Tickets coming soon
-            </Text>
-          </View>
+            <View style={styles.saleSoonContent}>
+              <View
+                style={[
+                  styles.saleSoonBell,
+                  {
+                    backgroundColor: notifyEnabled
+                      ? "rgba(34,197,94,0.2)"
+                      : "rgba(138,64,207,0.18)",
+                    borderColor: notifyEnabled
+                      ? "rgba(34,197,94,0.45)"
+                      : "rgba(138,64,207,0.4)",
+                  },
+                ]}
+              >
+                {notifyEnabled ? (
+                  <BellRing size={16} color="#22c55e" />
+                ) : (
+                  <BellRing size={16} color="#8A40CF" />
+                )}
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.saleSoonEyebrow}>{eyebrow}</Text>
+                {value && <Text style={styles.saleSoonValue}>{value}</Text>}
+              </View>
+              {onToggleNotify && (
+                <Text style={styles.saleSoonAction}>
+                  {notifyEnabled ? "Reminding" : "Notify me"}
+                </Text>
+              )}
+            </View>
+          </Pill>
         </View>
       </View>
     );
@@ -330,5 +420,47 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 16,
     fontWeight: "700",
+  },
+  saleSoonPill: {
+    flex: 1,
+    borderRadius: 16,
+    overflow: "hidden",
+    backgroundColor: "rgba(138,64,207,0.10)",
+    borderWidth: 1,
+    borderColor: "rgba(138,64,207,0.32)",
+  },
+  saleSoonContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+  },
+  saleSoonBell: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
+  saleSoonEyebrow: {
+    color: "rgba(255,255,255,0.55)",
+    fontSize: 10,
+    fontWeight: "700",
+    letterSpacing: 1.2,
+  },
+  saleSoonValue: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+    letterSpacing: 0.2,
+    marginTop: 2,
+  },
+  saleSoonAction: {
+    color: "#8A40CF",
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.2,
   },
 });

@@ -512,6 +512,19 @@ export const eventsApi = {
         // Batch payload fields
         userRsvpStatus: data.user_rsvp_status || null,
         ticketTiers: data.ticket_tiers || [],
+        // Earliest upcoming sale_start across all tier rows — drives the
+        // "Tickets open in 3d 14h" countdown on the event detail page.
+        ticketSaleStart: (() => {
+          const tiers = (data.ticket_tiers || []) as any[];
+          const now = Date.now();
+          const upcoming = tiers
+            .map((t) => t?.sale_start)
+            .filter((s) => !!s)
+            .map((s) => new Date(s).getTime())
+            .filter((t) => !isNaN(t) && t > now);
+          if (upcoming.length === 0) return null;
+          return new Date(Math.min(...upcoming)).toISOString();
+        })(),
         attendeeAvatars: data.attendees?.avatars || [],
         rsvpCount: data.attendees?.rsvp_count || 0,
         averageRating: data.review_summary?.average || 0,

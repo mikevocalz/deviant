@@ -82,6 +82,7 @@ import { EventRatingModal } from "@/components/event-rating-modal";
 import { StarRatingDisplay } from "react-native-star-rating-widget";
 import { shareEvent } from "@/lib/utils/sharing";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useSaleNotifyStore } from "@/lib/stores/sale-notify-store";
 import { SafeCalendar as Calendar } from "@/lib/safe-native-modules";
 import { useOfflineCheckinStore } from "@/lib/stores/offline-checkin-store";
 import { useTicketCheckout } from "@/lib/hooks/use-ticket-checkout";
@@ -98,6 +99,7 @@ import {
   EventDetailSkeleton,
   WeatherModule,
   EventMapSection,
+  TicketsOpeningSoonCard,
 } from "@/src/events/ui";
 import type {
   TicketTier,
@@ -335,6 +337,9 @@ function EventDetailScreenContent() {
   );
   const { hasValidTicket, setTicket, clearTicket } = useTicketStore();
   const showToast = useUIStore((s) => s.showToast);
+  const isSubscribedToSale = useSaleNotifyStore((s) => s.isSubscribed);
+  const toggleSaleSubscription = useSaleNotifyStore((s) => s.toggle);
+  const notifyOnSaleOpen = isSubscribedToSale(eventId);
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
   const offlineCheckin = useOfflineCheckinStore();
@@ -1237,6 +1242,89 @@ function EventDetailScreenContent() {
     }
   }, [eventData, showToast]);
 
+  // Toggle sale-open notification subscription. Persisted via MMKV-backed
+  // store so it survives restarts; backend cron is responsible for actually
+  // firing the push at sale_start.
+  const handleToggleSaleNotify = useCallback(() => {
+    if (!eventData) return;
+    const nowSubscribed = toggleSaleSubscription(eventId);
+    if (nowSubscribed) {
+      showToast(
+        "success",
+        "Reminder set",
+        "We'll notify you the moment tickets go on sale.",
+      );
+    } else {
+      showToast(
+        "info",
+        "Reminder removed",
+        "You won't be notified when sales open.",
+      );
+    }
+  }, [eventData, eventId, toggleSaleSubscription, showToast]);
+
+  // Add the sale-open moment to the user's calendar (a 5-min event so it
+  // shows up as a glanceable reminder, not an all-day block).
+  const handleAddSaleToCalendar = useCallback(async () => {
+    const saleStart = (eventData as any)?.ticketSaleStart;
+    if (!saleStart || !eventData) return;
+    if (
+      !Calendar?.requestCalendarPermissionsAsync ||
+      !Calendar?.getCalendarsAsync ||
+      !Calendar?.createEventAsync
+    ) {
+      showToast(
+        "error",
+        "Calendar Unavailable",
+        "Calendar support is not available in this build",
+      );
+      return;
+    }
+    try {
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+      if (status !== "granted") {
+        showToast(
+          "error",
+          "Permission Denied",
+          "Calendar access is required to add reminders",
+        );
+        return;
+      }
+      const calendars = await Calendar.getCalendarsAsync(
+        Calendar.EntityTypes?.EVENT,
+      );
+      const cal =
+        calendars.find(
+          (c: CalendarRecord) =>
+            c.allowsModifications && c.source?.name === "iCloud",
+        ) ||
+        calendars.find((c: CalendarRecord) => c.allowsModifications) ||
+        calendars[0];
+      if (!cal) {
+        showToast("error", "No Calendar", "No writable calendar found");
+        return;
+      }
+      const start = new Date(saleStart);
+      const end = new Date(start.getTime() + 5 * 60 * 1000);
+      await Calendar.createEventAsync(cal.id, {
+        title: `🎟️ Sales open: ${eventData.title || "Event"}`,
+        startDate: start,
+        endDate: end,
+        location: eventData.location || eventData.locationName || "",
+        notes: `Ticket sales open for ${eventData.title}.`,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+      showToast(
+        "success",
+        "Saved to Calendar",
+        "We'll remind you when sales open.",
+      );
+    } catch (err) {
+      console.error("[EventDetail] Sale-calendar error:", err);
+      showToast("error", "Error", "Failed to add sale reminder");
+    }
+  }, [eventData, showToast]);
+
   // CRITICAL: ALL hooks must be called before any early returns (React hooks rules)
   // Translation hooks here — cannot be after early returns
   const { i18n } = useTranslation();
@@ -1582,7 +1670,7 @@ function EventDetailScreenContent() {
             </View>
           )}
 
-          {/* ── TICKETS NOT YET CONFIGURED — inline empty state ──
+          {/* ── TICKETS NOT YET ON SALE — premium "Sale Starts" card ──
               Shows when:
                 a) ticketing is ON but no tiers configured yet, OR
                 b) organizer set a price but ticketing is still OFF (NOLA
@@ -1591,42 +1679,16 @@ function EventDetailScreenContent() {
             ticketTiers.length === 0 &&
             (eventData.ticketingEnabled ||
               (Number((eventData as any).price) || 0) > 0) && (
-            <View style={s.section}>
-              <View
-                style={{
-                  borderRadius: 16,
-                  padding: 18,
-                  backgroundColor: "rgba(255,255,255,0.04)",
-                  borderWidth: 1,
-                  borderColor: "rgba(255,255,255,0.08)",
-                  flexDirection: "row",
-                  alignItems: "center",
-                  gap: 12,
-                }}
-              >
-                <Ticket size={22} color="rgba(255,255,255,0.55)" />
-                <View style={{ flex: 1 }}>
-                  <Text
-                    style={{
-                      color: "#fff",
-                      fontSize: 15,
-                      fontFamily: "InterSemiBold",
-                    }}
-                  >
-                    Tickets not on sale yet
-                  </Text>
-                  <Text
-                    style={{
-                      color: "rgba(255,255,255,0.55)",
-                      fontSize: 13,
-                      marginTop: 2,
-                    }}
-                  >
-                    The organizer is still setting up tiers — check back soon.
-                  </Text>
-                </View>
-              </View>
-            </View>
+            <TicketsOpeningSoonCard
+              saleStart={(eventData as any).ticketSaleStart || null}
+              notifyEnabled={notifyOnSaleOpen}
+              onToggleNotify={handleToggleSaleNotify}
+              onAddToCalendar={
+                (eventData as any).ticketSaleStart
+                  ? handleAddSaleToCalendar
+                  : undefined
+              }
+            />
           )}
           {/* ── TICKET TIERS — hidden once cancelled ───────────── */}
           {!isCancelled && ticketTiers.length > 0 && (
@@ -2372,7 +2434,7 @@ function EventDetailScreenContent() {
         onLeaveWaitlist={handleLeaveWaitlist}
         isWaitlistBusy={isWaitlistBusy}
         tiersUnavailable={
-          // Show "Tickets coming soon" CTA in two cases:
+          // Show "Sale Starts ..." CTA in two cases:
           //  1) Organizer flipped ticketing ON but configured no tiers
           //  2) Organizer set a price but ticketing is still OFF (sales not
           //     open yet — NOLA Red Dress Run case)
@@ -2380,6 +2442,9 @@ function EventDetailScreenContent() {
           (!!eventData.ticketingEnabled ||
             (Number((eventData as any).price) || 0) > 0)
         }
+        ticketSaleStart={(eventData as any).ticketSaleStart || null}
+        notifyEnabled={notifyOnSaleOpen}
+        onToggleNotify={handleToggleSaleNotify}
         isCancelled={isCancelled}
       />
 
