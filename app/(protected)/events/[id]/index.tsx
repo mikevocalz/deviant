@@ -592,6 +592,13 @@ function EventDetailScreenContent() {
     // ticket_type_id for Stripe) and tapping Get Tickets would just toast an
     // error. Better: show an empty state and disable the CTA.
     if (eventData.ticketingEnabled && !hasDbTiers) return [];
+    // If the organizer set a price but ticketing is OFF, also don't
+    // fabricate synthetic tiers — sales aren't open yet (NOLA Red Dress Run
+    // case: event 44 with price=30 + ticketing_enabled=false). Showing a
+    // synthetic $30 card invited the user to "Get Tickets" only to hit a
+    // guardrail toast. Show "Coming Soon" via the CTA instead.
+    const eventPriceForSale = Number((eventData as any).price) || 0;
+    if (!eventData.ticketingEnabled && eventPriceForSale > 0) return [];
     if (hasDbTiers) {
       const glowColors = ["#34A2DF", "#8A40CF", "#FF5BFC", "#f59e0b"];
       return dbTiers.map((t: any, i: number) => {
@@ -1575,10 +1582,15 @@ function EventDetailScreenContent() {
             </View>
           )}
 
-          {/* ── TICKETS NOT YET CONFIGURED — inline empty state ── */}
+          {/* ── TICKETS NOT YET CONFIGURED — inline empty state ──
+              Shows when:
+                a) ticketing is ON but no tiers configured yet, OR
+                b) organizer set a price but ticketing is still OFF (NOLA
+                   Red Dress Run pattern: price=30, ticketing_enabled=false) */}
           {!isCancelled &&
-            eventData.ticketingEnabled &&
-            ticketTiers.length === 0 && (
+            ticketTiers.length === 0 &&
+            (eventData.ticketingEnabled ||
+              (Number((eventData as any).price) || 0) > 0) && (
             <View style={s.section}>
               <View
                 style={{
@@ -2360,7 +2372,13 @@ function EventDetailScreenContent() {
         onLeaveWaitlist={handleLeaveWaitlist}
         isWaitlistBusy={isWaitlistBusy}
         tiersUnavailable={
-          !!eventData.ticketingEnabled && ticketTiers.length === 0
+          // Show "Tickets coming soon" CTA in two cases:
+          //  1) Organizer flipped ticketing ON but configured no tiers
+          //  2) Organizer set a price but ticketing is still OFF (sales not
+          //     open yet — NOLA Red Dress Run case)
+          ticketTiers.length === 0 &&
+          (!!eventData.ticketingEnabled ||
+            (Number((eventData as any).price) || 0) > 0)
         }
         isCancelled={isCancelled}
       />
