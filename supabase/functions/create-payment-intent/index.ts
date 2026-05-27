@@ -375,14 +375,17 @@ Deno.serve(async (req: Request) => {
       currency: ticketType.currency || "usd",
       customer: customerId,
       // Explicit allowlist instead of automatic_payment_methods so the
-      // sheet shows ONLY: card, Apple Pay (iOS), Google Pay (Android),
-      // Link (Stripe's saved-card service). No crypto. No redirect-based
-      // BNPL (Klarna/Afterpay/Affirm). This is enforced server-side so
-      // Dashboard changes can't reintroduce them by accident.
+      // sheet shows ONLY the methods we want: card, wallets (Apple/
+      // Google Pay), Link, and BNPL (Klarna / Afterpay / Affirm). No
+      // crypto. Locked server-side so future Dashboard tweaks can't
+      // leak unwanted methods into the ticket checkout sheet.
       "payment_method_types[0]": "card",
       "payment_method_types[1]": "apple_pay",
       "payment_method_types[2]": "google_pay",
       "payment_method_types[3]": "link",
+      "payment_method_types[4]": "klarna",
+      "payment_method_types[5]": "afterpay_clearpay",
+      "payment_method_types[6]": "affirm",
       "transfer_data[destination]": organizer.stripe_account_id,
       application_fee_amount: fees.application_fee_amount.toString(),
       "metadata[type]": "event_ticket",
