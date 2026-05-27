@@ -469,6 +469,33 @@ function CreateEventScreenContent() {
       }
     }
 
+    // ── TIER PRICE FLOOR ─────────────────────────────────────────────
+    // The fee policy is 2.5% + $1/ticket per side, so any tier priced
+    // below $2 would result in a negative organizer transfer at checkout
+    // (server-side computeFees throws). Block at publish time with a
+    // clear message instead of letting buyers hit a generic checkout
+    // error. $2 is also the smallest payout that's not embarrassing
+    // after fees (~$0.85 to organizer).
+    const MIN_PAID_TIER_CENTS = 200;
+    if (hasPaidTier) {
+      const offending = ticketTiers.filter(
+        (t) => t.priceCents > 0 && t.priceCents < MIN_PAID_TIER_CENTS,
+      );
+      const singleTooLow =
+        ticketTiers.length === 0 &&
+        !!ticketPrice &&
+        parseFloat(ticketPrice) > 0 &&
+        parseFloat(ticketPrice) < MIN_PAID_TIER_CENTS / 100;
+      if (offending.length > 0 || singleTooLow) {
+        showToast(
+          "error",
+          "Tier price too low",
+          "Paid tiers must be at least $2.00 to cover platform fees and leave a payout for the organizer.",
+        );
+        return;
+      }
+    }
+
     setIsSubmitting(true);
     setUploadProgress(0);
 

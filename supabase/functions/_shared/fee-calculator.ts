@@ -14,6 +14,18 @@
 
 export const FEE_POLICY_VERSION = "v1_250_1pt";
 
+/**
+ * Minimum tier price (cents) that produces a non-negative organizer payout
+ * under the current fee policy. Computed exactly for v1_250_1pt:
+ *   subtotal - (round(subtotal * 0.025) + 100) >= 0
+ *   subtotal * 0.975 - 100 >= 0  (within rounding)
+ *   subtotal >= ~103
+ * Padded to 200¢ for a comfortable margin and to discourage near-zero
+ * pricing that would produce a humiliatingly small organizer payout
+ * (e.g. $1.05 ticket → ~$0.02 to organizer after fees, not worth it).
+ */
+export const MIN_TIER_PRICE_CENTS = 200;
+
 export interface FeeBreakdown {
   subtotal: number;
   qty: number;

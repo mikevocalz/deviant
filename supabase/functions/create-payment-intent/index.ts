@@ -12,7 +12,7 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { computeFees } from "../_shared/fee-calculator.ts";
+import { computeFees, MIN_TIER_PRICE_CENTS } from "../_shared/fee-calculator.ts";
 import { verifySession } from "../_shared/verify-session.ts";
 import { createSignedQrPayload } from "../_shared/hmac-qr.ts";
 import {
@@ -320,6 +320,19 @@ Deno.serve(async (req: Request) => {
 
     // ── Fee structure (v1_250_1pt) ──────────────────────────────
     const subtotalCents = effectiveSubtotal;
+    // Defensive floor: catch any tier that slipped past the client price
+    // floor before we attempt computeFees (which throws on negative
+    // organizer transfer). Returns a clear, actionable error instead of
+    // a generic 500.
+    if (ticketType.price_cents > 0 && ticketType.price_cents < MIN_TIER_PRICE_CENTS) {
+      return json(
+        {
+          error:
+            "This ticket is priced below the minimum required to cover platform fees. Ask the organizer to raise the price to at least $2.00.",
+        },
+        400,
+      );
+    }
     const fees = computeFees(subtotalCents, quantity);
 
     // ── Get or create Stripe Customer ────────────────────
