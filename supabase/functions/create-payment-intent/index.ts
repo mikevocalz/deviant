@@ -374,19 +374,23 @@ Deno.serve(async (req: Request) => {
       amount: fees.customer_charge_amount.toString(),
       currency: ticketType.currency || "usd",
       customer: customerId,
-      // Explicit allowlist of confirmable payment_method_types. Apple
-      // Pay / Google Pay are NOT valid values here — they are surfaced
-      // *through* the `card` type by the native SDK when applePay /
-      // googlePay config is passed to initPaymentSheet on the client.
-      // That's why this list looks like it's missing wallets but the
-      // sheet still shows them: card type covers all card-backed
-      // wallet routes.
-      "payment_method_types[0]": "card",
-      "payment_method_types[1]": "link",
-      "payment_method_types[2]": "klarna",
-      "payment_method_types[3]": "afterpay_clearpay",
-      "payment_method_types[4]": "affirm",
-      "payment_method_types[5]": "cashapp",
+      // Use automatic_payment_methods so Stripe dynamically chooses
+      // which methods to surface based on:
+      //   - the amount (Affirm needs $35+, Klarna has its own floors)
+      //   - the currency + buyer region
+      //   - what's enabled in the Stripe Dashboard (single source of
+      //     truth — crypto is OFF in Dashboard so it stays off here)
+      // The explicit-allowlist approach broke checkout for sub-$35
+      // tickets because Stripe rejects the PI if ANY listed method is
+      // ineligible at that amount. Dashboard-driven is the correct
+      // Stripe-recommended pattern for PaymentSheet.
+      "automatic_payment_methods[enabled]": "true",
+      // allow_redirects=always keeps BNPL methods (Klarna/Afterpay/
+      // Affirm) available on amounts where they qualify, by allowing
+      // the redirect handshake those methods need. The client side
+      // returnURL ("dvnt://tickets/success") handles bringing the
+      // user back into the app.
+      "automatic_payment_methods[allow_redirects]": "always",
       "transfer_data[destination]": organizer.stripe_account_id,
       application_fee_amount: fees.application_fee_amount.toString(),
       "metadata[type]": "event_ticket",
