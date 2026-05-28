@@ -374,18 +374,19 @@ Deno.serve(async (req: Request) => {
       amount: fees.customer_charge_amount.toString(),
       currency: ticketType.currency || "usd",
       customer: customerId,
-      // Explicit allowlist instead of automatic_payment_methods so the
-      // sheet shows ONLY the methods we want: card, wallets (Apple/
-      // Google Pay), Link, and BNPL (Klarna / Afterpay / Affirm). No
-      // crypto. Locked server-side so future Dashboard tweaks can't
-      // leak unwanted methods into the ticket checkout sheet.
+      // Explicit allowlist of confirmable payment_method_types. Apple
+      // Pay / Google Pay are NOT valid values here — they are surfaced
+      // *through* the `card` type by the native SDK when applePay /
+      // googlePay config is passed to initPaymentSheet on the client.
+      // That's why this list looks like it's missing wallets but the
+      // sheet still shows them: card type covers all card-backed
+      // wallet routes.
       "payment_method_types[0]": "card",
-      "payment_method_types[1]": "apple_pay",
-      "payment_method_types[2]": "google_pay",
-      "payment_method_types[3]": "link",
-      "payment_method_types[4]": "klarna",
-      "payment_method_types[5]": "afterpay_clearpay",
-      "payment_method_types[6]": "affirm",
+      "payment_method_types[1]": "link",
+      "payment_method_types[2]": "klarna",
+      "payment_method_types[3]": "afterpay_clearpay",
+      "payment_method_types[4]": "affirm",
+      "payment_method_types[5]": "cashapp",
       "transfer_data[destination]": organizer.stripe_account_id,
       application_fee_amount: fees.application_fee_amount.toString(),
       "metadata[type]": "event_ticket",
