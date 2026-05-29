@@ -207,6 +207,12 @@ export function useEvents(filters?: EventFilters) {
       return filtered;
     },
     staleTime: STALE_TIMES.events,
+    // Always background-revalidate on mount so persisted MMKV cache
+    // never serves a cancelled/deleted event. Previous version of cache
+    // kept showing 5 cancelled-but-deleted events to the user for up to
+    // 5 minutes after server-side cleanup — that's a polish bug we will
+    // not ship again.
+    refetchOnMount: "always",
     placeholderData: keepPreviousData,
   });
 }
@@ -216,7 +222,10 @@ export function useForYouEvents() {
   return useQuery({
     queryKey: eventKeys.forYou(),
     queryFn: () => eventsApiClient.getForYouEvents(),
-    staleTime: 15 * 60 * 1000, // 15 min cache per audit spec
+    // Same rationale as useEvents — events can be cancelled at any time
+    // by hosts, so the personalized list must also revalidate on mount.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -226,7 +235,8 @@ export function useEventSearch(query: string) {
     queryKey: eventKeys.search(query),
     queryFn: () => eventsApiClient.getEvents(30, undefined, { search: query }),
     enabled: query.length >= 2,
-    staleTime: 2 * 60 * 1000, // 2 min
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 }
 
@@ -236,6 +246,7 @@ export function useMyEvents() {
     queryKey: [...eventKeys.all, "mine"] as const,
     queryFn: () => eventsApiClient.getMyEvents(),
     staleTime: STALE_TIMES.events,
+    refetchOnMount: "always",
   });
 }
 
@@ -245,6 +256,7 @@ export function useUpcomingEvents() {
     queryKey: eventKeys.upcoming(),
     queryFn: () => eventsApiClient.getUpcomingEvents(),
     staleTime: STALE_TIMES.events,
+    refetchOnMount: "always",
   });
 }
 

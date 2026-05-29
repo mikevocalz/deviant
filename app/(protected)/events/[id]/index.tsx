@@ -484,7 +484,12 @@ function EventDetailScreenContent() {
     queryKey: eventKeys.detail(eventId),
     queryFn: () => eventsApi.getEventById(eventId),
     enabled: !!eventId,
-    staleTime: 5 * 60 * 1000,
+    // Always background-revalidate on mount. The detail page is the
+    // surface where a cancelled/deleted event would do the most damage
+    // (showing a fake "Get Tickets" CTA, a stale countdown, etc.) so we
+    // explicitly trust the server over any persisted MMKV cache.
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   // Server-side RSVP status persists across app restarts

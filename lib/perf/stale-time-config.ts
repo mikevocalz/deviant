@@ -30,8 +30,13 @@ export const STALE_TIMES = {
   /** Activity/notifications list — new notifs via realtime, not poll */
   activities: 60 * 1000, // 1 min
 
-  /** Events list — rarely changes */
-  events: 5 * 60 * 1000, // 5 min
+  /** Events list — 0 so we always background-revalidate on mount.
+   * Events can be cancelled or deleted by hosts at any time, and a
+   * cached cancelled event surfacing in the UI is a polish bug we
+   * shouldn't ship. Pairs with refetchOnMount: "always" on the events
+   * useQuery calls so persisted MMKV cache is overwritten the moment
+   * the screen mounts. */
+  events: 0,
 
   /** Bookmarks — user-initiated changes only */
   bookmarks: 10 * 60 * 1000, // 10 min
