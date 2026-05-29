@@ -111,6 +111,7 @@ import { EventActionSheet } from "@/components/events/event-action-sheet";
 import { EventEditSheet } from "@/components/events/event-edit-sheet";
 import { ShareEventSheet } from "@/components/events/share-event-sheet";
 import { DVNTLiquidGlassIconButton } from "@/components/media/DVNTLiquidGlass";
+import { DVNTAnimatedVideoView } from "@/components/media/DVNTAnimatedVideoView";
 import { TranslateButton } from "@/components/ui/translate-button";
 import { useContentTranslation } from "@/lib/stores/translation-store";
 import { useTranslation } from "react-i18next";
@@ -1567,7 +1568,20 @@ function EventDetailScreenContent() {
               gradient, which makes the screen look unfinished. */}
           <View style={s.heroImageContainer}>
             <Animated.View style={[s.heroImageContainer, heroParallaxStyle]}>
-              {event.image ? (
+              {/* Video flyer is the preferred hero medium when the organizer
+                  uploaded one — it's the headline asset they crafted for the
+                  event. Falls back to the static cover image, then to a brand
+                  gradient placeholder. */}
+              {eventData.flyerVideoUrl ? (
+                <DVNTAnimatedVideoView
+                  uri={eventData.flyerVideoUrl}
+                  width="100%"
+                  height="120%"
+                  style={s.heroImage}
+                  contentFit="cover"
+                  muted
+                />
+              ) : event.image ? (
                 <Image
                   source={{ uri: event.image }}
                   style={s.heroImage}

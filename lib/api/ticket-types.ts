@@ -116,6 +116,7 @@ export const ticketTypesApi = {
         | "quantity_total"
         | "max_per_user"
         | "is_active"
+        | "sale_start"
       >
     >,
   ): Promise<boolean> {

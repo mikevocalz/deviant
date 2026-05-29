@@ -82,6 +82,8 @@ interface LocalTicketTier {
   tier: TierLevel;
   description: string;
   isActive: boolean;
+  // ISO string. Empty means sales open immediately on publish.
+  saleStart: string;
 }
 
 function EditEventScreenContent() {
@@ -119,6 +121,12 @@ function EditEventScreenContent() {
   const [youtubeVideoUrl, setYoutubeVideoUrl] = useState("");
   const [ticketingEnabled, setTicketingEnabled] = useState(false);
   const [ticketTiers, setTicketTiers] = useState<LocalTicketTier[]>([]);
+  // Which tier currently has its "Sale starts" picker expanded. Indexed by
+  // array position because tiers without a server id share `undefined` as
+  // their identifier.
+  const [openSalePickerIdx, setOpenSalePickerIdx] = useState<number | null>(
+    null,
+  );
   const [originalTierIds, setOriginalTierIds] = useState<Set<string>>(
     new Set(),
   );
@@ -265,6 +273,7 @@ function EditEventScreenContent() {
             tier: (t.tier || "ga") as TierLevel,
             description: t.description || "",
             isActive: true,
+            saleStart: t.sale_start || "",
           })),
         );
 
@@ -670,6 +679,7 @@ function EditEventScreenContent() {
             priceCents,
             quantityTotal: qty,
             maxPerUser,
+            saleStart: tier.saleStart || undefined,
           });
         } else {
           // Existing tier — update it
@@ -680,6 +690,7 @@ function EditEventScreenContent() {
             price_cents: priceCents,
             quantity_total: qty,
             max_per_user: maxPerUser,
+            sale_start: tier.saleStart || null,
           });
         }
       });
@@ -1424,6 +1435,7 @@ function EditEventScreenContent() {
                       tier: "ga",
                       description: "",
                       isActive: true,
+                      saleStart: "",
                     },
                   ]);
                   setHasChanges(true);
@@ -1727,6 +1739,116 @@ function EditEventScreenContent() {
                     minHeight: 36,
                   }}
                 />
+
+                {/* Sale start — when this tier becomes purchasable.
+                    Empty = opens immediately on publish. */}
+                <Pressable
+                  onPress={() =>
+                    setOpenSalePickerIdx(
+                      openSalePickerIdx === idx ? null : idx,
+                    )
+                  }
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    gap: 10,
+                    backgroundColor: "rgba(255,255,255,0.05)",
+                    borderRadius: 8,
+                    paddingVertical: 8,
+                    paddingHorizontal: 10,
+                    marginBottom: 10,
+                  }}
+                >
+                  <Calendar size={14} color={colors.mutedForeground} />
+                  <View style={{ flex: 1 }}>
+                    <Text
+                      style={{
+                        color: colors.mutedForeground,
+                        fontSize: 10,
+                        letterSpacing: 1.2,
+                        fontWeight: "700",
+                      }}
+                    >
+                      SALE STARTS
+                    </Text>
+                    <Text
+                      style={{
+                        color: colors.foreground,
+                        fontSize: 14,
+                        fontWeight: "600",
+                        marginTop: 2,
+                      }}
+                    >
+                      {tier.saleStart
+                        ? new Date(tier.saleStart).toLocaleString("en-US", {
+                            weekday: "short",
+                            month: "short",
+                            day: "numeric",
+                            hour: "numeric",
+                            minute: "2-digit",
+                          })
+                        : "Immediately on publish"}
+                    </Text>
+                  </View>
+                  {tier.saleStart ? (
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        const updated = [...ticketTiers];
+                        updated[idx] = { ...updated[idx], saleStart: "" };
+                        setTicketTiers(updated);
+                        setHasChanges(true);
+                        setOpenSalePickerIdx(null);
+                      }}
+                      hitSlop={10}
+                    >
+                      <Text
+                        style={{
+                          color: "#8A40CF",
+                          fontSize: 12,
+                          fontWeight: "700",
+                        }}
+                      >
+                        Clear
+                      </Text>
+                    </Pressable>
+                  ) : null}
+                </Pressable>
+                {openSalePickerIdx === idx && (
+                  <View
+                    style={{
+                      backgroundColor: "rgba(255,255,255,0.04)",
+                      borderRadius: 8,
+                      overflow: "hidden",
+                      marginBottom: 10,
+                    }}
+                  >
+                    <DateTimePicker
+                      value={
+                        tier.saleStart ? new Date(tier.saleStart) : new Date()
+                      }
+                      mode="datetime"
+                      display={Platform.OS === "ios" ? "spinner" : "default"}
+                      minimumDate={new Date()}
+                      themeVariant="dark"
+                      style={{ width: "100%" }}
+                      onChange={(_, picked) => {
+                        if (Platform.OS === "android") {
+                          setOpenSalePickerIdx(null);
+                        }
+                        if (picked) {
+                          const updated = [...ticketTiers];
+                          updated[idx] = {
+                            ...updated[idx],
+                            saleStart: picked.toISOString(),
+                          };
+                          setTicketTiers(updated);
+                          setHasChanges(true);
+                        }
+                      }}
+                    />
+                  </View>
+                )}
 
                 {/* Remove */}
                 <Pressable
